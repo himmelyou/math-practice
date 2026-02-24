@@ -198,6 +198,10 @@
       min-width: 0;
     }
 
+    .status-item-full {
+      grid-column: 1 / -1;
+    }
+
     .status-label {
       opacity: 0.8;
     }
@@ -550,11 +554,7 @@
       </div>
 
       <div class="status-grid">
-        <div class="status-item">
-          <span class="status-label">剩余时间</span>
-          <span class="status-value highlight" id="survival-time">0:00</span>
-        </div>
-        <div class="status-item">
+        <div class="status-item status-item-full">
           <span class="status-label">当前难度</span>
           <span class="status-value" id="current-level-name">-</span>
         </div>
