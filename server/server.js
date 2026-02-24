@@ -20,8 +20,18 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-app.use(cors({ origin: true }));
+app.use(cors({
+  origin: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-Admin-Pin"],
+  credentials: false
+}));
 app.use(express.json());
+
+// 健康检查（用于确认服务是否在线）
+app.get("/api/health", (req, res) => {
+  res.json({ ok: true, msg: "Jarvis Math Lab API" });
+});
 
 // 读取 JSON 文件
 function readJson(filePath, defaultValue = {}) {
