@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>学员练习记录 · Jarvis Math Lab 计算游戏</title>
+  <script src="config.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, sans-serif;
+      background: #eef4ff;
+      color: #123047;
+      padding: 16px;
+    }
+    .wrapper {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+      padding: 20px 24px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.35rem; color: #0d47a1; }
+    .subtitle { margin: 0 0 16px; font-size: 0.88rem; color: #607d8b; }
+    .select-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .select-row label { font-weight: 600; font-size: 0.9rem; }
+    .select-row select {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #c5d3ea;
+      font-size: 0.95rem;
+      min-width: 140px;
+    }
+    .auth-tip { color: #d32f2f; font-size: 0.88rem; margin-bottom: 12px; }
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      padding: 12px 16px;
+      background: #f5f9ff;
+      border-radius: 10px;
+    }
+    .stat-item { font-size: 0.9rem; }
+    .stat-item strong { color: #1976d2; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.88rem;
+    }
+    th, td {
+      border-bottom: 1px solid #e8ecf4;
+      padding: 10px 8px;
+      text-align: center;
+    }
+    th {
+      background: #f0f4ff;
+      font-weight: 600;
+      font-size: 0.82rem;
+    }
+    td:first-child { text-align: left; }
+    .empty-msg { text-align: center; padding: 40px 20px; color: #607d8b; }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 12px;
+      color: #1976d2;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <a href="admin.html" class="back-link">← 返回后台管理</a>
+    <h1>学员练习记录</h1>
+    <p class="subtitle">选择学员查看其全部生存挑战记录，用于观察练习效果与计算水平变化。</p>
+
+    <div id="auth-tip" class="auth-tip"></div>
+
+    <div class="select-row" id="select-row" style="display:none;">
+      <label for="user-select">选择学员：</label>
+      <select id="user-select">
+        <option value="">-- 请选择 --</option>
+      </select>
+    </div>
+
+    <div class="stats-row" id="stats-row" style="display:none;">
+      <span class="stat-item">个人最佳存活：<strong id="stat-best-time">-</strong></span>
+      <span class="stat-item">个人最高得分：<strong id="stat-best-score">-</strong></span>
+      <span class="stat-item">总局数：<strong id="stat-total">0</strong></span>
+    </div>
+
+    <table id="records-table" style="display:none;">
+      <thead>
+        <tr>
+          <th>序号</th>
+          <th>存活时长</th>
+          <th>得分</th>
+          <th>错误题数</th>
+          <th>最高难度</th>
+          <th>日期时间</th>
+        </tr>
+      </thead>
+      <tbody id="records-body"></tbody>
+    </table>
+    <div id="empty-msg" class="empty-msg" style="display:none;">该学员暂无练习记录。</div>
+  </div>
+
+  <script>
+    const LEVEL_NAMES = [
+      "第 1 级 · 一位数加法入门",
+      "第 2 级 · 一位数加法进阶",
+      "第 3 级 · 一位数加减混合",
+      "第 4 级 · 两位数加减基础",
+      "第 5 级 · 两位数加一位数（进位）",
+      "第 6 级 · 两位数减一位数（退位）",
+      "第 7 级 · 两位数加两位数（进位）",
+      "第 8 级 · 两位数减两位数（退位）",
+      "第 9 级 · 两位数加减混合",
+      "第 10 级 · 乘法口诀基础",
+      "第 11 级 · 两位除一位整除",
+      "第 12 级 · 一位乘两位",
+      "第 13 级 · 一位乘两位的逆运算"
+    ];
+
+    function getApiBase() {
+      return (typeof window !== "undefined" && window.API_BASE_URL) || "";
+    }
+
+    function formatSurvivalTime(sec) {
+      sec = Math.max(0, Math.round(sec));
+      if (sec < 60) return sec + " 秒";
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return s === 0 ? m + " 分" : m + " 分 " + s + " 秒";
+    }
+
+    function formatDateTime(ts) {
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return "-";
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    const ADMIN_PIN = "2026";
+    const ADMIN_AUTH_KEY = "adaptive_math_admin_authed_v1";
+
+    function checkAuth() {
+      const saved = localStorage.getItem(ADMIN_AUTH_KEY);
+      if (saved === "1") return true;
+      const input = window.prompt("请输入后台访问口令：");
+      if (input === ADMIN_PIN) {
+        localStorage.setItem(ADMIN_AUTH_KEY, "1");
+        return true;
+      }
+      return false;
+    }
+
+    async function loadUserList() {
+      const base = getApiBase();
+      if (!base) return [];
+      const res = await fetch(base + "/api/admin/user-list", {
+        headers: { "X-Admin-Pin": ADMIN_PIN }
+      });
+      const data = await res.json();
+      return data.ok ? data.users : [];
+    }
+
+    async function loadUserRecords(username) {
+      const base = getApiBase();
+      if (!base) return [];
+      const res = await fetch(base + "/api/admin/records/" + encodeURIComponent(username), {
+        headers: { "X-Admin-Pin": ADMIN_PIN }
+      });
+      const data = await res.json();
+      return data.ok ? data.runs : [];
+    }
+
+    async function loadUserInfo(username) {
+      const base = getApiBase();
+      if (!base) return null;
+      const res = await fetch(base + "/api/user/" + encodeURIComponent(username));
+      const data = await res.json();
+      return data.ok ? data.user : null;
+    }
+
+    function renderRecords(runs, user) {
+      const tbody = document.getElementById("records-body");
+      const table = document.getElementById("records-table");
+      const emptyMsg = document.getElementById("empty-msg");
+      const statsRow = document.getElementById("stats-row");
+
+      if (!runs || runs.length === 0) {
+        table.style.display = "none";
+        emptyMsg.style.display = "block";
+        emptyMsg.textContent = "该学员暂无练习记录。";
+      } else {
+        table.style.display = "table";
+        emptyMsg.style.display = "none";
+        tbody.innerHTML = runs.map((r, i) => {
+          const timeStr = formatSurvivalTime(r.survivalTimeSec || 0);
+          const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
+          const levelName = LEVEL_NAMES[r.maxLevel] || "-";
+          const dateStr = formatDateTime(r.ts);
+          return `<tr>
+            <td>${i + 1}</td>
+            <td>${timeStr}</td>
+            <td>${r.score || 0}</td>
+            <td>${wrongStr}</td>
+            <td>${levelName}</td>
+            <td>${dateStr}</td>
+          </tr>`;
+        }).join("");
+      }
+
+      if (user) {
+        statsRow.style.display = "flex";
+        document.getElementById("stat-best-time").textContent = user.bestSurvivalSec
+          ? formatSurvivalTime(user.bestSurvivalSec) : "-";
+        document.getElementById("stat-best-score").textContent = (user.bestScore != null && user.bestScore > 0)
+          ? user.bestScore : "-";
+        document.getElementById("stat-total").textContent = runs ? runs.length : 0;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const authTip = document.getElementById("auth-tip");
+      const selectRow = document.getElementById("select-row");
+      const userSelect = document.getElementById("user-select");
+
+      if (!checkAuth()) {
+        authTip.textContent = "口令错误或取消输入，已禁止访问。";
+        return;
+      }
+
+      const base = getApiBase();
+      if (!base) {
+        authTip.textContent = "未配置 API 服务器地址（config.js 中的 API_BASE_URL），无法加载数据。";
+        return;
+      }
+
+      authTip.textContent = "";
+      selectRow.style.display = "flex";
+
+      const users = await loadUserList();
+      userSelect.innerHTML = '<option value="">-- 请选择 --</option>' +
+        users.map(u => `<option value="${u}">${u}</option>`).join("");
+
+      userSelect.addEventListener("change", async () => {
+        const username = userSelect.value;
+        if (!username) {
+          document.getElementById("stats-row").style.display = "none";
+          document.getElementById("records-table").style.display = "none";
+          document.getElementById("empty-msg").style.display = "block";
+          document.getElementById("empty-msg").textContent = "请选择学员。";
+          return;
+        }
+        const [runs, user] = await Promise.all([
+          loadUserRecords(username),
+          loadUserInfo(username)
+        ]);
+        renderRecords(runs, user);
+      });
+    });
+  </script>
+</body>
+</html>

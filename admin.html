@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Jarvis Math Lab 计算游戏 · 后台管理</title>
+  <script src="config.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #eef4ff;
+      color: #123047;
+    }
+    .wrapper {
+      max-width: 720px;
+      margin: 16px auto 24px;
+      padding: 12px 16px 20px;
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 1.4rem;
+      color: #0d47a1;
+    }
+    .subtitle {
+      margin: 0 0 12px;
+      font-size: 0.86rem;
+      color: #607d8b;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+    th, td {
+      border-bottom: 1px solid #e2e2e2;
+      padding: 6px 4px;
+      text-align: center;
+    }
+    th {
+      background: #f5f7ff;
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+    td:first-child {
+      text-align: left;
+      font-weight: 500;
+      font-size: 0.86rem;
+    }
+    input[type="number"] {
+      width: 70px;
+      padding: 4px 6px;
+      border-radius: 8px;
+      border: 1px solid #c5d3ea;
+      text-align: center;
+      font-size: 0.86rem;
+      outline: none;
+    }
+    input[type="number"]:focus {
+      border-color: #1976d2;
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.18);
+    }
+    .btn-row {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #1976d2, #63a4ff);
+      color: #fff;
+      box-shadow: 0 4px 10px rgba(25, 118, 210, 0.35);
+    }
+    .btn-secondary {
+      background: #f1f6ff;
+      color: #1976d2;
+      border: 1px solid rgba(25, 118, 210, 0.2);
+    }
+    .hint {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: #607d8b;
+    }
+    .danger {
+      color: #d32f2f;
+    }
+    .success {
+      color: #2e7d32;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper" id="admin-wrapper">
+    <h1>后台管理</h1>
+    <p class="subtitle">本页管理练习参数与学员账号，学生只访问 <strong>index.html</strong> 即可。数据同步至服务器。<a href="report.html" style="margin-left:12px;color:#1976d2;">查看学员记录 →</a></p>
+
+    <div id="auth-tip" class="hint danger"></div>
+
+    <form id="admin-form" style="display:none;">
+      <h2 style="margin:8px 0 4px;font-size:1.05rem;">一、难度与练习设置</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>难度名称</th>
+            <th>题数/批</th>
+            <th>通关准确率 %</th>
+            <th>批次限时 (秒)</th>
+          </tr>
+        </thead>
+        <tbody id="admin-table-body"></tbody>
+      </table>
+
+      <div class="btn-row">
+        <button type="submit" class="btn-primary">保存练习设置</button>
+        <button type="button" class="btn-secondary" id="reset-btn">恢复默认</button>
+        <span id="save-tip" class="hint"></span>
+      </div>
+
+      <p class="hint">
+        建议：通关准确率一般设在 <strong>90–100%</strong>，批次时间可以适当宽松一点。
+      </p>
+
+      <hr style="margin:16px 0;border:none;border-top:1px dashed #dde3f3;">
+
+      <h2 style="margin:4px 0 6px;font-size:1.05rem;">二、学员账号管理</h2>
+
+      <div class="hint" style="margin-top:0;">
+        学员在登录页输入用户名和密码后进入练习。这里只能由你添加 / 删除账号，学员不能自行注册。
+      </div>
+
+      <table style="margin-top:10px;">
+        <thead>
+          <tr>
+            <th>用户名</th>
+            <th>密码</th>
+            <th>当前难度</th>
+            <th>历史最高</th>
+            <th>积分</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="user-table-body"></tbody>
+      </table>
+
+      <div class="btn-row" style="margin-top:12px;">
+        <input id="new-username" type="text" placeholder="新用户名" style="flex:1;min-width:90px;border-radius:999px;border:1px solid #c5d3ea;padding:6px 10px;font-size:0.86rem;outline:none;">
+        <input id="new-password" type="text" placeholder="密码" style="flex:1;min-width:80px;border-radius:999px;border:1px solid #c5d3ea;padding:6px 10px;font-size:0.86rem;outline:none;">
+        <button type="button" class="btn-secondary" id="add-user-btn">添加用户</button>
+      </div>
+      <div id="user-tip" class="hint"></div>
+    </form>
+  </div>
+
+  <script>
+    // === 口令保护（仅防学生误入）===
+    const ADMIN_PIN = "2026"; // 建议改成你自己的口令
+    const ADMIN_AUTH_KEY = "adaptive_math_admin_authed_v1";
+
+    function checkAuth() {
+      const saved = localStorage.getItem(ADMIN_AUTH_KEY);
+      if (saved === "1") return true;
+      const input = window.prompt("请输入后台访问口令：");
+      if (input === ADMIN_PIN) {
+        localStorage.setItem(ADMIN_AUTH_KEY, "1");
+        return true;
+      }
+      return false;
+    }
+
+    function getApiBase() {
+      return (typeof window !== "undefined" && window.API_BASE_URL) || "";
+    }
+
+    const ADMIN_SETTINGS_KEY = "adaptive_math_admin_settings_v1";
+    const DEFAULT_LEVEL_CONFIGS = [
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L1
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L12
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }  // L13
+    ];
+
+    const LEVEL_NAMES = [
+      "第 1 级 · 一位数加法入门",
+      "第 2 级 · 一位数加法进阶",
+      "第 3 级 · 一位数加减混合",
+      "第 4 级 · 两位数加减基础",
+      "第 5 级 · 两位数加一位数（进位）",
+      "第 6 级 · 两位数减一位数（退位）",
+      "第 7 级 · 两位数加两位数（进位）",
+      "第 8 级 · 两位数减两位数（退位）",
+      "第 9 级 · 两位数加减混合",
+      "第 10 级 · 乘法口诀基础",
+      "第 11 级 · 两位除一位整除",
+      "第 12 级 · 一位乘两位",
+      "第 13 级 · 一位乘两位的逆运算"
+    ];
+
+    let cachedSettings = null;
+
+    async function loadCustomSettings() {
+      const base = getApiBase();
+      if (base) {
+        try {
+          const res = await fetch(base + "/api/admin/settings", {
+            headers: { "X-Admin-Pin": ADMIN_PIN }
+          });
+          const data = await res.json();
+          if (data.ok && data.settings && Array.isArray(data.settings.levels)) {
+            cachedSettings = data.settings;
+            return cachedSettings;
+          }
+        } catch (e) {
+          console.warn("从服务器加载设置失败", e);
+        }
+      }
+      try {
+        const data = localStorage.getItem(ADMIN_SETTINGS_KEY);
+        if (!data) return { levels: [] };
+        const obj = JSON.parse(data);
+        cachedSettings = (obj && Array.isArray(obj.levels)) ? obj : { levels: [] };
+        return cachedSettings;
+      } catch (e) {
+        return { levels: [] };
+      }
+    }
+
+    function getLevelSetting(idx) {
+      const set = cachedSettings || { levels: [] };
+      const def = DEFAULT_LEVEL_CONFIGS[idx] || DEFAULT_LEVEL_CONFIGS[0];
+      if (!set.levels[idx]) return def;
+      return {
+        questionsPerBatch: set.levels[idx].questionsPerBatch || def.questionsPerBatch,
+        upgradeAccuracy:
+          typeof set.levels[idx].upgradeAccuracy === "number"
+            ? set.levels[idx].upgradeAccuracy
+            : def.upgradeAccuracy,
+        upgradeTimeLimit: set.levels[idx].upgradeTimeLimit || def.upgradeTimeLimit
+      };
+    }
+
+    async function renderTable() {
+      await loadCustomSettings();
+      const tbody = document.getElementById("admin-table-body");
+      tbody.innerHTML = "";
+      for (let i = 0; i < LEVEL_NAMES.length; i++) {
+        const s = getLevelSetting(i);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${LEVEL_NAMES[i]}</td>
+          <td><input type="number" min="1" max="99" name="batchNum${i}" value="${s.questionsPerBatch}" required></td>
+          <td><input type="number" min="10" max="100" step="1" name="accuracy${i}" value="${Math.round(s.upgradeAccuracy * 100)}" required></td>
+          <td><input type="number" min="30" max="1200" name="timelimit${i}" value="${s.upgradeTimeLimit}" required></td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function saveSettingsFromForm() {
+      const form = document.getElementById("admin-form");
+      const newLevels = [];
+      for (let i = 0; i < LEVEL_NAMES.length; i++) {
+        const questionsPerBatch = Number(form["batchNum" + i].value);
+        const upgradeAccuracy = Number(form["accuracy" + i].value) / 100;
+        const upgradeTimeLimit = Number(form["timelimit" + i].value);
+        newLevels.push({ questionsPerBatch, upgradeAccuracy, upgradeTimeLimit });
+      }
+      const base = getApiBase();
+      if (base) {
+        try {
+          const res = await fetch(base + "/api/admin/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            body: JSON.stringify({ levels: newLevels })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            cachedSettings = { levels: newLevels };
+            return true;
+          }
+        } catch (e) {
+          console.warn("保存设置到服务器失败", e);
+          return false;
+        }
+      }
+      localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify({ levels: newLevels }));
+      cachedSettings = { levels: newLevels };
+      return true;
+    }
+
+    async function resetToDefault() {
+      const base = getApiBase();
+      if (base) {
+        try {
+          const res = await fetch(base + "/api/admin/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            body: JSON.stringify({ levels: DEFAULT_LEVEL_CONFIGS })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            cachedSettings = { levels: DEFAULT_LEVEL_CONFIGS };
+            return;
+          }
+        } catch (e) {
+          console.warn("重置设置失败", e);
+        }
+      }
+      localStorage.removeItem(ADMIN_SETTINGS_KEY);
+      cachedSettings = { levels: [] };
+    }
+
+    const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
+    let cachedUsers = [];
+
+    async function loadUsers() {
+      const base = getApiBase();
+      if (base) {
+        try {
+          const res = await fetch(base + "/api/admin/users", {
+            headers: { "X-Admin-Pin": ADMIN_PIN }
+          });
+          const data = await res.json();
+          if (data.ok && Array.isArray(data.users)) {
+            cachedUsers = data.users;
+            return cachedUsers;
+          }
+        } catch (e) {
+          console.warn("从服务器加载用户失败", e);
+        }
+      }
+      try {
+        const raw = localStorage.getItem(USER_ACCOUNTS_KEY);
+        if (!raw) return [];
+        const data = JSON.parse(raw);
+        cachedUsers = (data && Array.isArray(data.users)) ? data.users : [];
+        return cachedUsers;
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveUsersLocal(users) {
+      try {
+        localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify({ users }));
+      } catch (e) {
+        console.warn("写入学员账户失败。", e);
+      }
+    }
+
+    function ensureUserProgressDefault(user) {
+      if (!user) return;
+      if (typeof user.levelIndex !== "number") user.levelIndex = 0;
+      if (typeof user.bestLevelIndex !== "number") user.bestLevelIndex = user.levelIndex;
+      if (typeof user.totalScore !== "number") user.totalScore = 0;
+    }
+
+    async function renderUserTable() {
+      const users = await loadUsers();
+      const tbody = document.getElementById("user-table-body");
+      tbody.innerHTML = "";
+      users.forEach((u, index) => {
+        ensureUserProgressDefault(u);
+        const tr = document.createElement("tr");
+        const levelName = LEVEL_NAMES[u.levelIndex] || LEVEL_NAMES[0];
+        const bestName = LEVEL_NAMES[u.bestLevelIndex] || LEVEL_NAMES[u.levelIndex] || LEVEL_NAMES[0];
+        tr.innerHTML = `
+          <td>${u.username}</td>
+          <td><input type="text" data-username="${u.username}" data-field="password" value="${u.password || ""}" style="width:80px;border-radius:8px;border:1px solid #c5d3ea;padding:2px 4px;font-size:0.8rem;"></td>
+          <td>
+            <select data-username="${u.username}" data-field="levelIndex" style="border-radius:8px;border:1px solid #c5d3ea;padding:2px 4px;font-size:0.8rem;">
+              ${LEVEL_NAMES.map((name, i) => `<option value="${i}" ${i === (u.levelIndex || 0) ? "selected" : ""}>${name}</option>`).join("")}
+            </select>
+          </td>
+          <td>${bestName}</td>
+          <td>${u.totalScore || 0}</td>
+          <td><button type="button" class="btn-secondary" data-delete-username="${u.username}" style="padding:4px 10px;font-size:0.78rem;">删除</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      if (users.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='6' style='text-align:center;color:#607d8b;'>暂无学员，请添加。</td></tr>";
+      }
+
+      tbody.querySelectorAll("button[data-delete-username]").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+          const username = e.currentTarget.getAttribute("data-delete-username");
+          if (!username) return;
+          if (!window.confirm(`确定要删除用户「${username}」吗？`)) return;
+          const base = getApiBase();
+          if (base) {
+            try {
+              const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
+                method: "DELETE",
+                headers: { "X-Admin-Pin": ADMIN_PIN }
+              });
+              const data = await res.json();
+              if (data.ok) {
+                await renderUserTable();
+                showUserTip("已删除用户。", true);
+                return;
+              }
+            } catch (err) {
+              showUserTip("删除失败：" + (err.message || "网络错误"), false);
+              return;
+            }
+          }
+          const usersNow = await loadUsers();
+          const idx = usersNow.findIndex(u => u.username === username);
+          if (idx >= 0) {
+            usersNow.splice(idx, 1);
+            saveUsersLocal(usersNow);
+            cachedUsers = usersNow;
+            await renderUserTable();
+            showUserTip("已删除用户。", true);
+          }
+        });
+      });
+
+      tbody.querySelectorAll("input[data-field], select[data-field]").forEach(input => {
+        input.addEventListener("change", async (e) => {
+          const username = e.target.getAttribute("data-username");
+          const field = e.target.getAttribute("data-field");
+          const base = getApiBase();
+          if (base) {
+            try {
+              const updates = {};
+              if (field === "password") updates.password = e.target.value;
+              else if (field === "levelIndex") {
+                const newLevel = Number(e.target.value);
+                updates.levelIndex = newLevel;
+                const u = cachedUsers.find(us => us.username === username);
+                if (u && newLevel > (u.bestLevelIndex || 0)) updates.bestLevelIndex = newLevel;
+              }
+              const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+                body: JSON.stringify(updates)
+              });
+              const data = await res.json();
+              if (data.ok) {
+                const idx = cachedUsers.findIndex(u => u.username === username);
+                if (idx >= 0) cachedUsers[idx] = data.user;
+                showUserTip("已更新学员信息。", true);
+                return;
+              }
+            } catch (err) {
+              showUserTip("更新失败：" + (err.message || "网络错误"), false);
+              return;
+            }
+          }
+          const usersNow = await loadUsers();
+          const u = usersNow.find(us => us.username === username);
+          if (!u) return;
+          if (field === "password") u.password = e.target.value;
+          else if (field === "levelIndex") {
+            const newLevel = Number(e.target.value);
+            ensureUserProgressDefault(u);
+            u.levelIndex = newLevel;
+            if (newLevel > u.bestLevelIndex) u.bestLevelIndex = newLevel;
+          }
+          saveUsersLocal(usersNow);
+          cachedUsers = usersNow;
+          showUserTip("已更新学员信息。", true);
+        });
+      });
+    }
+
+    function showUserTip(msg, success) {
+      const tip = document.getElementById("user-tip");
+      tip.textContent = msg;
+      tip.classList.toggle("danger", !success);
+      tip.classList.toggle("success", success);
+      setTimeout(() => { tip.textContent = ""; }, 1500);
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      const authTip = document.getElementById("auth-tip");
+      const form = document.getElementById("admin-form");
+      const saveTip = document.getElementById("save-tip");
+      const userTip = document.getElementById("user-tip");
+
+      if (!checkAuth()) {
+        authTip.textContent = "口令错误或取消输入，已禁止访问后台。";
+        form.style.display = "none";
+        return;
+      }
+
+      authTip.textContent = "";
+      form.style.display = "block";
+
+      await renderTable();
+      await renderUserTable();
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const ok = await saveSettingsFromForm();
+        saveTip.textContent = ok ? "已保存，重新打开 index.html 后生效。" : "保存失败，请检查网络。";
+        saveTip.classList.toggle("danger", !ok);
+        saveTip.classList.toggle("success", ok);
+        setTimeout(() => { saveTip.textContent = ""; }, 1800);
+      });
+
+      document.getElementById("reset-btn").addEventListener("click", async () => {
+        if (!window.confirm("确定要恢复为默认配置吗？")) return;
+        await resetToDefault();
+        await renderTable();
+        saveTip.textContent = "已恢复为默认配置。";
+        saveTip.classList.remove("danger");
+        saveTip.classList.add("success");
+        setTimeout(() => { saveTip.textContent = ""; }, 1800);
+      });
+
+      document.getElementById("add-user-btn").addEventListener("click", async () => {
+        const usernameInput = document.getElementById("new-username");
+        const passwordInput = document.getElementById("new-password");
+        const username = (usernameInput.value || "").trim();
+        const password = (passwordInput.value || "").trim();
+        if (!username || !password) {
+          showUserTip("请填写用户名和密码再添加。", false);
+          return;
+        }
+        const base = getApiBase();
+        if (base) {
+          try {
+            const res = await fetch(base + "/api/admin/users", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+              body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (data.ok) {
+              cachedUsers = data.users;
+              usernameInput.value = "";
+              passwordInput.value = "";
+              await renderUserTable();
+              showUserTip("已添加新用户。", true);
+            } else {
+              showUserTip(data.error || "添加失败", false);
+            }
+          } catch (err) {
+            showUserTip("添加失败：" + (err.message || "网络错误"), false);
+          }
+          return;
+        }
+        const users = await loadUsers();
+        if (users.some(u => u.username === username)) {
+          showUserTip("该用户名已存在，请换一个名称。", false);
+          return;
+        }
+        users.push({
+          username,
+          password,
+          levelIndex: 0,
+          bestLevelIndex: 0,
+          totalScore: 0
+        });
+        saveUsersLocal(users);
+        cachedUsers = users;
+        usernameInput.value = "";
+        passwordInput.value = "";
+        await renderUserTable();
+        showUserTip("已添加新用户。", true);
+      });
+    });
+  </script>
+</body>
+</html>
+
