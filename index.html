@@ -535,7 +535,7 @@
   <div class="app" id="app-view" style="display:none;">
     <header class="app-header">
       <h1 class="app-title">Jarvis Math Lab 计算游戏</h1>
-      <p class="subtitle">生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L13=13 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
+      <p class="subtitle">生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
 
       <div class="user-bar">
         <span>当前学员：<span class="user-name" id="current-username-label">-</span></span>
@@ -598,7 +598,7 @@
       <div class="batch-summary" id="batch-summary"></div>
 
       <div id="game-over-panel" class="game-over-panel" style="display:none;">
-        <h2 class="game-over-title">Game Over</h2>
+        <h2 class="game-over-title" id="game-over-title">Game Over</h2>
         <p class="game-over-line">本局存活：<strong id="game-over-duration">-</strong></p>
         <p class="game-over-line">本局得分：<strong id="game-over-score">0</strong></p>
         <p class="game-over-line">本局错题：<strong id="game-over-wrong">0</strong></p>
@@ -724,15 +724,18 @@
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5 两位数加一位数进位
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6 两位数减一位数退位
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5 两位数加一位数/整十数
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6 两位数减一位数/整十数
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L12
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L12
       { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L13
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L14
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L15
+      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L16
     ];
 
     // ===== 后台访问口令与登录状态（仅前端保护，防止普通学生误进）=====
@@ -882,20 +885,24 @@
         },
         {
           id: "L5",
-          name: "第 5 级 · 两位数加一位数（进位）",
-          description: "两位数加一位数，结果超过 20，侧重个位进位。",
+          name: "第 5 级 · 两位数加一位数/整十数",
+          description: "两位数加一位数或整十数，整十数巩固位值，一位数侧重进位。",
           operations: ["+"],
           min: 20,
           max: 99,
           generateQuestion() {
             let a, b, answer;
             a = randomInt(20, 99);
-            if (Math.random() < 0.75) {
-              const aUnit = a % 10;
-              const minB = Math.max(4, 10 - aUnit);
-              b = randomInt(minB, 9);
+            if (Math.random() < 0.4) {
+              b = randomInt(1, 9) * 10;
             } else {
-              b = randomInt(4, 9);
+              if (Math.random() < 0.75) {
+                const aUnit = a % 10;
+                const minB = Math.max(4, 10 - aUnit);
+                b = randomInt(minB, 9);
+              } else {
+                b = randomInt(4, 9);
+              }
             }
             answer = a + b;
             const text = `${a} + ${b} = ?`;
@@ -904,23 +911,29 @@
         },
         {
           id: "L6",
-          name: "第 6 级 · 两位数减一位数（退位）",
-          description: "两位数减一位数，侧重个位不够减、借一当十。",
+          name: "第 6 级 · 两位数减一位数/整十数",
+          description: "两位数减一位数或整十数，整十数巩固位值，一位数侧重退位。",
           operations: ["-"],
           min: 20,
           max: 99,
           generateQuestion() {
             let a, b, answer;
-            if (Math.random() < 0.75) {
-              const ten = randomInt(2, 9);
-              const unitA = randomInt(0, 7);
-              b = randomInt(unitA + 1, 9);
-              a = ten * 10 + unitA;
+            if (Math.random() < 0.4) {
+              a = randomInt(20, 99);
+              const maxTen = Math.floor(a / 10);
+              b = randomInt(1, maxTen) * 10;
             } else {
-              b = randomInt(2, 9);
-              const unitA = randomInt(b, 9);
-              const ten = randomInt(2, 9);
-              a = ten * 10 + unitA;
+              if (Math.random() < 0.75) {
+                const ten = randomInt(2, 9);
+                const unitA = randomInt(0, 7);
+                b = randomInt(unitA + 1, 9);
+                a = ten * 10 + unitA;
+              } else {
+                b = randomInt(2, 9);
+                const unitA = randomInt(b, 9);
+                const ten = randomInt(2, 9);
+                a = ten * 10 + unitA;
+              }
             }
             answer = a - b;
             const text = `${a} - ${b} = ?`;
@@ -930,23 +943,31 @@
         {
           id: "L7",
           name: "第 7 级 · 两位数加两位数（进位）",
-          description: "两位数加两位数，进位为主，熟练“十位+个位”的拆分。",
+          description: "两位数加两位数，进位为主，结果不超过 100，与 L8 衔接。",
           operations: ["+"],
           min: 10,
           max: 99,
           generateQuestion() {
             let a, b, answer;
+            a = randomInt(10, 80);
+            const maxB = 100 - a;
             if (Math.random() < 0.8) {
-              a = randomInt(10, 99);
               const aUnit = a % 10;
               const minUnitB = Math.max(1, 10 - aUnit);
-              const unitB = randomInt(minUnitB, 9);
-              const tenB = randomInt(0, Math.floor((99 - unitB) / 10));
-              b = tenB * 10 + unitB;
+              const maxUnitB = Math.min(9, maxB - 10);
+              if (maxUnitB >= minUnitB) {
+                const unitB = randomInt(minUnitB, maxUnitB);
+                const maxTenB = Math.floor((maxB - unitB) / 10);
+                const tenB = randomInt(1, Math.max(1, maxTenB));
+                b = tenB * 10 + unitB;
+              } else {
+                b = randomInt(10, maxB);
+              }
             } else {
-              a = randomInt(10, 99);
-              b = randomInt(10, 99);
+              b = randomInt(10, Math.min(99, maxB));
             }
+            if (b < 10) b = 10;
+            if (a + b > 100) b = 100 - a;
             answer = a + b;
             const text = `${a} + ${b} = ?`;
             return { a, b, op: "+", text, answer, baseLevelId: this.id };
@@ -980,7 +1001,7 @@
         {
           id: "L9",
           name: "第 9 级 · 两位数加减混合",
-          description: "两位数加减混合，进位与退位交替出现。",
+          description: "两位数加减混合，进位与退位交替出现，结果不超过 100。",
           operations: ["+", "-"],
           min: 10,
           max: 99,
@@ -988,15 +1009,21 @@
             const op = Math.random() < 0.5 ? "+" : "-";
             let a, b, answer;
             if (op === "+") {
-              // 倾向出现进位
-              a = randomInt(10, 99);
+              a = randomInt(10, 80);
+              const maxB = 100 - a;
               const aUnit = a % 10;
               const minUnitB = Math.max(1, 10 - aUnit);
-              const unitB = Math.random() < 0.7
-                ? randomInt(minUnitB, 9)
-                : randomInt(0, 9);
-              const tenB = randomInt(0, Math.floor((99 - unitB) / 10));
-              b = tenB * 10 + unitB;
+              const maxUnitB = Math.min(9, maxB - 10);
+              if (Math.random() < 0.7 && maxUnitB >= minUnitB) {
+                const unitB = randomInt(minUnitB, maxUnitB);
+                const maxTenB = Math.floor((maxB - unitB) / 10);
+                const tenB = randomInt(1, Math.max(1, maxTenB));
+                b = tenB * 10 + unitB;
+              } else {
+                b = randomInt(10, Math.min(99, maxB));
+              }
+              if (b < 10) b = 10;
+              if (a + b > 100) b = 100 - a;
               answer = a + b;
             } else {
               // 倾向出现退位
@@ -1050,30 +1077,57 @@
         },
         {
           id: "L12",
-          name: "第 12 级 · 一位乘两位",
-          description: "一位数乘两位数，结果不超过 100，练习分配律心算。",
+          name: "第 12 级 · 两位数加两位数（结果超100）",
+          description: "两位数加两位数，结果超过 100，引入三位数，衔接乘法。",
+          operations: ["+"],
+          min: 10,
+          max: 99,
+          generateQuestion() {
+            let a, b, answer;
+            a = randomInt(10, 99);
+            const minB = Math.max(10, 101 - a);
+            if (Math.random() < 0.8) {
+              const aUnit = a % 10;
+              const minUnitB = Math.max(1, 10 - aUnit);
+              const unitB = randomInt(minUnitB, 9);
+              const needTenB = Math.ceil((minB - unitB) / 10);
+              const maxTenB = Math.floor((99 - unitB) / 10);
+              if (maxTenB >= needTenB) {
+                const tenB = randomInt(needTenB, maxTenB);
+                b = tenB * 10 + unitB;
+              } else {
+                b = randomInt(minB, 99);
+              }
+            } else {
+              b = randomInt(minB, 99);
+            }
+            answer = a + b;
+            const text = `${a} + ${b} = ?`;
+            return { a, b, op: "+", text, answer, baseLevelId: this.id };
+          }
+        },
+        {
+          id: "L13",
+          name: "第 13 级 · 两位乘一位",
+          description: "两位数乘一位数，结果不超过 100，为多位数乘法竖式打基础。",
           operations: ["×"],
           min: 2,
           max: 9,
           generateQuestion() {
             let a, b, answer;
-            a = randomInt(this.min, this.max);
-            const maxB = Math.floor(99 / a);
-            const minB = 11;
-            if (maxB < minB) {
-              b = maxB;
-            } else {
-              b = randomInt(minB, maxB);
-            }
+            b = randomInt(this.min, this.max);
+            const maxA = Math.floor(99 / b);
+            const minA = 11;
+            a = maxA >= minA ? randomInt(minA, maxA) : minA;
             answer = a * b;
             const text = `${a} × ${b} = ?`;
             return { a, b, op: "×", text, answer, baseLevelId: this.id };
           }
         },
         {
-          id: "L13",
-          name: "第 13 级 · 一位乘两位的逆运算",
-          description: "两位数或三位数除以一位数，商为两位数，对应一位乘两位的除法。",
+          id: "L14",
+          name: "第 14 级 · 两位乘一位的逆运算",
+          description: "两位数或三位数除以一位数，商为两位数，对应两位乘一位的除法。",
           operations: ["÷"],
           min: 2,
           max: 9,
@@ -1084,6 +1138,71 @@
             const answer = quotient;
             const text = `${dividend} ÷ ${divisor} = ?`;
             return { a: dividend, b: divisor, op: "÷", text, answer, baseLevelId: this.id };
+          }
+        },
+        {
+          id: "L15",
+          name: "第 15 级 · 不带括号的四则运算",
+          description: "3 个数 2 个运算符，先乘除后加减，单步难度至 L11。",
+          operations: ["+", "-", "×", "÷"],
+          min: 1,
+          max: 99,
+          generateQuestion() {
+            const templates = [
+              () => { const b = randomInt(1, 9); const c = randomInt(1, 9); const a = randomInt(0, Math.min(99, 100 - b * c)); return { text: `${a} + ${b} × ${c} = ?`, answer: a + b * c }; },
+              () => { const a = randomInt(1, 9); const b = randomInt(1, 9); const c = randomInt(0, Math.min(99, 100 - a * b)); return { text: `${a} × ${b} + ${c} = ?`, answer: a * b + c }; },
+              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(0, Math.min(99, 100 - b / c)); return { text: `${a} + ${b} ÷ ${c} = ?`, answer: a + b / c }; },
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, Math.min(99, 100 - a / b)); return { text: `${a} ÷ ${b} + ${c} = ?`, answer: a / b + c }; },
+              () => { const b = randomInt(1, 9); const c = randomInt(1, 9); const a = randomInt(b * c, Math.min(99, 100)); return { text: `${a} − ${b} × ${c} = ?`, answer: a - b * c }; },
+              () => { const a = randomInt(1, 9); const b = randomInt(1, 9); const c = randomInt(0, a * b); return { text: `${a} × ${b} − ${c} = ?`, answer: a * b - c }; },
+              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − ${b} ÷ ${c} = ?`, answer: a - b / c }; },
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, a / b); return { text: `${a} ÷ ${b} − ${c} = ?`, answer: a / b - c }; },
+              () => { const a = randomInt(0, 50); const b = randomInt(0, Math.min(50, 100 - a)); const c = randomInt(0, Math.min(50, 100 - a - b)); return { text: `${a} + ${b} + ${c} = ?`, answer: a + b + c }; },
+              () => { const a = randomInt(20, 99); const b = randomInt(0, Math.min(50, a)); const c = randomInt(0, Math.min(50, a - b)); return { text: `${a} − ${b} − ${c} = ?`, answer: a - b - c }; },
+              () => { const a = randomInt(1, 4); const b = randomInt(1, 4); const c = randomInt(1, Math.min(4, Math.floor(81 / (a * b)))); return { text: `${a} × ${b} × ${c} = ?`, answer: a * b * c }; },
+              () => { const c = randomInt(2, 9); const b = randomInt(2, 9); const a = b * c * randomInt(1, 4); if (a > 81) return null; return { text: `${a} ÷ ${b} ÷ ${c} = ?`, answer: a / b / c }; },
+              () => { const a = randomInt(1, 9); const b = randomInt(1, 9); const c = randomInt(2, 9); if ((a * b) % c !== 0) return null; return { text: `${a} × ${b} ÷ ${c} = ?`, answer: a * b / c }; },
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(1, 9); return { text: `${a} ÷ ${b} × ${c} = ?`, answer: a / b * c }; },
+              () => { const a = randomInt(0, 50); const b = randomInt(0, 50); const c = randomInt(0, Math.min(99, a + b)); return { text: `${a} + ${b} − ${c} = ?`, answer: a + b - c }; },
+              () => { const a = randomInt(10, 99); const b = randomInt(0, a); const c = randomInt(0, 99); return { text: `${a} − ${b} + ${c} = ?`, answer: a - b + c }; }
+            ];
+            for (let i = 0; i < 20; i++) {
+              const t = templates[randomInt(0, templates.length - 1)];
+              const r = t();
+              if (r && Number.isInteger(r.answer) && r.answer >= 0) return { a: 0, b: 0, op: "+", text: r.text, answer: r.answer, baseLevelId: this.id };
+            }
+            const fallback = templates[0]();
+            return { a: 0, b: 0, op: "+", text: (fallback && fallback.text) || "1 + 2 + 3 = ?", answer: (fallback && fallback.answer) || 6, baseLevelId: this.id };
+          }
+        },
+        {
+          id: "L16",
+          name: "第 16 级 · 带括号的四则运算",
+          description: "3 个数 2 个运算符，一对括号改变运算顺序，单步难度至 L11。",
+          operations: ["+", "-", "×", "÷"],
+          min: 1,
+          max: 99,
+          generateQuestion() {
+            const templates = [
+              () => { const a = randomInt(1, 8); const b = randomInt(1, 9 - a); const c = randomInt(1, 9); return { text: `(${a} + ${b}) × ${c} = ?`, answer: (a + b) * c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(1, 9); return { text: `(${a} − ${b}) × ${c} = ?`, answer: (a - b) * c }; },
+              () => { const c = randomInt(2, 9); const quotient = randomInt(2, 9); const sum = c * quotient; if (sum < 10 || sum > 18) return null; const a = randomInt(1, sum - 1); const b = sum - a; return { text: `(${a} + ${b}) ÷ ${c} = ?`, answer: (a + b) / c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(2, 9); if ((a - b) % c !== 0) return null; return { text: `(${a} − ${b}) ÷ ${c} = ?`, answer: (a - b) / c }; },
+              () => { const a = randomInt(1, 9); const b = randomInt(1, 8); const c = randomInt(1, 9 - b); return { text: `${a} × (${b} + ${c}) = ?`, answer: a * (b + c) }; },
+              () => { const a = randomInt(1, 9); const b = randomInt(2, 9); const c = randomInt(1, b - 1); return { text: `${a} × (${b} − ${c}) = ?`, answer: a * (b - c) }; },
+              () => { const bc = randomInt(2, 9); const a = bc * randomInt(2, 9); if (a > 81) return null; const b = randomInt(1, bc - 1); const c = bc - b; return { text: `${a} ÷ (${b} + ${c}) = ?`, answer: a / (b + c) }; },
+              () => { const bc = randomInt(2, 9); const a = bc * randomInt(2, 9); if (a > 81) return null; const b = randomInt(bc + 1, 9); const c = b - bc; return { text: `${a} ÷ (${b} − ${c}) = ?`, answer: a / (b - c) }; },
+              () => { const a = randomInt(0, 90); const b = randomInt(1, 9); const c = randomInt(1, 9); return { text: `${a} + (${b} × ${c}) = ?`, answer: a + b * c }; },
+              () => { const b = randomInt(1, 9); const c = randomInt(1, 9); const a = randomInt(b * c, 99); return { text: `${a} − (${b} × ${c}) = ?`, answer: a - b * c }; },
+              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(0, 100 - b / c); return { text: `${a} + (${b} ÷ ${c}) = ?`, answer: a + b / c }; },
+              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − (${b} ÷ ${c}) = ?`, answer: a - b / c }; }
+            ];
+            for (let i = 0; i < 20; i++) {
+              const t = templates[randomInt(0, templates.length - 1)];
+              const r = t();
+              if (r && Number.isInteger(r.answer) && r.answer >= 0) return { a: 0, b: 0, op: "+", text: r.text, answer: r.answer, baseLevelId: this.id };
+            }
+            return { a: 1, b: 1, op: "+", text: "(1 + 1) × 1 = ?", answer: 2, baseLevelId: this.id };
           }
         }
       ]
@@ -1532,7 +1651,11 @@
       renderQuestion(currentQuestion);
     }
 
-    function endSurvivalGame() {
+    function endSurvivalGame(completed) {
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
       isPlaying = false;
       gameOver = true;
       if (dom.submitBtn) dom.submitBtn.disabled = true;
@@ -1542,6 +1665,8 @@
       renderRecentSurvivalRuns();
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
+        const titleEl = document.getElementById("game-over-title");
+        if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "Game Over";
         const durationEl = document.getElementById("game-over-duration");
         const scoreEl = document.getElementById("game-over-score");
         const maxLevelEl = document.getElementById("game-over-max-level");
@@ -1601,6 +1726,15 @@
           if (currentLevelIndex < DIFFICULTY_MODULE.levels.length - 1) {
             currentLevelIndex += 1;
             consecutiveCorrect = 0;
+          } else {
+            maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
+            setFeedback(
+              "<span class='feedback-title'>答对！</span> 恭喜通关全部 16 级！",
+              "correct"
+            );
+            updateSurvivalStatusUI();
+            setTimeout(function () { endSurvivalGame(true); }, 600);
+            return;
           }
         }
         maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
