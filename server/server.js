@@ -9,7 +9,7 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
