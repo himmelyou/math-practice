@@ -98,6 +98,16 @@
     .danger {
       color: #d32f2f;
     }
+    .user-table { table-layout: fixed; }
+    .user-table th:nth-child(1), .user-table td:nth-child(1) { width: 12%; }
+    .user-table th:nth-child(2), .user-table td:nth-child(2) { width: 12%; }
+    .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 28%; }
+    .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 28%; }
+    .user-table th:nth-child(5), .user-table td:nth-child(5) { width: 10%; }
+    .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 10%; }
+    .user-table th:nth-child(2), .user-table td:nth-child(2) { padding-right: 10px; }
+    .user-table th:nth-child(3), .user-table td:nth-child(3) { padding-left: 10px; }
+    .user-table td:nth-child(3) select { max-width: 100%; }
     .success {
       color: #2e7d32;
     }
@@ -142,7 +152,7 @@
         学员在登录页输入用户名和密码后进入练习。这里只能由你添加 / 删除账号，学员不能自行注册。
       </div>
 
-      <table style="margin-top:10px;">
+      <table class="user-table" style="margin-top:10px;">
         <thead>
           <tr>
             <th>用户名</th>
