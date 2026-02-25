@@ -1433,6 +1433,7 @@
         });
         const u = cachedUser || {};
         const mode = runEntry.mode === "level" ? "level" : "survival";
+        u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
         if (mode === "level") {
           if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
           u.recentLevelRuns.unshift(runEntry);
@@ -1443,11 +1444,10 @@
           if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
           if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
           if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
-          u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
         }
         cachedUser = u;
         const updates = mode === "level"
-          ? { recentLevelRuns: u.recentLevelRuns }
+          ? { recentLevelRuns: u.recentLevelRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
@@ -1628,6 +1628,7 @@
       if (idx === -1) return;
       ensureUserProgressDefault(users[idx]);
       const u = users[idx];
+      u.totalScore = (u.totalScore || 0) + score;
       if (mode === "level") {
         if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
         u.recentLevelRuns.unshift(runEntry);
@@ -1638,7 +1639,6 @@
         if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
         if (survivalTimeSec > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = survivalTimeSec;
         if (score > (u.bestScore || 0)) u.bestScore = score;
-        u.totalScore = (u.totalScore || 0) + score;
       }
       saveUsers(users);
     }
