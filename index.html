@@ -1917,6 +1917,8 @@
       if (!isPlaying || gameOver) return;
       currentQuestion = generateBaseQuestion();
       renderQuestion(currentQuestion);
+      dom.answerInput.value = "";
+      if (dom.submitBtn) dom.submitBtn.disabled = false;
     }
 
     function endSurvivalGame(completed) {
@@ -1981,6 +1983,8 @@
         setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
         return;
       }
+      dom.answerInput.value = "";
+      if (dom.submitBtn) dom.submitBtn.disabled = true;
       if (gameMode === "level") evaluateAnswerLevel(userAnswer);
       else evaluateAnswerSurvival(userAnswer);
     }
@@ -1998,6 +2002,8 @@
         setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
         return;
       }
+      dom.answerInput.value = "";
+      if (dom.submitBtn) dom.submitBtn.disabled = true;
       evaluateAnswerWrong(userAnswer);
     }
 
@@ -2045,6 +2051,7 @@
         renderQuestion(currentQuestion);
         if (dom.questionSubtext) dom.questionSubtext.textContent = "错题练习 " + (wrongPracticeIndex + 1) + " / " + wrongPracticeQueue.length;
         dom.answerInput.value = "";
+        if (dom.submitBtn) dom.submitBtn.disabled = false;
         setFeedback("", null);
       }, 800);
     }
