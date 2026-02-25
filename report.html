@@ -76,6 +76,38 @@
       font-size: 0.9rem;
     }
     .back-link:hover { text-decoration: underline; }
+    .tab-row {
+      display: flex;
+      gap: 0;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .tab-btn {
+      padding: 10px 20px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 0.95rem;
+      color: #607d8b;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .tab-btn.active {
+      color: #1976d2;
+      font-weight: 600;
+      border-bottom-color: #1976d2;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .wrong-item {
+      padding: 12px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.92rem;
+    }
+    .wrong-item:last-child { border-bottom: none; }
+    .wrong-item .q { font-weight: 600; margin-bottom: 4px; }
+    .wrong-item .wrong-ans { color: #d32f2f; }
+    .wrong-item .correct-ans { color: #2e7d32; }
   </style>
 </head>
 <body>
@@ -99,6 +131,12 @@
       <span class="stat-item">总局数：<strong id="stat-total">0</strong></span>
     </div>
 
+    <div class="tab-row" id="tab-row" style="display:none;">
+      <button type="button" class="tab-btn active" id="tab-records">挑战记录</button>
+      <button type="button" class="tab-btn" id="tab-wrong">错题分析</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-records">
     <table id="records-table" style="display:none;">
       <thead>
         <tr>
@@ -114,6 +152,12 @@
       <tbody id="records-body"></tbody>
     </table>
     <div id="empty-msg" class="empty-msg" style="display:none;">该学员暂无练习记录。</div>
+    </div>
+
+    <div class="tab-panel" id="panel-wrong">
+      <div id="wrong-list" class="wrong-list"></div>
+      <div id="wrong-empty" class="empty-msg" style="display:none;">该学员暂无错题记录。</div>
+    </div>
   </div>
 
   <script>
@@ -201,6 +245,12 @@
       return data.ok ? data.user : null;
     }
 
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
     function renderRecords(runs, user) {
       const tbody = document.getElementById("records-body");
       const table = document.getElementById("records-table");
@@ -242,6 +292,24 @@
       }
     }
 
+    function renderWrongAnswers(wrongs) {
+      const list = document.getElementById("wrong-list");
+      const empty = document.getElementById("wrong-empty");
+      if (!wrongs || wrongs.length === 0) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        empty.textContent = "该学员暂无错题记录。";
+        return;
+      }
+      empty.style.display = "none";
+      list.innerHTML = wrongs.map(w => `
+        <div class="wrong-item">
+          <div class="q">${escapeHtml(w.text || "")}</div>
+          <div>学员答案：<span class="wrong-ans">${escapeHtml(String(w.studentAnswer ?? ""))}</span> · 正确答案：<span class="correct-ans">${escapeHtml(String(w.answer ?? ""))}</span></div>
+        </div>
+      `).join("");
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       const authTip = document.getElementById("auth-tip");
       const selectRow = document.getElementById("select-row");
@@ -265,20 +333,49 @@
       userSelect.innerHTML = '<option value="">-- 请选择 --</option>' +
         users.map(u => `<option value="${u}">${u}</option>`).join("");
 
+      const tabRecords = document.getElementById("tab-records");
+      const tabWrong = document.getElementById("tab-wrong");
+      const panelRecords = document.getElementById("panel-records");
+      const panelWrong = document.getElementById("panel-wrong");
+
+      tabRecords.addEventListener("click", () => {
+        tabRecords.classList.add("active");
+        tabWrong.classList.remove("active");
+        panelRecords.classList.add("active");
+        panelWrong.classList.remove("active");
+      });
+      tabWrong.addEventListener("click", () => {
+        tabWrong.classList.add("active");
+        tabRecords.classList.remove("active");
+        panelWrong.classList.add("active");
+        panelRecords.classList.remove("active");
+      });
+
       userSelect.addEventListener("change", async () => {
         const username = userSelect.value;
         if (!username) {
           document.getElementById("stats-row").style.display = "none";
+          document.getElementById("tab-row").style.display = "none";
+          document.getElementById("panel-records").classList.add("active");
+          document.getElementById("panel-wrong").classList.remove("active");
+          document.getElementById("tab-records").classList.add("active");
+          document.getElementById("tab-wrong").classList.remove("active");
           document.getElementById("records-table").style.display = "none";
           document.getElementById("empty-msg").style.display = "block";
           document.getElementById("empty-msg").textContent = "请选择学员。";
+          document.getElementById("wrong-list").innerHTML = "";
+          document.getElementById("wrong-empty").style.display = "block";
+          document.getElementById("wrong-empty").textContent = "请选择学员。";
           return;
         }
+        document.getElementById("tab-row").style.display = "flex";
         const [runs, user] = await Promise.all([
           loadUserRecords(username),
           loadUserInfo(username)
         ]);
         renderRecords(runs, user);
+        const wrongs = (user && Array.isArray(user.wrongAnswers)) ? user.wrongAnswers : [];
+        renderWrongAnswers(wrongs);
       });
     });
   </script>

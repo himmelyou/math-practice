@@ -91,7 +91,7 @@ app.put("/api/user/:username", (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "levelChallengeLastLevel"];
+  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "levelChallengeLastLevel", "wrongAnswers"];
   allowed.forEach((k) => {
     if (updates[k] !== undefined) data.users[idx][k] = updates[k];
   });
@@ -157,6 +157,7 @@ app.post("/api/admin/users", (req, res) => {
     bestScore: 0,
     recentSurvivalRuns: [],
     recentLevelRuns: [],
+    wrongAnswers: [],
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users });

@@ -551,12 +551,45 @@
       box-shadow: 0 6px 14px rgba(123, 31, 162, 0.35);
     }
 
+    .mode-btn-wrongbook {
+      background: linear-gradient(135deg, #e65100, #ff9800);
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(230, 81, 0, 0.35);
+    }
+
     .mode-btn-disabled {
       background: #e0e0e0;
       color: #9e9e9e;
       box-shadow: none;
       cursor: not-allowed;
     }
+
+    .wrongbook-section {
+      margin-top: 16px;
+    }
+    .wrongbook-header { margin-bottom: 12px; }
+    .wrongbook-title { margin: 0 0 4px; font-size: 1.2rem; color: #e65100; }
+    .wrongbook-subtitle { margin: 0; font-size: 0.88rem; color: var(--muted); }
+    .wrongbook-list {
+      background: #fff;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-soft);
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .wrongbook-item {
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.95rem;
+    }
+    .wrongbook-item:last-child { border-bottom: none; }
+    .wrongbook-item .q { font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
+    .wrongbook-item .wrong-ans { color: var(--danger); }
+    .wrongbook-item .correct-ans { color: var(--success); }
+    .wrongbook-empty { text-align: center; padding: 24px; color: var(--muted); }
+    .wrongbook-actions { display: flex; flex-direction: column; gap: 10px; }
 
     .game-section {
       display: none;
@@ -615,7 +648,7 @@
       <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
       <div id="login-error" class="login-error"></div>
       <p class="login-hint">本练习无法自行注册，请联系尤老师获取账号与密码。也可先游客试玩，数据仅保存在本机。登录后记录将同步到服务器。</p>
-      <p class="login-version">版本 v1.2.0</p><!-- 与页脚版本号保持一致 -->
+      <p class="login-version">版本 v1.3.0</p><!-- 与页脚版本号保持一致 -->
     </div>
   </div>
 
@@ -632,12 +665,13 @@
       <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
       <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
       <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">自由练习</button>
+      <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
     </section>
 
     <div class="game-section" id="game-section">
       <p class="subtitle" id="game-subtitle">生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
 
-      <div class="status-grid">
+      <div class="status-grid" id="status-grid">
         <div class="status-item status-item-full">
           <span class="status-label">当前难度</span>
           <span class="status-value" id="current-level-name">-</span>
@@ -720,10 +754,23 @@
     </section>
     </div>
 
+    <section class="wrongbook-section" id="wrongbook-section" style="display:none;">
+      <div class="wrongbook-header">
+        <h2 class="wrongbook-title">错题本</h2>
+        <p class="wrongbook-subtitle">以下是最近 20 条错题，可自行复习。</p>
+      </div>
+      <div class="wrongbook-list" id="wrongbook-list"></div>
+      <div id="wrongbook-empty" class="wrongbook-empty">暂无错题记录。</div>
+      <div class="wrongbook-actions" id="wrongbook-actions">
+        <button type="button" class="btn-primary" id="wrongbook-practice-btn" style="display:none;">错题练习</button>
+        <button type="button" class="btn-primary btn-secondary" id="wrongbook-back-btn">回到首页</button>
+      </div>
+    </section>
+
     <footer class="app-footer">
       本页面为单文件 H5，自适应手机与电脑访问。登录后数据同步至服务器，换设备可继续练习。<br>
       <!-- 每次修改代码后请同步更新此处及登录页的版本号 -->
-      <strong>版本 v1.2.0</strong>
+      <strong>版本 v1.3.0</strong>
     </footer>
   </div>
 
@@ -1317,6 +1364,10 @@
     let maxLevelThisRun = 0;
     let runWrongCount = 0;
 
+    let wrongPracticeQueue = [];
+    let wrongPracticeIndex = 0;
+    let wrongPracticeResults = [];
+
     // ========= DOM引用 =========
     const dom = {};
 
@@ -1346,6 +1397,11 @@
       dom.currentUsernameLabel = document.getElementById("current-username-label");
       dom.recentHistoryBody = document.getElementById("recent-history-body");
       dom.recentHistoryEmpty = document.getElementById("recent-history-empty");
+      dom.wrongbookSection = document.getElementById("wrongbook-section");
+      dom.wrongbookList = document.getElementById("wrongbook-list");
+      dom.wrongbookEmpty = document.getElementById("wrongbook-empty");
+      dom.wrongbookPracticeBtn = document.getElementById("wrongbook-practice-btn");
+      dom.wrongbookBackBtn = document.getElementById("wrongbook-back-btn");
     }
 
     // ===== 工具函数 =====
@@ -1592,6 +1648,7 @@
       if (!Array.isArray(user.recentSurvivalRuns)) user.recentSurvivalRuns = [];
       if (!Array.isArray(user.recentLevelRuns)) user.recentLevelRuns = [];
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
+      if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
     }
 
     function loadState() {
@@ -1641,6 +1698,41 @@
         if (score > (u.bestScore || 0)) u.bestScore = score;
       }
       saveUsers(users);
+    }
+
+    function recordWrongAnswer(text, answer, studentAnswer) {
+      if (isGuestMode || gameMode === "wrong") return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      const entry = { text: String(text || ""), answer: Number(answer), studentAnswer: Number(studentAnswer) };
+      if (getApiBase()) {
+        apiAppendWrongAnswer(name, entry);
+        return;
+      }
+      const users = loadUsers();
+      const idx = users.findIndex(u => u.username === name);
+      if (idx === -1) return;
+      ensureUserProgressDefault(users[idx]);
+      const u = users[idx];
+      if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+      u.wrongAnswers.unshift(entry);
+      if (u.wrongAnswers.length > 20) u.wrongAnswers = u.wrongAnswers.slice(0, 20);
+      saveUsers(users);
+    }
+
+    async function apiAppendWrongAnswer(username, entry) {
+      const base = getApiBase();
+      if (!base) return;
+      try {
+        const u = cachedUser || {};
+        if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+        u.wrongAnswers.unshift(entry);
+        if (u.wrongAnswers.length > 20) u.wrongAnswers = u.wrongAnswers.slice(0, 20);
+        cachedUser = u;
+        await apiPutUser(username, { wrongAnswers: u.wrongAnswers });
+      } catch (e) {
+        console.warn("同步错题到服务器失败", e);
+      }
     }
 
     function renderRecentRuns() {
@@ -1871,6 +1963,10 @@
     }
 
     function handleSubmit() {
+      if (gameMode === "wrong") {
+        handleWrongPracticeSubmit();
+        return;
+      }
       if (!isPlaying || gameOver || !currentQuestion) return;
       // 提交后尽快把焦点拉回输入框，避免手机软键盘收起
       if (dom.answerInput) dom.answerInput.focus();
@@ -1887,6 +1983,104 @@
       }
       if (gameMode === "level") evaluateAnswerLevel(userAnswer);
       else evaluateAnswerSurvival(userAnswer);
+    }
+
+    function handleWrongPracticeSubmit() {
+      if (wrongPracticeIndex >= wrongPracticeQueue.length) return;
+      if (dom.answerInput) dom.answerInput.focus();
+      const value = dom.answerInput.value.trim();
+      if (value === "") {
+        setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
+        return;
+      }
+      const userAnswer = Number(value);
+      if (!Number.isFinite(userAnswer)) {
+        setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
+        return;
+      }
+      evaluateAnswerWrong(userAnswer);
+    }
+
+    function startWrongPractice() {
+      const wrongs = getWrongAnswers();
+      if (wrongs.length < 5) return;
+      wrongPracticeQueue = wrongs.slice().sort(() => Math.random() - 0.5);
+      wrongPracticeIndex = 0;
+      wrongPracticeResults = [];
+      gameMode = "wrong";
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.add("visible");
+      if (dom.timerChip) dom.timerChip.style.display = "none";
+      const statusGrid = document.getElementById("status-grid");
+      if (statusGrid) statusGrid.style.display = "none";
+      const subtitle = document.getElementById("game-subtitle");
+      if (subtitle) subtitle.style.display = "none";
+      if (dom.questionSubtext) dom.questionSubtext.textContent = "错题练习 " + (wrongPracticeIndex + 1) + " / " + wrongPracticeQueue.length;
+      currentQuestion = { text: wrongPracticeQueue[0].text, answer: wrongPracticeQueue[0].answer };
+      renderQuestion(currentQuestion);
+      dom.answerInput.value = "";
+      dom.answerInput.disabled = false;
+      setFeedback("", null);
+      if (dom.submitBtn) dom.submitBtn.style.display = "";
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+    }
+
+    function evaluateAnswerWrong(userAnswer) {
+      const q = wrongPracticeQueue[wrongPracticeIndex];
+      const correct = userAnswer === q.answer;
+      wrongPracticeResults.push({ text: q.text, answer: q.answer, studentAnswer: userAnswer, correct });
+      if (correct) {
+        setFeedback("<span class='feedback-title'>答对！</span>", "correct");
+      } else {
+        setFeedback("<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + q.answer + "</strong>", "incorrect");
+      }
+      wrongPracticeIndex++;
+      if (wrongPracticeIndex >= wrongPracticeQueue.length) {
+        setTimeout(showWrongPracticeResult, 800);
+        return;
+      }
+      setTimeout(() => {
+        currentQuestion = { text: wrongPracticeQueue[wrongPracticeIndex].text, answer: wrongPracticeQueue[wrongPracticeIndex].answer };
+        renderQuestion(currentQuestion);
+        if (dom.questionSubtext) dom.questionSubtext.textContent = "错题练习 " + (wrongPracticeIndex + 1) + " / " + wrongPracticeQueue.length;
+        dom.answerInput.value = "";
+        setFeedback("", null);
+      }, 800);
+    }
+
+    function showWrongPracticeResult() {
+      const correctCount = wrongPracticeResults.filter(r => r.correct).length;
+      const total = wrongPracticeResults.length;
+      let html = "<div style='text-align:left;max-height:50vh;overflow:auto;padding:0 4px;'>";
+      html += "<p style='font-weight:600;margin-bottom:12px;'>批改结果：答对 " + correctCount + " / " + total + " 题</p>";
+      wrongPracticeResults.forEach((r) => {
+        const mark = r.correct ? "✓" : "✗";
+        const markColor = r.correct ? "#2e7d32" : "#d32f2f";
+        html += "<div style='padding:8px 0;border-bottom:1px solid #eee;'>";
+        html += "<div><strong>题目：</strong>" + escapeHtml(r.text) + "</div>";
+        html += "<div style='margin-top:4px;font-size:0.9em;'>学员答案：<span style='color:" + (r.correct ? "#2e7d32" : "#d32f2f") + "'>" + escapeHtml(String(r.studentAnswer)) + "</span> · 对错：<span style='color:" + markColor + "'>" + mark + "</span> · 正确答案：" + escapeHtml(String(r.answer)) + "</div>";
+        html += "</div>";
+      });
+      html += "</div><button id='wrong-result-ok' style='margin-top:12px;padding:10px 24px;cursor:pointer;border-radius:8px;border:none;background:#1976d2;color:#fff;font-size:1rem;'>确定</button>";
+      const overlay = document.createElement("div");
+      overlay.id = "wrong-result-overlay";
+      overlay.style.cssText = "position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;";
+      const box = document.createElement("div");
+      box.style.cssText = "background:#fff;border-radius:14px;padding:20px;max-width:400px;width:100%;max-height:80vh;overflow:auto;";
+      box.innerHTML = html;
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      box.querySelector("#wrong-result-ok").onclick = function() {
+        document.body.removeChild(overlay);
+        gameMode = "survival";
+        if (dom.timerChip) dom.timerChip.style.display = "";
+        const statusGrid = document.getElementById("status-grid");
+        if (statusGrid) statusGrid.style.display = "";
+        const subtitle = document.getElementById("game-subtitle");
+        if (subtitle) subtitle.style.display = "";
+        showWrongbookView();
+      };
     }
 
     function evaluateAnswerSurvival(userAnswer) {
@@ -1923,6 +2117,7 @@
         runWrongCount += 1;
         consecutiveCorrect = 0;
         if (currentLevelIndex > 0) currentLevelIndex -= 1;
+        recordWrongAnswer(question.text, question.answer, userAnswer);
         setFeedback(
           "<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>",
           "incorrect"
@@ -1966,6 +2161,7 @@
         runWrongCount += 1;
         consecutiveCorrect = 0;
         if (currentLevelIndex > 0) currentLevelIndex -= 1;
+        recordWrongAnswer(question.text, question.answer, userAnswer);
         setFeedback(
           "<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>",
           "incorrect"
@@ -2025,17 +2221,70 @@
     function showHome() {
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
     }
 
     function showGameSection() {
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.add("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       updateSurvivalStatusUI();
       renderRecentRuns();
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+    }
+
+    function getWrongAnswers() {
+      const user = getCurrentUser();
+      if (!user) return [];
+      ensureUserProgressDefault(user);
+      return Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+    }
+
+    async function showWrongbookView() {
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
+      if (getApiBase()) {
+        const name = loadCurrentUsername();
+        if (name) {
+          try {
+            const u = await apiGetUser(name);
+            if (u) { cachedUser = u; ensureUserProgressDefault(cachedUser); }
+          } catch (e) { console.warn("刷新错题失败", e); }
+        }
+      }
+      renderWrongbookList();
+    }
+
+    function renderWrongbookList() {
+      const list = dom.wrongbookList;
+      const empty = dom.wrongbookEmpty;
+      const practiceBtn = dom.wrongbookPracticeBtn;
+      if (!list || !empty) return;
+      const wrongs = getWrongAnswers();
+      if (wrongs.length === 0) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        if (practiceBtn) practiceBtn.style.display = "none";
+        return;
+      }
+      empty.style.display = "none";
+      list.innerHTML = wrongs.map(w => `
+        <div class="wrongbook-item">
+          <div class="q">${escapeHtml(w.text || "")}</div>
+          <div>学员答案：<span class="wrong-ans">${escapeHtml(String(w.studentAnswer ?? ""))}</span> · 正确答案：<span class="correct-ans">${escapeHtml(String(w.answer ?? ""))}</span></div>
+        </div>
+      `).join("");
+      if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
     }
 
     function handleModeSurvival() {
@@ -2078,6 +2327,10 @@
     }
 
     function handleModeLevel() {
+      if (isGuestMode) {
+        alert("游客模式仅支持生存挑战。");
+        return;
+      }
       const lastLevel = getLevelChallengeLastLevel();
       if (lastLevel >= 15) {
         if (!confirm("您已通关，是否从 L1 开始新游戏？")) return;
@@ -2090,7 +2343,19 @@
     }
 
     function handleModePractice() {
+      if (isGuestMode) {
+        alert("游客模式仅支持生存挑战。");
+        return;
+      }
       alert("自由练习功能开发中，敬请期待。");
+    }
+
+    function handleModeWrongbook() {
+      if (isGuestMode) {
+        alert("游客模式仅支持生存挑战。");
+        return;
+      }
+      showWrongbookView();
     }
 
     // ===== 登录 / 注销 =====
@@ -2194,9 +2459,13 @@
       const modeSurvival = document.getElementById("mode-survival");
       const modeLevel = document.getElementById("mode-level");
       const modePractice = document.getElementById("mode-practice");
+      const modeWrongbook = document.getElementById("mode-wrongbook");
       if (modeSurvival) modeSurvival.addEventListener("click", handleModeSurvival);
       if (modeLevel) modeLevel.addEventListener("click", handleModeLevel);
       if (modePractice) modePractice.addEventListener("click", handleModePractice);
+      if (modeWrongbook) modeWrongbook.addEventListener("click", handleModeWrongbook);
+      if (dom.wrongbookBackBtn) dom.wrongbookBackBtn.addEventListener("click", showHome);
+      if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
 
       dom.answerInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
