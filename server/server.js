@@ -91,7 +91,7 @@ app.put("/api/user/:username", (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns"];
+  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "levelChallengeLastLevel"];
   allowed.forEach((k) => {
     if (updates[k] !== undefined) data.users[idx][k] = updates[k];
   });
@@ -116,6 +116,7 @@ app.post("/api/user/:username/runs", (req, res) => {
     maxLevel: run.maxLevel ?? 0,
     wrongCount: run.wrongCount ?? 0,
     ts: run.ts ?? Date.now(),
+    mode: run.mode === "level" ? "level" : "survival",
   });
   if (runsData.runs[username].length > 500) {
     runsData.runs[username] = runsData.runs[username].slice(0, 500);
@@ -155,6 +156,7 @@ app.post("/api/admin/users", (req, res) => {
     bestSurvivalSec: 0,
     bestScore: 0,
     recentSurvivalRuns: [],
+    recentLevelRuns: [],
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users });
@@ -227,14 +229,16 @@ app.get("/api/settings", (req, res) => {
   res.json({ ok: true, settings: data });
 });
 
-// ========== 管理员：获取某学员全部生存局记录 ==========
+// ========== 管理员：获取某学员全部练习记录（生存+闯关，按时间排序） ==========
 app.get("/api/admin/records/:username", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const { username } = req.params;
   const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = runsData.runs[username] || [];
+  const runs = (runsData.runs[username] || [])
+    .map(r => ({ ...r, mode: r.mode === "level" ? "level" : "survival" }))
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
 });
 

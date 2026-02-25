@@ -509,6 +509,82 @@
       color: var(--muted);
     }
 
+    .home-section {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .mode-btn {
+      width: 100%;
+      padding: 16px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform 0.08s ease, box-shadow 0.12s ease;
+      text-align: center;
+    }
+
+    .mode-btn:active {
+      transform: scale(0.98);
+    }
+
+    .mode-btn-survival {
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(25, 118, 210, 0.4);
+    }
+
+    .mode-btn-level {
+      background: linear-gradient(135deg, #2e7d32, #4caf50);
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(46, 125, 50, 0.35);
+    }
+
+    .mode-btn-practice {
+      background: linear-gradient(135deg, #7b1fa2, #9c27b0);
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(123, 31, 162, 0.35);
+    }
+
+    .mode-btn-disabled {
+      background: #e0e0e0;
+      color: #9e9e9e;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    .game-section {
+      display: none;
+    }
+
+    .game-section.visible {
+      display: block;
+    }
+
+    .game-section .subtitle {
+      margin-top: 8px;
+    }
+
+    .home-section.hidden {
+      display: none;
+    }
+
+    .game-over-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .game-over-buttons .btn-primary {
+      flex: none;
+    }
+
     @media (min-width: 768px) {
       .app {
         padding: 20px 24px;
@@ -546,12 +622,20 @@
   <div class="app" id="app-view" style="display:none;">
     <header class="app-header">
       <h1 class="app-title">Jarvis Math Lab 计算游戏</h1>
-      <p class="subtitle">生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
-
       <div class="user-bar">
         <span>当前学员：<span class="user-name" id="current-username-label">-</span></span>
         <button id="logout-btn" class="logout-btn">注销</button>
       </div>
+    </header>
+
+    <section class="home-section" id="home-section">
+      <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
+      <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
+      <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">自由练习</button>
+    </section>
+
+    <div class="game-section" id="game-section">
+      <p class="subtitle" id="game-subtitle">生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
 
       <div class="status-grid">
         <div class="status-item status-item-full">
@@ -575,7 +659,6 @@
           <span class="status-value" id="best-score">-</span>
         </div>
       </div>
-    </header>
 
     <main class="card" id="game-card">
       <div class="question-header">
@@ -608,13 +691,16 @@
         <p class="game-over-line">本局错题：<strong id="game-over-wrong">0</strong></p>
         <p class="game-over-line">到达最高难度：<strong id="game-over-max-level">-</strong></p>
         <p class="game-over-line game-over-best">个人最佳：<span id="game-over-best-time">-</span> · 最高得分 <span id="game-over-best-score">-</span></p>
-        <button class="btn-primary" id="play-again-btn">再玩一局</button>
+        <div class="game-over-buttons">
+          <button class="btn-primary" id="play-again-btn">再玩一局</button>
+          <button class="btn-primary btn-secondary" id="back-home-btn">返回首页</button>
+        </div>
       </div>
     </main>
 
     <section class="recent-card">
       <div class="recent-header">
-        <span class="recent-title">最近十次生存挑战</span>
+        <span class="recent-title" id="recent-title">最近十次生存挑战</span>
       </div>
       <div class="recent-body">
         <table class="recent-table">
@@ -632,6 +718,7 @@
         <div id="recent-history-empty" class="recent-empty">当前还没有练习记录。</div>
       </div>
     </section>
+    </div>
 
     <footer class="app-footer">
       本页面为单文件 H5，自适应手机与电脑访问。登录后数据同步至服务器，换设备可继续练习。<br>
@@ -1215,7 +1302,9 @@
     // ========= 生存挑战模式：全局状态 =========
     const SURVIVAL_INITIAL_SEC = 60;
     const SURVIVAL_CORRECT_PER_LEVEL = 5;
+    const LEVEL_CHALLENGE_CORRECT_PER_LEVEL = 10;
 
+    let gameMode = "survival";
     let currentLevelIndex = 0;
     let currentQuestion = null;
     let survivalTimeLeft = 0;
@@ -1232,6 +1321,9 @@
     const dom = {};
 
     function initDomRefs() {
+      dom.homeSection = document.getElementById("home-section");
+      dom.gameSection = document.getElementById("game-section");
+      dom.backHomeBtn = document.getElementById("back-home-btn");
       dom.currentLevelName = document.getElementById("current-level-name");
       dom.survivalTime = document.getElementById("survival-time");
       dom.consecutiveCorrect = document.getElementById("consecutive-correct");
@@ -1330,7 +1422,7 @@
       return data.ok ? data.user : null;
     }
 
-    async function apiAppendSurvivalRun(username, runEntry) {
+    async function apiAppendRun(username, runEntry) {
       const base = getApiBase();
       if (!base) return;
       try {
@@ -1340,24 +1432,29 @@
           body: JSON.stringify(runEntry)
         });
         const u = cachedUser || {};
-        if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
-        u.recentSurvivalRuns.unshift(runEntry);
-        if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
-        if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
-        if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
-        u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+        const mode = runEntry.mode === "level" ? "level" : "survival";
+        if (mode === "level") {
+          if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
+          u.recentLevelRuns.unshift(runEntry);
+          if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
+        } else {
+          if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
+          u.recentSurvivalRuns.unshift(runEntry);
+          if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
+          if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
+          if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
+          u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+        }
         cachedUser = u;
-        const updated = await apiPutUser(username, {
-          bestSurvivalSec: u.bestSurvivalSec,
-          bestScore: u.bestScore,
-          totalScore: u.totalScore,
-          recentSurvivalRuns: u.recentSurvivalRuns
-        });
+        const updates = mode === "level"
+          ? { recentLevelRuns: u.recentLevelRuns }
+          : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
+        const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
       } catch (e) {
         console.warn("同步记录到服务器失败", e);
       }
-      renderRecentSurvivalRuns();
+      renderRecentRuns();
     }
 
     function loadUsers() {
@@ -1416,16 +1513,28 @@
     function getGuestSurvivalData() {
       try {
         const raw = localStorage.getItem(GUEST_STORAGE_KEY);
-        if (!raw) return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], guestPlayCount: 0 };
+        if (!raw)         return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0 };
         const data = JSON.parse(raw);
         return {
           bestSurvivalSec: typeof data.bestSurvivalSec === "number" ? data.bestSurvivalSec : 0,
           bestScore: typeof data.bestScore === "number" ? data.bestScore : 0,
           recentSurvivalRuns: Array.isArray(data.recentSurvivalRuns) ? data.recentSurvivalRuns : [],
-          guestPlayCount: typeof data.guestPlayCount === "number" ? data.guestPlayCount : 0
+          recentLevelRuns: Array.isArray(data.recentLevelRuns) ? data.recentLevelRuns : [],
+          guestPlayCount: typeof data.guestPlayCount === "number" ? data.guestPlayCount : 0,
+          levelChallengeLastLevel: typeof data.levelChallengeLastLevel === "number" ? data.levelChallengeLastLevel : 0
         };
       } catch (e) {
-        return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], guestPlayCount: 0 };
+        return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0 };
+      }
+    }
+
+    function saveGuestLevelChallengeLastLevel(lastLevel) {
+      const data = getGuestSurvivalData();
+      data.levelChallengeLastLevel = lastLevel;
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn("写入游客闯关进度失败。", e);
       }
     }
 
@@ -1451,6 +1560,27 @@
       }
     }
 
+    function saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount) {
+      const data = getGuestSurvivalData();
+      data.guestPlayCount = (data.guestPlayCount || 0) + 1;
+      if (!Array.isArray(data.recentLevelRuns)) data.recentLevelRuns = [];
+      data.recentLevelRuns.unshift({
+        survivalTimeSec,
+        score,
+        maxLevel,
+        wrongCount: wrongCount ?? 0,
+        ts: Date.now()
+      });
+      if (data.recentLevelRuns.length > 10) {
+        data.recentLevelRuns = data.recentLevelRuns.slice(0, 10);
+      }
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.warn("写入游客闯关记录失败。", e);
+      }
+    }
+
     function ensureUserProgressDefault(user) {
       if (!user) return;
       if (typeof user.levelIndex !== "number") user.levelIndex = 0;
@@ -1460,6 +1590,8 @@
       if (typeof user.bestSurvivalSec !== "number") user.bestSurvivalSec = 0;
       if (typeof user.bestScore !== "number") user.bestScore = 0;
       if (!Array.isArray(user.recentSurvivalRuns)) user.recentSurvivalRuns = [];
+      if (!Array.isArray(user.recentLevelRuns)) user.recentLevelRuns = [];
+      if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
     }
 
     function loadState() {
@@ -1476,17 +1608,19 @@
       return s === 0 ? m + " 分" : m + " 分 " + s + " 秒";
     }
 
-    function appendSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount) {
+    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode) {
       wrongCount = wrongCount ?? 0;
+      mode = mode === "level" ? "level" : "survival";
+      const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
       if (isGuestMode) {
-        saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount);
+        if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
+        else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount);
         return;
       }
       const name = loadCurrentUsername();
       if (!name) return;
-      const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now() };
       if (getApiBase()) {
-        apiAppendSurvivalRun(name, runEntry);
+        apiAppendRun(name, runEntry);
         return;
       }
       const users = loadUsers();
@@ -1494,31 +1628,35 @@
       if (idx === -1) return;
       ensureUserProgressDefault(users[idx]);
       const u = users[idx];
-      if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
-      u.recentSurvivalRuns.unshift(runEntry);
-      if (u.recentSurvivalRuns.length > 10) {
-        u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
+      if (mode === "level") {
+        if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
+        u.recentLevelRuns.unshift(runEntry);
+        if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
+      } else {
+        if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
+        u.recentSurvivalRuns.unshift(runEntry);
+        if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
+        if (survivalTimeSec > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = survivalTimeSec;
+        if (score > (u.bestScore || 0)) u.bestScore = score;
+        u.totalScore = (u.totalScore || 0) + score;
       }
-      if (survivalTimeSec > (u.bestSurvivalSec || 0)) {
-        u.bestSurvivalSec = survivalTimeSec;
-      }
-      if (score > (u.bestScore || 0)) {
-        u.bestScore = score;
-      }
-      u.totalScore = (u.totalScore || 0) + score;
       saveUsers(users);
     }
 
-    function renderRecentSurvivalRuns() {
+    function renderRecentRuns() {
       if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
       const runs = isGuestMode
-        ? getGuestSurvivalData().recentSurvivalRuns
+        ? (gameMode === "level" ? getGuestSurvivalData().recentLevelRuns : getGuestSurvivalData().recentSurvivalRuns)
         : (() => {
             const user = getCurrentUser();
             if (!user) return [];
             ensureUserProgressDefault(user);
-            return Array.isArray(user.recentSurvivalRuns) ? user.recentSurvivalRuns : [];
+            return gameMode === "level"
+              ? (Array.isArray(user.recentLevelRuns) ? user.recentLevelRuns : [])
+              : (Array.isArray(user.recentSurvivalRuns) ? user.recentSurvivalRuns : []);
           })();
+      const titleEl = document.getElementById("recent-title");
+      if (titleEl) titleEl.textContent = gameMode === "level" ? "最近十次闯关挑战" : "最近十次生存挑战";
       if (runs.length === 0) {
         dom.recentHistoryBody.innerHTML = "";
         dom.recentHistoryEmpty.style.display = "block";
@@ -1559,7 +1697,8 @@
       }
       const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
       if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
-      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + SURVIVAL_CORRECT_PER_LEVEL;
+      const correctPerLevel = gameMode === "level" ? LEVEL_CHALLENGE_CORRECT_PER_LEVEL : SURVIVAL_CORRECT_PER_LEVEL;
+      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
       if (dom.runScore) dom.runScore.textContent = runScore;
       if (isGuestMode) {
         const guest = getGuestSurvivalData();
@@ -1638,6 +1777,38 @@
       showNextSurvivalQuestion();
     }
 
+    function startLevelGame() {
+      if (isGuestMode) {
+        const guest = getGuestSurvivalData();
+        if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
+          setBatchSummary("试用只限三次，继续使用请联系管理员添加账号。");
+          return;
+        }
+      }
+      if (survivalTimerId) clearInterval(survivalTimerId);
+      const lastLevel = getLevelChallengeLastLevel();
+      currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
+      survivalTimeLeft = SURVIVAL_INITIAL_SEC;
+      runScore = 0;
+      consecutiveCorrect = 0;
+      runWrongCount = 0;
+      gameStartTime = Date.now();
+      gameOver = false;
+      isPlaying = true;
+      maxLevelThisRun = currentLevelIndex;
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      if (dom.submitBtn) {
+        dom.submitBtn.style.display = "";
+        dom.submitBtn.disabled = false;
+      }
+      dom.answerInput.disabled = false;
+      setBatchSummary("");
+      updateSurvivalStatusUI();
+      survivalTimerId = setInterval(survivalTick, 1000);
+      showNextSurvivalQuestion();
+    }
+
     function survivalTick() {
       if (!isPlaying || gameOver) return;
       survivalTimeLeft -= 1;
@@ -1645,7 +1816,8 @@
       if (survivalTimeLeft <= 0) {
         clearInterval(survivalTimerId);
         survivalTimerId = null;
-        endSurvivalGame();
+        if (gameMode === "level") endLevelGame(false);
+        else endSurvivalGame();
       }
     }
 
@@ -1665,8 +1837,8 @@
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
-      appendSurvivalRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount);
-      renderRecentSurvivalRuns();
+      appendRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount, "survival");
+      renderRecentRuns();
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
@@ -1713,7 +1885,8 @@
         setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
         return;
       }
-      evaluateAnswerSurvival(userAnswer);
+      if (gameMode === "level") evaluateAnswerLevel(userAnswer);
+      else evaluateAnswerSurvival(userAnswer);
     }
 
     function evaluateAnswerSurvival(userAnswer) {
@@ -1743,7 +1916,7 @@
         }
         maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
         setFeedback(
-          "<span class='feedback-title'>答对！</span> +1 秒，+" + points + " 分",
+          "<span class='feedback-title'>答对！</span> +2 秒，+" + points + " 分",
           "correct"
         );
       } else {
@@ -1757,6 +1930,167 @@
       }
       updateSurvivalStatusUI();
       setTimeout(showNextSurvivalQuestion, 600);
+    }
+
+    function evaluateAnswerLevel(userAnswer) {
+      const question = currentQuestion;
+      if (!question) return;
+      const isCorrect = userAnswer === question.answer;
+
+      if (isCorrect) {
+        survivalTimeLeft += 2;
+        const points = currentLevelIndex + 1;
+        runScore += points;
+        consecutiveCorrect += 1;
+        if (consecutiveCorrect >= LEVEL_CHALLENGE_CORRECT_PER_LEVEL) {
+          if (currentLevelIndex < DIFFICULTY_MODULE.levels.length - 1) {
+            currentLevelIndex += 1;
+            consecutiveCorrect = 0;
+          } else {
+            maxLevelThisRun = 15;
+            setFeedback(
+              "<span class='feedback-title'>答对！</span> 恭喜通关全部 16 级！",
+              "correct"
+            );
+            updateSurvivalStatusUI();
+            setTimeout(function () { endLevelGame(true); }, 600);
+            return;
+          }
+        }
+        maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
+        setFeedback(
+          "<span class='feedback-title'>答对！</span> +2 秒，+" + points + " 分",
+          "correct"
+        );
+      } else {
+        runWrongCount += 1;
+        consecutiveCorrect = 0;
+        if (currentLevelIndex > 0) currentLevelIndex -= 1;
+        setFeedback(
+          "<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>",
+          "incorrect"
+        );
+      }
+      updateSurvivalStatusUI();
+      setTimeout(showNextSurvivalQuestion, 600);
+    }
+
+    function endLevelGame(completed) {
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      isPlaying = false;
+      gameOver = true;
+      if (dom.submitBtn) dom.submitBtn.disabled = true;
+      dom.answerInput.disabled = true;
+      const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
+      const endLevel = completed ? 15 : currentLevelIndex;
+      saveLevelChallengeLastLevel(endLevel);
+      appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level");
+      renderRecentRuns();
+      if (dom.gameOverPanel) {
+        dom.gameOverPanel.style.display = "block";
+        const titleEl = document.getElementById("game-over-title");
+        const levelNum = endLevel + 1;
+        if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "恭喜你达到第 " + levelNum + " 级";
+        const durationEl = document.getElementById("game-over-duration");
+        const scoreEl = document.getElementById("game-over-score");
+        const maxLevelEl = document.getElementById("game-over-max-level");
+        const bestTimeEl = document.getElementById("game-over-best-time");
+        const bestScoreEl = document.getElementById("game-over-best-score");
+        if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
+        if (scoreEl) scoreEl.textContent = runScore;
+        const wrongEl = document.getElementById("game-over-wrong");
+        if (wrongEl) wrongEl.textContent = runWrongCount;
+        const level = DIFFICULTY_MODULE.levels[endLevel];
+        if (maxLevelEl) maxLevelEl.textContent = level ? level.name : "-";
+        if (isGuestMode) {
+          const guest = getGuestSurvivalData();
+          if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
+          if (bestScoreEl) bestScoreEl.textContent = (guest.bestScore != null && guest.bestScore > 0) ? guest.bestScore : "-";
+        } else {
+          const user = getCurrentUser();
+          if (user) {
+            if (bestTimeEl) bestTimeEl.textContent = user.bestSurvivalSec ? formatSurvivalTime(user.bestSurvivalSec) : "-";
+            if (bestScoreEl) bestScoreEl.textContent = (user.bestScore != null && user.bestScore > 0) ? user.bestScore : "-";
+          }
+        }
+      }
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+    }
+
+    // ===== 首页与模式切换 =====
+    function showHome() {
+      if (dom.homeSection) dom.homeSection.classList.remove("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+    }
+
+    function showGameSection() {
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.add("visible");
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      updateSurvivalStatusUI();
+      renderRecentRuns();
+      if (dom.submitBtn) dom.submitBtn.style.display = "none";
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+    }
+
+    function handleModeSurvival() {
+      gameMode = "survival";
+      const sub = document.getElementById("game-subtitle");
+      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+      showGameSection();
+    }
+
+    function getLevelChallengeLastLevel() {
+      if (isGuestMode) {
+        const g = getGuestSurvivalData();
+        return g.levelChallengeLastLevel || 0;
+      }
+      const u = getCurrentUser();
+      if (!u) return 0;
+      ensureUserProgressDefault(u);
+      return u.levelChallengeLastLevel || 0;
+    }
+
+    function saveLevelChallengeLastLevel(lastLevel) {
+      if (isGuestMode) {
+        saveGuestLevelChallengeLastLevel(lastLevel);
+        return;
+      }
+      const name = loadCurrentUsername();
+      if (!name) return;
+      if (getApiBase()) {
+        apiPutUser(name, { levelChallengeLastLevel: lastLevel });
+        if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
+      } else {
+        const users = loadUsers();
+        const idx = users.findIndex(u => u.username === name);
+        if (idx >= 0) {
+          users[idx].levelChallengeLastLevel = lastLevel;
+          saveUsers(users);
+          if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
+        }
+      }
+    }
+
+    function handleModeLevel() {
+      const lastLevel = getLevelChallengeLastLevel();
+      if (lastLevel >= 15) {
+        if (!confirm("您已通关，是否从 L1 开始新游戏？")) return;
+        saveLevelChallengeLastLevel(0);
+      }
+      gameMode = "level";
+      const sub = document.getElementById("game-subtitle");
+      if (sub) sub.textContent = "闯关挑战：每关 10 题，连续答对升级、错 1 题降级，1 分钟倒计时，答对 +2 秒。";
+      showGameSection();
+    }
+
+    function handleModePractice() {
+      alert("自由练习功能开发中，敬请期待。");
     }
 
     // ===== 登录 / 注销 =====
@@ -1799,12 +2133,7 @@
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
       loadState();
-      updateSurvivalStatusUI();
-      renderRecentSurvivalRuns();
-      if (dom.submitBtn) dom.submitBtn.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      showHome();
     }
 
     function handleGuestEnter() {
@@ -1821,12 +2150,7 @@
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();
-      updateSurvivalStatusUI();
-      renderRecentSurvivalRuns();
-      if (dom.submitBtn) dom.submitBtn.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      showHome();
     }
 
     function handleLogout() {
@@ -1856,11 +2180,23 @@
       dom.submitBtn.addEventListener("touchstart", function () {
         if (dom.answerInput && isPlaying && !gameOver) dom.answerInput.focus();
       }, { passive: true });
-      if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", startSurvivalGame);
+      if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", function () {
+        if (gameMode === "level") startLevelGame();
+        else startSurvivalGame();
+      });
       if (dom.playAgainBtn) dom.playAgainBtn.addEventListener("click", () => {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-        startSurvivalGame();
+        if (gameMode === "level") startLevelGame();
+        else startSurvivalGame();
       });
+      if (dom.backHomeBtn) dom.backHomeBtn.addEventListener("click", showHome);
+
+      const modeSurvival = document.getElementById("mode-survival");
+      const modeLevel = document.getElementById("mode-level");
+      const modePractice = document.getElementById("mode-practice");
+      if (modeSurvival) modeSurvival.addEventListener("click", handleModeSurvival);
+      if (modeLevel) modeLevel.addEventListener("click", handleModeLevel);
+      if (modePractice) modePractice.addEventListener("click", handleModePractice);
 
       dom.answerInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
@@ -1905,7 +2241,7 @@
             document.getElementById("app-view").style.display = "flex";
             loadState();
             updateSurvivalStatusUI();
-            renderRecentSurvivalRuns();
+            renderRecentRuns();
             if (dom.submitBtn) dom.submitBtn.style.display = "none";
             if (dom.startGameBtn) dom.startGameBtn.style.display = "";
             if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
@@ -1924,7 +2260,7 @@
         document.getElementById("app-view").style.display = "flex";
         loadState();
         updateSurvivalStatusUI();
-        renderRecentSurvivalRuns();
+        renderRecentRuns();
         if (dom.submitBtn) dom.submitBtn.style.display = "none";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
         if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
