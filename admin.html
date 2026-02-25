@@ -162,6 +162,19 @@
         <button type="button" class="btn-secondary" id="add-user-btn">添加用户</button>
       </div>
       <div id="user-tip" class="hint"></div>
+
+      <hr style="margin:20px 0;border:none;border-top:1px dashed #dde3f3;">
+
+      <h2 style="margin:4px 0 6px;font-size:1.05rem;">三、数据备份与恢复</h2>
+      <div class="hint" style="margin-top:0;">
+        备份会下载全部数据（学员、练习记录、设置）。恢复会覆盖当前数据，请谨慎操作。
+      </div>
+      <div class="btn-row" style="margin-top:10px;">
+        <button type="button" class="btn-primary" id="backup-btn">备份数据</button>
+        <button type="button" class="btn-secondary" id="restore-btn">导入恢复</button>
+        <input type="file" id="restore-file" accept=".json" style="display:none;">
+        <span id="backup-tip" class="hint"></span>
+      </div>
     </form>
 
     <p style="margin-top:20px;margin-bottom:0;font-size:0.78rem;color:#607d8b;text-align:center;">版本 v1.2.0</p>
@@ -592,6 +605,84 @@
         passwordInput.value = "";
         await renderUserTable();
         showUserTip("已添加新用户。", true);
+      });
+
+      document.getElementById("backup-btn").addEventListener("click", async () => {
+        const base = getApiBase();
+        const tip = document.getElementById("backup-tip");
+        if (!base) {
+          tip.textContent = "未配置 API 地址，无法备份。";
+          tip.classList.add("danger");
+          return;
+        }
+        try {
+          const res = await fetch(base + "/api/admin/backup", {
+            headers: { "X-Admin-Pin": ADMIN_PIN }
+          });
+          if (!res.ok) {
+            const d = await res.json();
+            tip.textContent = d.error || "备份失败";
+            tip.classList.add("danger");
+            return;
+          }
+          const blob = await res.blob();
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          const disp = res.headers.get("Content-Disposition") || "";
+          const m = disp.match(/filename=["']?([^"'\s;]+)/);
+          a.download = m ? m[1] : "jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+          a.click();
+          URL.revokeObjectURL(a.href);
+          tip.textContent = "备份已下载。";
+          tip.classList.remove("danger");
+          tip.classList.add("success");
+        } catch (err) {
+          tip.textContent = "备份失败：" + (err.message || "网络错误");
+          tip.classList.add("danger");
+        }
+        setTimeout(() => { tip.textContent = ""; }, 2500);
+      });
+
+      document.getElementById("restore-btn").addEventListener("click", () => {
+        document.getElementById("restore-file").click();
+      });
+
+      document.getElementById("restore-file").addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        const tip = document.getElementById("backup-tip");
+        if (!file) return;
+        if (!window.confirm("导入将覆盖当前全部数据，确定继续吗？")) return;
+        const base = getApiBase();
+        if (!base) {
+          tip.textContent = "未配置 API 地址，无法导入。";
+          tip.classList.add("danger");
+          return;
+        }
+        try {
+          const text = await file.text();
+          const json = JSON.parse(text);
+          const res = await fetch(base + "/api/admin/restore", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            body: text
+          });
+          const data = await res.json();
+          if (data.ok) {
+            tip.textContent = "数据已恢复，请刷新页面。";
+            tip.classList.remove("danger");
+            tip.classList.add("success");
+            cachedUsers = null;
+            setTimeout(() => location.reload(), 1500);
+          } else {
+            tip.textContent = data.error || "导入失败";
+            tip.classList.add("danger");
+          }
+        } catch (err) {
+          tip.textContent = "导入失败：" + (err.message || "文件格式错误");
+          tip.classList.add("danger");
+        }
+        setTimeout(() => { tip.textContent = ""; }, 3000);
       });
     });
   </script>

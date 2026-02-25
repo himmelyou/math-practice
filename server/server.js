@@ -252,6 +252,48 @@ app.get("/api/admin/user-list", (req, res) => {
   res.json({ ok: true, users: list });
 });
 
+// ========== 管理员：备份全部数据 ==========
+app.get("/api/admin/backup", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const users = readJson(USERS_FILE, { users: [] });
+  const runs = readJson(RUNS_FILE, { runs: {} });
+  const settings = readJson(SETTINGS_FILE, { levels: [] });
+  const backup = { users, runs, settings, ts: Date.now() };
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", "attachment; filename=jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json");
+  res.send(JSON.stringify(backup, null, 2));
+});
+
+// ========== 管理员：恢复/导入数据 ==========
+app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body;
+  if (!body || typeof body !== "object") {
+    return res.json({ ok: false, error: "无效的备份格式" });
+  }
+  try {
+    if (body.users) {
+      const u = body.users;
+      writeJson(USERS_FILE, (u.users && Array.isArray(u.users)) ? u : { users: Array.isArray(u) ? u : [] });
+    }
+    if (body.runs) {
+      const r = body.runs;
+      writeJson(RUNS_FILE, (r.runs && typeof r.runs === "object") ? r : { runs: typeof r === "object" ? r : {} });
+    }
+    if (body.settings) {
+      const s = body.settings;
+      writeJson(SETTINGS_FILE, (s.levels && Array.isArray(s.levels)) ? s : { levels: Array.isArray(s) ? s : [] });
+    }
+    res.json({ ok: true, msg: "数据已恢复" });
+  } catch (e) {
+    res.json({ ok: false, error: "恢复失败：" + (e.message || String(e)) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Jarvis Math Lab API 运行在 http://localhost:${PORT}`);
 });
