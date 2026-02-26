@@ -330,6 +330,7 @@
       selectRow.style.display = "flex";
 
       const users = await loadUserList();
+      users.sort((a, b) => (a || "").localeCompare(b || "", "zh-CN"));
       userSelect.innerHTML = '<option value="">-- 请选择 --</option>' +
         users.map(u => `<option value="${u}">${u}</option>`).join("");
 
