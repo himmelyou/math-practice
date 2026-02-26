@@ -2684,9 +2684,18 @@
       const user = getCurrentUser();
       if (!user) return 0;
       ensureUserProgressDefault(user);
-      const survivalMax = (user.recentSurvivalRuns || []).reduce((m, r) => Math.max(m, r.maxLevel ?? 0), 0);
-      const levelMax = (user.recentLevelRuns || []).reduce((m, r) => Math.max(m, r.maxLevel ?? 0), 0);
-      const n = Math.max(survivalMax, levelMax);
+      const lastSurvival = (user.recentSurvivalRuns || [])[0];
+      const lastLevel = (user.recentLevelRuns || [])[0];
+      let n = 0;
+      if (lastSurvival && lastLevel) {
+        const survTs = lastSurvival.ts ?? 0;
+        const lvlTs = lastLevel.ts ?? 0;
+        n = survTs >= lvlTs ? (lastSurvival.maxLevel ?? 0) : (lastLevel.maxLevel ?? 0);
+      } else if (lastSurvival) {
+        n = lastSurvival.maxLevel ?? 0;
+      } else if (lastLevel) {
+        n = lastLevel.maxLevel ?? 0;
+      }
       return n > 0 ? Math.min(n - 1, 15) : 0;
     }
 
