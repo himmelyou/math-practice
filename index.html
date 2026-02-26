@@ -669,7 +669,7 @@
       <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
       <div id="login-error" class="login-error"></div>
       <p class="login-hint">本练习无法自行注册，请联系尤老师获取账号与密码。也可先游客试玩，数据仅保存在本机。登录后记录将同步到服务器。</p>
-      <p class="login-version">版本 v1.3.0</p><!-- 与页脚版本号保持一致 -->
+      <p class="login-version">版本 v1.4.0</p><!-- 与页脚版本号保持一致 -->
     </div>
   </div>
 
@@ -686,7 +686,7 @@
       <div class="home-total-score" id="home-total-score"></div>
       <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
       <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
-      <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">自由练习</button>
+      <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">训练模式</button>
       <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
     </section>
 
@@ -698,20 +698,20 @@
           <span class="status-label">当前难度</span>
           <span class="status-value" id="current-level-name">-</span>
         </div>
-        <div class="status-item">
-          <span class="status-label">连续答对</span>
+        <div class="status-item" id="status-row-2">
+          <span class="status-label" id="status-label-2">连续答对</span>
           <span class="status-value" id="consecutive-correct">0 / 5</span>
         </div>
-        <div class="status-item">
-          <span class="status-label">本局得分</span>
+        <div class="status-item" id="status-row-3">
+          <span class="status-label" id="status-label-3">本局得分</span>
           <span class="status-value" id="run-score">0</span>
         </div>
-        <div class="status-item">
-          <span class="status-label">个人最佳时间</span>
+        <div class="status-item" id="status-row-4">
+          <span class="status-label" id="status-label-4">个人最佳时间</span>
           <span class="status-value" id="best-survival-time">-</span>
         </div>
-        <div class="status-item">
-          <span class="status-label">个人最高得分</span>
+        <div class="status-item" id="status-row-5">
+          <span class="status-label" id="status-label-5">个人最高得分</span>
           <span class="status-value" id="best-score">-</span>
         </div>
       </div>
@@ -728,7 +728,7 @@
       <div class="question-subtext" id="question-subtext"></div>
 
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
-        <div class="input-row">
+        <div class="input-row" id="answer-input-row" style="display:none">
           <input id="answer-input" type="number" inputmode="numeric" pattern="\d*" autocomplete="off" placeholder="在这里输入你的答案" enterkeyhint="go" />
         </div>
         <div class="button-row">
@@ -795,7 +795,7 @@
     <footer class="app-footer">
       本页面为单文件 H5，自适应手机与电脑访问。登录后数据同步至服务器，换设备可继续练习。<br>
       <!-- 每次修改代码后请同步更新此处及登录页的版本号 -->
-      <strong>版本 v1.3.0</strong>
+      <strong>版本 v1.4.0</strong>
     </footer>
   </div>
 
@@ -815,9 +815,9 @@
           <thead>
             <tr style="border-bottom:1px solid #e2e2e2;">
               <th>难度名称</th>
-              <th>题数/批</th>
+              <th>及格准确率 %</th>
               <th>通关准确率 %</th>
-              <th>批次限时(秒)</th>
+              <th>通关时限(秒)</th>
             </tr>
           </thead>
           <tbody id="admin-table-body"></tbody>
@@ -853,7 +853,7 @@
             <tr>
               <td style="text-align:left;font-weight:500">${lvl.name}</td>
               <td>
-                <input type="number" min="1" max="99" required style="width:56px" name="batchNum${i}" value="${s.questionsPerBatch||DEFAULT_LEVEL_CONFIGS[i].questionsPerBatch}" />
+                <input type="number" min="10" max="100" step="1" required style="width:56px" name="passAccuracy${i}" value="${Math.round((s.passAccuracy ?? DEFAULT_LEVEL_CONFIGS[i].passAccuracy)*100)}"/>
               </td>
               <td>
                 <input type="number" min="10" max="100" step="1" required style="width:56px" name="accuracy${i}" value="${Math.round((s.upgradeAccuracy ?? DEFAULT_LEVEL_CONFIGS[i].upgradeAccuracy)*100)}"/>
@@ -870,35 +870,45 @@
         const form = document.getElementById("admin-form");
         const newLevels = [];
         for (let i = 0; i < DIFFICULTY_MODULE.levels.length; i++) {
-          const questionsPerBatch = Number(form["batchNum"+i].value);
+          const passAccuracy = Number(form["passAccuracy"+i].value) / 100;
           const upgradeAccuracy = Number(form["accuracy"+i].value) / 100;
           const upgradeTimeLimit = Number(form["timelimit"+i].value);
-
-          newLevels.push({questionsPerBatch, upgradeAccuracy, upgradeTimeLimit});
+          newLevels.push({passAccuracy, upgradeAccuracy, upgradeTimeLimit});
         }
-        localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify({levels: newLevels}));
+        const newSettings = { levels: newLevels };
+        cachedGameSettings = newSettings;
+        localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(newSettings));
+        const base = getApiBase();
+        if (base && adminAuthed) {
+          fetch(base + "/api/admin/settings", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            body: JSON.stringify(newSettings)
+          }).catch(function(e) { console.warn("同步设置到服务器失败", e); });
+        }
       }
     });
 
     // ===== 管理配置默认值&Key =====
     const ADMIN_SETTINGS_KEY = "adaptive_math_admin_settings_v1";
+    let cachedGameSettings = null;
     const DEFAULT_LEVEL_CONFIGS = [
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L1
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5 两位数加一位数/整十数
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6 两位数减一位数/整十数
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L12
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L13
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L14
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L15
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L16
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L1
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L12
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L13
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L14
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L15
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L16
     ];
 
     // ===== 后台访问口令与登录状态（仅前端保护，防止普通学生误进）=====
@@ -922,7 +932,33 @@
       }
     }
 
+    async function refreshGameSettings() {
+      const base = getApiBase();
+      if (base) {
+        try {
+          const res = await fetch(base + "/api/settings");
+          const data = await res.json();
+          if (data.ok && data.settings && Array.isArray(data.settings.levels)) {
+            cachedGameSettings = data.settings;
+            return;
+          }
+        } catch (e) {
+          console.warn("从服务器加载难度设置失败，使用本地缓存", e);
+        }
+      }
+      try {
+        const raw = localStorage.getItem(ADMIN_SETTINGS_KEY);
+        if (raw) {
+          const obj = JSON.parse(raw);
+          if (obj && obj.levels && Array.isArray(obj.levels))
+            cachedGameSettings = obj;
+        }
+      } catch (e) { /* ignore */ }
+      if (!cachedGameSettings) cachedGameSettings = { levels: [] };
+    }
+
     function loadCustomSettings() {
+      if (cachedGameSettings) return cachedGameSettings;
       try {
         const data = localStorage.getItem(ADMIN_SETTINGS_KEY);
         if (!data) return {levels: []};
@@ -937,12 +973,10 @@
 
     function getLevelSetting(idx) {
       const set = loadCustomSettings();
-      // 填默认
       const def = DEFAULT_LEVEL_CONFIGS[idx] || DEFAULT_LEVEL_CONFIGS[0];
       if (!set.levels[idx]) return def;
-      // merge
       return {
-        questionsPerBatch: set.levels[idx].questionsPerBatch || def.questionsPerBatch,
+        passAccuracy: typeof set.levels[idx].passAccuracy==="number" ? set.levels[idx].passAccuracy : def.passAccuracy,
         upgradeAccuracy: typeof set.levels[idx].upgradeAccuracy==="number" ? set.levels[idx].upgradeAccuracy : def.upgradeAccuracy,
         upgradeTimeLimit: set.levels[idx].upgradeTimeLimit || def.upgradeTimeLimit
       };
@@ -1375,6 +1409,7 @@
     const SURVIVAL_INITIAL_SEC = 60;
     const SURVIVAL_CORRECT_PER_LEVEL = 5;
     const LEVEL_CHALLENGE_CORRECT_PER_LEVEL = 10;
+    const TRAINING_QUESTIONS = 30;
 
     let gameMode = "survival";
     let currentLevelIndex = 0;
@@ -1392,6 +1427,7 @@
     let wrongPracticeQueue = [];
     let wrongPracticeIndex = 0;
     let wrongPracticeResults = [];
+    let trainingQuestionIndex = 0;
 
     // ========= DOM引用 =========
     const dom = {};
@@ -1513,12 +1549,16 @@
           body: JSON.stringify(runEntry)
         });
         const u = cachedUser || {};
-        const mode = runEntry.mode === "level" ? "level" : "survival";
+        const mode = runEntry.mode === "level" ? "level" : (runEntry.mode === "training" ? "training" : "survival");
         u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
         if (mode === "level") {
           if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
           u.recentLevelRuns.unshift(runEntry);
           if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
+        } else if (mode === "training") {
+          if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
+          u.recentTrainingRuns.unshift(runEntry);
+          if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -1529,6 +1569,8 @@
         cachedUser = u;
         const updates = mode === "level"
           ? { recentLevelRuns: u.recentLevelRuns, totalScore: u.totalScore }
+          : mode === "training"
+          ? { recentTrainingRuns: u.recentTrainingRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
@@ -1672,7 +1714,9 @@
       if (typeof user.bestScore !== "number") user.bestScore = 0;
       if (!Array.isArray(user.recentSurvivalRuns)) user.recentSurvivalRuns = [];
       if (!Array.isArray(user.recentLevelRuns)) user.recentLevelRuns = [];
+      if (!Array.isArray(user.recentTrainingRuns)) user.recentTrainingRuns = [];
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
+      if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
     }
 
@@ -1692,10 +1736,11 @@
 
     function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode) {
       wrongCount = wrongCount ?? 0;
-      mode = mode === "level" ? "level" : "survival";
+      mode = mode === "level" ? "level" : (mode === "training" ? "training" : "survival");
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
+        else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
         else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount);
         return;
       }
@@ -1715,6 +1760,10 @@
         if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
         u.recentLevelRuns.unshift(runEntry);
         if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
+      } else if (mode === "training") {
+        if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
+        u.recentTrainingRuns.unshift(runEntry);
+        if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
       } else {
         if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
         u.recentSurvivalRuns.unshift(runEntry);
@@ -1764,17 +1813,17 @@
     function renderRecentRuns() {
       if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
       const runs = isGuestMode
-        ? (gameMode === "level" ? getGuestSurvivalData().recentLevelRuns : getGuestSurvivalData().recentSurvivalRuns)
+        ? (gameMode === "level" ? getGuestSurvivalData().recentLevelRuns : gameMode === "training" ? [] : getGuestSurvivalData().recentSurvivalRuns)
         : (() => {
             const user = getCurrentUser();
             if (!user) return [];
             ensureUserProgressDefault(user);
-            return gameMode === "level"
-              ? (Array.isArray(user.recentLevelRuns) ? user.recentLevelRuns : [])
-              : (Array.isArray(user.recentSurvivalRuns) ? user.recentSurvivalRuns : []);
+            if (gameMode === "level") return Array.isArray(user.recentLevelRuns) ? user.recentLevelRuns : [];
+            if (gameMode === "training") return Array.isArray(user.recentTrainingRuns) ? user.recentTrainingRuns : [];
+            return Array.isArray(user.recentSurvivalRuns) ? user.recentSurvivalRuns : [];
           })();
       const titleEl = document.getElementById("recent-title");
-      if (titleEl) titleEl.textContent = gameMode === "level" ? "最近十次闯关挑战" : "最近十次生存挑战";
+      if (titleEl) titleEl.textContent = gameMode === "level" ? "最近十次闯关挑战" : (gameMode === "training" ? "最近十次训练模式" : "最近十次生存挑战");
       if (runs.length === 0) {
         dom.recentHistoryBody.innerHTML = "";
         dom.recentHistoryEmpty.style.display = "block";
@@ -1805,9 +1854,18 @@
 
     // ===== 生存模式：计时与 UI 更新 =====
     function updateSurvivalStatusUI() {
+      const label2 = document.getElementById("status-label-2");
+      const label3 = document.getElementById("status-label-3");
+      const label4 = document.getElementById("status-label-4");
+      const label5 = document.getElementById("status-label-5");
+      if (label2) label2.textContent = "连续答对";
+      if (label3) label3.textContent = "本局得分";
+      if (label4) label4.textContent = "个人最佳时间";
+      if (label5) label5.textContent = "个人最高得分";
       const m = Math.floor(survivalTimeLeft / 60);
       const s = survivalTimeLeft % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
+      if (dom.timerChip && dom.timerChip.firstChild) dom.timerChip.firstChild.textContent = "剩余 ";
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) {
@@ -1890,6 +1948,8 @@
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       updateSurvivalStatusUI();
@@ -1924,6 +1984,8 @@
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       updateSurvivalStatusUI();
@@ -1941,6 +2003,68 @@
         if (gameMode === "level") endLevelGame(false);
         else endSurvivalGame();
       }
+    }
+
+    function trainingTick() {
+      if (!isPlaying || gameOver) return;
+      updateTrainingStatusUI();
+    }
+
+    function updateTrainingStatusUI() {
+      const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      const timeStr = m + ":" + String(s).padStart(2, "0");
+      if (dom.timerChip && dom.timerChip.firstChild) dom.timerChip.firstChild.textContent = "用时 ";
+      if (dom.timerValue) dom.timerValue.textContent = timeStr;
+      if (dom.timerChip) dom.timerChip.classList.remove("low");
+      const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
+      if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
+      const cfg = getLevelSetting(currentLevelIndex);
+      const limit = (cfg && cfg.upgradeTimeLimit) || 300;
+      const upgradeAcc = (cfg && typeof cfg.upgradeAccuracy === "number") ? cfg.upgradeAccuracy : 0.95;
+      const passAcc = (cfg && typeof cfg.passAccuracy === "number") ? cfg.passAccuracy : 0.8;
+      const label2 = document.getElementById("status-label-2");
+      const label3 = document.getElementById("status-label-3");
+      const label4 = document.getElementById("status-label-4");
+      const label5 = document.getElementById("status-label-5");
+      if (label2) label2.textContent = "正确率";
+      if (label3) label3.textContent = "限时";
+      if (label4) label4.textContent = "通关准确率";
+      if (label5) label5.textContent = "及格准确率";
+      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = runScore + " / " + trainingQuestionIndex;
+      if (dom.runScore) dom.runScore.textContent = limit + " 秒";
+      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = Math.round(upgradeAcc * 100) + "%";
+      if (dom.bestScore) dom.bestScore.textContent = Math.round(passAcc * 100) + "%";
+    }
+
+    function startTrainingGame() {
+      if (survivalTimerId) clearInterval(survivalTimerId);
+      const saved = getLevelTrainingCurrentLevel();
+      currentLevelIndex = saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
+      trainingQuestionIndex = 0;
+      runScore = 0;
+      runWrongCount = 0;
+      gameStartTime = Date.now();
+      gameOver = false;
+      isPlaying = true;
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      const gameBackRow = document.getElementById("game-back-row");
+      if (gameBackRow) gameBackRow.classList.add("hidden");
+      if (dom.submitBtn) {
+        dom.submitBtn.style.display = "";
+        dom.submitBtn.disabled = false;
+      }
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "";
+      dom.answerInput.disabled = false;
+      setBatchSummary("");
+      updateTrainingStatusUI();
+      survivalTimerId = setInterval(trainingTick, 1000);
+      currentQuestion = generateBaseQuestion();
+      renderQuestion(currentQuestion);
+      if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
     }
 
     function showNextSurvivalQuestion() {
@@ -1992,11 +2116,31 @@
       }
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "none";
     }
 
     function handleSubmit() {
       if (gameMode === "wrong") {
         handleWrongPracticeSubmit();
+        return;
+      }
+      if (gameMode === "training") {
+        if (!isPlaying || gameOver || !currentQuestion) return;
+        if (dom.answerInput) dom.answerInput.focus();
+        const value = dom.answerInput.value.trim();
+        if (value === "") {
+          setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
+          return;
+        }
+        const userAnswer = Number(value);
+        if (!Number.isFinite(userAnswer)) {
+          setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
+          return;
+        }
+        dom.answerInput.value = "";
+        if (dom.submitBtn) dom.submitBtn.disabled = true;
+        evaluateAnswerTraining(userAnswer);
         return;
       }
       if (!isPlaying || gameOver || !currentQuestion) return;
@@ -2062,6 +2206,8 @@
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       const gameBackRow = document.getElementById("game-back-row");
       if (gameBackRow) gameBackRow.classList.add("hidden");
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "";
     }
 
     function evaluateAnswerWrong(userAnswer) {
@@ -2118,6 +2264,8 @@
         if (statusGrid) statusGrid.style.display = "";
         const subtitle = document.getElementById("game-subtitle");
         if (subtitle) subtitle.style.display = "";
+        const inputRow = document.getElementById("answer-input-row");
+        if (inputRow) inputRow.style.display = "none";
         showWrongbookView();
       };
     }
@@ -2210,6 +2358,101 @@
       setTimeout(showNextSurvivalQuestion, 600);
     }
 
+    function evaluateAnswerTraining(userAnswer) {
+      const question = currentQuestion;
+      if (!question) return;
+      const isCorrect = userAnswer === question.answer;
+
+      if (isCorrect) {
+        runScore += 1;
+        setFeedback("<span class='feedback-title'>答对！</span> +1 分", "correct");
+      } else {
+        runWrongCount += 1;
+        recordWrongAnswer(question.text, question.answer, userAnswer);
+        setFeedback("<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>", "incorrect");
+      }
+
+      trainingQuestionIndex += 1;
+      updateTrainingStatusUI();
+
+      if (trainingQuestionIndex >= TRAINING_QUESTIONS) {
+        if (dom.submitBtn) dom.submitBtn.disabled = true;
+        setTimeout(endTrainingGame, 600);
+        return;
+      }
+
+      setTimeout(function () {
+        currentQuestion = generateBaseQuestion();
+        renderQuestion(currentQuestion);
+        if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
+        if (dom.submitBtn) dom.submitBtn.disabled = false;
+      }, 600);
+    }
+
+    async function endTrainingGame() {
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      isPlaying = false;
+      gameOver = true;
+      if (dom.submitBtn) dom.submitBtn.disabled = true;
+      dom.answerInput.disabled = true;
+
+      const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
+      const correctCount = runScore;
+      const accuracy = TRAINING_QUESTIONS > 0 ? correctCount / TRAINING_QUESTIONS : 0;
+      const cfg = getLevelSetting(currentLevelIndex);
+      const passAccuracy = (cfg && typeof cfg.passAccuracy === "number") ? cfg.passAccuracy : 0.8;
+      const upgradeAccuracy = (cfg && typeof cfg.upgradeAccuracy === "number") ? cfg.upgradeAccuracy : 0.95;
+      const upgradeTimeLimit = (cfg && cfg.upgradeTimeLimit) || 300;
+      const overtime = survivalTimeSec > upgradeTimeLimit;
+
+      let newLevel = currentLevelIndex;
+      let tipText = "";
+      if (accuracy >= upgradeAccuracy && !overtime) {
+        if (currentLevelIndex >= 15) {
+          tipText = "恭喜通关";
+          newLevel = -1;
+        } else {
+          newLevel = currentLevelIndex + 1;
+          tipText = "Level Up!";
+        }
+      } else if (accuracy >= passAccuracy) {
+        tipText = "继续努力！";
+      } else {
+        newLevel = Math.max(0, currentLevelIndex - 1);
+        tipText = "这个可能对你太难了，我们降低难度试试。";
+      }
+
+      await saveLevelTrainingCurrentLevel(newLevel >= 0 ? newLevel : -1);
+      appendRun(survivalTimeSec, runScore, currentLevelIndex, runWrongCount, "training");
+      renderRecentRuns();
+
+      if (dom.gameOverPanel) {
+        dom.gameOverPanel.style.display = "block";
+        const titleEl = document.getElementById("game-over-title");
+        if (titleEl) titleEl.textContent = tipText;
+        const durationEl = document.getElementById("game-over-duration");
+        const scoreEl = document.getElementById("game-over-score");
+        const wrongEl = document.getElementById("game-over-wrong");
+        const maxLevelEl = document.getElementById("game-over-max-level");
+        const bestTimeEl = document.getElementById("game-over-best-time");
+        const bestScoreEl = document.getElementById("game-over-best-score");
+        if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec) + "（用时）";
+        if (scoreEl) scoreEl.textContent = runScore + " / " + TRAINING_QUESTIONS + "（正确 " + correctCount + " 题）";
+        if (wrongEl) wrongEl.textContent = runWrongCount;
+        const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
+        if (maxLevelEl) maxLevelEl.textContent = "准确率 " + Math.round(accuracy * 100) + "%";
+        if (bestTimeEl) bestTimeEl.textContent = "-";
+        if (bestScoreEl) bestScoreEl.textContent = "-";
+      }
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "none";
+    }
+
     function endLevelGame(completed) {
       if (survivalTimerId) {
         clearInterval(survivalTimerId);
@@ -2254,6 +2497,8 @@
       }
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "none";
     }
 
     // ===== 首页与模式切换 =====
@@ -2309,10 +2554,21 @@
       if (dom.gameSection) dom.gameSection.classList.add("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-      updateSurvivalStatusUI();
+      if (gameMode === "training") {
+        if (dom.timerChip) dom.timerChip.style.display = "";
+        const statusGrid = document.getElementById("status-grid");
+        if (statusGrid) statusGrid.style.display = "";
+        const subtitle = document.getElementById("game-subtitle");
+        if (subtitle) subtitle.style.display = "";
+        updateTrainingStatusUI();
+      } else {
+        updateSurvivalStatusUI();
+      }
       renderRecentRuns();
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "none";
       const gameBackRow = document.getElementById("game-back-row");
       if (gameBackRow) gameBackRow.classList.remove("hidden");
     }
@@ -2407,6 +2663,46 @@
       }
     }
 
+    function getTrainingStartLevel() {
+      const user = getCurrentUser();
+      if (!user) return 0;
+      ensureUserProgressDefault(user);
+      const survivalMax = (user.recentSurvivalRuns || []).reduce((m, r) => Math.max(m, r.maxLevel ?? 0), 0);
+      const levelMax = (user.recentLevelRuns || []).reduce((m, r) => Math.max(m, r.maxLevel ?? 0), 0);
+      const n = Math.max(survivalMax, levelMax);
+      return n > 0 ? Math.min(n - 1, 15) : 0;
+    }
+
+    function getLevelTrainingCurrentLevel() {
+      const user = getCurrentUser();
+      if (!user) return -1;
+      ensureUserProgressDefault(user);
+      const v = user.levelTrainingCurrentLevel;
+      return typeof v === "number" ? v : -1;
+    }
+
+    async function saveLevelTrainingCurrentLevel(level) {
+      const name = loadCurrentUsername();
+      if (!name) return;
+      if (getApiBase()) {
+        try {
+          const updated = await apiPutUser(name, { levelTrainingCurrentLevel: level });
+          if (cachedUser) cachedUser.levelTrainingCurrentLevel = level;
+          if (updated) cachedUser = updated;
+        } catch (e) {
+          if (cachedUser) cachedUser.levelTrainingCurrentLevel = level;
+        }
+      } else {
+        const users = loadUsers();
+        const idx = users.findIndex(u => u.username === name);
+        if (idx >= 0) {
+          users[idx].levelTrainingCurrentLevel = level;
+          saveUsers(users);
+          if (cachedUser && cachedUser.username === name) cachedUser.levelTrainingCurrentLevel = level;
+        }
+      }
+    }
+
     function handleModeLevel() {
       if (isGuestMode) {
         alert("游客模式仅支持生存挑战。");
@@ -2428,7 +2724,12 @@
         alert("游客模式仅支持生存挑战。");
         return;
       }
-      alert("自由练习功能开发中，敬请期待。");
+      gameMode = "training";
+      const sub = document.getElementById("game-subtitle");
+      if (sub) sub.textContent = "训练模式：每局 " + TRAINING_QUESTIONS + " 题，正向计时。准确率≥通关且未超时则升级，≥及格则保持，<及格则降级。";
+      const tip = "训练模式说明：\n\n• 每局 " + TRAINING_QUESTIONS + " 题，答对计分\n• 正向计时，显示用时\n• 根据准确率与用时决定升降级\n• 起始等级由最近生存/闯关最高等级决定\n\n点击「开始游戏」开始。";
+      alert(tip);
+      showGameSection();
     }
 
     function handleModeWrongbook() {
@@ -2475,6 +2776,7 @@
 
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
+      await refreshGameSettings();
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
@@ -2482,7 +2784,7 @@
       showHome();
     }
 
-    function handleGuestEnter() {
+    async function handleGuestEnter() {
       const guest = getGuestSurvivalData();
       if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
         const errorEl = document.getElementById("login-error");
@@ -2491,6 +2793,7 @@
       }
       isGuestMode = true;
       setCurrentUsername(null);
+      await refreshGameSettings();
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
       const errorEl = document.getElementById("login-error");
@@ -2527,12 +2830,14 @@
         if (dom.answerInput && isPlaying && !gameOver) dom.answerInput.focus();
       }, { passive: true });
       if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", function () {
-        if (gameMode === "level") startLevelGame();
+        if (gameMode === "training") startTrainingGame();
+        else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
       });
       if (dom.playAgainBtn) dom.playAgainBtn.addEventListener("click", () => {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-        if (gameMode === "level") startLevelGame();
+        if (gameMode === "training") startTrainingGame();
+        else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
       });
       if (dom.backHomeBtn) dom.backHomeBtn.addEventListener("click", showHome);
@@ -2589,6 +2894,7 @@
           if (user) {
             cachedUser = user;
             ensureUserProgressDefault(cachedUser);
+            await refreshGameSettings();
             document.getElementById("login-view").style.display = "none";
             document.getElementById("app-view").style.display = "flex";
             loadState();
@@ -2609,6 +2915,7 @@
       if (user) {
         cachedUser = user;
         ensureUserProgressDefault(cachedUser);
+        await refreshGameSettings();
         document.getElementById("login-view").style.display = "none";
         document.getElementById("app-view").style.display = "flex";
         loadState();

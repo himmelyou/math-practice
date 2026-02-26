@@ -265,7 +265,7 @@
         table.style.display = "table";
         emptyMsg.style.display = "none";
         tbody.innerHTML = runs.map((r, i) => {
-          const typeStr = r.mode === "level" ? "闯关挑战" : "生存挑战";
+          const typeStr = r.mode === "level" ? "闯关挑战" : (r.mode === "training" ? "训练模式" : "生存挑战");
           const timeStr = formatSurvivalTime(r.survivalTimeSec || 0);
           const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
           const levelName = LEVEL_NAMES[r.maxLevel] || "-";

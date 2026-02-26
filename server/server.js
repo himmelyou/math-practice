@@ -9,7 +9,8 @@ const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const os = require("os");
+const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), ".jarvis-math-lab", "data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
@@ -91,7 +92,7 @@ app.put("/api/user/:username", (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "levelChallengeLastLevel", "wrongAnswers"];
+  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers"];
   allowed.forEach((k) => {
     if (updates[k] !== undefined) data.users[idx][k] = updates[k];
   });
@@ -116,7 +117,7 @@ app.post("/api/user/:username/runs", (req, res) => {
     maxLevel: run.maxLevel ?? 0,
     wrongCount: run.wrongCount ?? 0,
     ts: run.ts ?? Date.now(),
-    mode: run.mode === "level" ? "level" : "survival",
+    mode: run.mode === "level" ? "level" : (run.mode === "training" ? "training" : "survival"),
   });
   if (runsData.runs[username].length > 500) {
     runsData.runs[username] = runsData.runs[username].slice(0, 500);
@@ -157,6 +158,9 @@ app.post("/api/admin/users", (req, res) => {
     bestScore: 0,
     recentSurvivalRuns: [],
     recentLevelRuns: [],
+    recentTrainingRuns: [],
+    levelChallengeLastLevel: 0,
+    levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
   });
   writeJson(USERS_FILE, data);
@@ -238,7 +242,7 @@ app.get("/api/admin/records/:username", (req, res) => {
   const { username } = req.params;
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const runs = (runsData.runs[username] || [])
-    .map(r => ({ ...r, mode: r.mode === "level" ? "level" : "survival" }))
+    .map(r => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : "survival") }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
 });

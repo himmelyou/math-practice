@@ -129,9 +129,9 @@
         <thead>
           <tr>
             <th>难度名称</th>
-            <th>题数/批</th>
+            <th>及格准确率 %</th>
             <th>通关准确率 %</th>
-            <th>批次限时 (秒)</th>
+            <th>通关时限 (秒)</th>
           </tr>
         </thead>
         <tbody id="admin-table-body"></tbody>
@@ -190,7 +190,7 @@
       </div>
     </form>
 
-    <p style="margin-top:20px;margin-bottom:0;font-size:0.78rem;color:#607d8b;text-align:center;">版本 v1.3.0</p>
+    <p style="margin-top:20px;margin-bottom:0;font-size:0.78rem;color:#607d8b;text-align:center;">版本 v1.4.0</p>
   </div>
 
   <script>
@@ -215,22 +215,22 @@
 
     const ADMIN_SETTINGS_KEY = "adaptive_math_admin_settings_v1";
     const DEFAULT_LEVEL_CONFIGS = [
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L1
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L12
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L13
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L14
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L15
-      { questionsPerBatch: 10, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }  // L16
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L1
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L12
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L13
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L14
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L15
+      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }  // L16
     ];
 
     const LEVEL_NAMES = [
@@ -285,13 +285,11 @@
       const set = cachedSettings || { levels: [] };
       const def = DEFAULT_LEVEL_CONFIGS[idx] || DEFAULT_LEVEL_CONFIGS[0];
       if (!set.levels[idx]) return def;
+      const s = set.levels[idx];
       return {
-        questionsPerBatch: set.levels[idx].questionsPerBatch || def.questionsPerBatch,
-        upgradeAccuracy:
-          typeof set.levels[idx].upgradeAccuracy === "number"
-            ? set.levels[idx].upgradeAccuracy
-            : def.upgradeAccuracy,
-        upgradeTimeLimit: set.levels[idx].upgradeTimeLimit || def.upgradeTimeLimit
+        passAccuracy: typeof s.passAccuracy === "number" ? s.passAccuracy : def.passAccuracy,
+        upgradeAccuracy: typeof s.upgradeAccuracy === "number" ? s.upgradeAccuracy : def.upgradeAccuracy,
+        upgradeTimeLimit: s.upgradeTimeLimit || def.upgradeTimeLimit
       };
     }
 
@@ -304,7 +302,7 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${LEVEL_NAMES[i]}</td>
-          <td><input type="number" min="1" max="99" name="batchNum${i}" value="${s.questionsPerBatch}" required></td>
+          <td><input type="number" min="10" max="100" step="1" name="passAccuracy${i}" value="${Math.round(s.passAccuracy * 100)}" required></td>
           <td><input type="number" min="10" max="100" step="1" name="accuracy${i}" value="${Math.round(s.upgradeAccuracy * 100)}" required></td>
           <td><input type="number" min="30" max="1200" name="timelimit${i}" value="${s.upgradeTimeLimit}" required></td>
         `;
@@ -316,10 +314,10 @@
       const form = document.getElementById("admin-form");
       const newLevels = [];
       for (let i = 0; i < LEVEL_NAMES.length; i++) {
-        const questionsPerBatch = Number(form["batchNum" + i].value);
+        const passAccuracy = Number(form["passAccuracy" + i].value) / 100;
         const upgradeAccuracy = Number(form["accuracy" + i].value) / 100;
         const upgradeTimeLimit = Number(form["timelimit" + i].value);
-        newLevels.push({ questionsPerBatch, upgradeAccuracy, upgradeTimeLimit });
+        newLevels.push({ passAccuracy, upgradeAccuracy, upgradeTimeLimit });
       }
       const base = getApiBase();
       if (base) {
