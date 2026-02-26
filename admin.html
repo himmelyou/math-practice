@@ -108,6 +108,9 @@
     .user-table th:nth-child(2), .user-table td:nth-child(2) { padding-right: 10px; }
     .user-table th:nth-child(3), .user-table td:nth-child(3) { padding-left: 10px; }
     .user-table td:nth-child(3) select { max-width: 100%; }
+    .sortable { cursor: pointer; user-select: none; }
+    .sortable:hover { background: #e8ecff; }
+    .sort-icon { font-size: 0.75rem; margin-left: 2px; opacity: 0.8; }
     .success {
       color: #2e7d32;
     }
@@ -159,7 +162,7 @@
             <th>密码</th>
             <th>当前难度</th>
             <th>历史最高</th>
-            <th>积分</th>
+            <th class="sortable" id="sort-score-th">积分 <span id="sort-score-icon" class="sort-icon">⇅</span></th>
             <th>操作</th>
           </tr>
         </thead>
@@ -365,6 +368,7 @@
 
     const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
     let cachedUsers = [];
+    let scoreSortOrder = 0;
 
     async function loadUsers() {
       const base = getApiBase();
@@ -409,9 +413,18 @@
     }
 
     async function renderUserTable() {
-      const users = await loadUsers();
+      let users = await loadUsers();
+      if (scoreSortOrder !== 0) {
+        users = users.slice().sort((a, b) => {
+          const sa = (a.totalScore != null && typeof a.totalScore === "number") ? a.totalScore : 0;
+          const sb = (b.totalScore != null && typeof b.totalScore === "number") ? b.totalScore : 0;
+          return scoreSortOrder > 0 ? (sb - sa) : (sa - sb);
+        });
+      }
       const tbody = document.getElementById("user-table-body");
       tbody.innerHTML = "";
+      const sortIcon = document.getElementById("sort-score-icon");
+      if (sortIcon) sortIcon.textContent = scoreSortOrder === 1 ? " ↓" : scoreSortOrder === -1 ? " ↑" : " ⇅";
       users.forEach((u, index) => {
         ensureUserProgressDefault(u);
         const tr = document.createElement("tr");
@@ -545,6 +558,11 @@
 
       await renderTable();
       await renderUserTable();
+
+      document.getElementById("sort-score-th").addEventListener("click", async () => {
+        scoreSortOrder = scoreSortOrder === 0 ? 1 : scoreSortOrder === 1 ? -1 : 0;
+        await renderUserTable();
+      });
 
       form.addEventListener("submit", async (e) => {
         e.preventDefault();

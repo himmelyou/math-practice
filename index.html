@@ -332,6 +332,17 @@
       gap: 10px;
       margin-top: 8px;
     }
+    .game-back-row {
+      margin-top: 10px;
+    }
+    .game-back-row.hidden {
+      display: none;
+    }
+    #game-back-home-btn {
+      width: 100%;
+      padding: 16px 20px;
+      min-height: 2.8em;
+    }
 
     button {
       border-radius: 999px;
@@ -516,6 +527,16 @@
       gap: 12px;
     }
 
+    .home-total-score {
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #e3f2fd, #f5f9ff);
+      border-radius: 10px;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      text-align: center;
+    }
+    .home-total-score strong { color: var(--primary); }
+
     .mode-btn {
       width: 100%;
       padding: 16px 20px;
@@ -662,6 +683,7 @@
     </header>
 
     <section class="home-section" id="home-section">
+      <div class="home-total-score" id="home-total-score"></div>
       <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
       <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
       <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">自由练习</button>
@@ -712,6 +734,9 @@
         <div class="button-row">
           <button type="submit" class="btn-primary" id="submit-btn">提交答案</button>
           <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
+        </div>
+        <div class="game-back-row" id="game-back-row">
+          <button type="button" class="btn-primary btn-secondary" id="game-back-home-btn">返回首页</button>
         </div>
       </form>
 
@@ -1697,6 +1722,7 @@
         if (survivalTimeSec > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = survivalTimeSec;
         if (score > (u.bestScore || 0)) u.bestScore = score;
       }
+      if (cachedUser && cachedUser.username === name) cachedUser.totalScore = u.totalScore;
       saveUsers(users);
     }
 
@@ -1858,6 +1884,8 @@
       maxLevelThisRun = 0;
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      const gameBackRow = document.getElementById("game-back-row");
+      if (gameBackRow) gameBackRow.classList.add("hidden");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
@@ -1890,6 +1918,8 @@
       maxLevelThisRun = currentLevelIndex;
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      const gameBackRow = document.getElementById("game-back-row");
+      if (gameBackRow) gameBackRow.classList.add("hidden");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
@@ -2030,6 +2060,8 @@
       setFeedback("", null);
       if (dom.submitBtn) dom.submitBtn.style.display = "";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      const gameBackRow = document.getElementById("game-back-row");
+      if (gameBackRow) gameBackRow.classList.add("hidden");
     }
 
     function evaluateAnswerWrong(userAnswer) {
@@ -2225,11 +2257,51 @@
     }
 
     // ===== 首页与模式切换 =====
+    function updateHomeTotalScore() {
+      const el = document.getElementById("home-total-score");
+      if (!el) return;
+      if (isGuestMode) {
+        el.style.display = "none";
+        return;
+      }
+      const user = getCurrentUser();
+      if (!user) {
+        el.style.display = "none";
+        return;
+      }
+      el.style.display = "block";
+      const score = (user.totalScore != null && typeof user.totalScore === "number") ? user.totalScore : 0;
+      el.innerHTML = "个人总积分：<strong>" + score + "</strong>";
+    }
+
+    function exitGameToHome() {
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      isPlaying = false;
+      gameOver = true;
+      if (gameMode === "wrong") {
+        gameMode = "survival";
+        if (dom.timerChip) dom.timerChip.style.display = "";
+        const statusGrid = document.getElementById("status-grid");
+        if (statusGrid) statusGrid.style.display = "";
+        const subtitle = document.getElementById("game-subtitle");
+        if (subtitle) subtitle.style.display = "";
+      }
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      if (dom.submitBtn) dom.submitBtn.style.display = "none";
+      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      showHome();
+    }
+
     function showHome() {
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      updateHomeTotalScore();
     }
 
     function showGameSection() {
@@ -2241,6 +2313,8 @@
       renderRecentRuns();
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+      const gameBackRow = document.getElementById("game-back-row");
+      if (gameBackRow) gameBackRow.classList.remove("hidden");
     }
 
     function getWrongAnswers() {
@@ -2462,6 +2536,8 @@
         else startSurvivalGame();
       });
       if (dom.backHomeBtn) dom.backHomeBtn.addEventListener("click", showHome);
+      const gameBackHomeBtn = document.getElementById("game-back-home-btn");
+      if (gameBackHomeBtn) gameBackHomeBtn.addEventListener("click", exitGameToHome);
 
       const modeSurvival = document.getElementById("mode-survival");
       const modeLevel = document.getElementById("mode-level");
@@ -2516,6 +2592,7 @@
             document.getElementById("login-view").style.display = "none";
             document.getElementById("app-view").style.display = "flex";
             loadState();
+            updateHomeTotalScore();
             updateSurvivalStatusUI();
             renderRecentRuns();
             if (dom.submitBtn) dom.submitBtn.style.display = "none";
@@ -2535,6 +2612,7 @@
         document.getElementById("login-view").style.display = "none";
         document.getElementById("app-view").style.display = "flex";
         loadState();
+        updateHomeTotalScore();
         updateSurvivalStatusUI();
         renderRecentRuns();
         if (dom.submitBtn) dom.submitBtn.style.display = "none";
