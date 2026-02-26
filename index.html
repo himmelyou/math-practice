@@ -2554,14 +2554,31 @@
       if (dom.gameSection) dom.gameSection.classList.add("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      // 进入模式时重置状态栏为新一局的初始值，避免显示上一局遗留数据
       if (gameMode === "training") {
+        const saved = getLevelTrainingCurrentLevel();
+        currentLevelIndex = saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
+        runScore = 0;
+        trainingQuestionIndex = 0;
+        gameStartTime = 0;
         if (dom.timerChip) dom.timerChip.style.display = "";
         const statusGrid = document.getElementById("status-grid");
         if (statusGrid) statusGrid.style.display = "";
         const subtitle = document.getElementById("game-subtitle");
         if (subtitle) subtitle.style.display = "";
         updateTrainingStatusUI();
+      } else if (gameMode === "level") {
+        const lastLevel = getLevelChallengeLastLevel();
+        currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
+        runScore = 0;
+        consecutiveCorrect = 0;
+        survivalTimeLeft = SURVIVAL_INITIAL_SEC;
+        updateSurvivalStatusUI();
       } else {
+        currentLevelIndex = 0;
+        runScore = 0;
+        consecutiveCorrect = 0;
+        survivalTimeLeft = SURVIVAL_INITIAL_SEC;
         updateSurvivalStatusUI();
       }
       renderRecentRuns();
@@ -2727,8 +2744,6 @@
       gameMode = "training";
       const sub = document.getElementById("game-subtitle");
       if (sub) sub.textContent = "训练模式：每局 " + TRAINING_QUESTIONS + " 题，正向计时。准确率≥通关且未超时则升级，≥及格则保持，<及格则降级。";
-      const tip = "训练模式说明：\n\n• 每局 " + TRAINING_QUESTIONS + " 题，答对计分\n• 正向计时，显示用时\n• 根据准确率与用时决定升降级\n• 起始等级由最近生存/闯关最高等级决定\n\n点击「开始游戏」开始。";
-      alert(tip);
       showGameSection();
     }
 
