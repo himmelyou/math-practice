@@ -473,7 +473,7 @@
         const lastTsStr = formatAdminDateTime(u.lastGameTs);
         tr.innerHTML = `
           <td>${u.username}</td>
-          <td><input type="text" data-username="${u.username}" data-field="password" value="${u.password || ""}" style="width:80px;border-radius:8px;border:1px solid #c5d3ea;padding:2px 4px;font-size:0.8rem;"></td>
+          <td><span style="color:#9e9e9e;">****</span> <button type="button" class="btn-secondary" data-reset-username="${u.username}" style="padding:4px 10px;font-size:0.78rem;">重置</button></td>
           <td>${trainingStr}</td>
           <td>${lastTsStr}</td>
           <td>${u.totalScore || 0}</td>
@@ -521,38 +521,47 @@
         });
       });
 
-      tbody.querySelectorAll("input[data-field]").forEach((input) => {
-        input.addEventListener("change", async (e) => {
-          const username = e.target.getAttribute("data-username");
-          const field = e.target.getAttribute("data-field");
-          if (field !== "password") return;
+      tbody.querySelectorAll("button[data-reset-username]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const username = e.currentTarget.getAttribute("data-reset-username");
+          if (!username) return;
+          const newPwd = window.prompt("请输入新密码：", "");
+          if (newPwd === null) return;
+          const pwd = String(newPwd).trim();
+          if (!pwd) {
+            showUserTip("密码不能为空。", false);
+            return;
+          }
           const base = getApiBase();
           if (base) {
             try {
               const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
-                body: JSON.stringify({ password: e.target.value })
+                body: JSON.stringify({ password: pwd })
               });
               const data = await res.json();
               if (data.ok) {
                 const idx = cachedUsers.findIndex((u) => u.username === username);
-                if (idx >= 0) cachedUsers[idx] = data.user;
-                showUserTip("已更新学员信息。", true);
-                return;
+                if (idx >= 0 && data.user) cachedUsers[idx] = { ...cachedUsers[idx], ...data.user };
+                await renderUserTable();
+                showUserTip("密码已重置。", true);
+              } else {
+                showUserTip(data.error || "重置失败", false);
               }
             } catch (err) {
-              showUserTip("更新失败：" + (err.message || "网络错误"), false);
-              return;
+              showUserTip("重置失败：" + (err.message || "网络错误"), false);
             }
+          } else {
+            const usersNow = await loadUsers();
+            const u = usersNow.find((us) => us.username === username);
+            if (!u) return;
+            u.password = pwd;
+            saveUsersLocal(usersNow);
+            cachedUsers = usersNow;
+            await renderUserTable();
+            showUserTip("密码已重置。", true);
           }
-          const usersNow = await loadUsers();
-          const u = usersNow.find((us) => us.username === username);
-          if (!u) return;
-          u.password = e.target.value;
-          saveUsersLocal(usersNow);
-          cachedUsers = usersNow;
-          showUserTip("已更新学员信息。", true);
         });
       });
     }

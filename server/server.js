@@ -4,8 +4,20 @@
  */
 const express = require("express");
 const cors = require("cors");
+const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
+
+const BCRYPT_ROUNDS = 10;
+function isBcryptHash(s) {
+  return typeof s === "string" && s.length >= 50 && s.startsWith("$2");
+}
+
+function safeUser(u) {
+  if (!u) return u;
+  const { password, ...rest } = u;
+  return rest;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -57,8 +69,53 @@ function checkAdminPin(req) {
   return pin === ADMIN_PIN;
 }
 
+// ========== 学员自主注册 ==========
+function isValidUsername(s) {
+  if (typeof s !== "string" || s.length < 2 || s.length > 20) return false;
+  return /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/.test(s);
+}
+
+app.post("/api/register", async (req, res) => {
+  const { username, password } = req.body || {};
+  const name = (username || "").trim();
+  const pwd = password ? String(password) : "";
+  if (!name || !pwd) {
+    return res.json({ ok: false, error: "请填写用户名和密码" });
+  }
+  if (!isValidUsername(name)) {
+    return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线、中文" });
+  }
+  if (pwd.length < 6) {
+    return res.json({ ok: false, error: "密码至少 6 位" });
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  if (data.users.some((u) => u.username === name)) {
+    return res.json({ ok: false, error: "该用户名已存在" });
+  }
+  const passwordHash = await bcrypt.hash(pwd, BCRYPT_ROUNDS);
+  const newUser = {
+    username: name,
+    password: passwordHash,
+    levelIndex: 0,
+    bestLevelIndex: 0,
+    totalScore: 0,
+    bestSurvivalSec: 0,
+    bestScore: 0,
+    recentSurvivalRuns: [],
+    recentLevelRuns: [],
+    recentTrainingRuns: [],
+    levelChallengeLastLevel: 0,
+    levelTrainingCurrentLevel: -1,
+    wrongAnswers: [],
+    createdBy: "self",
+  };
+  data.users.push(newUser);
+  writeJson(USERS_FILE, data);
+  res.json({ ok: true, user: safeUser(newUser) });
+});
+
 // ========== 学员登录 ==========
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
     return res.json({ ok: false, error: "请输入用户名和密码" });
@@ -68,10 +125,24 @@ app.post("/api/login", (req, res) => {
   if (!user) {
     return res.json({ ok: false, error: "用户不存在，请联系老师在后台添加" });
   }
-  if (user.password !== password) {
+  let match = false;
+  if (isBcryptHash(user.password)) {
+    match = await bcrypt.compare(password, user.password);
+  } else {
+    match = user.password === password;
+    if (match) {
+      const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      const idx = data.users.findIndex((u) => u.username === username);
+      if (idx >= 0) {
+        data.users[idx].password = hash;
+        writeJson(USERS_FILE, data);
+      }
+    }
+  }
+  if (!match) {
     return res.json({ ok: false, error: "密码错误" });
   }
-  res.json({ ok: true, user });
+  res.json({ ok: true, user: safeUser(user) });
 });
 
 // ========== 获取学员数据（用于换设备同步） ==========
@@ -92,7 +163,7 @@ app.get("/api/user/:username", (req, res) => {
       writeJson(USERS_FILE, data);
     }
   }
-  res.json({ ok: true, user });
+  res.json({ ok: true, user: safeUser(user) });
 });
 
 // ========== 更新学员进度（游戏结束后同步） ==========
@@ -109,7 +180,7 @@ app.put("/api/user/:username", (req, res) => {
     if (updates[k] !== undefined) data.users[idx][k] = updates[k];
   });
   writeJson(USERS_FILE, data);
-  res.json({ ok: true, user: data.users[idx] });
+  res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
 // ========== 学员获取自己的练习记录（完整 runs，供首页「数据统计」用） ==========
@@ -213,13 +284,13 @@ app.get("/api/admin/users", (req, res) => {
     if (!out.lastGameTs && runsData.runs[u.username] && runsData.runs[u.username].length > 0) {
       out.lastGameTs = runsData.runs[u.username][0].ts;
     }
-    return out;
+    return safeUser(out);
   });
   res.json({ ok: true, users });
 });
 
 // ========== 管理员：添加学员 ==========
-app.post("/api/admin/users", (req, res) => {
+app.post("/api/admin/users", async (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
@@ -231,9 +302,10 @@ app.post("/api/admin/users", (req, res) => {
   if (data.users.some((u) => u.username === username)) {
     return res.json({ ok: false, error: "该用户名已存在" });
   }
+  const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   data.users.push({
     username,
-    password,
+    password: passwordHash,
     levelIndex: 0,
     bestLevelIndex: 0,
     totalScore: 0,
@@ -247,11 +319,11 @@ app.post("/api/admin/users", (req, res) => {
     wrongAnswers: [],
   });
   writeJson(USERS_FILE, data);
-  res.json({ ok: true, users: data.users });
+  res.json({ ok: true, users: data.users.map(safeUser) });
 });
 
 // ========== 管理员：更新学员 ==========
-app.put("/api/admin/users/:username", (req, res) => {
+app.put("/api/admin/users/:username", async (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
@@ -263,11 +335,16 @@ app.put("/api/admin/users/:username", (req, res) => {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const allowed = ["password", "levelIndex", "bestLevelIndex", "totalScore"];
-  allowed.forEach((k) => {
-    if (updates[k] !== undefined) data.users[idx][k] = updates[k];
-  });
+  for (const k of allowed) {
+    if (updates[k] === undefined) continue;
+    if (k === "password") {
+      data.users[idx].password = await bcrypt.hash(updates.password, BCRYPT_ROUNDS);
+    } else {
+      data.users[idx][k] = updates[k];
+    }
+  }
   writeJson(USERS_FILE, data);
-  res.json({ ok: true, user: data.users[idx] });
+  res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
 // ========== 管理员：删除学员 ==========
