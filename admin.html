@@ -99,15 +99,13 @@
       color: #d32f2f;
     }
     .user-table { table-layout: fixed; }
-    .user-table th:nth-child(1), .user-table td:nth-child(1) { width: 12%; }
+    .user-table th:nth-child(1), .user-table td:nth-child(1) { width: 14%; }
     .user-table th:nth-child(2), .user-table td:nth-child(2) { width: 12%; }
-    .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 28%; }
-    .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 28%; }
+    .user-table th:nth-child(3), .user-table td:nth-child(3) { width: 12%; }
+    .user-table th:nth-child(4), .user-table td:nth-child(4) { width: 20%; }
     .user-table th:nth-child(5), .user-table td:nth-child(5) { width: 10%; }
-    .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 10%; }
+    .user-table th:nth-child(6), .user-table td:nth-child(6) { width: 12%; }
     .user-table th:nth-child(2), .user-table td:nth-child(2) { padding-right: 10px; }
-    .user-table th:nth-child(3), .user-table td:nth-child(3) { padding-left: 10px; }
-    .user-table td:nth-child(3) select { max-width: 100%; }
     .sortable { cursor: pointer; user-select: none; }
     .sortable:hover { background: #e8ecff; }
     .sort-icon { font-size: 0.75rem; margin-left: 2px; opacity: 0.8; }
@@ -144,8 +142,8 @@
             <tr>
               <th>用户名</th>
               <th>密码</th>
-              <th>当前难度</th>
-              <th>历史最高</th>
+              <th class="sortable" id="sort-training-th">当前难度 <span id="sort-training-icon" class="sort-icon"></span></th>
+              <th class="sortable" id="sort-lastts-th">最后训练时间 <span id="sort-lastts-icon" class="sort-icon"></span></th>
               <th class="sortable" id="sort-score-th">积分 <span id="sort-score-icon" class="sort-icon">↓</span></th>
               <th>操作</th>
             </tr>
@@ -376,7 +374,25 @@
 
     const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
     let cachedUsers = [];
-    let scoreSortOrder = 1; // 1=积分倒序(默认), -1=正序, 0=不按积分排
+    let accountSortKey = "score"; // "score" | "training" | "lastTs"
+    let accountSortOrder = 1; // 1=desc/high first, -1=asc/low first
+
+    function formatAdminDateTime(ts) {
+      if (!ts) return "-";
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return "-";
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${y}-${m}-${day} ${hh}:${mm}`;
+    }
+
+    function trainingLevelDisplay(n) {
+      if (n == null || n < 0) return "未开始";
+      return "L" + (Number(n) + 1);
+    }
 
     async function loadUsers() {
       const base = getApiBase();
@@ -418,35 +434,48 @@
       if (typeof user.levelIndex !== "number") user.levelIndex = 0;
       if (typeof user.bestLevelIndex !== "number") user.bestLevelIndex = user.levelIndex;
       if (typeof user.totalScore !== "number") user.totalScore = 0;
+      if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
     }
 
     async function renderUserTable() {
       let users = await loadUsers();
-      if (scoreSortOrder !== 0) {
-        users = users.slice().sort((a, b) => {
+      users = users.slice().sort((a, b) => {
+        let cmp = 0;
+        if (accountSortKey === "score") {
           const sa = (a.totalScore != null && typeof a.totalScore === "number") ? a.totalScore : 0;
           const sb = (b.totalScore != null && typeof b.totalScore === "number") ? b.totalScore : 0;
-          return scoreSortOrder > 0 ? (sb - sa) : (sa - sb);
-        });
-      }
+          cmp = sb - sa;
+        } else if (accountSortKey === "training") {
+          const ta = (a.levelTrainingCurrentLevel != null && a.levelTrainingCurrentLevel >= 0) ? a.levelTrainingCurrentLevel : -1;
+          const tb = (b.levelTrainingCurrentLevel != null && b.levelTrainingCurrentLevel >= 0) ? b.levelTrainingCurrentLevel : -1;
+          cmp = tb - ta;
+        } else if (accountSortKey === "lastTs") {
+          const ta = a.lastGameTs || 0;
+          const tb = b.lastGameTs || 0;
+          cmp = tb - ta;
+        }
+        return accountSortOrder > 0 ? cmp : -cmp;
+      });
       const tbody = document.getElementById("user-table-body");
       tbody.innerHTML = "";
-      const sortIcon = document.getElementById("sort-score-icon");
-      if (sortIcon) sortIcon.textContent = scoreSortOrder === 1 ? " ↓" : scoreSortOrder === -1 ? " ↑" : " ⇅";
-      users.forEach((u, index) => {
+      const iconScore = document.getElementById("sort-score-icon");
+      const iconTraining = document.getElementById("sort-training-icon");
+      const iconLastTs = document.getElementById("sort-lastts-icon");
+      const s = (k) => (accountSortKey === k ? (accountSortOrder === 1 ? " ↓" : " ↑") : " ⇅");
+      if (iconScore) iconScore.textContent = s("score");
+      if (iconTraining) iconTraining.textContent = s("training");
+      if (iconLastTs) iconLastTs.textContent = s("lastTs");
+      users.forEach((u) => {
         ensureUserProgressDefault(u);
         const tr = document.createElement("tr");
-        const levelName = LEVEL_NAMES[u.levelIndex] || LEVEL_NAMES[0];
-        const bestName = LEVEL_NAMES[u.bestLevelIndex] || LEVEL_NAMES[u.levelIndex] || LEVEL_NAMES[0];
+        const trainingLevel = typeof u.levelTrainingCurrentLevel === "number" ? u.levelTrainingCurrentLevel : -1;
+        const trainingStr = trainingLevelDisplay(trainingLevel);
+        const lastTsStr = formatAdminDateTime(u.lastGameTs);
         tr.innerHTML = `
           <td>${u.username}</td>
           <td><input type="text" data-username="${u.username}" data-field="password" value="${u.password || ""}" style="width:80px;border-radius:8px;border:1px solid #c5d3ea;padding:2px 4px;font-size:0.8rem;"></td>
-          <td>
-            <select data-username="${u.username}" data-field="levelIndex" style="border-radius:8px;border:1px solid #c5d3ea;padding:2px 4px;font-size:0.8rem;">
-              ${LEVEL_NAMES.map((name, i) => `<option value="${i}" ${i === (u.levelIndex || 0) ? "selected" : ""}>${name}</option>`).join("")}
-            </select>
-          </td>
-          <td>${bestName}</td>
+          <td>${trainingStr}</td>
+          <td>${lastTsStr}</td>
           <td>${u.totalScore || 0}</td>
           <td><button type="button" class="btn-secondary" data-delete-username="${u.username}" style="padding:4px 10px;font-size:0.78rem;">删除</button></td>
         `;
@@ -492,29 +521,22 @@
         });
       });
 
-      tbody.querySelectorAll("input[data-field], select[data-field]").forEach(input => {
+      tbody.querySelectorAll("input[data-field]").forEach((input) => {
         input.addEventListener("change", async (e) => {
           const username = e.target.getAttribute("data-username");
           const field = e.target.getAttribute("data-field");
+          if (field !== "password") return;
           const base = getApiBase();
           if (base) {
             try {
-              const updates = {};
-              if (field === "password") updates.password = e.target.value;
-              else if (field === "levelIndex") {
-                const newLevel = Number(e.target.value);
-                updates.levelIndex = newLevel;
-                const u = cachedUsers.find(us => us.username === username);
-                if (u && newLevel > (u.bestLevelIndex || 0)) updates.bestLevelIndex = newLevel;
-              }
               const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
                 method: "PUT",
                 headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
-                body: JSON.stringify(updates)
+                body: JSON.stringify({ password: e.target.value })
               });
               const data = await res.json();
               if (data.ok) {
-                const idx = cachedUsers.findIndex(u => u.username === username);
+                const idx = cachedUsers.findIndex((u) => u.username === username);
                 if (idx >= 0) cachedUsers[idx] = data.user;
                 showUserTip("已更新学员信息。", true);
                 return;
@@ -525,15 +547,9 @@
             }
           }
           const usersNow = await loadUsers();
-          const u = usersNow.find(us => us.username === username);
+          const u = usersNow.find((us) => us.username === username);
           if (!u) return;
-          if (field === "password") u.password = e.target.value;
-          else if (field === "levelIndex") {
-            const newLevel = Number(e.target.value);
-            ensureUserProgressDefault(u);
-            u.levelIndex = newLevel;
-            if (newLevel > u.bestLevelIndex) u.bestLevelIndex = newLevel;
-          }
+          u.password = e.target.value;
           saveUsersLocal(usersNow);
           cachedUsers = usersNow;
           showUserTip("已更新学员信息。", true);
@@ -583,8 +599,24 @@
       await renderTable();
       await renderUserTable();
 
+      function setSort(key) {
+        if (accountSortKey === key) {
+          accountSortOrder = accountSortOrder === 1 ? -1 : 1;
+        } else {
+          accountSortKey = key;
+          accountSortOrder = key === "score" ? 1 : 1;
+        }
+      }
       document.getElementById("sort-score-th").addEventListener("click", async () => {
-        scoreSortOrder = scoreSortOrder === 0 ? 1 : scoreSortOrder === 1 ? -1 : 0;
+        setSort("score");
+        await renderUserTable();
+      });
+      document.getElementById("sort-training-th").addEventListener("click", async () => {
+        setSort("training");
+        await renderUserTable();
+      });
+      document.getElementById("sort-lastts-th").addEventListener("click", async () => {
+        setSort("lastTs");
         await renderUserTable();
       });
 

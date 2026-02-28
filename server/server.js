@@ -153,6 +153,11 @@ app.post("/api/user/:username/runs", (req, res) => {
   }
   writeJson(RUNS_FILE, runsData);
 
+  const userData = readJson(USERS_FILE, { users: [] });
+  const uIdx = userData.users.findIndex((u) => u.username === username);
+  if (uIdx >= 0) {
+    userData.users[uIdx].lastGameTs = runEntry.ts;
+  }
   if (runEntry.mode === "survival" && runEntry.survivalCleared === true) {
     const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
     const list = Array.isArray(rankingData.list) ? rankingData.list : [];
@@ -171,12 +176,12 @@ app.post("/api/user/:username/runs", (req, res) => {
     rankingData.list = next.slice(0, SURVIVAL_RANKING_MAX);
     writeJson(SURVIVAL_RANKING_FILE, rankingData);
 
-    const userData = readJson(USERS_FILE, { users: [] });
-    const uIdx = userData.users.findIndex((u) => u.username === username);
     if (uIdx >= 0) {
       userData.users[uIdx].hasClearedSurvival = true;
-      writeJson(USERS_FILE, userData);
     }
+    writeJson(USERS_FILE, userData);
+  } else if (uIdx >= 0) {
+    writeJson(USERS_FILE, userData);
   }
 
   res.json({ ok: true });
@@ -202,7 +207,15 @@ app.get("/api/admin/users", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const data = readJson(USERS_FILE, { users: [] });
-  res.json({ ok: true, users: data.users });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const users = data.users.map((u) => {
+    const out = { ...u };
+    if (!out.lastGameTs && runsData.runs[u.username] && runsData.runs[u.username].length > 0) {
+      out.lastGameTs = runsData.runs[u.username][0].ts;
+    }
+    return out;
+  });
+  res.json({ ok: true, users });
 });
 
 // ========== 管理员：添加学员 ==========
