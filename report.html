@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学员练习记录 · Jarvis Math Lab 计算游戏</title>
   <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -108,6 +109,11 @@
     .wrong-item .q { font-weight: 600; margin-bottom: 4px; }
     .wrong-item .wrong-ans { color: #d32f2f; }
     .wrong-item .correct-ans { color: #2e7d32; }
+    .level-chart-wrap { margin-top: 16px; margin-bottom: 20px; }
+    .level-chart-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .level-chart-row label { font-weight: 600; font-size: 0.9rem; }
+    .level-chart-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid #c5d3ea; min-width: 120px; }
+    .level-summary-table { font-size: 0.85rem; margin-bottom: 20px; }
   </style>
 </head>
 <body>
@@ -134,6 +140,7 @@
     <div class="tab-row" id="tab-row" style="display:none;">
       <button type="button" class="tab-btn active" id="tab-records">挑战记录</button>
       <button type="button" class="tab-btn" id="tab-wrong">错题分析</button>
+      <button type="button" class="tab-btn" id="tab-level">数据分析</button>
     </div>
 
     <div class="tab-panel active" id="panel-records">
@@ -158,6 +165,29 @@
       <div id="wrong-list" class="wrong-list"></div>
       <div id="wrong-empty" class="empty-msg" style="display:none;">该学员暂无错题记录。</div>
     </div>
+
+    <div class="tab-panel" id="panel-level">
+      <p class="subtitle" style="margin-top:0;">各难度正确率与平均每题用时（基于最近 500 局内的答题记录），可按日查看进步变化。</p>
+      <div class="level-chart-wrap" id="level-chart-wrap" style="display:none;">
+        <div class="level-chart-row">
+          <label for="level-chart-select">选择难度：</label>
+          <select id="level-chart-select"></select>
+        </div>
+        <div style="position:relative;height:280px;">
+          <canvas id="level-chart-canvas"></canvas>
+        </div>
+      </div>
+      <div id="level-summary-wrap">
+        <table class="level-summary-table" id="level-summary-table" style="display:none;">
+          <thead>
+            <tr><th>难度</th><th>答题数</th><th>正确率</th><th>平均每题用时(秒)</th></tr>
+          </thead>
+          <tbody id="level-summary-body"></tbody>
+        </table>
+        <div id="level-summary-empty" class="empty-msg" style="display:none;">暂无按题记录的难度数据，请学员多玩几局后查看。</div>
+      </div>
+    </div>
+    <p style="margin-top:20px;margin-bottom:0;font-size:0.78rem;color:#607d8b;text-align:center;">版本 v1.5.0</p>
   </div>
 
   <script>
@@ -310,6 +340,113 @@
       `).join("");
     }
 
+    function aggregateByLevel(runs) {
+      const byLevel = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
+      if (!runs || !runs.length) return byLevel;
+      runs.forEach(r => {
+        if (!Array.isArray(r.attempts)) return;
+        r.attempts.forEach(a => {
+          const idx = Math.max(0, Math.min(15, Number(a.levelIndex) || 0));
+          byLevel[idx].total += 1;
+          if (a.correct) byLevel[idx].correct += 1;
+          byLevel[idx].totalTimeMs += Number(a.timeSpentMs) || 0;
+        });
+      });
+      return byLevel;
+    }
+
+    function aggregateByDayAndLevel(runs) {
+      const byDay = {};
+      if (!runs || !runs.length) return byDay;
+      runs.forEach(r => {
+        const ts = r.ts || 0;
+        const d = new Date(ts);
+        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+        if (!byDay[dateStr]) byDay[dateStr] = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
+        if (!Array.isArray(r.attempts)) return;
+        r.attempts.forEach(a => {
+          const idx = Math.max(0, Math.min(15, Number(a.levelIndex) || 0));
+          byDay[dateStr][idx].total += 1;
+          if (a.correct) byDay[dateStr][idx].correct += 1;
+          byDay[dateStr][idx].totalTimeMs += Number(a.timeSpentMs) || 0;
+        });
+      });
+      return byDay;
+    }
+
+    let levelChartInstance = null;
+    function renderLevelChart(byDay, levelIndex) {
+      const dates = Object.keys(byDay).sort();
+      const wrap = document.getElementById("level-chart-wrap");
+      const sel = document.getElementById("level-chart-select");
+      if (dates.length === 0 || !sel.value) {
+        if (levelChartInstance) { levelChartInstance.destroy(); levelChartInstance = null; }
+        wrap.style.display = "none";
+        return;
+      }
+      wrap.style.display = "block";
+      const acc = dates.map(d => {
+        const L = byDay[d][levelIndex];
+        const total = L.total || 0;
+        const correct = L.correct || 0;
+        const totalTimeMs = L.totalTimeMs || 0;
+        return {
+          date: d,
+          accuracy: total > 0 ? Math.round((correct / total) * 100) : null,
+          avgSec: total > 0 ? Math.round((totalTimeMs / total) / 1000 * 10) / 10 : null
+        };
+      });
+      const canvas = document.getElementById("level-chart-canvas");
+      if (levelChartInstance) levelChartInstance.destroy();
+      levelChartInstance = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: acc.map(x => x.date),
+          datasets: [
+            { label: "正确率(%)", data: acc.map(x => x.accuracy), borderColor: "#1976d2", backgroundColor: "rgba(25,118,210,0.1)", yAxisID: "y", tension: 0.2 },
+            { label: "平均每题用时(秒)", data: acc.map(x => x.avgSec), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", yAxisID: "y1", tension: 0.2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { type: "linear", position: "left", min: 0, max: 100, title: { display: true, text: "正确率(%)" } },
+            y1: { type: "linear", position: "right", min: 0, title: { display: true, text: "平均用时(秒)" }, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+    }
+
+    function renderLevelAnalysis(runs) {
+      const byLevel = aggregateByLevel(runs);
+      const byDay = aggregateByDayAndLevel(runs);
+      const table = document.getElementById("level-summary-table");
+      const tbody = document.getElementById("level-summary-body");
+      const empty = document.getElementById("level-summary-empty");
+      const hasAny = byLevel.some(l => l.total > 0);
+      if (!hasAny) {
+        table.style.display = "none";
+        empty.style.display = "block";
+        document.getElementById("level-chart-wrap").style.display = "none";
+        if (levelChartInstance) { levelChartInstance.destroy(); levelChartInstance = null; }
+        return;
+      }
+      empty.style.display = "none";
+      table.style.display = "table";
+      tbody.innerHTML = byLevel.map((l, i) => {
+        const acc = l.total > 0 ? Math.round((l.correct / l.total) * 100) : "-";
+        const avgSec = l.total > 0 ? (Math.round((l.totalTimeMs / l.total) / 1000 * 10) / 10) : "-";
+        return `<tr><td>${LEVEL_NAMES[i] || "L" + (i + 1)}</td><td>${l.total}</td><td>${acc}${l.total > 0 ? "%" : ""}</td><td>${avgSec}</td></tr>`;
+      }).join("");
+      const levelSelect = document.getElementById("level-chart-select");
+      levelSelect.innerHTML = Array.from({ length: 16 }, (_, i) => `<option value="${i}">${LEVEL_NAMES[i] || "L" + (i + 1)}</option>`).join("");
+      const firstWithData = byLevel.findIndex(l => l.total > 0);
+      levelSelect.value = firstWithData >= 0 ? firstWithData : 0;
+      renderLevelChart(byDay, parseInt(levelSelect.value, 10));
+      levelSelect.onchange = () => renderLevelChart(byDay, parseInt(levelSelect.value, 10));
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
       const authTip = document.getElementById("auth-tip");
       const selectRow = document.getElementById("select-row");
@@ -336,20 +473,34 @@
 
       const tabRecords = document.getElementById("tab-records");
       const tabWrong = document.getElementById("tab-wrong");
+      const tabLevel = document.getElementById("tab-level");
       const panelRecords = document.getElementById("panel-records");
       const panelWrong = document.getElementById("panel-wrong");
+      const panelLevel = document.getElementById("panel-level");
 
       tabRecords.addEventListener("click", () => {
         tabRecords.classList.add("active");
         tabWrong.classList.remove("active");
+        tabLevel.classList.remove("active");
         panelRecords.classList.add("active");
         panelWrong.classList.remove("active");
+        panelLevel.classList.remove("active");
       });
       tabWrong.addEventListener("click", () => {
         tabWrong.classList.add("active");
         tabRecords.classList.remove("active");
+        tabLevel.classList.remove("active");
         panelWrong.classList.add("active");
         panelRecords.classList.remove("active");
+        panelLevel.classList.remove("active");
+      });
+      tabLevel.addEventListener("click", () => {
+        tabLevel.classList.add("active");
+        tabRecords.classList.remove("active");
+        tabWrong.classList.remove("active");
+        panelLevel.classList.add("active");
+        panelRecords.classList.remove("active");
+        panelWrong.classList.remove("active");
       });
 
       userSelect.addEventListener("change", async () => {
@@ -367,6 +518,11 @@
           document.getElementById("wrong-list").innerHTML = "";
           document.getElementById("wrong-empty").style.display = "block";
           document.getElementById("wrong-empty").textContent = "请选择学员。";
+          document.getElementById("level-summary-table").style.display = "none";
+          document.getElementById("level-summary-empty").style.display = "block";
+          document.getElementById("level-summary-empty").textContent = "请选择学员。";
+          document.getElementById("level-chart-wrap").style.display = "none";
+          if (levelChartInstance) { levelChartInstance.destroy(); levelChartInstance = null; }
           return;
         }
         document.getElementById("tab-row").style.display = "flex";
@@ -377,6 +533,7 @@
         renderRecords(runs, user);
         const wrongs = (user && Array.isArray(user.wrongAnswers)) ? user.wrongAnswers : [];
         renderWrongAnswers(wrongs);
+        renderLevelAnalysis(runs);
       });
     });
   </script>

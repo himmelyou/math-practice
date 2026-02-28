@@ -100,6 +100,20 @@ app.put("/api/user/:username", (req, res) => {
   res.json({ ok: true, user: data.users[idx] });
 });
 
+// ========== 学员获取自己的练习记录（完整 runs，供首页「数据统计」用） ==========
+app.get("/api/user/:username/runs", (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  if (!data.users.some((u) => u.username === username)) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runs = (runsData.runs[username] || [])
+    .map((r) => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : "survival") }))
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  res.json({ ok: true, runs });
+});
+
 // ========== 添加生存局记录（用于完整历史，供 report 页面使用） ==========
 app.post("/api/user/:username/runs", (req, res) => {
   const { username } = req.params;
@@ -111,14 +125,16 @@ app.post("/api/user/:username/runs", (req, res) => {
   }
   const runsData = readJson(RUNS_FILE, { runs: {} });
   if (!runsData.runs[username]) runsData.runs[username] = [];
-  runsData.runs[username].unshift({
+  const runEntry = {
     survivalTimeSec: run.survivalTimeSec ?? 0,
     score: run.score ?? 0,
     maxLevel: run.maxLevel ?? 0,
     wrongCount: run.wrongCount ?? 0,
     ts: run.ts ?? Date.now(),
     mode: run.mode === "level" ? "level" : (run.mode === "training" ? "training" : "survival"),
-  });
+  };
+  if (Array.isArray(run.attempts)) runEntry.attempts = run.attempts;
+  runsData.runs[username].unshift(runEntry);
   if (runsData.runs[username].length > 500) {
     runsData.runs[username] = runsData.runs[username].slice(0, 500);
   }

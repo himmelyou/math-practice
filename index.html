@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Jarvis Math Lab 计算游戏</title>
   <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --bg: #e6f3ff;
@@ -585,6 +586,31 @@
       cursor: not-allowed;
     }
 
+    .mode-btn-stats {
+      background: linear-gradient(135deg, #00695c, #00897b);
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(0, 105, 92, 0.35);
+    }
+
+    .stats-section { display: none; margin-top: 12px; }
+    .stats-section.visible { display: block; }
+    .stats-back-row { margin-bottom: 12px; }
+    .stats-tab-row { display: flex; gap: 0; margin-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
+    .stats-tab-btn { padding: 10px 16px; border: none; background: transparent; cursor: pointer; font-size: 0.9rem; color: #607d8b; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .stats-tab-btn.active { color: #1976d2; font-weight: 600; border-bottom-color: #1976d2; }
+    .stats-panel { display: none; }
+    .stats-panel.active { display: block; }
+    .stats-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; margin-bottom: 12px; }
+    .stats-table th, .stats-table td { border-bottom: 1px solid #e8ecf4; padding: 8px 6px; text-align: center; }
+    .stats-table th { background: #f0f4ff; font-weight: 600; }
+    .stats-table td:first-child { text-align: left; }
+    .stats-level-chart-wrap { margin-bottom: 16px; }
+    .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .stats-level-chart-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid #c5d3ea; min-width: 110px; }
+    .stats-wrong-item { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 0.9rem; }
+    .stats-wrong-item .q { font-weight: 600; margin-bottom: 4px; }
+    .stats-empty-msg { text-align: center; padding: 24px 16px; color: #607d8b; font-size: 0.9rem; }
+
     .wrongbook-section {
       margin-top: 16px;
     }
@@ -669,7 +695,7 @@
       <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
       <div id="login-error" class="login-error"></div>
       <p class="login-hint">本练习无法自行注册，请联系尤老师获取账号与密码。也可先游客试玩，数据仅保存在本机。登录后记录将同步到服务器。</p>
-      <p class="login-version">版本 v1.4.0</p><!-- 与页脚版本号保持一致 -->
+      <p class="login-version">版本 v1.5.0</p><!-- 与页脚版本号保持一致 -->
     </div>
   </div>
 
@@ -688,6 +714,7 @@
       <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
       <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">训练模式</button>
       <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
+      <button type="button" class="mode-btn mode-btn-stats" id="mode-stats" style="display:none;">数据统计</button>
     </section>
 
     <div class="game-section" id="game-section">
@@ -792,10 +819,23 @@
       </div>
     </section>
 
+    <section class="stats-section" id="stats-section">
+      <div class="stats-back-row">
+        <button type="button" class="btn-primary btn-secondary" id="stats-back-btn">返回首页</button>
+      </div>
+      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的正确率与用时（基于最近 500 局）。</p>
+      <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="display:none;">
+        <div class="stats-level-chart-row"><label>选择难度：</label><select id="stats-level-select"></select></div>
+        <div style="position:relative;height:260px;"><canvas id="stats-level-canvas"></canvas></div>
+      </div>
+      <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th>难度</th><th>答题数</th><th>正确率</th><th>平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
+      <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
+    </section>
+
     <footer class="app-footer">
       本页面为单文件 H5，自适应手机与电脑访问。登录后数据同步至服务器，换设备可继续练习。<br>
       <!-- 每次修改代码后请同步更新此处及登录页的版本号 -->
-      <strong>版本 v1.4.0</strong>
+      <strong>版本 v1.5.0</strong>
     </footer>
   </div>
 
@@ -1419,6 +1459,8 @@
     let runScore = 0;
     let consecutiveCorrect = 0;
     let gameStartTime = 0;
+    let questionShownAt = 0;
+    let currentRunAttempts = [];
     let gameOver = false;
     let isPlaying = false;
     let maxLevelThisRun = 0;
@@ -1734,10 +1776,11 @@
       return s === 0 ? m + " 分" : m + " 分 " + s + " 秒";
     }
 
-    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode) {
+    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts) {
       wrongCount = wrongCount ?? 0;
       mode = mode === "level" ? "level" : (mode === "training" ? "training" : "survival");
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
+      if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
@@ -1911,6 +1954,7 @@
 
     function renderQuestion(question) {
       if (!question) return;
+      questionShownAt = Date.now();
       dom.questionText.textContent = question.text;
       dom.questionSubtext.textContent = "";
       dom.answerInput.value = "";
@@ -1936,6 +1980,7 @@
       runScore = 0;
       consecutiveCorrect = 0;
       runWrongCount = 0;
+      currentRunAttempts = [];
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
@@ -1972,6 +2017,7 @@
       runScore = 0;
       consecutiveCorrect = 0;
       runWrongCount = 0;
+      currentRunAttempts = [];
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
@@ -2045,6 +2091,7 @@
       trainingQuestionIndex = 0;
       runScore = 0;
       runWrongCount = 0;
+      currentRunAttempts = [];
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
@@ -2085,7 +2132,7 @@
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
-      appendRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount, "survival");
+      appendRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice());
       renderRecentRuns();
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
@@ -2273,7 +2320,10 @@
     function evaluateAnswerSurvival(userAnswer) {
       const question = currentQuestion;
       if (!question) return;
-      const isCorrect = userAnswer === question.answer;
+      const timeSpentMs = questionShownAt ? Date.now() - questionShownAt : 0;
+      const correct = userAnswer === question.answer;
+      currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
+      const isCorrect = correct;
 
       if (isCorrect) {
         survivalTimeLeft += 2;
@@ -2317,7 +2367,10 @@
     function evaluateAnswerLevel(userAnswer) {
       const question = currentQuestion;
       if (!question) return;
-      const isCorrect = userAnswer === question.answer;
+      const timeSpentMs = questionShownAt ? Date.now() - questionShownAt : 0;
+      const correct = userAnswer === question.answer;
+      currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
+      const isCorrect = correct;
 
       if (isCorrect) {
         survivalTimeLeft += 2;
@@ -2361,7 +2414,10 @@
     function evaluateAnswerTraining(userAnswer) {
       const question = currentQuestion;
       if (!question) return;
-      const isCorrect = userAnswer === question.answer;
+      const timeSpentMs = questionShownAt ? Date.now() - questionShownAt : 0;
+      const correct = userAnswer === question.answer;
+      currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
+      const isCorrect = correct;
 
       if (isCorrect) {
         runScore += 1;
@@ -2426,7 +2482,7 @@
       }
 
       await saveLevelTrainingCurrentLevel(newLevel >= 0 ? newLevel : -1);
-      appendRun(survivalTimeSec, runScore, currentLevelIndex, runWrongCount, "training");
+      appendRun(survivalTimeSec, runScore, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice());
       renderRecentRuns();
 
       if (dom.gameOverPanel) {
@@ -2465,7 +2521,7 @@
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
       const endLevel = completed ? 15 : currentLevelIndex;
       saveLevelChallengeLastLevel(endLevel);
-      appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level");
+      appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
       renderRecentRuns();
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
@@ -2546,7 +2602,132 @@
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
       updateHomeTotalScore();
+    }
+
+    let statsChartInstance = null;
+    async function showStatsView() {
+      if (isGuestMode) return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.add("visible");
+      const base = getApiBase();
+      if (!base) {
+        document.getElementById("stats-level-empty").style.display = "block";
+        document.getElementById("stats-level-empty").textContent = "需要连接服务器才能查看数据统计，请配置 API 后重试。";
+        document.getElementById("stats-level-table").style.display = "none";
+        document.getElementById("stats-level-chart-wrap").style.display = "none";
+        return;
+      }
+      try {
+        const runsRes = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs");
+        const runsData = await runsRes.json();
+        const runs = runsData.ok ? runsData.runs : [];
+        renderStatsLevel(runs);
+      } catch (e) {
+        console.warn("加载数据统计失败", e);
+        document.getElementById("stats-level-empty").style.display = "block";
+        document.getElementById("stats-level-empty").textContent = "加载失败，请稍后重试。";
+        document.getElementById("stats-level-table").style.display = "none";
+        document.getElementById("stats-level-chart-wrap").style.display = "none";
+      }
+    }
+
+    function hideStatsView() {
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      if (dom.homeSection) dom.homeSection.classList.remove("hidden");
+      if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
+    }
+
+    function renderStatsLevel(runs) {
+      const byLevel = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
+      (runs || []).forEach(r => {
+        if (!Array.isArray(r.attempts)) return;
+        r.attempts.forEach(a => {
+          const idx = Math.max(0, Math.min(15, Number(a.levelIndex) || 0));
+          byLevel[idx].total += 1;
+          if (a.correct) byLevel[idx].correct += 1;
+          byLevel[idx].totalTimeMs += Number(a.timeSpentMs) || 0;
+        });
+      });
+      const byDay = {};
+      (runs || []).forEach(r => {
+        const ts = r.ts || 0;
+        const d = new Date(ts);
+        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+        if (!byDay[dateStr]) byDay[dateStr] = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
+        if (!Array.isArray(r.attempts)) return;
+        r.attempts.forEach(a => {
+          const idx = Math.max(0, Math.min(15, Number(a.levelIndex) || 0));
+          byDay[dateStr][idx].total += 1;
+          if (a.correct) byDay[dateStr][idx].correct += 1;
+          byDay[dateStr][idx].totalTimeMs += Number(a.timeSpentMs) || 0;
+        });
+      });
+      const table = document.getElementById("stats-level-table");
+      const tbody = document.getElementById("stats-level-body");
+      const empty = document.getElementById("stats-level-empty");
+      const chartWrap = document.getElementById("stats-level-chart-wrap");
+      const hasAny = byLevel.some(l => l.total > 0);
+      if (!hasAny) {
+        table.style.display = "none";
+        empty.style.display = "block";
+        chartWrap.style.display = "none";
+        if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
+        return;
+      }
+      empty.style.display = "none";
+      table.style.display = "table";
+      const levelNames = DIFFICULTY_MODULE.levels.map(l => l.name) || [];
+      tbody.innerHTML = byLevel.map((l, i) => {
+        const acc = l.total > 0 ? Math.round((l.correct / l.total) * 100) : "-";
+        const avgSec = l.total > 0 ? (Math.round((l.totalTimeMs / l.total) / 1000 * 10) / 10) : "-";
+        return "<tr><td>" + (levelNames[i] || "L" + (i + 1)) + "</td><td>" + l.total + "</td><td>" + acc + (l.total > 0 ? "%" : "") + "</td><td>" + avgSec + "</td></tr>";
+      }).join("");
+      const sel = document.getElementById("stats-level-select");
+      sel.innerHTML = Array.from({ length: 16 }, (_, i) => "<option value=\"" + i + "\">" + (levelNames[i] || "L" + (i + 1)) + "</option>").join("");
+      const firstWithData = byLevel.findIndex(l => l.total > 0);
+      sel.value = firstWithData >= 0 ? firstWithData : 0;
+      function updateStatsChart() {
+        const levelIndex = parseInt(sel.value, 10);
+        const dates = Object.keys(byDay).sort();
+        if (dates.length === 0) { chartWrap.style.display = "none"; return; }
+        chartWrap.style.display = "block";
+        const acc = dates.map(d => {
+          const L = byDay[d][levelIndex];
+          const total = L.total || 0;
+          return { accuracy: total > 0 ? Math.round((L.correct / total) * 100) : null, avgSec: total > 0 ? Math.round((L.totalTimeMs / total) / 1000 * 10) / 10 : null };
+        });
+        const canvas = document.getElementById("stats-level-canvas");
+        if (statsChartInstance) statsChartInstance.destroy();
+        statsChartInstance = new Chart(canvas, {
+          type: "line",
+          data: {
+            labels: dates,
+            datasets: [
+              { label: "正确率(%)", data: acc.map(x => x.accuracy), borderColor: "#1976d2", backgroundColor: "rgba(25,118,210,0.1)", yAxisID: "y", tension: 0.2 },
+              { label: "平均每题用时(秒)", data: acc.map(x => x.avgSec), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", yAxisID: "y1", tension: 0.2 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { type: "linear", position: "left", min: 0, max: 100, title: { display: true, text: "正确率(%)" } },
+              y1: { type: "linear", position: "right", min: 0, title: { display: true, text: "平均用时(秒)" }, grid: { drawOnChartArea: false } }
+            }
+          }
+        });
+      }
+      updateStatsChart();
+      sel.onchange = updateStatsChart;
     }
 
     function showGameSection() {
@@ -2820,6 +3001,8 @@
       await refreshGameSettings();
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
+      const ms = document.getElementById("mode-stats");
+      if (ms) ms.style.display = "none";
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();
@@ -2876,6 +3059,10 @@
       if (modeLevel) modeLevel.addEventListener("click", handleModeLevel);
       if (modePractice) modePractice.addEventListener("click", handleModePractice);
       if (modeWrongbook) modeWrongbook.addEventListener("click", handleModeWrongbook);
+      const modeStats = document.getElementById("mode-stats");
+      if (modeStats) modeStats.addEventListener("click", showStatsView);
+      const statsBackBtn = document.getElementById("stats-back-btn");
+      if (statsBackBtn) statsBackBtn.addEventListener("click", hideStatsView);
       if (dom.wrongbookBackBtn) dom.wrongbookBackBtn.addEventListener("click", showHome);
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
 
@@ -2929,6 +3116,8 @@
             if (dom.startGameBtn) dom.startGameBtn.style.display = "";
             if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
             if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+            const ms = document.getElementById("mode-stats");
+            if (ms) ms.style.display = "";
             return;
           }
         } catch (e) {
@@ -2950,6 +3139,8 @@
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
         if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+        const ms = document.getElementById("mode-stats");
+        if (ms) ms.style.display = "";
       } else {
         document.getElementById("login-view").style.display = "flex";
         document.getElementById("app-view").style.display = "none";
