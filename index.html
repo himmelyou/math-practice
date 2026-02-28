@@ -3065,6 +3065,7 @@
       document.getElementById("app-view").style.display = "flex";
       loadState();
       showHome();
+      updateSurvivalStatusUI();
     }
 
     async function handleGuestEnter() {
@@ -3087,6 +3088,7 @@
       if (errorEl) errorEl.textContent = "";
       loadState();
       showHome();
+      updateSurvivalStatusUI();
     }
 
     function handleLogout() {
