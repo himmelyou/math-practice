@@ -591,6 +591,11 @@
       color: #fff;
       box-shadow: 0 6px 14px rgba(0, 105, 92, 0.35);
     }
+    .mode-btn-ranking {
+      background: linear-gradient(135deg, #5d4037, #8d6e63);
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(93, 64, 55, 0.35);
+    }
 
     .stats-section { display: none; margin-top: 12px; }
     .stats-section.visible { display: block; }
@@ -715,6 +720,7 @@
       <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">训练模式</button>
       <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
       <button type="button" class="mode-btn mode-btn-stats" id="mode-stats" style="display:none;">数据统计</button>
+      <button type="button" class="mode-btn mode-btn-ranking" id="mode-ranking" style="display:none;">生存排行</button>
     </section>
 
     <div class="game-section" id="game-section">
@@ -796,6 +802,7 @@
               <th>得分</th>
               <th>错误题数</th>
               <th>最高难度</th>
+              <th>通关</th>
               <th>日期时间</th>
             </tr>
           </thead>
@@ -817,6 +824,18 @@
         <button type="button" class="btn-primary" id="wrongbook-practice-btn" style="display:none;">错题练习</button>
         <button type="button" class="btn-primary btn-secondary" id="wrongbook-back-btn">回到首页</button>
       </div>
+    </section>
+
+    <section class="ranking-section" id="ranking-section" style="display:none;margin-top:12px;">
+      <div class="stats-back-row">
+        <button type="button" class="btn-primary btn-secondary" id="ranking-back-btn">返回首页</button>
+      </div>
+      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">通关生存挑战的用时越短、错题越少，排名越靠前（仅展示通关记录前 50 条）。</p>
+      <table class="stats-table" id="ranking-table" style="display:none;">
+        <thead><tr><th>排名</th><th>学员</th><th>通关用时</th><th>错题数</th></tr></thead>
+        <tbody id="ranking-body"></tbody>
+      </table>
+      <div id="ranking-empty" class="stats-empty-msg" style="display:none;">暂无通关记录。</div>
     </section>
 
     <section class="stats-section" id="stats-section">
@@ -1703,16 +1722,12 @@
       }
     }
 
-    function saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount) {
+    function saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, survivalCleared) {
       const data = getGuestSurvivalData();
       data.guestPlayCount = (data.guestPlayCount || 0) + 1;
-      data.recentSurvivalRuns.unshift({
-        survivalTimeSec,
-        score,
-        maxLevel,
-        wrongCount: wrongCount ?? 0,
-        ts: Date.now()
-      });
+      const entry = { survivalTimeSec, score, maxLevel, wrongCount: wrongCount ?? 0, ts: Date.now() };
+      if (survivalCleared === true) entry.survivalCleared = true;
+      data.recentSurvivalRuns.unshift(entry);
       if (data.recentSurvivalRuns.length > 10) {
         data.recentSurvivalRuns = data.recentSurvivalRuns.slice(0, 10);
       }
@@ -1776,15 +1791,16 @@
       return s === 0 ? m + " 分" : m + " 分 " + s + " 秒";
     }
 
-    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts) {
+    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared) {
       wrongCount = wrongCount ?? 0;
       mode = mode === "level" ? "level" : (mode === "training" ? "training" : "survival");
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
+      if (mode === "survival" && survivalCleared === true) runEntry.survivalCleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
-        else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount);
+        else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, survivalCleared);
         return;
       }
       const name = loadCurrentUsername();
@@ -1813,6 +1829,7 @@
         if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
         if (survivalTimeSec > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = survivalTimeSec;
         if (score > (u.bestScore || 0)) u.bestScore = score;
+        if (runEntry.survivalCleared) u.hasClearedSurvival = true;
       }
       if (cachedUser && cachedUser.username === name) cachedUser.totalScore = u.totalScore;
       saveUsers(users);
@@ -1877,12 +1894,14 @@
         const timeStr = formatSurvivalTime(r.survivalTimeSec || 0);
         const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
         const levelName = DIFFICULTY_MODULE.levels[r.maxLevel] ? DIFFICULTY_MODULE.levels[r.maxLevel].id : "-";
+        const clearedStr = gameMode === "survival" ? (r.survivalCleared ? "是" : "否") : "-";
         const dateStr = formatDateTime(r.ts);
         return `<tr>
           <td>${timeStr}</td>
           <td>${r.score || 0}</td>
           <td>${wrongStr}</td>
           <td>${levelName}</td>
+          <td>${clearedStr}</td>
           <td>${dateStr}</td>
         </tr>`;
       });
@@ -2132,8 +2151,13 @@
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
-      appendRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice());
+      appendRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice(), !!completed);
       renderRecentRuns();
+      if (completed && !isGuestMode && cachedUser) {
+        cachedUser.hasClearedSurvival = true;
+        const mr = document.getElementById("mode-ranking");
+        if (mr) mr.style.display = "";
+      }
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
@@ -2604,7 +2628,61 @@
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
       updateHomeTotalScore();
+    }
+
+    function userHasClearedSurvival(user) {
+      if (!user) return false;
+      if (user.hasClearedSurvival === true) return true;
+      return Array.isArray(user.recentSurvivalRuns) && user.recentSurvivalRuns.some((r) => r.survivalCleared === true);
+    }
+
+    async function showRankingView() {
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "block";
+      const base = getApiBase();
+      const table = document.getElementById("ranking-table");
+      const tbody = document.getElementById("ranking-body");
+      const empty = document.getElementById("ranking-empty");
+      if (!base) {
+        table.style.display = "none";
+        empty.style.display = "block";
+        empty.textContent = "需要连接服务器才能查看排行榜。";
+        return;
+      }
+      try {
+        const res = await fetch(base + "/api/survival-ranking");
+        const data = await res.json();
+        const list = data.ok && Array.isArray(data.list) ? data.list : [];
+        if (list.length === 0) {
+          table.style.display = "none";
+          empty.style.display = "block";
+          empty.textContent = "暂无通关记录。";
+          return;
+        }
+        empty.style.display = "none";
+        table.style.display = "table";
+        tbody.innerHTML = list.map((e) => {
+          const timeStr = formatSurvivalTime(e.survivalTimeSec || 0);
+          return "<tr><td>" + (e.rank || "-") + "</td><td>" + (e.username || "-") + "</td><td>" + timeStr + "</td><td>" + (e.wrongCount != null ? e.wrongCount : "-") + "</td></tr>";
+        }).join("");
+      } catch (e) {
+        console.warn("加载排行榜失败", e);
+        table.style.display = "none";
+        empty.style.display = "block";
+        empty.textContent = "加载失败，请稍后重试。";
+      }
+    }
+
+    function hideRankingView() {
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      if (dom.homeSection) dom.homeSection.classList.remove("hidden");
     }
 
     let statsChartInstance = null;
@@ -3003,6 +3081,8 @@
       document.getElementById("app-view").style.display = "flex";
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "none";
+      const mr = document.getElementById("mode-ranking");
+      if (mr) mr.style.display = "none";
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();
@@ -3063,6 +3143,10 @@
       if (modeStats) modeStats.addEventListener("click", showStatsView);
       const statsBackBtn = document.getElementById("stats-back-btn");
       if (statsBackBtn) statsBackBtn.addEventListener("click", hideStatsView);
+      const modeRanking = document.getElementById("mode-ranking");
+      if (modeRanking) modeRanking.addEventListener("click", showRankingView);
+      const rankingBackBtn = document.getElementById("ranking-back-btn");
+      if (rankingBackBtn) rankingBackBtn.addEventListener("click", hideRankingView);
       if (dom.wrongbookBackBtn) dom.wrongbookBackBtn.addEventListener("click", showHome);
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
 
@@ -3118,6 +3202,8 @@
             if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
             const ms = document.getElementById("mode-stats");
             if (ms) ms.style.display = "";
+            const mr = document.getElementById("mode-ranking");
+            if (mr) mr.style.display = userHasClearedSurvival(cachedUser) ? "" : "none";
             return;
           }
         } catch (e) {
@@ -3141,6 +3227,8 @@
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
         const ms = document.getElementById("mode-stats");
         if (ms) ms.style.display = "";
+        const mr = document.getElementById("mode-ranking");
+        if (mr) mr.style.display = userHasClearedSurvival(cachedUser) ? "" : "none";
       } else {
         document.getElementById("login-view").style.display = "flex";
         document.getElementById("app-view").style.display = "none";

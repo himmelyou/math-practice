@@ -14,7 +14,9 @@ const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), ".jarvis-math-l
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
+const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
 const ADMIN_PIN = process.env.ADMIN_PIN || "2026";
+const SURVIVAL_RANKING_MAX = 50;
 
 // 确保 data 目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -80,6 +82,16 @@ app.get("/api/user/:username", (req, res) => {
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
+  if (user.hasClearedSurvival === undefined) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    user.hasClearedSurvival = runs.some((r) => r.survivalCleared === true);
+    const idx = data.users.findIndex((u) => u.username === username);
+    if (idx >= 0) {
+      data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
+      writeJson(USERS_FILE, data);
+    }
+  }
   res.json({ ok: true, user });
 });
 
@@ -133,13 +145,55 @@ app.post("/api/user/:username/runs", (req, res) => {
     ts: run.ts ?? Date.now(),
     mode: run.mode === "level" ? "level" : (run.mode === "training" ? "training" : "survival"),
   };
+  if (runEntry.mode === "survival" && run.survivalCleared === true) runEntry.survivalCleared = true;
   if (Array.isArray(run.attempts)) runEntry.attempts = run.attempts;
   runsData.runs[username].unshift(runEntry);
   if (runsData.runs[username].length > 500) {
     runsData.runs[username] = runsData.runs[username].slice(0, 500);
   }
   writeJson(RUNS_FILE, runsData);
+
+  if (runEntry.mode === "survival" && runEntry.survivalCleared === true) {
+    const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
+    const list = Array.isArray(rankingData.list) ? rankingData.list : [];
+    const entry = {
+      username,
+      survivalTimeSec: runEntry.survivalTimeSec,
+      wrongCount: runEntry.wrongCount ?? 0,
+      ts: runEntry.ts
+    };
+    const next = list.filter((e) => !(e.username === entry.username && e.ts === entry.ts));
+    next.push(entry);
+    next.sort((a, b) => {
+      if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
+      return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
+    });
+    rankingData.list = next.slice(0, SURVIVAL_RANKING_MAX);
+    writeJson(SURVIVAL_RANKING_FILE, rankingData);
+
+    const userData = readJson(USERS_FILE, { users: [] });
+    const uIdx = userData.users.findIndex((u) => u.username === username);
+    if (uIdx >= 0) {
+      userData.users[uIdx].hasClearedSurvival = true;
+      writeJson(USERS_FILE, userData);
+    }
+  }
+
   res.json({ ok: true });
+});
+
+// ========== 生存通关排行榜（预计算，学员只读） ==========
+app.get("/api/survival-ranking", (req, res) => {
+  const data = readJson(SURVIVAL_RANKING_FILE, { list: [] });
+  const list = Array.isArray(data.list) ? data.list : [];
+  const out = list.map((e, i) => ({
+    rank: i + 1,
+    username: e.username,
+    survivalTimeSec: e.survivalTimeSec ?? 0,
+    wrongCount: e.wrongCount ?? 0,
+    ts: e.ts
+  }));
+  res.json({ ok: true, list: out });
 });
 
 // ========== 管理员：获取所有学员 ==========

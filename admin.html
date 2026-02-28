@@ -114,6 +114,11 @@
     .success {
       color: #2e7d32;
     }
+    .tab-row { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 1px solid #e0e0e0; }
+    .tab-btn { padding: 10px 16px; border: none; background: transparent; cursor: pointer; font-size: 0.9rem; color: #607d8b; border-bottom: 2px solid transparent; margin-bottom: -1px; border-radius: 0; font-weight: 500; }
+    .tab-btn.active { color: #1976d2; font-weight: 600; border-bottom-color: #1976d2; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
   </style>
 </head>
 <body>
@@ -123,72 +128,74 @@
 
     <div id="auth-tip" class="hint danger"></div>
 
-    <form id="admin-form" style="display:none;">
-      <h2 style="margin:8px 0 4px;font-size:1.05rem;">一、难度与练习设置</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>难度名称</th>
-            <th>及格准确率 %</th>
-            <th>通关准确率 %</th>
-            <th>通关时限 (秒)</th>
-          </tr>
-        </thead>
-        <tbody id="admin-table-body"></tbody>
-      </table>
-
-      <div class="btn-row">
-        <button type="submit" class="btn-primary">保存练习设置</button>
-        <button type="button" class="btn-secondary" id="reset-btn">恢复默认</button>
-        <span id="save-tip" class="hint"></span>
+    <div id="admin-form" style="display:none;">
+      <div class="tab-row">
+        <button type="button" class="tab-btn active" id="tab-accounts">账号管理</button>
+        <button type="button" class="tab-btn" id="tab-levels">等级设置</button>
+        <button type="button" class="tab-btn" id="tab-backup">系统备份</button>
       </div>
 
-      <p class="hint">
-        建议：通关准确率一般设在 <strong>90–100%</strong>，批次时间可以适当宽松一点。
-      </p>
-
-      <hr style="margin:16px 0;border:none;border-top:1px dashed #dde3f3;">
-
-      <h2 style="margin:4px 0 6px;font-size:1.05rem;">二、学员账号管理</h2>
-
-      <div class="hint" style="margin-top:0;">
-        学员在登录页输入用户名和密码后进入练习。这里只能由你添加 / 删除账号，学员不能自行注册。
+      <div class="tab-panel active" id="panel-accounts">
+        <div class="hint" style="margin-top:0;">
+          学员在登录页输入用户名和密码后进入练习。这里只能由你添加 / 删除账号，学员不能自行注册。
+        </div>
+        <table class="user-table" style="margin-top:10px;">
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>密码</th>
+              <th>当前难度</th>
+              <th>历史最高</th>
+              <th class="sortable" id="sort-score-th">积分 <span id="sort-score-icon" class="sort-icon">↓</span></th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="user-table-body"></tbody>
+        </table>
+        <div class="btn-row" style="margin-top:12px;">
+          <input id="new-username" type="text" placeholder="新用户名" style="flex:1;min-width:90px;border-radius:999px;border:1px solid #c5d3ea;padding:6px 10px;font-size:0.86rem;outline:none;">
+          <input id="new-password" type="text" placeholder="密码" style="flex:1;min-width:80px;border-radius:999px;border:1px solid #c5d3ea;padding:6px 10px;font-size:0.86rem;outline:none;">
+          <button type="button" class="btn-secondary" id="add-user-btn">添加用户</button>
+        </div>
+        <div id="user-tip" class="hint"></div>
       </div>
 
-      <table class="user-table" style="margin-top:10px;">
-        <thead>
-          <tr>
-            <th>用户名</th>
-            <th>密码</th>
-            <th>当前难度</th>
-            <th>历史最高</th>
-            <th class="sortable" id="sort-score-th">积分 <span id="sort-score-icon" class="sort-icon">⇅</span></th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody id="user-table-body"></tbody>
-      </table>
-
-      <div class="btn-row" style="margin-top:12px;">
-        <input id="new-username" type="text" placeholder="新用户名" style="flex:1;min-width:90px;border-radius:999px;border:1px solid #c5d3ea;padding:6px 10px;font-size:0.86rem;outline:none;">
-        <input id="new-password" type="text" placeholder="密码" style="flex:1;min-width:80px;border-radius:999px;border:1px solid #c5d3ea;padding:6px 10px;font-size:0.86rem;outline:none;">
-        <button type="button" class="btn-secondary" id="add-user-btn">添加用户</button>
+      <div class="tab-panel" id="panel-levels">
+        <h2 style="margin:0 0 8px;font-size:1.05rem;">难度与练习设置</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>难度名称</th>
+              <th>及格准确率 %</th>
+              <th>通关准确率 %</th>
+              <th>通关时限 (秒)</th>
+            </tr>
+          </thead>
+          <tbody id="admin-table-body"></tbody>
+        </table>
+        <div class="btn-row">
+          <button type="button" class="btn-primary" id="save-settings-btn">保存练习设置</button>
+          <button type="button" class="btn-secondary" id="reset-btn">恢复默认</button>
+          <span id="save-tip" class="hint"></span>
+        </div>
+        <p class="hint">
+          建议：通关准确率一般设在 <strong>90–100%</strong>，批次时间可以适当宽松一点。
+        </p>
       </div>
-      <div id="user-tip" class="hint"></div>
 
-      <hr style="margin:20px 0;border:none;border-top:1px dashed #dde3f3;">
-
-      <h2 style="margin:4px 0 6px;font-size:1.05rem;">三、数据备份与恢复</h2>
-      <div class="hint" style="margin-top:0;">
-        备份会下载全部数据（学员、练习记录、设置）。恢复会覆盖当前数据，请谨慎操作。
+      <div class="tab-panel" id="panel-backup">
+        <h2 style="margin:0 0 8px;font-size:1.05rem;">数据备份与恢复</h2>
+        <div class="hint" style="margin-top:0;">
+          备份会下载全部数据（学员、练习记录、设置）。恢复会覆盖当前数据，请谨慎操作。
+        </div>
+        <div class="btn-row" style="margin-top:10px;">
+          <button type="button" class="btn-primary" id="backup-btn">备份数据</button>
+          <button type="button" class="btn-secondary" id="restore-btn">导入恢复</button>
+          <input type="file" id="restore-file" accept=".json" style="display:none;">
+          <span id="backup-tip" class="hint"></span>
+        </div>
       </div>
-      <div class="btn-row" style="margin-top:10px;">
-        <button type="button" class="btn-primary" id="backup-btn">备份数据</button>
-        <button type="button" class="btn-secondary" id="restore-btn">导入恢复</button>
-        <input type="file" id="restore-file" accept=".json" style="display:none;">
-        <span id="backup-tip" class="hint"></span>
-      </div>
-    </form>
+    </div>
 
     <p style="margin-top:20px;margin-bottom:0;font-size:0.78rem;color:#607d8b;text-align:center;">版本 v1.5.0</p>
   </div>
@@ -311,12 +318,15 @@
     }
 
     async function saveSettingsFromForm() {
-      const form = document.getElementById("admin-form");
+      const container = document.getElementById("admin-form");
       const newLevels = [];
       for (let i = 0; i < LEVEL_NAMES.length; i++) {
-        const passAccuracy = Number(form["passAccuracy" + i].value) / 100;
-        const upgradeAccuracy = Number(form["accuracy" + i].value) / 100;
-        const upgradeTimeLimit = Number(form["timelimit" + i].value);
+        const passEl = container.querySelector("[name=\"passAccuracy" + i + "\"]");
+        const accEl = container.querySelector("[name=\"accuracy" + i + "\"]");
+        const timeEl = container.querySelector("[name=\"timelimit" + i + "\"]");
+        const passAccuracy = Number(passEl && passEl.value ? passEl.value : 80) / 100;
+        const upgradeAccuracy = Number(accEl && accEl.value ? accEl.value : 95) / 100;
+        const upgradeTimeLimit = Number(timeEl && timeEl.value ? timeEl.value : 300);
         newLevels.push({ passAccuracy, upgradeAccuracy, upgradeTimeLimit });
       }
       const base = getApiBase();
@@ -366,7 +376,7 @@
 
     const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
     let cachedUsers = [];
-    let scoreSortOrder = 0;
+    let scoreSortOrder = 1; // 1=积分倒序(默认), -1=正序, 0=不按积分排
 
     async function loadUsers() {
       const base = getApiBase();
@@ -554,6 +564,22 @@
       authTip.textContent = "";
       form.style.display = "block";
 
+      const tabAccounts = document.getElementById("tab-accounts");
+      const tabLevels = document.getElementById("tab-levels");
+      const tabBackup = document.getElementById("tab-backup");
+      const panelAccounts = document.getElementById("panel-accounts");
+      const panelLevels = document.getElementById("panel-levels");
+      const panelBackup = document.getElementById("panel-backup");
+      function switchTab(activeTab, activePanel) {
+        [tabAccounts, tabLevels, tabBackup].forEach(t => t && t.classList.remove("active"));
+        [panelAccounts, panelLevels, panelBackup].forEach(p => p && p.classList.remove("active"));
+        if (activeTab) activeTab.classList.add("active");
+        if (activePanel) activePanel.classList.add("active");
+      }
+      if (tabAccounts) tabAccounts.addEventListener("click", () => switchTab(tabAccounts, panelAccounts));
+      if (tabLevels) tabLevels.addEventListener("click", () => switchTab(tabLevels, panelLevels));
+      if (tabBackup) tabBackup.addEventListener("click", () => switchTab(tabBackup, panelBackup));
+
       await renderTable();
       await renderUserTable();
 
@@ -562,8 +588,7 @@
         await renderUserTable();
       });
 
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
+      document.getElementById("save-settings-btn").addEventListener("click", async () => {
         const ok = await saveSettingsFromForm();
         saveTip.textContent = ok ? "已保存，重新打开 index.html 后生效。" : "保存失败，请检查网络。";
         saveTip.classList.toggle("danger", !ok);
