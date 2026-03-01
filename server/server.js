@@ -183,6 +183,36 @@ app.put("/api/user/:username", (req, res) => {
   res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
+// ========== 学员修改密码 ==========
+app.post("/api/user/:username/change-password", async (req, res) => {
+  const { username } = req.params;
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.json({ ok: false, error: "请填写当前密码和新密码" });
+  }
+  if (String(newPassword).length < 6) {
+    return res.json({ ok: false, error: "新密码至少 6 位" });
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const user = data.users[idx];
+  let match = false;
+  if (isBcryptHash(user.password)) {
+    match = await bcrypt.compare(currentPassword, user.password);
+  } else {
+    match = user.password === currentPassword;
+  }
+  if (!match) {
+    return res.json({ ok: false, error: "当前密码错误" });
+  }
+  data.users[idx].password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+  writeJson(USERS_FILE, data);
+  res.json({ ok: true });
+});
+
 // ========== 学员获取自己的练习记录（完整 runs，供首页「数据统计」用） ==========
 app.get("/api/user/:username/runs", (req, res) => {
   const { username } = req.params;

@@ -89,7 +89,7 @@
 
     .login-btn {
       width: 100%;
-      margin-top: 4px;
+      margin-top: 12px;
       border-radius: 999px;
       border: none;
       padding: 9px 14px;
@@ -101,8 +101,8 @@
       box-shadow: 0 6px 14px rgba(25, 118, 210, 0.4);
     }
 
+    .login-panel .login-btn:first-of-type { margin-top: 0; }
     .guest-btn {
-      margin-top: 8px;
       background: #f1f6ff;
       color: var(--primary);
       box-shadow: none;
@@ -168,13 +168,14 @@
       font-size: 0.82rem;
       color: var(--muted);
     }
+    .user-bar-actions { display: flex; align-items: center; gap: 8px; }
 
     .user-name {
       font-weight: 600;
       color: var(--primary);
     }
 
-    .logout-btn {
+    .logout-btn, .change-pwd-btn {
       border-radius: 999px;
       border: none;
       padding: 4px 10px;
@@ -183,6 +184,30 @@
       background: #f5f7ff;
       color: #546e7a;
     }
+
+    .change-password-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .change-password-modal-overlay.active { display: flex; }
+    .change-password-modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      min-width: 280px;
+      max-width: 90vw;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .change-password-modal h3 { margin: 0 0 14px 0; font-size: 1rem; color: #37474f; }
+    .change-password-modal .login-field { margin-bottom: 12px; }
+    .change-password-modal .login-field input { width: 100%; box-sizing: border-box; }
+    .change-password-modal .modal-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+    .change-password-modal .modal-error { color: #c62828; font-size: 0.82rem; margin-top: 8px; }
 
     .status-grid {
       display: grid;
@@ -699,9 +724,9 @@
         <div class="login-field">
           <input id="login-password" type="password" autocomplete="current-password" placeholder="密码" />
         </div>
-        <button id="go-register-btn" class="login-btn" type="button">注册</button>
         <button id="login-btn" class="login-btn">登录</button>
         <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
+        <button id="go-register-btn" class="login-btn" type="button">注册</button>
       </div>
       <div class="login-panel" id="register-panel">
         <div class="login-field">
@@ -727,7 +752,10 @@
       <h1 class="app-title">Jarvis Math Lab 计算游戏</h1>
       <div class="user-bar">
         <span>当前学员：<span class="user-name" id="current-username-label">-</span></span>
-        <button id="logout-btn" class="logout-btn">注销</button>
+        <span class="user-bar-actions">
+          <button id="change-password-btn" class="change-pwd-btn" type="button">修改密码</button>
+          <button id="logout-btn" class="logout-btn">注销</button>
+        </span>
       </div>
     </header>
 
@@ -874,6 +902,26 @@
       <!-- 每次修改代码后请同步更新此处及登录页的版本号 -->
       <strong>版本 v1.5.0</strong>
     </footer>
+  </div>
+
+  <div id="change-password-modal-overlay" class="change-password-modal-overlay">
+    <div class="change-password-modal">
+      <h3>修改密码</h3>
+      <div class="login-field">
+        <input id="change-pwd-current" type="password" autocomplete="current-password" placeholder="当前密码" />
+      </div>
+      <div class="login-field">
+        <input id="change-pwd-new" type="password" autocomplete="new-password" placeholder="新密码（至少6位）" />
+      </div>
+      <div class="login-field">
+        <input id="change-pwd-confirm" type="password" autocomplete="new-password" placeholder="确认新密码" />
+      </div>
+      <div id="change-password-modal-error" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="login-btn btn-secondary" id="change-password-cancel-btn">取消</button>
+        <button type="button" class="login-btn" id="change-password-submit-btn">确定</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -1633,6 +1681,17 @@
       });
       const data = await res.json();
       return data.ok ? data.user : null;
+    }
+
+    async function apiChangePassword(username, currentPassword, newPassword) {
+      const base = getApiBase();
+      if (!base) return { ok: false, error: "未配置服务器" };
+      const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      return await res.json();
     }
 
     async function apiAppendRun(username, runEntry) {
@@ -3098,6 +3157,8 @@
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
+      const changePwdBtn = document.getElementById("change-password-btn");
+      if (changePwdBtn) changePwdBtn.style.display = "";
       loadState();
       showHome();
       updateSurvivalStatusUI();
@@ -3168,6 +3229,8 @@
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
+      const changePwdBtn = document.getElementById("change-password-btn");
+      if (changePwdBtn) changePwdBtn.style.display = "";
       loadState();
       showHome();
       updateSurvivalStatusUI();
@@ -3185,6 +3248,8 @@
       await refreshGameSettings();
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
+      const changePwdBtn = document.getElementById("change-password-btn");
+      if (changePwdBtn) changePwdBtn.style.display = "none";
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "none";
       const mr = document.getElementById("mode-ranking");
@@ -3194,6 +3259,69 @@
       loadState();
       showHome();
       updateSurvivalStatusUI();
+    }
+
+    function showChangePasswordModal() {
+      const overlay = document.getElementById("change-password-modal-overlay");
+      if (overlay) {
+        document.getElementById("change-pwd-current").value = "";
+        document.getElementById("change-pwd-new").value = "";
+        document.getElementById("change-pwd-confirm").value = "";
+        const errEl = document.getElementById("change-password-modal-error");
+        if (errEl) errEl.textContent = "";
+        overlay.classList.add("active");
+      }
+    }
+
+    function hideChangePasswordModal() {
+      const overlay = document.getElementById("change-password-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    async function handleChangePassword() {
+      if (isGuestMode) return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      const current = (document.getElementById("change-pwd-current").value || "").trim();
+      const newPwd = document.getElementById("change-pwd-new").value || "";
+      const confirmPwd = document.getElementById("change-pwd-confirm").value || "";
+      const errEl = document.getElementById("change-password-modal-error");
+      if (!current) {
+        if (errEl) errEl.textContent = "请输入当前密码。";
+        return;
+      }
+      if (newPwd.length < 6) {
+        if (errEl) errEl.textContent = "新密码至少 6 位。";
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        if (errEl) errEl.textContent = "两次输入的新密码不一致。";
+        return;
+      }
+      if (errEl) errEl.textContent = "";
+      if (getApiBase()) {
+        const data = await apiChangePassword(name, current, newPwd);
+        if (!data || !data.ok) {
+          if (errEl) errEl.textContent = (data && data.error) ? data.error : "修改失败，请重试。";
+          return;
+        }
+      } else {
+        const users = loadUsers();
+        const idx = users.findIndex(u => u.username === name);
+        if (idx === -1) {
+          if (errEl) errEl.textContent = "用户不存在。";
+          return;
+        }
+        const user = users[idx];
+        const storedPwd = user.password || "";
+        if (storedPwd !== current) {
+          if (errEl) errEl.textContent = "当前密码错误。";
+          return;
+        }
+        users[idx].password = newPwd;
+        saveUsers(users);
+      }
+      hideChangePasswordModal();
     }
 
     function handleLogout() {
@@ -3313,6 +3441,17 @@
         }
       });
 
+      const changePwdBtn = document.getElementById("change-password-btn");
+      if (changePwdBtn) changePwdBtn.addEventListener("click", showChangePasswordModal);
+      const changePwdCancel = document.getElementById("change-password-cancel-btn");
+      if (changePwdCancel) changePwdCancel.addEventListener("click", hideChangePasswordModal);
+      const changePwdSubmit = document.getElementById("change-password-submit-btn");
+      if (changePwdSubmit) changePwdSubmit.addEventListener("click", handleChangePassword);
+      const changePwdOverlay = document.getElementById("change-password-modal-overlay");
+      if (changePwdOverlay) changePwdOverlay.addEventListener("click", (e) => {
+        if (e.target === changePwdOverlay) hideChangePasswordModal();
+      });
+
       const logoutBtn = document.getElementById("logout-btn");
       logoutBtn.addEventListener("click", handleLogout);
     }
@@ -3335,6 +3474,8 @@
             await refreshGameSettings();
             document.getElementById("login-view").style.display = "none";
             document.getElementById("app-view").style.display = "flex";
+            const cpBtn = document.getElementById("change-password-btn");
+            if (cpBtn) cpBtn.style.display = "";
             loadState();
             updateHomeTotalScore();
             updateSurvivalStatusUI();
@@ -3360,6 +3501,8 @@
         await refreshGameSettings();
         document.getElementById("login-view").style.display = "none";
         document.getElementById("app-view").style.display = "flex";
+        const cpBtn = document.getElementById("change-password-btn");
+        if (cpBtn) cpBtn.style.display = "";
         loadState();
         updateHomeTotalScore();
         updateSurvivalStatusUI();
