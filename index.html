@@ -168,6 +168,7 @@
       font-size: 0.82rem;
       color: var(--muted);
     }
+    .user-bar-name-row { display: inline-flex; align-items: center; gap: 6px; }
     .user-bar-actions { display: flex; align-items: center; gap: 8px; }
 
     .user-name {
@@ -317,6 +318,11 @@
       font-weight: 600;
       text-align: center;
       padding: 8px 6px 4px;
+    }
+    .question-text.question-refresh-hidden,
+    .question-subtext.question-refresh-hidden {
+      opacity: 0;
+      /* 仅隐藏字，不改变布局，避免下方内容上下跳动 */
     }
 
     .question-subtext {
@@ -599,6 +605,10 @@
       color: #fff;
       box-shadow: 0 6px 14px rgba(123, 31, 162, 0.35);
     }
+    .mode-btn-practice.mode-btn-locked {
+      opacity: 0.75;
+      background: linear-gradient(135deg, #9c27b0, #ba68c8);
+    }
 
     .mode-btn-wrongbook {
       background: linear-gradient(135deg, #e65100, #ff9800);
@@ -623,6 +633,10 @@
       color: #fff;
       box-shadow: 0 6px 14px rgba(93, 64, 55, 0.35);
     }
+    .mode-btn-ranking.mode-btn-locked {
+      opacity: 0.75;
+      background: linear-gradient(135deg, #8d6e63, #a1887f);
+    }
 
     .stats-section { display: none; margin-top: 12px; }
     .stats-section.visible { display: block; }
@@ -636,6 +650,7 @@
     .stats-table th, .stats-table td { border-bottom: 1px solid #e8ecf4; padding: 8px 6px; text-align: center; }
     .stats-table th { background: #f0f4ff; font-weight: 600; }
     .stats-table td:first-child { text-align: left; }
+    .stats-table tr.ranking-row-me td { background: rgba(25, 118, 210, 0.12); font-weight: 600; }
     .stats-level-chart-wrap { margin-bottom: 16px; }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .stats-level-chart-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid #c5d3ea; min-width: 110px; }
@@ -743,7 +758,7 @@
       </div>
       <div id="login-error" class="login-error"></div>
       <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
-      <p class="login-version">版本 v1.5.0</p><!-- 与页脚版本号保持一致 -->
+      <p class="login-version">版本 v1.6.0</p><!-- 与页脚版本号保持一致 -->
     </div>
   </div>
 
@@ -751,7 +766,10 @@
     <header class="app-header">
       <h1 class="app-title">Jarvis Math Lab 计算游戏</h1>
       <div class="user-bar">
-        <span>当前学员：<span class="user-name" id="current-username-label">-</span></span>
+        <span class="user-bar-name-row">
+          当前学员：<span class="user-name" id="current-username-label">-</span>
+          <button id="change-nickname-btn" class="change-pwd-btn" type="button">修改昵称</button>
+        </span>
         <span class="user-bar-actions">
           <button id="change-password-btn" class="change-pwd-btn" type="button">修改密码</button>
           <button id="logout-btn" class="logout-btn">注销</button>
@@ -761,9 +779,9 @@
 
     <section class="home-section" id="home-section">
       <div class="home-total-score" id="home-total-score"></div>
-      <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
       <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
       <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">训练模式</button>
+      <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
       <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
       <button type="button" class="mode-btn mode-btn-stats" id="mode-stats" style="display:none;">数据统计</button>
       <button type="button" class="mode-btn mode-btn-ranking" id="mode-ranking" style="display:none;">生存排行</button>
@@ -876,7 +894,7 @@
       <div class="stats-back-row">
         <button type="button" class="btn-primary btn-secondary" id="ranking-back-btn">返回首页</button>
       </div>
-      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">通关生存挑战的用时越短、错题越少，排名越靠前（仅展示通关记录前 50 条）。</p>
+      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">每人仅保留一条最佳记录，按用时与错题数排名；展示前 50 名，你的名次会单独显示并高亮。</p>
       <table class="stats-table" id="ranking-table" style="display:none;">
         <thead><tr><th>排名</th><th>学员</th><th>通关用时</th><th>错题数</th><th>达成日期</th></tr></thead>
         <tbody id="ranking-body"></tbody>
@@ -900,7 +918,7 @@
     <footer class="app-footer">
       本页面为单文件 H5，自适应手机与电脑访问。登录后数据同步至服务器，换设备可继续练习。<br>
       <!-- 每次修改代码后请同步更新此处及登录页的版本号 -->
-      <strong>版本 v1.5.0</strong>
+      <strong>版本 v1.6.0</strong>
     </footer>
   </div>
 
@@ -920,6 +938,21 @@
       <div class="modal-actions">
         <button type="button" class="login-btn btn-secondary" id="change-password-cancel-btn">取消</button>
         <button type="button" class="login-btn" id="change-password-submit-btn">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="change-nickname-modal-overlay" class="change-password-modal-overlay">
+    <div class="change-password-modal">
+      <h3>修改昵称</h3>
+      <p class="stats-subtitle" style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);">昵称将显示在首页和排行榜，未设置时显示「新人」。</p>
+      <div class="login-field">
+        <input id="change-nickname-input" type="text" autocomplete="off" placeholder="请输入昵称" maxlength="20" />
+      </div>
+      <div id="change-nickname-modal-error" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="login-btn btn-secondary" id="change-nickname-cancel-btn">取消</button>
+        <button type="button" class="login-btn" id="change-nickname-submit-btn">确定</button>
       </div>
     </div>
   </div>
@@ -2007,6 +2040,17 @@
       return level.generateQuestion();
     }
 
+    function generateBaseQuestionExcludingPrev() {
+      const prev = currentQuestion;
+      let q;
+      const maxRetries = 15;
+      for (let i = 0; i < maxRetries; i++) {
+        q = generateBaseQuestion();
+        if (!prev || q.text !== prev.text) return q;
+      }
+      return q;
+    }
+
     // ===== 生存模式：计时与 UI 更新 =====
     function updateSurvivalStatusUI() {
       const label2 = document.getElementById("status-label-2");
@@ -2047,8 +2091,16 @@
           }
           if (dom.bestScore) dom.bestScore.textContent = (user.bestScore != null && user.bestScore > 0) ? user.bestScore : "-";
         }
-        if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = loadCurrentUsername() || "-";
+        if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
       }
+    }
+
+    function getDisplayName() {
+      if (isGuestMode) return "游客";
+      const u = getCurrentUser();
+      if (!u) return "新人";
+      const n = (u.nickname || "").trim();
+      return n || "新人";
     }
 
     function setFeedback(message, type) {
@@ -2064,18 +2116,27 @@
       if (dom.batchSummary) dom.batchSummary.innerHTML = text || "";
     }
 
+    const QUESTION_REFRESH_MS = 25;  // 题目切换时先隐藏再出现的间隔，极短但肉眼可见
+
     function renderQuestion(question) {
       if (!question) return;
-      questionShownAt = Date.now();
-      dom.questionText.textContent = question.text;
-      dom.questionSubtext.textContent = "";
       dom.answerInput.value = "";
-      setFeedback("", null);
-      // 保持输入框焦点，避免手机软键盘收起、画面反复缩放
-      dom.answerInput.focus();
+      dom.questionText.classList.add("question-refresh-hidden");
+      if (dom.questionSubtext) dom.questionSubtext.classList.add("question-refresh-hidden");
       setTimeout(function () {
+        questionShownAt = Date.now();
+        dom.questionText.textContent = question.text;
+        dom.questionText.classList.remove("question-refresh-hidden");
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = "";
+          dom.questionSubtext.classList.remove("question-refresh-hidden");
+        }
+        // 不在此清除反馈，让上一题的答对/答错提示保留到下一题提交时
         dom.answerInput.focus();
-      }, 50);
+        setTimeout(function () {
+          dom.answerInput.focus();
+        }, 50);
+      }, QUESTION_REFRESH_MS);
     }
 
     function startSurvivalGame() {
@@ -2109,6 +2170,7 @@
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
+      setFeedback("", null);
       updateSurvivalStatusUI();
       survivalTimerId = setInterval(survivalTick, 1000);
       showNextSurvivalQuestion();
@@ -2146,6 +2208,7 @@
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
+      setFeedback("", null);
       updateSurvivalStatusUI();
       survivalTimerId = setInterval(survivalTick, 1000);
       showNextSurvivalQuestion();
@@ -2219,16 +2282,17 @@
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
+      setFeedback("", null);
       updateTrainingStatusUI();
       survivalTimerId = setInterval(trainingTick, 1000);
-      currentQuestion = generateBaseQuestion();
+      currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
       if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
     }
 
     function showNextSurvivalQuestion() {
       if (!isPlaying || gameOver) return;
-      currentQuestion = generateBaseQuestion();
+      currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
       dom.answerInput.value = "";
       if (dom.submitBtn) dom.submitBtn.disabled = false;
@@ -2248,8 +2312,7 @@
       renderRecentRuns();
       if (completed && !isGuestMode && cachedUser) {
         cachedUser.hasClearedSurvival = true;
-        const mr = document.getElementById("mode-ranking");
-        if (mr) mr.style.display = "";
+        updateRankingButtonLabel();
       }
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
@@ -2478,7 +2541,7 @@
         );
       }
       updateSurvivalStatusUI();
-      setTimeout(showNextSurvivalQuestion, 600);
+      showNextSurvivalQuestion();
     }
 
     function evaluateAnswerLevel(userAnswer) {
@@ -2525,7 +2588,7 @@
         );
       }
       updateSurvivalStatusUI();
-      setTimeout(showNextSurvivalQuestion, 600);
+      showNextSurvivalQuestion();
     }
 
     function evaluateAnswerTraining(userAnswer) {
@@ -2554,12 +2617,10 @@
         return;
       }
 
-      setTimeout(function () {
-        currentQuestion = generateBaseQuestion();
-        renderQuestion(currentQuestion);
-        if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
-        if (dom.submitBtn) dom.submitBtn.disabled = false;
-      }, 600);
+      currentQuestion = generateBaseQuestionExcludingPrev();
+      renderQuestion(currentQuestion);
+      if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
+      if (dom.submitBtn) dom.submitBtn.disabled = false;
     }
 
     async function endTrainingGame() {
@@ -2672,6 +2733,7 @@
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
+      updateTrainingButtonLabel();
     }
 
     // ===== 首页与模式切换 =====
@@ -2724,6 +2786,8 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       updateHomeTotalScore();
+      updateSurvivalButtonLabel();
+      updateTrainingButtonLabel();
     }
 
     function userHasClearedSurvival(user) {
@@ -2733,6 +2797,10 @@
     }
 
     async function showRankingView() {
+      if (!userHasClearedSurvival(cachedUser)) {
+        alert("必须通关生存模式才能查看生存排行。");
+        return;
+      }
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
@@ -2749,10 +2817,14 @@
         return;
       }
       try {
-        const res = await fetch(base + "/api/survival-ranking");
+        const name = loadCurrentUsername();
+        const url = base + "/api/survival-ranking" + (name ? "?username=" + encodeURIComponent(name) : "");
+        const res = await fetch(url);
         const data = await res.json();
         const list = data.ok && Array.isArray(data.list) ? data.list : [];
-        if (list.length === 0) {
+        const myEntry = data.myEntry || null;
+        const myRank = data.myRank || 0;
+        if (list.length === 0 && !myEntry) {
           table.style.display = "none";
           empty.style.display = "block";
           empty.textContent = "暂无通关记录。";
@@ -2760,11 +2832,16 @@
         }
         empty.style.display = "none";
         table.style.display = "table";
-        tbody.innerHTML = list.map((e) => {
+        const row = (e, isMe) => {
           const timeStr = formatSurvivalTime(e.survivalTimeSec || 0);
           const dateStr = formatDateOnly(e.ts);
-          return "<tr><td>" + (e.rank || "-") + "</td><td>" + (e.username || "-") + "</td><td>" + timeStr + "</td><td>" + (e.wrongCount != null ? e.wrongCount : "-") + "</td><td>" + dateStr + "</td></tr>";
-        }).join("");
+          const meClass = isMe ? " ranking-row-me" : "";
+          const name = (e.displayName != null && e.displayName !== "") ? e.displayName : "新人";
+          return "<tr class=\"" + meClass + "\"><td>" + (e.rank || "-") + "</td><td>" + escapeHtml(name) + "</td><td>" + timeStr + "</td><td>" + (e.wrongCount != null ? e.wrongCount : "-") + "</td><td>" + dateStr + "</td></tr>";
+        };
+        const rows = list.map((e) => row(e, name && e.username === name));
+        if (myEntry && myRank > 50) rows.push(row(myEntry, true));
+        tbody.innerHTML = rows.join("");
       } catch (e) {
         console.warn("加载排行榜失败", e);
         table.style.display = "none";
@@ -2994,11 +3071,79 @@
       return div.innerHTML;
     }
 
-    function handleModeSurvival() {
+    function isSurvivalLocked() {
+      if (isGuestMode) return false;
+      const u = getCurrentUser();
+      if (!u) return false;
+      ensureUserProgressDefault(u);
+      if (u.survivalUnlocked === true) return false;
+      const lastLevel = u.levelChallengeLastLevel ?? 0;
+      const hasSurvivalRuns = Array.isArray(u.recentSurvivalRuns) && u.recentSurvivalRuns.length > 0;
+      if (lastLevel >= 8 || hasSurvivalRuns) return false;
+      return true;
+    }
+
+    async function unlockSurvivalAndEnter() {
+      const name = loadCurrentUsername();
+      if (!name) return;
+      cachedUser = cachedUser || {};
+      cachedUser.survivalUnlocked = true;
+      try {
+        await apiPutUser(name, { survivalUnlocked: true });
+      } catch (e) {
+        console.warn("同步解锁状态失败", e);
+      }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
       if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
       showGameSection();
+      updateSurvivalButtonLabel();
+      updateTrainingButtonLabel();
+    }
+
+    function handleModeSurvival() {
+      if (isGuestMode) {
+        gameMode = "survival";
+        const sub = document.getElementById("game-subtitle");
+        if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+        showGameSection();
+        return;
+      }
+      if (isSurvivalLocked()) {
+        alert("必须闯关模式达到9级或以上才能解锁生存挑战。");
+        return;
+      }
+      const u = getCurrentUser();
+      if (u && u.survivalUnlocked !== true) {
+        unlockSurvivalAndEnter();
+        return;
+      }
+      gameMode = "survival";
+      const sub = document.getElementById("game-subtitle");
+      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+      showGameSection();
+    }
+
+    function updateSurvivalButtonLabel() {
+      const btn = document.getElementById("mode-survival");
+      if (!btn) return;
+      if (isSurvivalLocked()) {
+        btn.textContent = "生存挑战（需闯关达9级解锁）";
+      } else {
+        btn.textContent = "生存挑战";
+      }
+    }
+
+    function updateRankingButtonLabel() {
+      const btn = document.getElementById("mode-ranking");
+      if (!btn) return;
+      if (userHasClearedSurvival(cachedUser)) {
+        btn.textContent = "生存排行";
+        btn.classList.remove("mode-btn-locked");
+      } else {
+        btn.textContent = "生存排行（需通关解锁）";
+        btn.classList.add("mode-btn-locked");
+      }
     }
 
     function getLevelChallengeLastLevel() {
@@ -3024,22 +3169,8 @@
     }
 
     function getTrainingStartLevel() {
-      const user = getCurrentUser();
-      if (!user) return 0;
-      ensureUserProgressDefault(user);
-      const lastSurvival = (user.recentSurvivalRuns || [])[0];
-      const lastLevel = (user.recentLevelRuns || [])[0];
-      let n = 0;
-      if (lastSurvival && lastLevel) {
-        const survTs = lastSurvival.ts ?? 0;
-        const lvlTs = lastLevel.ts ?? 0;
-        n = survTs >= lvlTs ? (lastSurvival.maxLevel ?? 0) : (lastLevel.maxLevel ?? 0);
-      } else if (lastSurvival) {
-        n = lastSurvival.maxLevel ?? 0;
-      } else if (lastLevel) {
-        n = lastLevel.maxLevel ?? 0;
-      }
-      return n > 0 ? Math.min(n - 1, 15) : 0;
+      const last = getLevelChallengeLastLevel();
+      return Math.min(typeof last === "number" ? last : 0, 15);
     }
 
     function getLevelTrainingCurrentLevel() {
@@ -3078,9 +3209,33 @@
       showGameSection();
     }
 
+    function isTrainingLocked() {
+      if (isGuestMode) return true;
+      const u = getCurrentUser();
+      if (!u) return true;
+      ensureUserProgressDefault(u);
+      return !Array.isArray(u.recentLevelRuns) || u.recentLevelRuns.length === 0;
+    }
+
+    function updateTrainingButtonLabel() {
+      const btn = document.getElementById("mode-practice");
+      if (!btn) return;
+      if (isTrainingLocked()) {
+        btn.textContent = "训练模式（需先完成一局闯关）";
+        btn.classList.add("mode-btn-locked");
+      } else {
+        btn.textContent = "训练模式";
+        btn.classList.remove("mode-btn-locked");
+      }
+    }
+
     function handleModePractice() {
       if (isGuestMode) {
         alert("游客模式仅支持生存挑战。");
+        return;
+      }
+      if (isTrainingLocked()) {
+        alert("请先完成一局闯关挑战，系统将根据你的水平确定训练起始难度。");
         return;
       }
       gameMode = "training";
@@ -3129,6 +3284,12 @@
       document.getElementById("app-view").style.display = "flex";
       const changePwdBtn = document.getElementById("change-password-btn");
       if (changePwdBtn) changePwdBtn.style.display = "";
+      const ms = document.getElementById("mode-stats");
+      if (ms) ms.style.display = "";
+      const mr = document.getElementById("mode-ranking");
+      if (mr) mr.style.display = "";
+      updateRankingButtonLabel();
+      updateTrainingButtonLabel();
       loadState();
       showHome();
       updateSurvivalStatusUI();
@@ -3179,6 +3340,12 @@
       document.getElementById("app-view").style.display = "flex";
       const changePwdBtn = document.getElementById("change-password-btn");
       if (changePwdBtn) changePwdBtn.style.display = "";
+      const ms = document.getElementById("mode-stats");
+      if (ms) ms.style.display = "";
+      const mr = document.getElementById("mode-ranking");
+      if (mr) mr.style.display = "";
+      updateRankingButtonLabel();
+      updateTrainingButtonLabel();
       loadState();
       showHome();
       updateSurvivalStatusUI();
@@ -3198,6 +3365,8 @@
       document.getElementById("app-view").style.display = "flex";
       const changePwdBtn = document.getElementById("change-password-btn");
       if (changePwdBtn) changePwdBtn.style.display = "none";
+      const changeNickBtn = document.getElementById("change-nickname-btn");
+      if (changeNickBtn) changeNickBtn.style.display = "none";
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "none";
       const mr = document.getElementById("mode-ranking");
@@ -3257,6 +3426,50 @@
         return;
       }
       hideChangePasswordModal();
+    }
+
+    function showNicknameModal() {
+      const overlay = document.getElementById("change-nickname-modal-overlay");
+      if (overlay) {
+        const input = document.getElementById("change-nickname-input");
+        if (input) input.value = (getCurrentUser() && getCurrentUser().nickname != null) ? String(getCurrentUser().nickname).trim() : "";
+        const errEl = document.getElementById("change-nickname-modal-error");
+        if (errEl) errEl.textContent = "";
+        overlay.classList.add("active");
+        if (input) { input.focus(); }
+      }
+    }
+
+    function hideNicknameModal() {
+      const overlay = document.getElementById("change-nickname-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    async function handleNicknameSubmit() {
+      if (isGuestMode) return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      const input = document.getElementById("change-nickname-input");
+      const value = (input && input.value) ? input.value.trim() : "";
+      const errEl = document.getElementById("change-nickname-modal-error");
+      if (errEl) errEl.textContent = "";
+      if (value.length > 20) {
+        if (errEl) errEl.textContent = "昵称最多 20 个字符。";
+        return;
+      }
+      if (!getApiBase()) {
+        if (errEl) errEl.textContent = "修改昵称需要联网，请连接网络后重试。";
+        return;
+      }
+      try {
+        const updated = await apiPutUser(name, { nickname: value });
+        if (cachedUser) cachedUser.nickname = value;
+        if (updated) cachedUser = updated;
+        if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
+        hideNicknameModal();
+      } catch (e) {
+        if (errEl) errEl.textContent = "保存失败，请稍后重试。";
+      }
     }
 
     function handleLogout() {
@@ -3387,6 +3600,17 @@
         if (e.target === changePwdOverlay) hideChangePasswordModal();
       });
 
+      const changeNickBtn = document.getElementById("change-nickname-btn");
+      if (changeNickBtn) changeNickBtn.addEventListener("click", showNicknameModal);
+      const changeNickCancel = document.getElementById("change-nickname-cancel-btn");
+      if (changeNickCancel) changeNickCancel.addEventListener("click", hideNicknameModal);
+      const changeNickSubmit = document.getElementById("change-nickname-submit-btn");
+      if (changeNickSubmit) changeNickSubmit.addEventListener("click", handleNicknameSubmit);
+      const changeNickOverlay = document.getElementById("change-nickname-modal-overlay");
+      if (changeNickOverlay) changeNickOverlay.addEventListener("click", (e) => {
+        if (e.target === changeNickOverlay) hideNicknameModal();
+      });
+
       const logoutBtn = document.getElementById("logout-btn");
       logoutBtn.addEventListener("click", handleLogout);
     }
@@ -3415,19 +3639,22 @@
           document.getElementById("app-view").style.display = "flex";
           const cpBtn = document.getElementById("change-password-btn");
           if (cpBtn) cpBtn.style.display = "";
-          loadState();
-          updateHomeTotalScore();
-          updateSurvivalStatusUI();
-          renderRecentRuns();
-          if (dom.submitBtn) dom.submitBtn.style.display = "none";
-          if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-          if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-          if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-          const ms = document.getElementById("mode-stats");
-          if (ms) ms.style.display = "";
-          const mr = document.getElementById("mode-ranking");
-          if (mr) mr.style.display = userHasClearedSurvival(cachedUser) ? "" : "none";
-          return;
+            loadState();
+            updateHomeTotalScore();
+            updateSurvivalStatusUI();
+            updateSurvivalButtonLabel();
+            renderRecentRuns();
+            if (dom.submitBtn) dom.submitBtn.style.display = "none";
+            if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+            if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+            if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+            const ms = document.getElementById("mode-stats");
+            if (ms) ms.style.display = "";
+            const mr = document.getElementById("mode-ranking");
+            if (mr) mr.style.display = "";
+            updateRankingButtonLabel();
+            updateTrainingButtonLabel();
+            return;
         }
       } catch (e) {
         console.warn("从服务器加载用户失败", e);

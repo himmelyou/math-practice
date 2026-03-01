@@ -106,6 +106,7 @@ app.post("/api/register", async (req, res) => {
   const newUser = {
     username: name,
     password: passwordHash,
+    nickname: "",
     levelIndex: 0,
     bestLevelIndex: 0,
     totalScore: 0,
@@ -117,6 +118,7 @@ app.post("/api/register", async (req, res) => {
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
+    survivalUnlocked: false,
     createdBy: "self",
   };
   data.users.push(newUser);
@@ -197,7 +199,7 @@ app.put("/api/user/:username", (req, res) => {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers"];
+  const allowed = ["nickname", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers", "survivalUnlocked"];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
     if (k === "totalScore" || k === "bestSurvivalSec" || k === "bestScore") {
@@ -307,21 +309,28 @@ app.post("/api/user/:username/runs", (req, res) => {
   }
   if (runEntry.mode === "survival" && runEntry.survivalCleared === true) {
     const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
-    const list = Array.isArray(rankingData.list) ? rankingData.list : [];
+    let list = Array.isArray(rankingData.list) ? rankingData.list : [];
     const entry = {
       username,
       survivalTimeSec: runEntry.survivalTimeSec,
       wrongCount: runEntry.wrongCount ?? 0,
       ts: runEntry.ts
     };
-    const next = list.filter((e) => !(e.username === entry.username && e.ts === entry.ts));
-    next.push(entry);
-    next.sort((a, b) => {
-      if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
-      return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
-    });
-    rankingData.list = next.slice(0, SURVIVAL_RANKING_MAX);
-    writeJson(SURVIVAL_RANKING_FILE, rankingData);
+    const existing = list.find((e) => e.username === username);
+    const isBetter = (a, b) => {
+      if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec < b.survivalTimeSec;
+      return (a.wrongCount ?? 0) < (b.wrongCount ?? 0);
+    };
+    if (!existing || isBetter(entry, existing)) {
+      list = list.filter((e) => e.username !== username);
+      list.push(entry);
+      list.sort((a, b) => {
+        if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
+        return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
+      });
+      rankingData.list = list;
+      writeJson(SURVIVAL_RANKING_FILE, rankingData);
+    }
 
     if (uIdx >= 0) {
       userData.users[uIdx].hasClearedSurvival = true;
@@ -337,18 +346,53 @@ app.post("/api/user/:username/runs", (req, res) => {
   res.json({ ok: true });
 });
 
-// ========== 生存通关排行榜（预计算，学员只读） ==========
+// ========== 生存通关排行榜：每人只保留一条最佳，全量排名；返回前 50 + 当前用户的名次与记录 ==========
+function dedupeBestPerUser(list) {
+  const byUser = {};
+  list.forEach((e) => {
+    const k = e.username;
+    const cur = byUser[k];
+    if (!cur || e.survivalTimeSec < cur.survivalTimeSec || (e.survivalTimeSec === cur.survivalTimeSec && (e.wrongCount ?? 0) < (cur.wrongCount ?? 0))) {
+      byUser[k] = e;
+    }
+  });
+  return Object.values(byUser);
+}
+
 app.get("/api/survival-ranking", (req, res) => {
   const data = readJson(SURVIVAL_RANKING_FILE, { list: [] });
-  const list = Array.isArray(data.list) ? data.list : [];
-  const out = list.map((e, i) => ({
+  let list = Array.isArray(data.list) ? data.list : [];
+  list = dedupeBestPerUser(list);
+  list.sort((a, b) => {
+    if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
+    return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
+  });
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const nicknameMap = {};
+  (usersData.users || []).forEach((u) => {
+    const n = (u.nickname || "").trim();
+    nicknameMap[u.username] = n ? n : "新人";
+  });
+  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ({
     rank: i + 1,
     username: e.username,
+    displayName: nicknameMap[e.username] || "新人",
     survivalTimeSec: e.survivalTimeSec ?? 0,
     wrongCount: e.wrongCount ?? 0,
     ts: e.ts
   }));
-  res.json({ ok: true, list: out });
+  const username = (req.query.username || "").trim();
+  let myRank = 0;
+  let myEntry = null;
+  if (username) {
+    const idx = list.findIndex((e) => e.username === username);
+    if (idx >= 0) {
+      myRank = idx + 1;
+      const e = list[idx];
+      myEntry = { rank: myRank, username: e.username, displayName: nicknameMap[e.username] || "新人", survivalTimeSec: e.survivalTimeSec ?? 0, wrongCount: e.wrongCount ?? 0, ts: e.ts };
+    }
+  }
+  res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
 });
 
 // ========== 管理员：获取所有学员 ==========
@@ -385,6 +429,7 @@ app.post("/api/admin/users", async (req, res) => {
   data.users.push({
     username,
     password: passwordHash,
+    nickname: "",
     levelIndex: 0,
     bestLevelIndex: 0,
     totalScore: 0,
@@ -396,6 +441,7 @@ app.post("/api/admin/users", async (req, res) => {
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
+    survivalUnlocked: false,
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users.map(safeUser) });
