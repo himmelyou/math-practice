@@ -906,12 +906,12 @@
       <div class="stats-back-row">
         <button type="button" class="btn-primary btn-secondary" id="stats-back-btn">返回首页</button>
       </div>
-      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的正确率与用时（基于最近 500 局）。</p>
+      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的错误率与用时（基于最近 500 局）。</p>
       <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="display:none;">
         <div class="stats-level-chart-row"><label>选择难度：</label><select id="stats-level-select"></select></div>
         <div style="position:relative;height:260px;"><canvas id="stats-level-canvas"></canvas></div>
       </div>
-      <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th>难度</th><th>答题数</th><th>正确率</th><th>平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
+      <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th>难度</th><th>答题数</th><th>错误率</th><th>平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
       <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
     </section>
 
@@ -2936,9 +2936,9 @@
       table.style.display = "table";
       const levelNames = DIFFICULTY_MODULE.levels.map(l => l.name) || [];
       tbody.innerHTML = byLevel.map((l, i) => {
-        const acc = l.total > 0 ? Math.round((l.correct / l.total) * 100) : "-";
+        const errRate = l.total > 0 ? Math.round((1 - l.correct / l.total) * 100) : "-";
         const avgSec = l.total > 0 ? (Math.round((l.totalTimeMs / l.total) / 1000 * 10) / 10) : "-";
-        return "<tr><td>" + (levelNames[i] || "L" + (i + 1)) + "</td><td>" + l.total + "</td><td>" + acc + (l.total > 0 ? "%" : "") + "</td><td>" + avgSec + "</td></tr>";
+        return "<tr><td>" + (levelNames[i] || "L" + (i + 1)) + "</td><td>" + l.total + "</td><td>" + errRate + (l.total > 0 ? "%" : "") + "</td><td>" + avgSec + "</td></tr>";
       }).join("");
       const sel = document.getElementById("stats-level-select");
       sel.innerHTML = Array.from({ length: 16 }, (_, i) => "<option value=\"" + i + "\">" + (levelNames[i] || "L" + (i + 1)) + "</option>").join("");
@@ -2955,16 +2955,18 @@
         for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
           allDates.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
         }
-        let lastAcc = null, lastAvgSec = null;
+        let lastErrorRate = null, lastAvgSec = null;
         const acc = allDates.map(d => {
           const L = byDay[d] ? byDay[d][levelIndex] : null;
           const total = L ? (L.total || 0) : 0;
           if (total > 0) {
-            lastAcc = Math.round((L.correct / total) * 100);
+            lastErrorRate = Math.round((1 - L.correct / total) * 100);
             lastAvgSec = Math.round((L.totalTimeMs / total) / 1000 * 10) / 10;
           }
-          return { accuracy: lastAcc, avgSec: lastAvgSec };
+          return { errorRate: lastErrorRate, avgSec: lastAvgSec };
         });
+        const errRates = acc.map(x => x.errorRate).filter(v => v != null);
+        const yMax = Math.max(20, errRates.length ? Math.max.apply(null, errRates) : 20);
         const canvas = document.getElementById("stats-level-canvas");
         if (statsChartInstance) statsChartInstance.destroy();
         statsChartInstance = new Chart(canvas, {
@@ -2972,7 +2974,7 @@
           data: {
             labels: allDates,
             datasets: [
-              { label: "正确率(%)", data: acc.map(x => x.accuracy), borderColor: "#1976d2", backgroundColor: "rgba(25,118,210,0.1)", yAxisID: "y", tension: 0.2 },
+              { label: "错误率(%)", data: acc.map(x => x.errorRate), borderColor: "#1976d2", backgroundColor: "rgba(25,118,210,0.1)", yAxisID: "y", tension: 0.2 },
               { label: "平均每题用时(秒)", data: acc.map(x => x.avgSec), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", yAxisID: "y1", tension: 0.2 }
             ]
           },
@@ -2980,7 +2982,7 @@
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-              y: { type: "linear", position: "left", min: 0, max: 100, title: { display: true, text: "正确率(%)" } },
+              y: { type: "linear", position: "left", min: 0, max: yMax, title: { display: true, text: "错误率(%)" } },
               y1: { type: "linear", position: "right", min: 0, title: { display: true, text: "平均用时(秒)" }, grid: { drawOnChartArea: false } }
             }
           }
