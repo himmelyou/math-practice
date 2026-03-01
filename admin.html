@@ -476,7 +476,7 @@
           <td><span style="color:#9e9e9e;">****</span> <button type="button" class="btn-secondary" data-reset-username="${u.username}" style="padding:4px 10px;font-size:0.78rem;">重置</button></td>
           <td>${trainingStr}</td>
           <td>${lastTsStr}</td>
-          <td>${u.totalScore || 0}</td>
+          <td>${u.totalScore || 0} <button type="button" class="btn-secondary" data-set-score-username="${u.username}" title="临时修正积分" style="padding:2px 8px;font-size:0.75rem;margin-left:4px;">改</button></td>
           <td><button type="button" class="btn-secondary" data-delete-username="${u.username}" style="padding:4px 10px;font-size:0.78rem;">删除</button></td>
         `;
         tbody.appendChild(tr);
@@ -517,6 +517,52 @@
             cachedUsers = usersNow;
             await renderUserTable();
             showUserTip("已删除用户。", true);
+          }
+        });
+      });
+
+      tbody.querySelectorAll("button[data-set-score-username]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          const username = e.currentTarget.getAttribute("data-set-score-username");
+          if (!username) return;
+          const cur = (cachedUsers.find((u) => u.username === username) || {}).totalScore;
+          const raw = window.prompt("将该学员总积分改为（输入整数）：", String(cur != null ? cur : "0"));
+          if (raw === null) return;
+          const num = parseInt(raw, 10);
+          if (!Number.isFinite(num) || num < 0) {
+            showUserTip("请输入有效非负整数。", false);
+            return;
+          }
+          const base = getApiBase();
+          if (base) {
+            try {
+              const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+                body: JSON.stringify({ totalScore: num })
+              });
+              const data = await res.json();
+              if (data.ok) {
+                const idx = cachedUsers.findIndex((u) => u.username === username);
+                if (idx >= 0 && data.user) cachedUsers[idx] = { ...cachedUsers[idx], ...data.user };
+                await renderUserTable();
+                showUserTip("积分已修正为 " + num, true);
+              } else {
+                showUserTip(data.error || "修改失败", false);
+              }
+            } catch (err) {
+              showUserTip("修改失败：" + (err.message || "网络错误"), false);
+            }
+          } else {
+            const usersNow = await loadUsers();
+            const u = usersNow.find((us) => us.username === username);
+            if (u) {
+              u.totalScore = num;
+              saveUsersLocal(usersNow);
+              cachedUsers = usersNow;
+              await renderUserTable();
+              showUserTip("积分已修正为 " + num, true);
+            }
           }
         });
       });

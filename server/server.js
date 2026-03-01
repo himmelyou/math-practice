@@ -167,6 +167,7 @@ app.get("/api/user/:username", (req, res) => {
 });
 
 // ========== 更新学员进度（游戏结束后同步） ==========
+// 积分/最佳等只增不减，避免换设备后客户端发来旧值覆盖服务器正确值
 app.put("/api/user/:username", (req, res) => {
   const { username } = req.params;
   const updates = req.body || {};
@@ -175,9 +176,17 @@ app.put("/api/user/:username", (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
+  const u = data.users[idx];
   const allowed = ["levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers"];
   allowed.forEach((k) => {
-    if (updates[k] !== undefined) data.users[idx][k] = updates[k];
+    if (updates[k] === undefined) return;
+    if (k === "totalScore" || k === "bestSurvivalSec" || k === "bestScore") {
+      const cur = typeof u[k] === "number" ? u[k] : 0;
+      const inc = updates[k];
+      if (typeof inc === "number") u[k] = Math.max(cur, inc);
+    } else {
+      data.users[idx][k] = updates[k];
+    }
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, user: safeUser(data.users[idx]) });
@@ -257,7 +266,24 @@ app.post("/api/user/:username/runs", (req, res) => {
   const userData = readJson(USERS_FILE, { users: [] });
   const uIdx = userData.users.findIndex((u) => u.username === username);
   if (uIdx >= 0) {
-    userData.users[uIdx].lastGameTs = runEntry.ts;
+    const u = userData.users[uIdx];
+    u.lastGameTs = runEntry.ts;
+    u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+    if (runEntry.mode === "survival") {
+      if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
+      if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
+      if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
+      u.recentSurvivalRuns.unshift(runEntry);
+      if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
+    } else if (runEntry.mode === "level") {
+      if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
+      u.recentLevelRuns.unshift(runEntry);
+      if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
+    } else if (runEntry.mode === "training") {
+      if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
+      u.recentTrainingRuns.unshift(runEntry);
+      if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
+    }
   }
   if (runEntry.mode === "survival" && runEntry.survivalCleared === true) {
     const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
@@ -285,6 +311,9 @@ app.post("/api/user/:username/runs", (req, res) => {
     writeJson(USERS_FILE, userData);
   }
 
+  if (uIdx >= 0) {
+    return res.json({ ok: true, user: safeUser(userData.users[uIdx]) });
+  }
   res.json({ ok: true });
 });
 

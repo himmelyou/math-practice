@@ -1698,11 +1698,18 @@
       const base = getApiBase();
       if (!base) return;
       try {
-        await fetch(base + "/api/user/" + encodeURIComponent(username) + "/runs", {
+        const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/runs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(runEntry)
         });
+        const data = await res.json();
+        if (data && data.user) {
+          cachedUser = data.user;
+          renderRecentRuns();
+          updateHomeTotalScore();
+          return;
+        }
         const u = cachedUser || {};
         const mode = runEntry.mode === "level" ? "level" : (runEntry.mode === "training" ? "training" : "survival");
         u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
