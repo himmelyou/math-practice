@@ -376,24 +376,35 @@
 
     let levelChartInstance = null;
     function renderLevelChart(byDay, levelIndex) {
-      const dates = Object.keys(byDay).sort();
+      const datesRaw = Object.keys(byDay).sort();
       const wrap = document.getElementById("level-chart-wrap");
       const sel = document.getElementById("level-chart-select");
-      if (dates.length === 0 || !sel.value) {
+      if (datesRaw.length === 0 || !sel.value) {
         if (levelChartInstance) { levelChartInstance.destroy(); levelChartInstance = null; }
         wrap.style.display = "none";
         return;
       }
       wrap.style.display = "block";
-      const acc = dates.map(d => {
-        const L = byDay[d][levelIndex];
-        const total = L.total || 0;
-        const correct = L.correct || 0;
-        const totalTimeMs = L.totalTimeMs || 0;
+      const first = new Date(datesRaw[0]);
+      const last = new Date(datesRaw[datesRaw.length - 1]);
+      const allDates = [];
+      for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+        allDates.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
+      }
+      let lastAcc = null, lastAvgSec = null;
+      const acc = allDates.map(d => {
+        const L = byDay[d] ? byDay[d][levelIndex] : null;
+        const total = L ? (L.total || 0) : 0;
+        const correct = L ? (L.correct || 0) : 0;
+        const totalTimeMs = L ? (L.totalTimeMs || 0) : 0;
+        if (total > 0) {
+          lastAcc = Math.round((correct / total) * 100);
+          lastAvgSec = Math.round((totalTimeMs / total) / 1000 * 10) / 10;
+        }
         return {
           date: d,
-          accuracy: total > 0 ? Math.round((correct / total) * 100) : null,
-          avgSec: total > 0 ? Math.round((totalTimeMs / total) / 1000 * 10) / 10 : null
+          accuracy: lastAcc,
+          avgSec: lastAvgSec
         };
       });
       const canvas = document.getElementById("level-chart-canvas");

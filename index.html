@@ -2946,20 +2946,31 @@
       sel.value = firstWithData >= 0 ? firstWithData : 0;
       function updateStatsChart() {
         const levelIndex = parseInt(sel.value, 10);
-        const dates = Object.keys(byDay).sort();
-        if (dates.length === 0) { chartWrap.style.display = "none"; return; }
+        const datesRaw = Object.keys(byDay).sort();
+        if (datesRaw.length === 0) { chartWrap.style.display = "none"; return; }
         chartWrap.style.display = "block";
-        const acc = dates.map(d => {
-          const L = byDay[d][levelIndex];
-          const total = L.total || 0;
-          return { accuracy: total > 0 ? Math.round((L.correct / total) * 100) : null, avgSec: total > 0 ? Math.round((L.totalTimeMs / total) / 1000 * 10) / 10 : null };
+        const first = new Date(datesRaw[0]);
+        const last = new Date(datesRaw[datesRaw.length - 1]);
+        const allDates = [];
+        for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+          allDates.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
+        }
+        let lastAcc = null, lastAvgSec = null;
+        const acc = allDates.map(d => {
+          const L = byDay[d] ? byDay[d][levelIndex] : null;
+          const total = L ? (L.total || 0) : 0;
+          if (total > 0) {
+            lastAcc = Math.round((L.correct / total) * 100);
+            lastAvgSec = Math.round((L.totalTimeMs / total) / 1000 * 10) / 10;
+          }
+          return { accuracy: lastAcc, avgSec: lastAvgSec };
         });
         const canvas = document.getElementById("stats-level-canvas");
         if (statsChartInstance) statsChartInstance.destroy();
         statsChartInstance = new Chart(canvas, {
           type: "line",
           data: {
-            labels: dates,
+            labels: allDates,
             datasets: [
               { label: "正确率(%)", data: acc.map(x => x.accuracy), borderColor: "#1976d2", backgroundColor: "rgba(25,118,210,0.1)", yAxisID: "y", tension: 0.2 },
               { label: "平均每题用时(秒)", data: acc.map(x => x.avgSec), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", yAxisID: "y1", tension: 0.2 }
