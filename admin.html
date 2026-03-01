@@ -117,12 +117,22 @@
     .tab-btn.active { color: #1976d2; font-weight: 600; border-bottom-color: #1976d2; }
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
+    .admin-header-row { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+    .admin-pin-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .admin-pin-actions button { padding: 6px 12px; font-size: 0.84rem; }
   </style>
 </head>
 <body>
   <div class="wrapper" id="admin-wrapper">
-    <h1>后台管理</h1>
-    <p class="subtitle">本页管理练习参数与学员账号，学生只访问 <strong>index.html</strong> 即可。数据同步至服务器。<a href="report.html" style="margin-left:12px;color:#1976d2;">查看学员记录 →</a></p>
+    <div class="admin-header-row">
+      <div>
+        <h1>后台管理</h1>
+        <p class="subtitle">本页管理练习参数与学员账号，学生只访问 <strong>index.html</strong> 即可。数据同步至服务器。<a href="report.html" style="margin-left:12px;color:#1976d2;">查看学员记录 →</a></p>
+      </div>
+      <div class="admin-pin-actions" id="admin-pin-actions" style="display:none;">
+        <button type="button" class="btn-secondary" id="admin-pin-change-btn">修改密码</button>
+      </div>
+    </div>
 
     <div id="auth-tip" class="hint danger"></div>
 
@@ -200,15 +210,61 @@
 
   <script>
     // === 口令保护（仅防学生误入）===
-    const ADMIN_PIN = "2026"; // 建议改成你自己的口令
     const ADMIN_AUTH_KEY = "adaptive_math_admin_authed_v1";
+    const ADMIN_PIN_SESSION = "adaptive_math_admin_pin_session";
 
-    function checkAuth() {
+    function getStoredAdminPin() {
+      try {
+        return sessionStorage.getItem(ADMIN_PIN_SESSION) || "";
+      } catch (e) {
+        return "";
+      }
+    }
+
+    function setStoredAdminPin(pin) {
+      try {
+        sessionStorage.setItem(ADMIN_PIN_SESSION, String(pin));
+      } catch (e) {}
+    }
+
+    async function checkAuth() {
+      const base = getApiBase();
       const saved = localStorage.getItem(ADMIN_AUTH_KEY);
-      if (saved === "1") return true;
+      const pin = getStoredAdminPin();
+      if (saved === "1" && pin && base) {
+        try {
+          const res = await fetch(base + "/api/admin/settings", {
+            headers: { "X-Admin-Pin": pin }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok) return true;
+          }
+        } catch (e) {}
+      }
       const input = window.prompt("请输入后台访问口令：");
-      if (input === ADMIN_PIN) {
+      if (input === null || input === "") return false;
+      const p = String(input).trim();
+      if (!p) return false;
+      if (base) {
+        try {
+          const res = await fetch(base + "/api/admin/settings", {
+            headers: { "X-Admin-Pin": p }
+          });
+          const data = await res.json();
+          if (data.ok) {
+            localStorage.setItem(ADMIN_AUTH_KEY, "1");
+            setStoredAdminPin(p);
+            return true;
+          }
+        } catch (e) {
+          alert("无法连接服务器，请检查网络。");
+          return false;
+        }
+      }
+      if (p === "2026") {
         localStorage.setItem(ADMIN_AUTH_KEY, "1");
+        setStoredAdminPin(p);
         return true;
       }
       return false;
@@ -264,7 +320,7 @@
       if (base) {
         try {
           const res = await fetch(base + "/api/admin/settings", {
-            headers: { "X-Admin-Pin": ADMIN_PIN }
+            headers: { "X-Admin-Pin": getStoredAdminPin() }
           });
           const data = await res.json();
           if (data.ok && data.settings && Array.isArray(data.settings.levels)) {
@@ -332,7 +388,7 @@
         try {
           const res = await fetch(base + "/api/admin/settings", {
             method: "PUT",
-            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
             body: JSON.stringify({ levels: newLevels })
           });
           const data = await res.json();
@@ -356,7 +412,7 @@
         try {
           const res = await fetch(base + "/api/admin/settings", {
             method: "PUT",
-            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
             body: JSON.stringify({ levels: DEFAULT_LEVEL_CONFIGS })
           });
           const data = await res.json();
@@ -399,7 +455,7 @@
       if (base) {
         try {
           const res = await fetch(base + "/api/admin/users", {
-            headers: { "X-Admin-Pin": ADMIN_PIN }
+            headers: { "X-Admin-Pin": getStoredAdminPin() }
           });
           const data = await res.json();
           if (data.ok && Array.isArray(data.users)) {
@@ -496,7 +552,7 @@
             try {
               const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
                 method: "DELETE",
-                headers: { "X-Admin-Pin": ADMIN_PIN }
+                headers: { "X-Admin-Pin": getStoredAdminPin() }
               });
               const data = await res.json();
               if (data.ok) {
@@ -538,7 +594,7 @@
             try {
               const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+                headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
                 body: JSON.stringify({ totalScore: num })
               });
               const data = await res.json();
@@ -583,7 +639,7 @@
             try {
               const res = await fetch(base + "/api/admin/users/" + encodeURIComponent(username), {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+                headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
                 body: JSON.stringify({ password: pwd })
               });
               const data = await res.json();
@@ -626,7 +682,7 @@
       const saveTip = document.getElementById("save-tip");
       const userTip = document.getElementById("user-tip");
 
-      if (!checkAuth()) {
+      if (!(await checkAuth())) {
         authTip.textContent = "口令错误或取消输入，已禁止访问后台。";
         form.style.display = "none";
         return;
@@ -634,6 +690,8 @@
 
       authTip.textContent = "";
       form.style.display = "block";
+      const pinActions = document.getElementById("admin-pin-actions");
+      if (pinActions) pinActions.style.display = "flex";
 
       const tabAccounts = document.getElementById("tab-accounts");
       const tabLevels = document.getElementById("tab-levels");
@@ -651,6 +709,39 @@
       if (tabLevels) tabLevels.addEventListener("click", () => switchTab(tabLevels, panelLevels));
       if (tabBackup) tabBackup.addEventListener("click", () => switchTab(tabBackup, panelBackup));
 
+      const pinChangeBtn = document.getElementById("admin-pin-change-btn");
+      if (pinChangeBtn) {
+        pinChangeBtn.addEventListener("click", async () => {
+          const base = getApiBase();
+          if (!base) {
+            alert("需连接服务器才能修改密码。");
+            return;
+          }
+          const newPin = window.prompt("请输入新口令（至少 4 位）：", "");
+          if (newPin === null) return;
+          const p = String(newPin).trim();
+          if (p.length < 4) {
+            alert("新口令至少 4 位。");
+            return;
+          }
+          try {
+            const res = await fetch(base + "/api/admin/pin", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
+              body: JSON.stringify({ newPin: p })
+            });
+            const data = await res.json();
+            if (data.ok) {
+              setStoredAdminPin(p);
+              alert("密码已修改，请牢记新密码。");
+            } else {
+              alert(data.error || "修改失败");
+            }
+          } catch (e) {
+            alert("修改失败：" + (e.message || "网络错误"));
+          }
+        });
+      }
       await renderTable();
       await renderUserTable();
 
@@ -707,7 +798,7 @@
           try {
             const res = await fetch(base + "/api/admin/users", {
               method: "POST",
-              headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+              headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
               body: JSON.stringify({ username, password })
             });
             const data = await res.json();
@@ -755,7 +846,7 @@
         }
         try {
           const res = await fetch(base + "/api/admin/backup", {
-            headers: { "X-Admin-Pin": ADMIN_PIN }
+            headers: { "X-Admin-Pin": getStoredAdminPin() }
           });
           if (!res.ok) {
             const d = await res.json();
@@ -802,7 +893,7 @@
           const json = JSON.parse(text);
           const res = await fetch(base + "/api/admin/restore", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": getStoredAdminPin() },
             body: text
           });
           const data = await res.json();

@@ -27,8 +27,18 @@ const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
-const ADMIN_PIN = process.env.ADMIN_PIN || "2026";
+const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
+const DEFAULT_ADMIN_PIN = "2026";
 const SURVIVAL_RANKING_MAX = 50;
+
+function getAdminPin() {
+  if (process.env.ADMIN_PIN) return process.env.ADMIN_PIN;
+  try {
+    const data = readJson(ADMIN_PIN_FILE, {});
+    if (data && typeof data.pin === "string" && data.pin.length > 0) return data.pin;
+  } catch (e) {}
+  return DEFAULT_ADMIN_PIN;
+}
 
 // 确保 data 目录存在
 if (!fs.existsSync(DATA_DIR)) {
@@ -66,7 +76,7 @@ function writeJson(filePath, data) {
 // 校验管理员口令（从 header 或 body 获取）
 function checkAdminPin(req) {
   const pin = req.headers["x-admin-pin"] || req.body?.adminPin;
-  return pin === ADMIN_PIN;
+  return pin === getAdminPin();
 }
 
 // ========== 学员自主注册 ==========
@@ -141,6 +151,16 @@ app.post("/api/login", async (req, res) => {
   }
   if (!match) {
     return res.json({ ok: false, error: "密码错误" });
+  }
+  if (user.hasClearedSurvival === undefined) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    user.hasClearedSurvival = runs.some((r) => r.survivalCleared === true);
+    const uIdx = data.users.findIndex((u) => u.username === username);
+    if (uIdx >= 0) {
+      data.users[uIdx].hasClearedSurvival = user.hasClearedSurvival;
+      writeJson(USERS_FILE, data);
+    }
   }
   res.json({ ok: true, user: safeUser(user) });
 });
@@ -444,6 +464,37 @@ app.put("/api/admin/settings", (req, res) => {
     return res.json({ ok: false, error: "无效的配置格式" });
   }
   writeJson(SETTINGS_FILE, { levels });
+  res.json({ ok: true });
+});
+
+// ========== 管理员：修改口令 ==========
+app.put("/api/admin/pin", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { newPin } = req.body || {};
+  const pin = typeof newPin === "string" ? newPin.trim() : "";
+  if (!pin || pin.length < 4) {
+    return res.json({ ok: false, error: "新口令至少 4 位" });
+  }
+  try {
+    writeJson(ADMIN_PIN_FILE, { pin });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "写入失败" });
+  }
+  res.json({ ok: true });
+});
+
+// ========== 管理员：重置口令为默认 ==========
+app.post("/api/admin/pin/reset", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    writeJson(ADMIN_PIN_FILE, { pin: DEFAULT_ADMIN_PIN });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "写入失败" });
+  }
   res.json({ ok: true });
 });
 

@@ -742,7 +742,7 @@
         <button id="back-to-login-btn" class="login-btn guest-btn" type="button">返回登录</button>
       </div>
       <div id="login-error" class="login-error"></div>
-      <p class="login-hint">可自行注册或联系老师获取账号。也可游客试玩，数据仅保存在本机。登录后记录将同步到服务器。</p>
+      <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
       <p class="login-version">版本 v1.5.0</p><!-- 与页脚版本号保持一致 -->
     </div>
   </div>
@@ -878,7 +878,7 @@
       </div>
       <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">通关生存挑战的用时越短、错题越少，排名越靠前（仅展示通关记录前 50 条）。</p>
       <table class="stats-table" id="ranking-table" style="display:none;">
-        <thead><tr><th>排名</th><th>学员</th><th>通关用时</th><th>错题数</th></tr></thead>
+        <thead><tr><th>排名</th><th>学员</th><th>通关用时</th><th>错题数</th><th>达成日期</th></tr></thead>
         <tbody id="ranking-body"></tbody>
       </table>
       <div id="ranking-empty" class="stats-empty-msg" style="display:none;">暂无通关记录。</div>
@@ -1620,6 +1620,15 @@
       return `${y}-${m}-${day} ${hh}:${mm}`;
     }
 
+    function formatDateOnly(ts) {
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return "-";
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
     // ===== 学员账户与 localStorage 状态读写 =====
     const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
     const CURRENT_USER_KEY = "adaptive_math_current_user_v1";
@@ -1788,11 +1797,7 @@
 
     function getCurrentUser() {
       if (isGuestMode) return null;
-      if (cachedUser) return cachedUser;
-      const name = loadCurrentUsername();
-      if (!name) return null;
-      const users = loadUsers();
-      return users.find(u => u.username === name) || null;
+      return cachedUser || null;
     }
 
     function getGuestSurvivalData() {
@@ -1906,34 +1911,7 @@
       }
       const name = loadCurrentUsername();
       if (!name) return;
-      if (getApiBase()) {
-        apiAppendRun(name, runEntry);
-        return;
-      }
-      const users = loadUsers();
-      const idx = users.findIndex(u => u.username === name);
-      if (idx === -1) return;
-      ensureUserProgressDefault(users[idx]);
-      const u = users[idx];
-      u.totalScore = (u.totalScore || 0) + score;
-      if (mode === "level") {
-        if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
-        u.recentLevelRuns.unshift(runEntry);
-        if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
-      } else if (mode === "training") {
-        if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
-        u.recentTrainingRuns.unshift(runEntry);
-        if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
-      } else {
-        if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
-        u.recentSurvivalRuns.unshift(runEntry);
-        if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
-        if (survivalTimeSec > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = survivalTimeSec;
-        if (score > (u.bestScore || 0)) u.bestScore = score;
-        if (runEntry.survivalCleared) u.hasClearedSurvival = true;
-      }
-      if (cachedUser && cachedUser.username === name) cachedUser.totalScore = u.totalScore;
-      saveUsers(users);
+      apiAppendRun(name, runEntry);
     }
 
     function recordWrongAnswer(text, answer, studentAnswer) {
@@ -1941,19 +1919,7 @@
       const name = loadCurrentUsername();
       if (!name) return;
       const entry = { text: String(text || ""), answer: Number(answer), studentAnswer: Number(studentAnswer) };
-      if (getApiBase()) {
-        apiAppendWrongAnswer(name, entry);
-        return;
-      }
-      const users = loadUsers();
-      const idx = users.findIndex(u => u.username === name);
-      if (idx === -1) return;
-      ensureUserProgressDefault(users[idx]);
-      const u = users[idx];
-      if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
-      u.wrongAnswers.unshift(entry);
-      if (u.wrongAnswers.length > 20) u.wrongAnswers = u.wrongAnswers.slice(0, 20);
-      saveUsers(users);
+      apiAppendWrongAnswer(name, entry);
     }
 
     async function apiAppendWrongAnswer(username, entry) {
@@ -1971,27 +1937,18 @@
       }
     }
 
-    function renderRecentRuns() {
+    function renderRecentRunsTable(runs) {
       if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
-      const runs = isGuestMode
-        ? (gameMode === "level" ? getGuestSurvivalData().recentLevelRuns : gameMode === "training" ? [] : getGuestSurvivalData().recentSurvivalRuns)
-        : (() => {
-            const user = getCurrentUser();
-            if (!user) return [];
-            ensureUserProgressDefault(user);
-            if (gameMode === "level") return Array.isArray(user.recentLevelRuns) ? user.recentLevelRuns : [];
-            if (gameMode === "training") return Array.isArray(user.recentTrainingRuns) ? user.recentTrainingRuns : [];
-            return Array.isArray(user.recentSurvivalRuns) ? user.recentSurvivalRuns : [];
-          })();
       const titleEl = document.getElementById("recent-title");
       if (titleEl) titleEl.textContent = gameMode === "level" ? "最近十次闯关挑战" : (gameMode === "training" ? "最近十次训练模式" : "最近十次生存挑战");
-      if (runs.length === 0) {
+      const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
+      if (list.length === 0) {
         dom.recentHistoryBody.innerHTML = "";
         dom.recentHistoryEmpty.style.display = "block";
         return;
       }
       dom.recentHistoryEmpty.style.display = "none";
-      const rows = runs.slice(0, 10).map(r => {
+      const rows = list.map(r => {
         const timeStr = formatSurvivalTime(r.survivalTimeSec || 0);
         const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
         const levelName = DIFFICULTY_MODULE.levels[r.maxLevel] ? DIFFICULTY_MODULE.levels[r.maxLevel].id : "-";
@@ -2007,6 +1964,41 @@
         </tr>`;
       });
       dom.recentHistoryBody.innerHTML = rows.join("");
+    }
+
+    async function renderRecentRuns() {
+      if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
+      if (isGuestMode) {
+        const runs = gameMode === "level" ? getGuestSurvivalData().recentLevelRuns : gameMode === "training" ? [] : getGuestSurvivalData().recentSurvivalRuns;
+        renderRecentRunsTable(runs);
+        return;
+      }
+      const name = loadCurrentUsername();
+      if (getApiBase() && name) {
+        try {
+          const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/runs");
+          const data = await res.json();
+          const allRuns = data.ok && Array.isArray(data.runs) ? data.runs : [];
+          const mode = gameMode === "level" ? "level" : (gameMode === "training" ? "training" : "survival");
+          const runs = allRuns.filter((r) => (r.mode || "survival") === mode).slice(0, 10);
+          renderRecentRunsTable(runs);
+          return;
+        } catch (e) {
+          console.warn("拉取最近记录失败，使用本地", e);
+        }
+      }
+      const user = getCurrentUser();
+      if (!user) {
+        renderRecentRunsTable([]);
+        return;
+      }
+      ensureUserProgressDefault(user);
+      const runs = gameMode === "level"
+        ? (Array.isArray(user.recentLevelRuns) ? user.recentLevelRuns : [])
+        : gameMode === "training"
+        ? (Array.isArray(user.recentTrainingRuns) ? user.recentTrainingRuns : [])
+        : (Array.isArray(user.recentSurvivalRuns) ? user.recentSurvivalRuns : []);
+      renderRecentRunsTable(runs);
     }
 
     // ===== 题目生成与队列逻辑 =====
@@ -2770,7 +2762,8 @@
         table.style.display = "table";
         tbody.innerHTML = list.map((e) => {
           const timeStr = formatSurvivalTime(e.survivalTimeSec || 0);
-          return "<tr><td>" + (e.rank || "-") + "</td><td>" + (e.username || "-") + "</td><td>" + timeStr + "</td><td>" + (e.wrongCount != null ? e.wrongCount : "-") + "</td></tr>";
+          const dateStr = formatDateOnly(e.ts);
+          return "<tr><td>" + (e.rank || "-") + "</td><td>" + (e.username || "-") + "</td><td>" + timeStr + "</td><td>" + (e.wrongCount != null ? e.wrongCount : "-") + "</td><td>" + dateStr + "</td></tr>";
         }).join("");
       } catch (e) {
         console.warn("加载排行榜失败", e);
@@ -3026,18 +3019,8 @@
       }
       const name = loadCurrentUsername();
       if (!name) return;
-      if (getApiBase()) {
-        apiPutUser(name, { levelChallengeLastLevel: lastLevel });
-        if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
-      } else {
-        const users = loadUsers();
-        const idx = users.findIndex(u => u.username === name);
-        if (idx >= 0) {
-          users[idx].levelChallengeLastLevel = lastLevel;
-          saveUsers(users);
-          if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
-        }
-      }
+      apiPutUser(name, { levelChallengeLastLevel: lastLevel });
+      if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
     }
 
     function getTrainingStartLevel() {
@@ -3070,22 +3053,12 @@
     async function saveLevelTrainingCurrentLevel(level) {
       const name = loadCurrentUsername();
       if (!name) return;
-      if (getApiBase()) {
-        try {
-          const updated = await apiPutUser(name, { levelTrainingCurrentLevel: level });
-          if (cachedUser) cachedUser.levelTrainingCurrentLevel = level;
-          if (updated) cachedUser = updated;
-        } catch (e) {
-          if (cachedUser) cachedUser.levelTrainingCurrentLevel = level;
-        }
-      } else {
-        const users = loadUsers();
-        const idx = users.findIndex(u => u.username === name);
-        if (idx >= 0) {
-          users[idx].levelTrainingCurrentLevel = level;
-          saveUsers(users);
-          if (cachedUser && cachedUser.username === name) cachedUser.levelTrainingCurrentLevel = level;
-        }
+      try {
+        const updated = await apiPutUser(name, { levelTrainingCurrentLevel: level });
+        if (cachedUser) cachedUser.levelTrainingCurrentLevel = level;
+        if (updated) cachedUser = updated;
+      } catch (e) {
+        if (cachedUser) cachedUser.levelTrainingCurrentLevel = level;
       }
     }
 
@@ -3136,27 +3109,17 @@
         errorEl.textContent = "请输入用户名和密码。";
         return;
       }
-
-      if (getApiBase()) {
-        const data = await apiLogin(username, password);
-        if (!data || !data.ok) {
-          errorEl.textContent = data && data.error ? data.error : "登录失败，请检查网络或联系老师。";
-          return;
-        }
-        cachedUser = data.user;
-      } else {
-        const users = loadUsers();
-        const user = users.find(u => u.username === username);
-        if (!user) {
-          errorEl.textContent = "用户不存在，请联系老师在后台添加。";
-          return;
-        }
-        if (user.password !== password) {
-          errorEl.textContent = "密码错误。";
-          return;
-        }
-        cachedUser = user;
+      if (!getApiBase()) {
+        errorEl.textContent = "登录需要联网，请连接网络后重试。";
+        return;
       }
+
+      const data = await apiLogin(username, password);
+      if (!data || !data.ok) {
+        errorEl.textContent = data && data.error ? data.error : "登录失败，请检查网络或联系老师。";
+        return;
+      }
+      cachedUser = data.user;
 
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
@@ -3196,39 +3159,17 @@
         errorEl.textContent = "两次输入的密码不一致。";
         return;
       }
-
-      if (getApiBase()) {
-        const data = await apiRegister(username, password);
-        if (!data || !data.ok) {
-          errorEl.textContent = data && data.error ? data.error : "注册失败，请重试。";
-          return;
-        }
-        cachedUser = data.user || { username, totalScore: 0, bestSurvivalSec: 0, bestScore: 0 };
-      } else {
-        const users = loadUsers();
-        if (users.some(u => u.username === username)) {
-          errorEl.textContent = "该用户名已存在。";
-          return;
-        }
-        const newUser = {
-          username,
-          password,
-          levelIndex: 0,
-          bestLevelIndex: 0,
-          totalScore: 0,
-          bestSurvivalSec: 0,
-          bestScore: 0,
-          recentSurvivalRuns: [],
-          recentLevelRuns: [],
-          recentTrainingRuns: [],
-          levelChallengeLastLevel: 0,
-          levelTrainingCurrentLevel: -1,
-          wrongAnswers: [],
-        };
-        users.push(newUser);
-        saveUsers(users);
-        cachedUser = newUser;
+      if (!getApiBase()) {
+        errorEl.textContent = "注册需要联网，请连接网络后重试。";
+        return;
       }
+
+      const data = await apiRegister(username, password);
+      if (!data || !data.ok) {
+        errorEl.textContent = data && data.error ? data.error : "注册失败，请重试。";
+        return;
+      }
+      cachedUser = data.user || { username, totalScore: 0, bestSurvivalSec: 0, bestScore: 0 };
 
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
@@ -3306,27 +3247,14 @@
         return;
       }
       if (errEl) errEl.textContent = "";
-      if (getApiBase()) {
-        const data = await apiChangePassword(name, current, newPwd);
-        if (!data || !data.ok) {
-          if (errEl) errEl.textContent = (data && data.error) ? data.error : "修改失败，请重试。";
-          return;
-        }
-      } else {
-        const users = loadUsers();
-        const idx = users.findIndex(u => u.username === name);
-        if (idx === -1) {
-          if (errEl) errEl.textContent = "用户不存在。";
-          return;
-        }
-        const user = users[idx];
-        const storedPwd = user.password || "";
-        if (storedPwd !== current) {
-          if (errEl) errEl.textContent = "当前密码错误。";
-          return;
-        }
-        users[idx].password = newPwd;
-        saveUsers(users);
+      if (!getApiBase()) {
+        if (errEl) errEl.textContent = "修改密码需要联网，请连接网络后重试。";
+        return;
+      }
+      const data = await apiChangePassword(name, current, newPwd);
+      if (!data || !data.ok) {
+        if (errEl) errEl.textContent = (data && data.error) ? data.error : "修改失败，请重试。";
+        return;
       }
       hideChangePasswordModal();
     }
@@ -3472,60 +3400,40 @@
         document.getElementById("app-view").style.display = "none";
         return;
       }
-      if (getApiBase()) {
-        try {
-          const user = await apiGetUser(name);
-          if (user) {
-            cachedUser = user;
-            ensureUserProgressDefault(cachedUser);
-            await refreshGameSettings();
-            document.getElementById("login-view").style.display = "none";
-            document.getElementById("app-view").style.display = "flex";
-            const cpBtn = document.getElementById("change-password-btn");
-            if (cpBtn) cpBtn.style.display = "";
-            loadState();
-            updateHomeTotalScore();
-            updateSurvivalStatusUI();
-            renderRecentRuns();
-            if (dom.submitBtn) dom.submitBtn.style.display = "none";
-            if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-            if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-            if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-            const ms = document.getElementById("mode-stats");
-            if (ms) ms.style.display = "";
-            const mr = document.getElementById("mode-ranking");
-            if (mr) mr.style.display = userHasClearedSurvival(cachedUser) ? "" : "none";
-            return;
-          }
-        } catch (e) {
-          console.warn("从服务器加载用户失败，尝试本地", e);
-        }
-      }
-      const user = loadUsers().find(u => u.username === name);
-      if (user) {
-        cachedUser = user;
-        ensureUserProgressDefault(cachedUser);
-        await refreshGameSettings();
-        document.getElementById("login-view").style.display = "none";
-        document.getElementById("app-view").style.display = "flex";
-        const cpBtn = document.getElementById("change-password-btn");
-        if (cpBtn) cpBtn.style.display = "";
-        loadState();
-        updateHomeTotalScore();
-        updateSurvivalStatusUI();
-        renderRecentRuns();
-        if (dom.submitBtn) dom.submitBtn.style.display = "none";
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-        if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-        const ms = document.getElementById("mode-stats");
-        if (ms) ms.style.display = "";
-        const mr = document.getElementById("mode-ranking");
-        if (mr) mr.style.display = userHasClearedSurvival(cachedUser) ? "" : "none";
-      } else {
+      if (!getApiBase()) {
         document.getElementById("login-view").style.display = "flex";
         document.getElementById("app-view").style.display = "none";
+        return;
       }
+      try {
+        const user = await apiGetUser(name);
+        if (user) {
+          cachedUser = user;
+          ensureUserProgressDefault(cachedUser);
+          await refreshGameSettings();
+          document.getElementById("login-view").style.display = "none";
+          document.getElementById("app-view").style.display = "flex";
+          const cpBtn = document.getElementById("change-password-btn");
+          if (cpBtn) cpBtn.style.display = "";
+          loadState();
+          updateHomeTotalScore();
+          updateSurvivalStatusUI();
+          renderRecentRuns();
+          if (dom.submitBtn) dom.submitBtn.style.display = "none";
+          if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+          if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+          if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+          const ms = document.getElementById("mode-stats");
+          if (ms) ms.style.display = "";
+          const mr = document.getElementById("mode-ranking");
+          if (mr) mr.style.display = userHasClearedSurvival(cachedUser) ? "" : "none";
+          return;
+        }
+      } catch (e) {
+        console.warn("从服务器加载用户失败", e);
+      }
+      document.getElementById("login-view").style.display = "flex";
+      document.getElementById("app-view").style.display = "none";
     }
 
     document.addEventListener("DOMContentLoaded", init);
