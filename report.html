@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>学员练习记录 · Jarvis Math Lab 计算游戏</title>
-  <script src="config.js"></script>
+  <script src="docs/config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     * { box-sizing: border-box; }
@@ -251,7 +251,8 @@
       const base = getApiBase();
       if (!base) return [];
       const res = await fetch(base + "/api/admin/user-list", {
-        headers: { "X-Admin-Pin": ADMIN_PIN }
+        headers: { "X-Admin-Pin": ADMIN_PIN },
+        credentials: "include"
       });
       const data = await res.json();
       return data.ok ? data.users : [];
@@ -261,7 +262,8 @@
       const base = getApiBase();
       if (!base) return [];
       const res = await fetch(base + "/api/admin/records/" + encodeURIComponent(username), {
-        headers: { "X-Admin-Pin": ADMIN_PIN }
+        headers: { "X-Admin-Pin": ADMIN_PIN },
+        credentials: "include"
       });
       const data = await res.json();
       return data.ok ? data.runs : [];
@@ -270,7 +272,10 @@
     async function loadUserInfo(username) {
       const base = getApiBase();
       if (!base) return null;
-      const res = await fetch(base + "/api/user/" + encodeURIComponent(username));
+      const res = await fetch(base + "/api/admin/user/" + encodeURIComponent(username), {
+        headers: { "X-Admin-Pin": ADMIN_PIN },
+        credentials: "include"
+      });
       const data = await res.json();
       return data.ok ? data.user : null;
     }

@@ -1041,7 +1041,8 @@
           fetch(base + "/api/admin/settings", {
             method: "PUT",
             headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
-            body: JSON.stringify(newSettings)
+            body: JSON.stringify(newSettings),
+            credentials: "include"
           }).catch(function(e) { console.warn("同步设置到服务器失败", e); });
         }
       }
@@ -1094,7 +1095,7 @@
       const base = getApiBase();
       if (base) {
         try {
-          const res = await fetch(base + "/api/settings");
+          const res = await fetch(base + "/api/settings", { credentials: "include" });
           const data = await res.json();
           if (data.ok && data.settings && Array.isArray(data.settings.levels)) {
             cachedGameSettings = data.settings;
@@ -1682,7 +1683,8 @@
       const res = await fetch(base + "/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        credentials: "include"
       });
       const data = await res.json();
       return data;
@@ -1694,7 +1696,8 @@
       const res = await fetch(base + "/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        credentials: "include"
       });
       const data = await res.json();
       return data;
@@ -1708,8 +1711,9 @@
     async function apiGetUser(username) {
       const base = getApiBase();
       if (!base) return null;
-      const res = await fetch(base + "/api/user/" + encodeURIComponent(username));
+      const res = await fetch(base + "/api/user/" + encodeURIComponent(username), { credentials: "include" });
       const data = await res.json();
+      if (res.status === 401) { handleAuthRequired(); return null; }
       return data.ok ? data.user : null;
     }
 
@@ -1719,9 +1723,11 @@
       const res = await fetch(base + "/api/user/" + encodeURIComponent(username), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
+        body: JSON.stringify(updates),
+        credentials: "include"
       });
       const data = await res.json();
+      if (res.status === 401) { handleAuthRequired(); return null; }
       return data.ok ? data.user : null;
     }
 
@@ -1731,8 +1737,10 @@
       const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword })
+        body: JSON.stringify({ currentPassword, newPassword }),
+        credentials: "include"
       });
+      if (res.status === 401) { handleAuthRequired(); return { ok: false, error: "请重新登录" }; }
       return await res.json();
     }
 
@@ -1743,8 +1751,10 @@
         const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/runs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(runEntry)
+          body: JSON.stringify(runEntry),
+          credentials: "include"
         });
+        if (res.status === 401) { handleAuthRequired(); return; }
         const data = await res.json();
         if (data && data.user) {
           cachedUser = data.user;
@@ -2009,8 +2019,9 @@
       const name = loadCurrentUsername();
       if (getApiBase() && name) {
         try {
-          const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/runs");
+          const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include" });
           const data = await res.json();
+          if (res.status === 401) { handleAuthRequired(); return; }
           const allRuns = data.ok && Array.isArray(data.runs) ? data.runs : [];
           const mode = gameMode === "level" ? "level" : (gameMode === "training" ? "training" : "survival");
           const runs = allRuns.filter((r) => (r.mode || "survival") === mode).slice(0, 10);
@@ -2819,7 +2830,7 @@
       try {
         const name = loadCurrentUsername();
         const url = base + "/api/survival-ranking" + (name ? "?username=" + encodeURIComponent(name) : "");
-        const res = await fetch(url);
+        const res = await fetch(url, { credentials: "include" });
         const data = await res.json();
         const list = data.ok && Array.isArray(data.list) ? data.list : [];
         const myEntry = data.myEntry || null;
@@ -2875,8 +2886,9 @@
         return;
       }
       try {
-        const runsRes = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs");
+        const runsRes = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include" });
         const runsData = await runsRes.json();
+        if (runsRes.status === 401) { handleAuthRequired(); return; }
         const runs = runsData.ok ? runsData.runs : [];
         renderStatsLevel(runs);
       } catch (e) {
@@ -3485,7 +3497,17 @@
       }
     }
 
-    function handleLogout() {
+    function handleAuthRequired() {
+      handleLogout();
+    }
+
+    async function handleLogout() {
+      const base = getApiBase();
+      if (base) {
+        try {
+          await fetch(base + "/api/logout", { method: "POST", credentials: "include" });
+        } catch (e) { /* ignore */ }
+      }
       isGuestMode = false;
       cachedUser = null;
       setCurrentUsername(null);

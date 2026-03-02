@@ -4,9 +4,14 @@
  */
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
+
+const JWT_SECRET = process.env.JWT_SECRET || "jarvis-math-lab-dev-secret-change-in-production";
+const JWT_EXPIRES_IN = "7d";
 
 const BCRYPT_ROUNDS = 10;
 function isBcryptHash(s) {
@@ -49,8 +54,9 @@ app.use(cors({
   origin: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "X-Admin-Pin"],
-  credentials: false
+  credentials: true
 }));
+app.use(cookieParser());
 app.use(express.json());
 
 // 健康检查（用于确认服务是否在线）
@@ -77,6 +83,52 @@ function writeJson(filePath, data) {
 function checkAdminPin(req) {
   const pin = req.headers["x-admin-pin"] || req.body?.adminPin;
   return pin === getAdminPin();
+}
+
+// ========== 学员接口鉴权：验证 JWT Cookie，只允许访问自己的数据 ==========
+function requireStudentAuth(req, res, next) {
+  const token = req.cookies?.auth_token;
+  if (!token) {
+    return res.status(401).json({ ok: false, error: "请先登录" });
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (!payload || payload.role !== "student") {
+      return res.status(403).json({ ok: false, error: "无效的登录状态" });
+    }
+    req.user = { username: payload.username, role: payload.role };
+    next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: "登录已过期，请重新登录" });
+  }
+}
+
+function ensureOwnData(req, res, next) {
+  const username = req.params.username;
+  if (!req.user || req.user.username !== username) {
+    return res.status(403).json({ ok: false, error: "禁止访问其他学员数据" });
+  }
+  next();
+}
+
+function setAuthCookie(res, username) {
+  const token = jwt.sign({ username, role: "student" }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const isProd = process.env.NODE_ENV === "production" || !!process.env.RENDER;
+  res.cookie("auth_token", token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  });
+}
+
+function clearAuthCookie(res) {
+  const isProd = process.env.NODE_ENV === "production" || !!process.env.RENDER;
+  res.clearCookie("auth_token", {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax"
+  });
 }
 
 // ========== 学员自主注册 ==========
@@ -123,6 +175,7 @@ app.post("/api/register", async (req, res) => {
   };
   data.users.push(newUser);
   writeJson(USERS_FILE, data);
+  setAuthCookie(res, name);
   res.json({ ok: true, user: safeUser(newUser) });
 });
 
@@ -164,11 +217,18 @@ app.post("/api/login", async (req, res) => {
       writeJson(USERS_FILE, data);
     }
   }
+  setAuthCookie(res, username);
   res.json({ ok: true, user: safeUser(user) });
 });
 
-// ========== 获取学员数据（用于换设备同步） ==========
-app.get("/api/user/:username", (req, res) => {
+// ========== 学员登出（清除登录态） ==========
+app.post("/api/logout", (req, res) => {
+  clearAuthCookie(res);
+  res.json({ ok: true });
+});
+
+// ========== 获取学员数据（用于换设备同步），需登录且只能访问自己 ==========
+app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const data = readJson(USERS_FILE, { users: [] });
   const user = data.users.find((u) => u.username === username);
@@ -188,9 +248,9 @@ app.get("/api/user/:username", (req, res) => {
   res.json({ ok: true, user: safeUser(user) });
 });
 
-// ========== 更新学员进度（游戏结束后同步） ==========
+// ========== 更新学员进度（游戏结束后同步），需登录且只能访问自己 ==========
 // 积分/最佳等只增不减，避免换设备后客户端发来旧值覆盖服务器正确值
-app.put("/api/user/:username", (req, res) => {
+app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const updates = req.body || {};
   const data = readJson(USERS_FILE, { users: [] });
@@ -214,8 +274,8 @@ app.put("/api/user/:username", (req, res) => {
   res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
-// ========== 学员修改密码 ==========
-app.post("/api/user/:username/change-password", async (req, res) => {
+// ========== 学员修改密码，需登录且只能修改自己 ==========
+app.post("/api/user/:username/change-password", requireStudentAuth, ensureOwnData, async (req, res) => {
   const { username } = req.params;
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) {
@@ -244,8 +304,8 @@ app.post("/api/user/:username/change-password", async (req, res) => {
   res.json({ ok: true });
 });
 
-// ========== 学员获取自己的练习记录（完整 runs，供首页「数据统计」用） ==========
-app.get("/api/user/:username/runs", (req, res) => {
+// ========== 学员获取自己的练习记录（完整 runs，供首页「数据统计」用），需登录且只能访问自己 ==========
+app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const data = readJson(USERS_FILE, { users: [] });
   if (!data.users.some((u) => u.username === username)) {
@@ -258,8 +318,8 @@ app.get("/api/user/:username/runs", (req, res) => {
   res.json({ ok: true, runs });
 });
 
-// ========== 添加生存局记录（用于完整历史，供 report 页面使用） ==========
-app.post("/api/user/:username/runs", (req, res) => {
+// ========== 添加生存局记录（用于完整历史，供 report 页面使用），需登录且只能访问自己 ==========
+app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const run = req.body || {};
   const data = readJson(USERS_FILE, { users: [] });
@@ -561,6 +621,30 @@ app.get("/api/admin/records/:username", (req, res) => {
     .map(r => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : "survival") }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
+});
+
+// ========== 管理员：获取某学员信息（用于 report 页面） ==========
+app.get("/api/admin/user/:username", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  if (user.hasClearedSurvival === undefined) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    user.hasClearedSurvival = runs.some((r) => r.survivalCleared === true);
+    const idx = data.users.findIndex((u) => u.username === username);
+    if (idx >= 0) {
+      data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
+      writeJson(USERS_FILE, data);
+    }
+  }
+  res.json({ ok: true, user: safeUser(user) });
 });
 
 // ========== 管理员：获取学员列表（用于 report 页面下拉选择） ==========
