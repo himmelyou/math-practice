@@ -1673,8 +1673,24 @@
     let isGuestMode = false;
     let cachedUser = null;
 
+    const AUTH_TOKEN_KEY = "jarvis_math_auth_token";
+
     function getApiBase() {
       return (typeof window !== "undefined" && window.API_BASE_URL) || "";
+    }
+
+    function getAuthToken() {
+      try { return localStorage.getItem(AUTH_TOKEN_KEY) || ""; } catch (e) { return ""; }
+    }
+    function setAuthToken(token) {
+      try { if (token) localStorage.setItem(AUTH_TOKEN_KEY, token); else localStorage.removeItem(AUTH_TOKEN_KEY); } catch (e) {}
+    }
+    function clearAuthToken() {
+      try { localStorage.removeItem(AUTH_TOKEN_KEY); } catch (e) {}
+    }
+    function getAuthHeaders() {
+      const t = getAuthToken();
+      return t ? { "Authorization": "Bearer " + t } : {};
     }
 
     async function apiLogin(username, password) {
@@ -1687,6 +1703,7 @@
         credentials: "include"
       });
       const data = await res.json();
+      if (data && data.ok && data.token) setAuthToken(data.token);
       return data;
     }
 
@@ -1700,6 +1717,7 @@
         credentials: "include"
       });
       const data = await res.json();
+      if (data && data.ok && data.token) setAuthToken(data.token);
       return data;
     }
 
@@ -1711,7 +1729,10 @@
     async function apiGetUser(username) {
       const base = getApiBase();
       if (!base) return null;
-      const res = await fetch(base + "/api/user/" + encodeURIComponent(username), { credentials: "include" });
+      const res = await fetch(base + "/api/user/" + encodeURIComponent(username), {
+        credentials: "include",
+        headers: getAuthHeaders()
+      });
       const data = await res.json();
       if (res.status === 401) { handleAuthRequired(); return null; }
       return data.ok ? data.user : null;
@@ -1722,7 +1743,7 @@
       if (!base) return null;
       const res = await fetch(base + "/api/user/" + encodeURIComponent(username), {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify(updates),
         credentials: "include"
       });
@@ -1736,7 +1757,7 @@
       if (!base) return { ok: false, error: "未配置服务器" };
       const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/change-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ currentPassword, newPassword }),
         credentials: "include"
       });
@@ -1750,7 +1771,7 @@
       try {
         const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/runs", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
           body: JSON.stringify(runEntry),
           credentials: "include"
         });
@@ -2019,7 +2040,7 @@
       const name = loadCurrentUsername();
       if (getApiBase() && name) {
         try {
-          const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include" });
+          const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() });
           const data = await res.json();
           if (res.status === 401) { handleAuthRequired(); return; }
           const allRuns = data.ok && Array.isArray(data.runs) ? data.runs : [];
@@ -2886,7 +2907,7 @@
         return;
       }
       try {
-        const runsRes = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include" });
+        const runsRes = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() });
         const runsData = await runsRes.json();
         if (runsRes.status === 401) { handleAuthRequired(); return; }
         const runs = runsData.ok ? runsData.runs : [];
@@ -3502,6 +3523,7 @@
     }
 
     async function handleLogout() {
+      clearAuthToken();
       const base = getApiBase();
       if (base) {
         try {

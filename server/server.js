@@ -53,7 +53,7 @@ if (!fs.existsSync(DATA_DIR)) {
 app.use(cors({
   origin: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "X-Admin-Pin"],
+  allowedHeaders: ["Content-Type", "X-Admin-Pin", "Authorization"],
   credentials: true
 }));
 app.use(cookieParser());
@@ -85,9 +85,19 @@ function checkAdminPin(req) {
   return pin === getAdminPin();
 }
 
-// ========== 学员接口鉴权：验证 JWT Cookie，只允许访问自己的数据 ==========
+// ========== 学员接口鉴权：支持 Cookie 或 Authorization Bearer，只允许访问自己的数据 ==========
+function getTokenFromRequest(req) {
+  const fromCookie = req.cookies?.auth_token;
+  if (fromCookie) return fromCookie;
+  const auth = req.headers.authorization;
+  if (typeof auth === "string" && auth.toLowerCase().startsWith("bearer ")) {
+    return auth.slice(7).trim();
+  }
+  return null;
+}
+
 function requireStudentAuth(req, res, next) {
-  const token = req.cookies?.auth_token;
+  const token = getTokenFromRequest(req);
   if (!token) {
     return res.status(401).json({ ok: false, error: "请先登录" });
   }
@@ -111,8 +121,12 @@ function ensureOwnData(req, res, next) {
   next();
 }
 
+function createStudentToken(username) {
+  return jwt.sign({ username, role: "student" }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+}
+
 function setAuthCookie(res, username) {
-  const token = jwt.sign({ username, role: "student" }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const token = createStudentToken(username);
   const isProd = process.env.NODE_ENV === "production" || !!process.env.RENDER;
   res.cookie("auth_token", token, {
     httpOnly: true,
@@ -120,6 +134,7 @@ function setAuthCookie(res, username) {
     sameSite: isProd ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000
   });
+  return token;
 }
 
 function clearAuthCookie(res) {
@@ -175,8 +190,8 @@ app.post("/api/register", async (req, res) => {
   };
   data.users.push(newUser);
   writeJson(USERS_FILE, data);
-  setAuthCookie(res, name);
-  res.json({ ok: true, user: safeUser(newUser) });
+  const token = setAuthCookie(res, name);
+  res.json({ ok: true, user: safeUser(newUser), token });
 });
 
 // ========== 学员登录 ==========
@@ -217,8 +232,8 @@ app.post("/api/login", async (req, res) => {
       writeJson(USERS_FILE, data);
     }
   }
-  setAuthCookie(res, username);
-  res.json({ ok: true, user: safeUser(user) });
+  const token = setAuthCookie(res, username);
+  res.json({ ok: true, user: safeUser(user), token });
 });
 
 // ========== 学员登出（清除登录态） ==========
