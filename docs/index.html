@@ -880,7 +880,7 @@
     <section class="wrongbook-section" id="wrongbook-section" style="display:none;">
       <div class="wrongbook-header">
         <h2 class="wrongbook-title">错题本</h2>
-        <p class="wrongbook-subtitle">以下是最近 20 条错题，可自行复习。</p>
+        <p class="wrongbook-subtitle">以下是最新错题，可自行复习。</p>
       </div>
       <div class="wrongbook-list" id="wrongbook-list"></div>
       <div id="wrongbook-empty" class="wrongbook-empty">暂无错题记录。</div>
@@ -1570,6 +1570,31 @@
     const LEVEL_CHALLENGE_CORRECT_PER_LEVEL = 10;
     const TRAINING_QUESTIONS = 30;
 
+    // ========= 错题本累积锁定规则（最新错题 + 复习解锁） =========
+    const WRONGBOOK_THRESHOLD = 20; // 达到/超过则锁定除错题本外的正常模式
+    const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条“错题”，超过后不再写入最新条目
+    const WRONGBOOK_LOCK_MSG = "错题已累积超过20条，在继续新的训练前请先进错题本进行错题复习。";
+
+    function isWrongbookLocked() {
+      if (isGuestMode) return false;
+      const wrongs = getWrongAnswers();
+      return (wrongs || []).length >= WRONGBOOK_THRESHOLD;
+    }
+
+    function showWrongbookViewFast() {
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
+      renderWrongbookList();
+    }
+
+    function lockWrongbookIfNeeded() {
+      if (!isWrongbookLocked()) return false;
+      alert(WRONGBOOK_LOCK_MSG);
+      showWrongbookViewFast();
+      return true;
+    }
+
     let gameMode = "survival";
     let currentLevelIndex = 0;
     let currentQuestion = null;
@@ -1992,8 +2017,9 @@
       try {
         const u = cachedUser || {};
         if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+        // 达到上限后，不再写入“最新错题”，以避免把更真实的旧错题踢掉
+        if (u.wrongAnswers.length >= WRONGBOOK_MAX_STORE) return;
         u.wrongAnswers.unshift(entry);
-        if (u.wrongAnswers.length > 20) u.wrongAnswers = u.wrongAnswers.slice(0, 20);
         cachedUser = u;
         await apiPutUser(username, { wrongAnswers: u.wrongAnswers });
       } catch (e) {
@@ -2346,6 +2372,7 @@
         cachedUser.hasClearedSurvival = true;
         updateRankingButtonLabel();
       }
+      if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
@@ -2496,6 +2523,7 @@
     function showWrongPracticeResult() {
       const correctCount = wrongPracticeResults.filter(r => r.correct).length;
       const total = wrongPracticeResults.length;
+      const isPerfectAllCorrect = total > 0 && correctCount === total;
       let html = "<div style='text-align:left;max-height:50vh;overflow:auto;padding:0 4px;'>";
       html += "<p style='font-weight:600;margin-bottom:12px;'>批改结果：答对 " + correctCount + " / " + total + " 题</p>";
       wrongPracticeResults.forEach((r) => {
@@ -2515,17 +2543,29 @@
       box.innerHTML = html;
       overlay.appendChild(box);
       document.body.appendChild(overlay);
-      box.querySelector("#wrong-result-ok").onclick = function() {
+      box.querySelector("#wrong-result-ok").onclick = async function() {
         document.body.removeChild(overlay);
         gameMode = "survival";
-        if (dom.timerChip) dom.timerChip.style.display = "";
-        const statusGrid = document.getElementById("status-grid");
-        if (statusGrid) statusGrid.style.display = "";
-        const subtitle = document.getElementById("game-subtitle");
-        if (subtitle) subtitle.style.display = "";
-        const inputRow = document.getElementById("answer-input-row");
-        if (inputRow) inputRow.style.display = "none";
-        showWrongbookView();
+
+        // 零错误：清空错题本，并解锁正常模式
+        if (isPerfectAllCorrect && !isGuestMode) {
+          const name = loadCurrentUsername();
+          if (name) {
+            try {
+              const updated = await apiPutUser(name, { wrongAnswers: [] });
+              if (updated) cachedUser = updated;
+            } catch (e) {
+              console.warn("清空错题本失败", e);
+            }
+          }
+          showHome();
+          updateTrainingButtonLabel();
+          updateRankingButtonLabel();
+          return;
+        }
+
+        // 非零错误：留在错题本，继续累积并保持锁定
+        showWrongbookViewFast();
       };
     }
 
@@ -2694,6 +2734,7 @@
       await saveLevelTrainingCurrentLevel(newLevel >= 0 ? newLevel : -1);
       appendRun(survivalTimeSec, runScore, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice());
       renderRecentRuns();
+      if (lockWrongbookIfNeeded()) return;
 
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
@@ -2733,6 +2774,7 @@
       saveLevelChallengeLastLevel(endLevel);
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
       renderRecentRuns();
+      if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
@@ -3155,6 +3197,11 @@
         showGameSection();
         return;
       }
+      if (isWrongbookLocked()) {
+        alert(WRONGBOOK_LOCK_MSG);
+        showWrongbookViewFast();
+        return;
+      }
       if (isSurvivalLocked()) {
         alert("必须闯关模式达到9级或以上才能解锁生存挑战。");
         return;
@@ -3244,6 +3291,11 @@
         alert("游客模式仅支持生存挑战。");
         return;
       }
+      if (isWrongbookLocked()) {
+        alert(WRONGBOOK_LOCK_MSG);
+        showWrongbookViewFast();
+        return;
+      }
       const lastLevel = getLevelChallengeLastLevel();
       if (lastLevel >= 15) {
         if (!confirm("您已通关，是否从 L1 开始新游戏？")) return;
@@ -3278,6 +3330,11 @@
     function handleModePractice() {
       if (isGuestMode) {
         alert("游客模式仅支持生存挑战。");
+        return;
+      }
+      if (isWrongbookLocked()) {
+        alert(WRONGBOOK_LOCK_MSG);
+        showWrongbookViewFast();
         return;
       }
       if (isTrainingLocked()) {
