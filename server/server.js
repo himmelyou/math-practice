@@ -91,6 +91,28 @@ app.use(cookieParser());
 app.use(express.json());
 app.use("/avatar-assets", express.static(AVATAR_ASSET_DIR));
 
+// 管理端 / 报表静态页：仅当运行目录旁存在对应文件夹时才挂载（全仓部署时同域可打开 /admin/）。
+// 若只部署 server 目录到 Render，此处不会挂载；请在本机用 local-admin-server 打开 /admin/ 并连线上 API。
+const REPO_ROOT = path.join(__dirname, "..");
+if (fs.existsSync(path.join(REPO_ROOT, "admin"))) {
+  app.use(
+    "/admin",
+    express.static(path.join(REPO_ROOT, "admin"), { index: "index.html" })
+  );
+}
+if (fs.existsSync(path.join(REPO_ROOT, "report"))) {
+  app.use(
+    "/report",
+    express.static(path.join(REPO_ROOT, "report"), { index: "index.html" })
+  );
+}
+if (fs.existsSync(path.join(REPO_ROOT, "shared"))) {
+  app.use("/shared", express.static(path.join(REPO_ROOT, "shared")));
+}
+if (fs.existsSync(path.join(REPO_ROOT, "docs"))) {
+  app.use("/docs", express.static(path.join(REPO_ROOT, "docs")));
+}
+
 function clampUnlockScore(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0;
