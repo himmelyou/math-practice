@@ -1,0 +1,7 @@
+.DS_Store
+server/.DS_Store
+
+# Local-only admin/report pages
+admin.html
+report.html
+

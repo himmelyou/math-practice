@@ -18,4 +18,7 @@
   window.API_BASE_URL = window.API_BASE_URL || (
     useLocalApi ? "http://localhost:3001" : "https://math-practice-lo1u.onrender.com"
   );
+
+  // 兼容小程序版管理端/报表页代码的命名
+  window.__JML_API_BASE__ = window.__JML_API_BASE__ || window.API_BASE_URL;
 })();

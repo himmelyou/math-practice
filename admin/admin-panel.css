@@ -1,0 +1,473 @@
+/* 后台管理：Tab、表格、模态框 */
+.jml-admin-wide.jml-shell-inner {
+  max-width: 1200px;
+}
+
+.jml-admin-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.jml-banner-warn {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.jml-banner-warn code {
+  font-size: 0.82rem;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.jml-status {
+  min-height: 1.5em;
+  margin-bottom: 12px;
+  font-size: 0.88rem;
+}
+
+.jml-status.ok {
+  color: #15803d;
+}
+
+.jml-status.err {
+  color: #b91c1c;
+}
+
+.jml-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.jml-tab {
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  font-size: 0.92rem;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+}
+
+.jml-tab:hover {
+  color: #0f172a;
+}
+
+.jml-tab.active {
+  color: #2563eb;
+  font-weight: 600;
+  border-bottom-color: #2563eb;
+}
+
+.jml-tab-panel.hidden {
+  display: none;
+}
+
+.jml-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.jml-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+}
+
+.jml-btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.jml-btn-danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fff;
+}
+
+.jml-table-wrap {
+  overflow-x: auto;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.jml-user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.jml-user-table th,
+.jml-user-table td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.jml-user-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.jml-user-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.jml-user-table th.sortable:hover {
+  background: #e2e8f0;
+}
+
+.jml-user-table td.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.jml-user-table .pwd-mask {
+  color: #94a3b8;
+  letter-spacing: 1px;
+}
+
+.jml-actions-wrap {
+  position: relative;
+}
+
+.jml-actions details {
+  position: relative;
+}
+
+.jml-actions summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.jml-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.jml-actions .jml-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  min-width: 140px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  z-index: 20;
+  padding: 4px 0;
+}
+
+.jml-actions .jml-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  font-size: 0.86rem;
+  cursor: pointer;
+  color: #334155;
+  font-family: inherit;
+}
+
+.jml-actions .jml-menu button:hover {
+  background: #f1f5f9;
+}
+
+.jml-actions .jml-menu button.danger {
+  color: #b91c1c;
+}
+
+.jml-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.jml-modal-overlay[hidden] {
+  display: none !important;
+}
+
+.jml-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 22px 20px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+}
+
+.jml-modal h2 {
+  margin: 0 0 14px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.jml-field {
+  margin-bottom: 14px;
+}
+
+.jml-field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #475569;
+  margin-bottom: 6px;
+}
+
+.jml-field input,
+.jml-field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.jml-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.jml-placeholder-panel {
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 28px 20px;
+  color: #64748b;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.jml-levels-hint {
+  font-size: 0.86rem;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+.jml-level-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  table-layout: fixed;
+}
+
+.jml-level-table th,
+.jml-level-table td {
+  padding: 8px 6px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.jml-level-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.jml-level-table .jml-col-rank {
+  width: 88px;
+  white-space: nowrap;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.jml-level-table .jml-col-desc {
+  min-width: 180px;
+}
+
+.jml-level-table input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.jml-level-table input[type='number'] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 列宽：保证输入框间距一致 */
+.jml-level-table th:nth-child(1),
+.jml-level-table td:nth-child(1) {
+  width: 84px;
+}
+.jml-level-table th:nth-child(3),
+.jml-level-table td:nth-child(3),
+.jml-level-table th:nth-child(4),
+.jml-level-table td:nth-child(4) {
+  width: 120px;
+}
+.jml-level-table th:nth-child(5),
+.jml-level-table td:nth-child(5) {
+  width: 140px;
+}
+
+.jml-avatar-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.jml-avatar-table th,
+.jml-avatar-table td {
+  padding: 8px 6px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.jml-avatar-table th:first-child,
+.jml-avatar-table td:first-child {
+  text-align: center;
+}
+
+.jml-avatar-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.jml-avatar-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+}
+
+.jml-avatar-name,
+.jml-avatar-unlock {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.jml-avatar-unlock {
+  max-width: 110px;
+}
+
+.jml-avatar-name-text {
+  font-size: 0.88rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.jml-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  white-space: nowrap;
+}
+.jml-badge.ok {
+  border-color: rgba(21, 128, 61, 0.25);
+  color: #15803d;
+  background: rgba(220, 252, 231, 0.6);
+}
+.jml-badge.off {
+  border-color: rgba(185, 28, 28, 0.22);
+  color: #b91c1c;
+  background: rgba(254, 226, 226, 0.55);
+}
+
+.jml-btn-mini {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+}
+
+.jml-avatar-drag-handle {
+  display: inline-block;
+  margin-left: 6px;
+  color: #64748b;
+  cursor: grab;
+  user-select: none;
+}
+
+.jml-avatar-row.dragging {
+  opacity: 0.45;
+}
+
+.jml-avatar-row.drag-over-top td {
+  border-top: 2px solid #2563eb;
+}
+
+.jml-avatar-row.drag-over-bottom td {
+  border-bottom: 2px solid #2563eb;
+}
+
+.jml-avatar-select {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+

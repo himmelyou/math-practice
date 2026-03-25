@@ -141,13 +141,13 @@
     }
 
     .app-header {
-      text-align: left;
-      padding: 8px 4px 8px;
+      text-align: center;
+      padding: 6px 4px 4px;
     }
 
     .app-title {
       margin: 0 0 6px;
-      font-size: 1.5rem;
+      font-size: 1.15rem;
       font-weight: 700;
       letter-spacing: 0.04em;
       color: #0d47a1;
@@ -157,6 +157,10 @@
       margin: 0;
       font-size: 0.85rem;
       color: var(--muted);
+    }
+    /* 顶部游戏说明永久隐藏：说明只在题目区开始前显示 */
+    #game-subtitle {
+      display: none !important;
     }
 
     .user-bar {
@@ -171,6 +175,362 @@
     .user-bar-name-row { display: inline-flex; align-items: center; gap: 6px; }
     .user-bar-actions { display: flex; align-items: center; gap: 8px; }
 
+    /* ===== 首页：头像 + 分组入口（对齐小程序风格，功能先占位） ===== */
+    .profile-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .avatar-wrap {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      border: none;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid rgba(21, 101, 192, 0.2);
+      box-sizing: border-box;
+      user-select: none;
+    }
+    .avatar.has-img {
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      color: transparent;
+    }
+    .avatar-placeholder { letter-spacing: 0.02em; }
+    .avatar.sm { width: 28px; height: 28px; font-size: 0.78rem; }
+
+    .profile-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+    .nickname-row { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-main); }
+    .nickname-row .user-name { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .score-row { font-size: 0.8rem; color: var(--muted); }
+    .nickname-edit {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #f5f7ff;
+      color: #546e7a;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .home-groups { display: flex; flex-direction: column; gap: 12px; }
+    .mode-group {
+      background: transparent;
+      border-radius: 0;
+      box-shadow: none;
+      padding: 6px 2px 2px;
+      border: none;
+    }
+    .group-head {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 12px 0 12px;
+      padding: 0 12px; /* 手机端左右留白 */
+    }
+    .group-head::before {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 50%;
+      height: 1px;
+      background: rgba(18, 48, 71, 0.18);
+      transform: translateY(-50%);
+    }
+    .group-title {
+      position: relative;
+      z-index: 1;
+      padding: 0 14px;
+      background: var(--bg); /* 盖住分隔线，形成标题断开效果 */
+      font-weight: 700;
+      color: #1a237e;
+      font-size: 0.95rem;
+      letter-spacing: 0.02em;
+    }
+    /* 旧装饰短横线不再使用（保留 DOM 但隐藏） */
+    .group-rules { display: none; }
+    .group-rule { display: none; }
+    .mode-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    @media (max-width: 380px) {
+      .mode-list { grid-template-columns: 1fr; }
+    }
+    .mode-btn-soon {
+      opacity: 0.92;
+      position: relative;
+    }
+    .mode-btn-soon {
+      background: #f3f4f6;
+      border-color: rgba(15, 23, 42, 0.06);
+      color: rgba(38, 50, 56, 0.55);
+      box-shadow: none;
+    }
+    .mode-btn-soon:hover {
+      transform: none;
+      box-shadow: none;
+    }
+    .mode-btn-soon::after {
+      content: "未开放";
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: rgba(84, 110, 122, 0.9);
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid rgba(84, 110, 122, 0.18);
+      border-radius: 999px;
+      padding: 2px 8px;
+      pointer-events: none;
+    }
+
+    /* 轻量 Toast */
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      z-index: 9999;
+      max-width: min(92vw, 520px);
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.92);
+      color: #f8fafc;
+      font-size: 0.88rem;
+      line-height: 1.4;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-2px);
+    }
+
+    /* 头像选择页 */
+    .avatar-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px 14px;
+      padding: 8px 6px 16px;
+    }
+    @media (max-width: 380px) {
+      .avatar-picker-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .avatar-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .avatar-bubble {
+      width: 78px;
+      height: 78px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid rgba(25, 118, 210, 0.0);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .avatar-bubble img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .avatar-item-name { font-size: 0.85rem; color: #37474f; text-align: center; line-height: 1.2; }
+    .avatar-item-need { font-size: 0.8rem; color: #d32f2f; margin-top: -4px; }
+    .avatar-bubble.locked { background: #e5e7eb; box-shadow: none; }
+    .avatar-bubble.locked img { filter: grayscale(1); opacity: 0.35; }
+    .avatar-lock {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.45rem;
+      color: rgba(55, 71, 79, 0.55);
+      pointer-events: none;
+    }
+    .avatar-bubble.selected { border-color: rgba(25, 118, 210, 0.55); }
+    .avatar-check {
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #1976d2;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      box-shadow: 0 8px 16px rgba(25, 118, 210, 0.25);
+      pointer-events: none;
+    }
+
+    /* ===== 排行榜：左侧 Tab + 右侧内容（先占位） ===== */
+    .ranking-header { margin: 8px 0 10px; }
+    .ranking-title { margin: 0; font-size: 1.1rem; color: #263238; }
+    .ranking-subtitle { margin: 6px 0 0; font-size: 0.86rem; color: var(--muted); }
+    .ranking-main-row { display: flex; gap: 10px; }
+    .ranking-tabs {
+      width: 112px;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ranking-tab {
+      border: 1px solid rgba(25, 118, 210, 0.18);
+      background: #fff;
+      color: #375a6a;
+      border-radius: 12px;
+      padding: 10px 10px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      cursor: pointer;
+      text-align: left;
+    }
+    .ranking-tab.active {
+      border-color: rgba(25, 118, 210, 0.45);
+      background: linear-gradient(135deg, #e3f2fd, #f5f9ff);
+      color: #0d47a1;
+    }
+    .ranking-panel {
+      flex: 1;
+      min-width: 0;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: var(--shadow-soft);
+      padding: 12px;
+      border: 1px solid rgba(25, 118, 210, 0.08);
+    }
+    .panel-hint { margin: 0 0 10px; font-size: 0.82rem; color: var(--muted); }
+    .panel-empty { margin: 12px 0 0; font-size: 0.9rem; color: var(--muted); text-align: center; padding: 16px; }
+    .gate-card {
+      border: 1px dashed rgba(25, 118, 210, 0.35);
+      border-radius: 14px;
+      padding: 14px 14px;
+      background: #f7fbff;
+    }
+    .gate-title { margin: 0 0 8px; font-weight: 800; color: #0d47a1; }
+    .gate-text { margin: 6px 0 0; color: #455a64; font-size: 0.88rem; }
+
+    .ranking-table-v2 {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      table-layout: fixed;
+    }
+    .ranking-table-v2 th,
+    .ranking-table-v2 td {
+      border-bottom: 1px solid #e8ecf4;
+      padding: 10px 8px;
+      vertical-align: middle;
+      line-height: 1.35;
+    }
+    .ranking-table-v2 th {
+      background: #f0f4ff;
+      font-weight: 800;
+      color: #546e7a;
+      font-size: 0.8rem;
+      letter-spacing: 0.02em;
+    }
+    /* 列对齐与宽度（三榜共用 class） */
+    .ranking-table-v2 .r-col-rank {
+      width: 52px;
+      max-width: 56px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .ranking-table-v2 .r-col-user {
+      text-align: left;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .ranking-table-v2 .r-col-score {
+      width: 76px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .ranking-table-v2 .r-col-time {
+      width: 88px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .ranking-table-v2 .r-col-wrong {
+      width: 52px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .ranking-table-v2 .r-col-date {
+      width: 132px;
+      text-align: center;
+      font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+    }
+    /* 总积分榜：用户列内容居中 */
+    .ranking-table-v2.ranking-mode-score .r-col-user {
+      width: auto;
+      text-align: center;
+    }
+    .ranking-table-v2.ranking-mode-score .r-col-user .user-cell {
+      justify-content: center;
+      width: 100%;
+    }
+    /* 生存榜：收窄用户列并居中，通关用时左对齐，拉近两列间距 */
+    .ranking-table-v2.ranking-mode-survival .r-col-user {
+      width: 38%;
+      max-width: 220px;
+      text-align: center;
+    }
+    .ranking-table-v2.ranking-mode-survival .r-col-user .user-cell {
+      justify-content: center;
+      width: 100%;
+    }
+    .ranking-table-v2.ranking-mode-survival .r-col-time {
+      width: 88px;
+      text-align: left;
+    }
+    /* 质数神探榜：用户列与总榜/生存榜一致（标题与内容居中）；完成用时左对齐 */
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
+      width: 38%;
+      max-width: 220px;
+      text-align: center;
+    }
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
+      justify-content: center;
+      width: 100%;
+    }
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
+      text-align: left;
+    }
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-date { width: 140px; }
+    .ranking-table-v2 .r-col-user .user-meta .name {
+      max-width: 100%;
+    }
+    .ranking-row-me td { background: rgba(25, 118, 210, 0.12); font-weight: 700; }
+    .user-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+    .user-meta { display: flex; flex-direction: column; min-width: 0; }
+    .user-meta .name { font-weight: 700; color: #263238; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-meta .tag { font-size: 0.78rem; color: #1976d2; font-weight: 700; }
+
     .user-name {
       font-weight: 600;
       color: var(--primary);
@@ -184,6 +544,22 @@
       cursor: pointer;
       background: #f5f7ff;
       color: #546e7a;
+    }
+
+    #global-back-home-btn {
+      border-radius: 999px;
+      border: none;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(25, 118, 210, 0.45);
+    }
+
+    #global-back-home-btn:active {
+      opacity: 0.92;
     }
 
     .change-password-modal-overlay {
@@ -215,6 +591,11 @@
       grid-template-columns: 1fr 1fr;
       gap: 8px 12px;
       margin-top: 8px;
+      padding: 10px 12px;
+      background: #ffffff;
+      border: 1px solid rgba(25, 118, 210, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.05);
     }
 
     .status-item {
@@ -222,7 +603,8 @@
       color: var(--muted);
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      justify-content: flex-start;
+      gap: 0;
       white-space: nowrap;
       min-width: 0;
     }
@@ -319,6 +701,15 @@
       text-align: center;
       padding: 8px 6px 4px;
     }
+    .question-text.rule-hint {
+      font-size: 0.92rem;
+      font-weight: 500;
+      color: var(--muted);
+      line-height: 1.6;
+      text-align: left;
+      padding: 10px 10px 6px;
+      white-space: pre-wrap;
+    }
     .question-text.question-refresh-hidden,
     .question-subtext.question-refresh-hidden {
       opacity: 0;
@@ -333,19 +724,27 @@
 
     .answer-form {
       margin: 0;
-      max-width: 380px;
-      margin-left: auto;
-      margin-right: auto;
+      width: 100%;
+      max-width: none;
+      align-self: stretch;
     }
 
     .input-row {
       display: flex;
       gap: 10px;
       margin-top: 12px;
+      width: min(47%, 192px);
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+      max-width: 100%;
     }
 
-    .input-row input[type="number"] {
+    #answer-input {
       flex: 1;
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
       padding: 10px 12px;
       font-size: 16px; /* 避免 iOS 聚焦输入框时自动放大页面 */
       border-radius: 999px;
@@ -353,9 +752,11 @@
       outline: none;
       transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
       text-align: center;
+      -webkit-appearance: none;
+      appearance: none;
     }
 
-    .input-row input[type="number"]:focus {
+    #answer-input:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.16);
       background: #f7fbff;
@@ -365,18 +766,50 @@
       display: flex;
       gap: 10px;
       margin-top: 8px;
+      margin-left: auto;
+      margin-right: auto;
+      width: min(47%, 192px);
     }
     .game-back-row {
       margin-top: 10px;
+      margin-left: auto;
+      margin-right: auto;
+      width: min(47%, 192px);
     }
     .game-back-row.hidden {
       display: none;
     }
     #game-back-home-btn {
-      width: 100%;
-      padding: 16px 20px;
-      min-height: 2.8em;
+      width: 100% !important;
+      padding: 12px 16px;
+      min-height: 3em;
+      flex: none !important;
     }
+
+    #start-game-btn {
+      padding: 12px 16px;
+      min-height: 3em;
+      width: 100% !important;
+      flex: none !important;
+    }
+
+    #start-row #submit-btn {
+      width: 100% !important;
+      flex: none !important;
+    }
+
+    #start-row {
+      width: min(47%, 192px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    #game-back-row {
+      width: min(47%, 192px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+
 
     button {
       border-radius: 999px;
@@ -479,7 +912,7 @@
 
     .recent-header {
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       margin-bottom: 6px;
       color: var(--muted);
@@ -489,6 +922,8 @@
       font-weight: 600;
       color: var(--text-main);
       font-size: 0.86rem;
+      width: 100%;
+      text-align: center;
     }
 
     .recent-table {
@@ -512,7 +947,26 @@
     }
 
     .recent-table td:first-child {
-      text-align: left;
+      text-align: center;
+    }
+
+    .recent-table th:nth-child(1),
+    .recent-table td:nth-child(1) {
+      width: 32%;
+    }
+    .recent-table th:nth-child(2),
+    .recent-table td:nth-child(2) {
+      width: 14%;
+    }
+    .recent-table th:nth-child(3),
+    .recent-table td:nth-child(3),
+    .recent-table th:nth-child(4),
+    .recent-table td:nth-child(4),
+    .recent-table th:nth-child(5),
+    .recent-table td:nth-child(5),
+    .recent-table th:nth-child(6),
+    .recent-table td:nth-child(6) {
+      width: 13.5%;
     }
 
     .recent-empty {
@@ -522,12 +976,21 @@
     }
 
     .game-over-panel {
-      margin-top: 14px;
+      margin-top: 0;
       padding: 16px;
       background: #f5f9ff;
       border-radius: var(--border-radius);
       border: 1px solid rgba(25, 118, 210, 0.2);
       text-align: center;
+    }
+
+    #game-card.game-over-active .question-header,
+    #game-card.game-over-active .question-text,
+    #game-card.game-over-active .question-subtext,
+    #game-card.game-over-active .answer-form,
+    #game-card.game-over-active .feedback,
+    #game-card.game-over-active .batch-summary {
+      display: none !important;
     }
 
     .game-over-title {
@@ -573,15 +1036,18 @@
 
     .mode-btn {
       width: 100%;
-      padding: 16px 20px;
-      font-size: 1rem;
+      padding: 12px 12px;
+      font-size: 0.95rem;
       font-weight: 600;
       border-radius: 12px;
-      border: none;
+      border: 1px solid rgba(15, 23, 42, 0.10);
       cursor: pointer;
       font-family: inherit;
       transition: transform 0.08s ease, box-shadow 0.12s ease;
       text-align: center;
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
 
     .mode-btn:active {
@@ -589,31 +1055,40 @@
     }
 
     .mode-btn-survival {
-      background: linear-gradient(135deg, var(--primary), var(--primary-light));
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(25, 118, 210, 0.4);
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
 
     .mode-btn-level {
-      background: linear-gradient(135deg, #2e7d32, #4caf50);
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(46, 125, 50, 0.35);
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
 
     .mode-btn-practice {
-      background: linear-gradient(135deg, #7b1fa2, #9c27b0);
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(123, 31, 162, 0.35);
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
-    .mode-btn-practice.mode-btn-locked {
+    /* 已开发但未解锁：仍保持白底，只加锁标识 */
+    .mode-btn-locked {
+      position: relative;
+    }
+    .mode-btn-locked::after {
+      content: "🔒";
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 0.9rem;
       opacity: 0.75;
-      background: linear-gradient(135deg, #9c27b0, #ba68c8);
+      pointer-events: none;
     }
 
     .mode-btn-wrongbook {
-      background: linear-gradient(135deg, #e65100, #ff9800);
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(230, 81, 0, 0.35);
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
 
     .mode-btn-disabled {
@@ -624,18 +1099,35 @@
     }
 
     .mode-btn-stats {
-      background: linear-gradient(135deg, #00695c, #00897b);
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(0, 105, 92, 0.35);
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
     .mode-btn-ranking {
-      background: linear-gradient(135deg, #5d4037, #8d6e63);
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(93, 64, 55, 0.35);
+      background: #ffffff;
+      color: #263238;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
-    .mode-btn-ranking.mode-btn-locked {
-      opacity: 0.75;
-      background: linear-gradient(135deg, #8d6e63, #a1887f);
+    .mode-btn-ranking.mode-btn-locked { /* 兼容旧 class：不再改底色 */ }
+
+    .mode-btn:hover {
+      box-shadow: 0 16px 34px rgba(0, 0, 0, 0.07);
+      transform: translateY(-1px);
+    }
+    .mode-btn:active {
+      transform: translateY(0) scale(0.98);
+    }
+
+    /* 未开放（尚未开发）按钮：强制浅灰底（覆盖所有按钮类型的白底） */
+    .mode-btn.mode-btn-soon {
+      background: #f3f4f6 !important;
+      border-color: rgba(15, 23, 42, 0.06) !important;
+      color: rgba(38, 50, 56, 0.55) !important;
+      box-shadow: none !important;
+    }
+    .mode-btn.mode-btn-soon:hover {
+      transform: none !important;
+      box-shadow: none !important;
     }
 
     .stats-section { display: none; margin-top: 12px; }
@@ -706,10 +1198,14 @@
       flex-direction: column;
       gap: 10px;
       margin-top: 14px;
+      width: min(47%, 192px);
+      margin-left: auto;
+      margin-right: auto;
     }
 
     .game-over-buttons .btn-primary {
       flex: none;
+      width: 100%;
     }
 
     @media (min-width: 768px) {
@@ -725,6 +1221,83 @@
         font-size: 1.7rem;
       }
     }
+
+    /* 质数合数：与主游戏共用 status-grid / card / button-row 规范 */
+    .prime-composite-page #prime-status-grid {
+      margin-top: 8px;
+    }
+    .prime-composite-page .prime-idle-card.card,
+    .prime-composite-page #prime-game-card.card,
+    .prime-composite-page #prime-panel-finished {
+      margin-top: 8px;
+    }
+    .question-text.prime-question-num {
+      margin-top: 4px;
+      font-size: clamp(2rem, 11vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #0d47a1;
+      line-height: 1.12;
+      padding: 12px 8px 4px;
+    }
+    .prime-composite-page .button-row.prime-choice-row {
+      width: min(94%, 384px);
+      max-width: 100%;
+      margin-top: 8px;
+      gap: 10px;
+    }
+    .prime-composite-page .button-row.prime-choice-row .btn-primary {
+      flex: 1 1 50%;
+      min-width: 0;
+      padding: 12px 16px;
+      min-height: 3em;
+    }
+    .prime-choice-btn.prime-choice-wrong {
+      background: linear-gradient(135deg, #e53935, #ff7961) !important;
+      box-shadow: 0 6px 14px rgba(211, 47, 47, 0.35) !important;
+    }
+    .prime-composite-page .prime-idle-card .button-row,
+    .prime-composite-page .prime-idle-card .game-back-row {
+      width: min(47%, 192px);
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .prime-idle-card .button-row {
+      margin-top: 12px;
+    }
+    .prime-idle-card .button-row .btn-primary {
+      width: 100%;
+      flex: none !important;
+    }
+    .prime-idle-card .game-back-row {
+      margin-top: 10px;
+    }
+    .prime-composite-page .prime-idle-card .game-back-row .btn-primary {
+      width: 100%;
+      flex: none !important;
+    }
+    .prime-intro-text {
+      text-align: left;
+      line-height: 1.65;
+      margin: 0 0 4px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .prime-composite-page #prime-abandon-row.button-row {
+      width: min(47%, 192px);
+      margin-top: 10px;
+    }
+    .prime-composite-page #prime-abandon-row .btn-primary {
+      width: 100%;
+      flex: none !important;
+    }
+    .prime-wrong-list { max-height: 220px; overflow-y: auto; margin-top: 8px; text-align: left; }
+    .prime-wrong-row {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.88rem;
+    }
+    .prime-wrong-row:last-child { border-bottom: none; }
   </style>
 </head>
 <body>
@@ -764,13 +1337,22 @@
 
   <div class="app" id="app-view" style="display:none;">
     <header class="app-header">
-      <h1 class="app-title">Jarvis Math Lab 计算游戏</h1>
+      <h1 class="app-title">Jarvis Math Lab</h1>
       <div class="user-bar">
-        <span class="user-bar-name-row">
-          当前学员：<span class="user-name" id="current-username-label">-</span>
-          <button id="change-nickname-btn" class="change-pwd-btn" type="button">修改昵称</button>
+        <span class="profile-row">
+          <button class="avatar-wrap" id="home-avatar-btn" type="button" title="头像（占位）">
+            <span class="avatar avatar-placeholder" id="home-avatar-placeholder">头</span>
+          </button>
+          <span class="profile-text">
+            <span class="nickname-row">
+              <span class="user-name" id="current-username-label">-</span>
+              <button id="change-nickname-btn" class="nickname-edit" type="button" title="修改昵称">✎</button>
+            </span>
+            <span class="score-row" id="home-total-score-inline" style="display:none;">总积分：0</span>
+          </span>
         </span>
         <span class="user-bar-actions">
+          <button type="button" id="global-back-home-btn" style="display:none;">返回首页</button>
           <button id="change-password-btn" class="change-pwd-btn" type="button">修改密码</button>
           <button id="logout-btn" class="logout-btn">注销</button>
         </span>
@@ -778,62 +1360,109 @@
     </header>
 
     <section class="home-section" id="home-section">
-      <div class="home-total-score" id="home-total-score"></div>
-      <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关挑战</button>
-      <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">训练模式</button>
-      <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
-      <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
-      <button type="button" class="mode-btn mode-btn-stats" id="mode-stats" style="display:none;">数据统计</button>
-      <button type="button" class="mode-btn mode-btn-ranking" id="mode-ranking" style="display:none;">生存排行</button>
+      <div class="home-groups">
+        <section class="mode-group">
+          <div class="group-head">
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+            <div class="group-title">四则运算</div>
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+          </div>
+          <div class="mode-list">
+            <button type="button" class="mode-btn mode-btn-level" id="mode-level">闯关模式</button>
+            <button type="button" class="mode-btn mode-btn-practice" id="mode-practice">训练模式</button>
+            <button type="button" class="mode-btn mode-btn-survival" id="mode-survival">生存挑战</button>
+          </div>
+        </section>
+
+        <section class="mode-group">
+          <div class="group-head">
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+            <div class="group-title">专项练习</div>
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+          </div>
+          <div class="mode-list">
+            <button type="button" class="mode-btn mode-btn-practice mode-btn-soon" id="mode-expand-brackets" aria-disabled="true">拆括号</button>
+          </div>
+        </section>
+
+        <section class="mode-group">
+          <div class="group-head">
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+            <div class="group-title">数感练习</div>
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+          </div>
+          <div class="mode-list">
+            <button type="button" class="mode-btn mode-btn-practice" id="mode-prime-composite">质数合数</button>
+            <button type="button" class="mode-btn mode-btn-practice mode-btn-soon" id="mode-gcd" aria-disabled="true">公因数</button>
+            <button type="button" class="mode-btn mode-btn-practice mode-btn-soon" id="mode-lcm" aria-disabled="true">公倍数</button>
+          </div>
+        </section>
+
+        <section class="mode-group">
+          <div class="group-head">
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+            <div class="group-title">工具与统计</div>
+            <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
+          </div>
+          <div class="mode-list">
+            <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
+            <button type="button" class="mode-btn mode-btn-stats" id="mode-stats" style="display:none;">数据统计</button>
+            <button type="button" class="mode-btn mode-btn-ranking" id="mode-ranking" style="display:none;">排行榜</button>
+          </div>
+        </section>
+      </div>
     </section>
 
     <div class="game-section" id="game-section">
-      <p class="subtitle" id="game-subtitle">生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
+      <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
 
       <div class="status-grid" id="status-grid">
-        <div class="status-item status-item-full">
-          <span class="status-label">当前难度</span>
-          <span class="status-value" id="current-level-name">-</span>
-        </div>
-        <div class="status-item" id="status-row-2">
-          <span class="status-label" id="status-label-2">连续答对</span>
-          <span class="status-value" id="consecutive-correct">0 / 5</span>
+        <div class="status-item status-item-full" id="status-row-mode">
+          <span class="status-label">当前模式：</span>
+          <span class="status-value" id="current-mode-name">生存挑战</span>
         </div>
         <div class="status-item" id="status-row-3">
-          <span class="status-label" id="status-label-3">本局得分</span>
+          <span class="status-label" id="status-label-3">本局得分：</span>
           <span class="status-value" id="run-score">0</span>
         </div>
         <div class="status-item" id="status-row-4">
-          <span class="status-label" id="status-label-4">个人最佳时间</span>
-          <span class="status-value" id="best-survival-time">-</span>
+          <span class="status-label" id="status-label-4">最高等级：</span>
+          <span class="status-value" id="best-survival-time">L1</span>
+        </div>
+        <div class="status-item" id="status-row-2">
+          <span class="status-label" id="status-label-2">连续答对：</span>
+          <span class="status-value" id="consecutive-correct">0 / 5</span>
         </div>
         <div class="status-item" id="status-row-5">
-          <span class="status-label" id="status-label-5">个人最高得分</span>
-          <span class="status-value" id="best-score">-</span>
+          <span class="status-label" id="status-label-5">错题数量：</span>
+          <span class="status-value" id="best-score">0</span>
         </div>
       </div>
 
     <main class="card" id="game-card">
       <div class="question-header">
-        <div class="question-label">当前题目</div>
+        <div class="question-label">
+          <span class="status-label">当前难度：</span>
+          <span class="status-value" id="current-level-name">-</span>
+        </div>
         <div class="timer-chip" id="timer-chip">
           剩余 <span id="timer-value">1:00</span>
         </div>
       </div>
 
-      <div class="question-text" id="question-text">0 + 0 = ?</div>
+      <div class="question-text" id="question-text"></div>
       <div class="question-subtext" id="question-subtext"></div>
 
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
         <div class="input-row" id="answer-input-row" style="display:none">
-          <input id="answer-input" type="number" inputmode="numeric" pattern="\d*" autocomplete="off" placeholder="在这里输入你的答案" enterkeyhint="go" />
+          <input id="answer-input" type="text" inputmode="numeric" autocomplete="off" placeholder="在这里输入你的答案" enterkeyhint="go" />
         </div>
-        <div class="button-row">
+        <div class="button-row" id="start-row">
           <button type="submit" class="btn-primary" id="submit-btn">提交答案</button>
           <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
         </div>
-        <div class="game-back-row" id="game-back-row">
-          <button type="button" class="btn-primary btn-secondary" id="game-back-home-btn">返回首页</button>
+        <div class="button-row" id="abandon-row" style="display:none;">
+          <button type="button" class="btn-primary btn-secondary" id="abandon-game-btn">放弃本局</button>
         </div>
       </form>
 
@@ -842,14 +1471,12 @@
 
       <div id="game-over-panel" class="game-over-panel" style="display:none;">
         <h2 class="game-over-title" id="game-over-title">Game Over</h2>
-        <p class="game-over-line">本局存活：<strong id="game-over-duration">-</strong></p>
+        <p class="game-over-line"><span id="game-over-duration-label">本局存活：</span><strong id="game-over-duration">-</strong></p>
         <p class="game-over-line">本局得分：<strong id="game-over-score">0</strong></p>
         <p class="game-over-line">本局错题：<strong id="game-over-wrong">0</strong></p>
-        <p class="game-over-line">到达最高难度：<strong id="game-over-max-level">-</strong></p>
-        <p class="game-over-line game-over-best">个人最佳：<span id="game-over-best-time">-</span> · 最高得分 <span id="game-over-best-score">-</span></p>
+        <p class="game-over-line"><span id="game-over-max-level-label">到达最高难度：</span><strong id="game-over-max-level">-</strong></p>
         <div class="game-over-buttons">
           <button class="btn-primary" id="play-again-btn">再玩一局</button>
-          <button class="btn-primary btn-secondary" id="back-home-btn">返回首页</button>
         </div>
       </div>
     </main>
@@ -862,12 +1489,12 @@
         <table class="recent-table">
           <thead>
             <tr>
-              <th>存活时长</th>
-              <th>得分</th>
-              <th>错误题数</th>
-              <th>最高难度</th>
-              <th>通关</th>
               <th>日期时间</th>
+              <th>用时</th>
+              <th>得分</th>
+              <th>错题</th>
+              <th id="recent-col-level">最高难度</th>
+              <th>通关</th>
             </tr>
           </thead>
           <tbody id="recent-history-body"></tbody>
@@ -876,6 +1503,8 @@
       </div>
     </section>
     </div>
+
+    <div class="toast" id="app-toast" role="status" aria-live="polite"></div>
 
     <section class="wrongbook-section" id="wrongbook-section" style="display:none;">
       <div class="wrongbook-header">
@@ -886,26 +1515,148 @@
       <div id="wrongbook-empty" class="wrongbook-empty">暂无错题记录。</div>
       <div class="wrongbook-actions" id="wrongbook-actions">
         <button type="button" class="btn-primary" id="wrongbook-practice-btn" style="display:none;">错题练习</button>
-        <button type="button" class="btn-primary btn-secondary" id="wrongbook-back-btn">回到首页</button>
       </div>
     </section>
 
     <section class="ranking-section" id="ranking-section" style="display:none;margin-top:12px;">
-      <div class="stats-back-row">
-        <button type="button" class="btn-primary btn-secondary" id="ranking-back-btn">返回首页</button>
+      <div class="ranking-header">
+        <h2 class="ranking-title">排行榜</h2>
+        <p class="ranking-subtitle">总积分榜、生存榜与质数神探榜已接入服务端；其余榜单将陆续开放。</p>
       </div>
-      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">每人仅保留一条最佳记录，按用时与错题数排名；展示前 50 名，你的名次会单独显示并高亮。</p>
-      <table class="stats-table" id="ranking-table" style="display:none;">
-        <thead><tr><th>排名</th><th>学员</th><th>通关用时</th><th>错题数</th><th>达成日期</th></tr></thead>
-        <tbody id="ranking-body"></tbody>
-      </table>
-      <div id="ranking-empty" class="stats-empty-msg" style="display:none;">暂无通关记录。</div>
+      <div class="ranking-main-row">
+        <div class="ranking-tabs" role="tablist" aria-label="排行榜 Tab">
+          <button class="ranking-tab active" type="button" data-tab="score" id="ranking-tab-score">总积分榜</button>
+          <button class="ranking-tab" type="button" data-tab="survival" id="ranking-tab-survival">生存榜</button>
+          <button class="ranking-tab" type="button" data-tab="primePerfect" id="ranking-tab-prime-perfect">质数神探</button>
+          <button class="ranking-tab" type="button" data-tab="streak" id="ranking-tab-streak">耐力榜</button>
+          <button class="ranking-tab" type="button" data-tab="combo" id="ranking-tab-combo">连击榜</button>
+        </div>
+        <div class="ranking-panel" id="ranking-panel">
+          <div class="panel-hint" id="ranking-panel-hint">总积分榜 · 加载中…</div>
+
+          <div class="gate-card" id="ranking-survival-gate" style="display:none;">
+            <p class="gate-title">生存榜</p>
+            <p class="gate-text">该榜单仅对已通关生存挑战的用户开放。</p>
+            <p class="gate-text">你尚未在生存模式中通关。请先完成一局生存挑战并通关后，再来查看本榜。</p>
+          </div>
+
+          <table class="ranking-table-v2" id="ranking-table-v2">
+            <thead id="ranking-thead-v2"></thead>
+            <tbody id="ranking-tbody-v2"></tbody>
+          </table>
+          <div class="panel-empty" id="ranking-empty-v2">暂无排行数据。</div>
+          <div id="ranking-coming-soon" class="panel-empty" style="display:none;text-align:center;padding:28px 14px;color:var(--muted);font-size:0.95rem;">敬请期待</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分；状态栏与主游戏同结构 -->
+    <section class="ranking-section prime-composite-page" id="prime-composite-section" style="display:none;margin-top:12px;">
+      <div class="status-grid" id="prime-status-grid">
+        <div class="status-item status-item-full">
+          <span class="status-label">当前模式：</span>
+          <span class="status-value">质数合数</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">本局得分：</span>
+          <span class="status-value" id="prime-session-score">0</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">进度：</span>
+          <span class="status-value" id="prime-progress-text">—</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">答对数量：</span>
+          <span class="status-value" id="prime-correct-count">0/50</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">错题数量：</span>
+          <span class="status-value" id="prime-live-wrong">0</span>
+        </div>
+      </div>
+
+      <div id="prime-panel-idle" class="prime-panel-idle" style="display:none;">
+        <main class="card prime-idle-card">
+          <p class="question-subtext prime-intro-text">判断 <strong>2～99</strong> 中的数是质数还是合数；每题 <strong>5</strong> 分，共 <strong>50</strong> 题，正向计时。</p>
+          <div class="button-row">
+            <button type="button" class="btn-primary" id="prime-composite-start-btn">开始练习</button>
+          </div>
+        </main>
+      </div>
+
+      <div id="prime-panel-playing" class="prime-panel-playing" style="display:none;">
+        <main class="card" id="prime-game-card">
+          <div class="question-header">
+            <div class="question-label">
+              <span class="status-label">当前数</span>
+            </div>
+            <div class="timer-chip" id="prime-timer-chip">
+              用时 <span id="prime-elapsed">0:00</span>
+            </div>
+          </div>
+          <div class="question-text prime-question-num" id="prime-current-n">—</div>
+          <p class="question-subtext" id="prime-hint-sub">请判断是质数还是合数</p>
+          <div class="button-row prime-choice-row">
+            <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-prime">质数</button>
+            <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-composite">合数</button>
+          </div>
+          <div class="button-row" id="prime-abandon-row" style="display:none;">
+            <button type="button" class="btn-primary btn-secondary" id="prime-abandon-btn">放弃本局</button>
+          </div>
+        </main>
+      </div>
+
+      <div id="prime-panel-finished" class="prime-panel-finished" style="display:none;">
+        <div class="game-over-panel" id="prime-finished-panel-inner">
+          <h2 class="game-over-title">本局结束</h2>
+          <p class="game-over-line">答对：<strong id="prime-finish-correct">0</strong></p>
+          <p class="game-over-line">答错：<strong id="prime-finish-wrong">0</strong></p>
+          <p class="game-over-line">用时：<strong id="prime-finish-time">0:00</strong></p>
+          <p class="game-over-line">本局得分：<strong id="prime-finish-session">0</strong></p>
+          <p id="prime-finished-sync-ok" class="game-over-line" style="display:none;color:var(--success);">总积分已同步更新。</p>
+          <p id="prime-finished-sync-fail" class="game-over-line" style="display:none;color:var(--danger);">积分同步失败，请检查网络后重试。</p>
+          <p id="prime-finished-sync-local" class="game-over-line" style="display:none;color:var(--muted);">未连接服务器，总积分仅在本地累加。</p>
+          <p class="panel-hint" style="margin:14px 0 6px;text-align:left;">错题回顾</p>
+          <div id="prime-finish-wrong-list" class="prime-wrong-list"></div>
+          <div class="game-over-buttons">
+            <button type="button" class="btn-primary" id="prime-composite-again-btn">再来一局</button>
+          </div>
+        </div>
+      </div>
+
+      <section class="recent-card" style="margin-top:12px;">
+        <div class="recent-header">
+          <span class="recent-title" id="prime-recent-title">最近十次质数合数</span>
+        </div>
+        <div class="recent-body">
+          <table class="recent-table">
+            <thead>
+              <tr>
+                <th>日期时间</th>
+                <th>用时</th>
+                <th>得分</th>
+                <th>错题</th>
+                <th>最高难度</th>
+                <th>通关</th>
+              </tr>
+            </thead>
+            <tbody id="prime-recent-history-body"></tbody>
+          </table>
+          <div id="prime-recent-history-empty" class="recent-empty">当前还没有练习记录。</div>
+        </div>
+      </section>
+    </section>
+
+    <!-- 选择头像：单独页面（对齐小程序） -->
+    <section class="ranking-section" id="avatar-picker-section" style="display:none;margin-top:12px;">
+      <div class="ranking-header">
+        <h2 class="ranking-title">选择头像</h2>
+        <p class="ranking-subtitle">点击头像更换；未解锁头像会显示所需积分。</p>
+      </div>
+      <div id="avatar-picker-grid" class="avatar-picker-grid"></div>
     </section>
 
     <section class="stats-section" id="stats-section">
-      <div class="stats-back-row">
-        <button type="button" class="btn-primary btn-secondary" id="stats-back-btn">返回首页</button>
-      </div>
       <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的错误率与用时（基于最近 500 局）。</p>
       <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="display:none;">
         <div class="stats-level-chart-row"><label>选择难度：</label><select id="stats-level-select"></select></div>
@@ -957,6 +1708,7 @@
     </div>
   </div>
 
+  <script src="prime-composite-logic.js"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -1219,8 +1971,19 @@
             const op = Math.random() < 0.5 ? "+" : "-";
             let a, b, answer;
             if (op === "+") {
-              a = randomInt(6, 15);
-              b = randomInt(4, 9);
+              // 对齐小程序：确保结果 ≤ 20，并且 b 下限为 4
+              for (let i = 0; i < 50; i++) {
+                a = randomInt(6, 15);
+                const maxB = Math.min(9, 20 - a);
+                if (maxB >= 4) {
+                  b = randomInt(4, maxB);
+                  break;
+                }
+              }
+              if (typeof a !== "number" || typeof b !== "number") {
+                a = 11;
+                b = 9;
+              }
               answer = a + b;
             } else {
               a = randomInt(11, 20);
@@ -1247,16 +2010,30 @@
           min: 20,
           max: 99,
           generateQuestion() {
+            // 对齐小程序：整十数 : 一位数 ≈ 4 : 6；一位数部分约 75% 保证个位进位
             let a, b, answer;
-            a = randomInt(20, 99);
             if (Math.random() < 0.4) {
+              a = randomInt(20, 99);
               b = randomInt(1, 9) * 10;
             } else {
-              if (Math.random() < 0.75) {
-                const aUnit = a % 10;
-                const minB = Math.max(4, 10 - aUnit);
-                b = randomInt(minB, 9);
+              const wantCarry = Math.random() < 0.75;
+              if (wantCarry) {
+                for (let i = 0; i < 50; i++) {
+                  a = randomInt(20, 99);
+                  const aUnit = a % 10;
+                  if (aUnit === 0) continue;
+                  const minB = Math.max(4, 10 - aUnit);
+                  if (minB <= 9) {
+                    b = randomInt(minB, 9);
+                    break;
+                  }
+                }
+                if (typeof a !== "number" || typeof b !== "number") {
+                  a = 27;
+                  b = 6;
+                }
               } else {
+                a = randomInt(20, 99);
                 b = randomInt(4, 9);
               }
             }
@@ -1304,26 +2081,41 @@
           min: 10,
           max: 99,
           generateQuestion() {
+            // 对齐小程序 + 修复“边界逼值”问题：不使用 b = 100 - a 的兜底，改为重抽
+            const wantCarry = Math.random() < 0.8;
             let a, b, answer;
-            a = randomInt(10, 80);
-            const maxB = 100 - a;
-            if (Math.random() < 0.8) {
-              const aUnit = a % 10;
-              const minUnitB = Math.max(1, 10 - aUnit);
-              const maxUnitB = Math.min(9, maxB - 10);
-              if (maxUnitB >= minUnitB) {
-                const unitB = randomInt(minUnitB, maxUnitB);
-                const maxTenB = Math.floor((maxB - unitB) / 10);
-                const tenB = randomInt(1, Math.max(1, maxTenB));
-                b = tenB * 10 + unitB;
+            for (let i = 0; i < 80; i++) {
+              if (wantCarry) {
+                const tenA = randomInt(1, 8);
+                const unitA = randomInt(1, 9);
+                a = tenA * 10 + unitA;
+                const unitB = randomInt(10 - unitA, 9);
+                const minTenB = 1;
+                const maxTenB = Math.floor((100 - a - unitB) / 10);
+                if (maxTenB >= minTenB) {
+                  const tenB = randomInt(minTenB, maxTenB);
+                  b = tenB * 10 + unitB;
+                } else {
+                  continue;
+                }
               } else {
+                a = randomInt(10, 99);
+                const maxB = Math.min(99, 100 - a);
+                if (maxB < 10) continue;
                 b = randomInt(10, maxB);
               }
-            } else {
-              b = randomInt(10, Math.min(99, maxB));
+              if (typeof a !== "number" || typeof b !== "number") continue;
+              if (b < 10) continue;
+              if (a + b > 100) continue;
+              // wantCarry 时确保个位进位
+              if (wantCarry && ((a % 10) + (b % 10) < 10)) continue;
+              answer = a + b;
+              const text = `${a} + ${b} = ?`;
+              return { a, b, op: "+", text, answer, baseLevelId: this.id };
             }
-            if (b < 10) b = 10;
-            if (a + b > 100) b = 100 - a;
+            // 兜底：给一个合理的非边界组合（避免答案 100 偏多）
+            a = 47;
+            b = 38; // 85
             answer = a + b;
             const text = `${a} + ${b} = ?`;
             return { a, b, op: "+", text, answer, baseLevelId: this.id };
@@ -1365,21 +2157,37 @@
             const op = Math.random() < 0.5 ? "+" : "-";
             let a, b, answer;
             if (op === "+") {
-              a = randomInt(10, 80);
-              const maxB = 100 - a;
-              const aUnit = a % 10;
-              const minUnitB = Math.max(1, 10 - aUnit);
-              const maxUnitB = Math.min(9, maxB - 10);
-              if (Math.random() < 0.7 && maxUnitB >= minUnitB) {
-                const unitB = randomInt(minUnitB, maxUnitB);
-                const maxTenB = Math.floor((maxB - unitB) / 10);
-                const tenB = randomInt(1, Math.max(1, maxTenB));
-                b = tenB * 10 + unitB;
-              } else {
-                b = randomInt(10, Math.min(99, maxB));
+              // 对齐小程序 + 修复“边界逼值”问题：不使用 b = 100 - a 的兜底，改为重抽
+              const wantCarry = Math.random() < 0.7;
+              for (let i = 0; i < 80; i++) {
+                if (wantCarry) {
+                  const tenA = randomInt(1, 8);
+                  const unitA = randomInt(1, 9);
+                  a = tenA * 10 + unitA;
+                  const unitB = randomInt(10 - unitA, 9);
+                  const minTenB = 1;
+                  const maxTenB = Math.floor((100 - a - unitB) / 10);
+                  if (maxTenB >= minTenB) {
+                    const tenB = randomInt(minTenB, maxTenB);
+                    b = tenB * 10 + unitB;
+                  } else {
+                    continue;
+                  }
+                } else {
+                  a = randomInt(10, 99);
+                  const maxB = Math.min(99, 100 - a);
+                  if (maxB < 10) continue;
+                  b = randomInt(10, maxB);
+                }
+                if (b < 10) continue;
+                if (a + b > 100) continue;
+                if (wantCarry && ((a % 10) + (b % 10) < 10)) continue;
+                answer = a + b;
+                const text = `${a} + ${b} = ?`;
+                return { a, b, op: "+", text, answer, baseLevelId: this.id };
               }
-              if (b < 10) b = 10;
-              if (a + b > 100) b = 100 - a;
+              a = 63;
+              b = 28;
               answer = a + b;
             } else {
               // 倾向出现退位
@@ -1403,9 +2211,9 @@
         {
           id: "L10",
           name: "第 10 级 · 乘法口诀基础",
-          description: "1 到 9 的乘法口诀，打牢乘法基础。",
+          description: "2 到 9 的乘法口诀（不含 ×1），打牢乘法基础。",
           operations: ["×"],
-          min: 1,
+          min: 2,
           max: 9,
           generateQuestion() {
             const a = randomInt(this.min, this.max);
@@ -1505,20 +2313,20 @@
           max: 99,
           generateQuestion() {
             const templates = [
-              () => { const b = randomInt(1, 9); const c = randomInt(1, 9); const a = randomInt(0, Math.min(99, 100 - b * c)); return { text: `${a} + ${b} × ${c} = ?`, answer: a + b * c }; },
-              () => { const a = randomInt(1, 9); const b = randomInt(1, 9); const c = randomInt(0, Math.min(99, 100 - a * b)); return { text: `${a} × ${b} + ${c} = ?`, answer: a * b + c }; },
+              () => { const b = randomInt(2, 9); const c = randomInt(2, 9); const a = randomInt(0, Math.min(99, 100 - b * c)); return { text: `${a} + ${b} × ${c} = ?`, answer: a + b * c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(0, Math.min(99, 100 - a * b)); return { text: `${a} × ${b} + ${c} = ?`, answer: a * b + c }; },
               () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(0, Math.min(99, 100 - b / c)); return { text: `${a} + ${b} ÷ ${c} = ?`, answer: a + b / c }; },
               () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, Math.min(99, 100 - a / b)); return { text: `${a} ÷ ${b} + ${c} = ?`, answer: a / b + c }; },
-              () => { const b = randomInt(1, 9); const c = randomInt(1, 9); const a = randomInt(b * c, Math.min(99, 100)); return { text: `${a} − ${b} × ${c} = ?`, answer: a - b * c }; },
-              () => { const a = randomInt(1, 9); const b = randomInt(1, 9); const c = randomInt(0, a * b); return { text: `${a} × ${b} − ${c} = ?`, answer: a * b - c }; },
+              () => { const b = randomInt(2, 9); const c = randomInt(2, 9); const a = randomInt(b * c, Math.min(99, 100)); return { text: `${a} − ${b} × ${c} = ?`, answer: a - b * c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(0, a * b); return { text: `${a} × ${b} − ${c} = ?`, answer: a * b - c }; },
               () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − ${b} ÷ ${c} = ?`, answer: a - b / c }; },
               () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, a / b); return { text: `${a} ÷ ${b} − ${c} = ?`, answer: a / b - c }; },
               () => { const a = randomInt(0, 50); const b = randomInt(0, Math.min(50, 100 - a)); const c = randomInt(0, Math.min(50, 100 - a - b)); return { text: `${a} + ${b} + ${c} = ?`, answer: a + b + c }; },
               () => { const a = randomInt(20, 99); const b = randomInt(0, Math.min(50, a)); const c = randomInt(0, Math.min(50, a - b)); return { text: `${a} − ${b} − ${c} = ?`, answer: a - b - c }; },
-              () => { const a = randomInt(1, 4); const b = randomInt(1, 4); const c = randomInt(1, Math.min(4, Math.floor(81 / (a * b)))); return { text: `${a} × ${b} × ${c} = ?`, answer: a * b * c }; },
-              () => { const c = randomInt(2, 9); const b = randomInt(2, 9); const a = b * c * randomInt(1, 4); if (a > 81) return null; return { text: `${a} ÷ ${b} ÷ ${c} = ?`, answer: a / b / c }; },
-              () => { const a = randomInt(1, 9); const b = randomInt(1, 9); const c = randomInt(2, 9); if ((a * b) % c !== 0) return null; return { text: `${a} × ${b} ÷ ${c} = ?`, answer: a * b / c }; },
-              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(1, 9); return { text: `${a} ÷ ${b} × ${c} = ?`, answer: a / b * c }; },
+              () => { const a = randomInt(2, 4); const b = randomInt(2, 4); const maxC = Math.min(4, Math.floor(81 / (a * b))); if (maxC < 2) return null; const c = randomInt(2, maxC); return { text: `${a} × ${b} × ${c} = ?`, answer: a * b * c }; },
+              () => { const c = randomInt(2, 9); const b = randomInt(2, 9); const a = b * c * randomInt(2, 4); if (a > 81) return null; return { text: `${a} ÷ ${b} ÷ ${c} = ?`, answer: a / b / c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(2, 9); if ((a * b) % c !== 0) return null; return { text: `${a} × ${b} ÷ ${c} = ?`, answer: a * b / c }; },
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(2, 9); return { text: `${a} ÷ ${b} × ${c} = ?`, answer: a / b * c }; },
               () => { const a = randomInt(0, 50); const b = randomInt(0, 50); const c = randomInt(0, Math.min(99, a + b)); return { text: `${a} + ${b} − ${c} = ?`, answer: a + b - c }; },
               () => { const a = randomInt(10, 99); const b = randomInt(0, a); const c = randomInt(0, 99); return { text: `${a} − ${b} + ${c} = ?`, answer: a - b + c }; }
             ];
@@ -1540,16 +2348,16 @@
           max: 99,
           generateQuestion() {
             const templates = [
-              () => { const a = randomInt(1, 8); const b = randomInt(1, 9 - a); const c = randomInt(1, 9); return { text: `(${a} + ${b}) × ${c} = ?`, answer: (a + b) * c }; },
-              () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(1, 9); return { text: `(${a} − ${b}) × ${c} = ?`, answer: (a - b) * c }; },
+              () => { const a = randomInt(1, 8); const b = randomInt(1, 9 - a); const c = randomInt(2, 9); return { text: `(${a} + ${b}) × ${c} = ?`, answer: (a + b) * c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(2, 9); return { text: `(${a} − ${b}) × ${c} = ?`, answer: (a - b) * c }; },
               () => { const c = randomInt(2, 9); const quotient = randomInt(2, 9); const sum = c * quotient; if (sum < 10 || sum > 18) return null; const a = randomInt(1, sum - 1); const b = sum - a; return { text: `(${a} + ${b}) ÷ ${c} = ?`, answer: (a + b) / c }; },
               () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(2, 9); if ((a - b) % c !== 0) return null; return { text: `(${a} − ${b}) ÷ ${c} = ?`, answer: (a - b) / c }; },
-              () => { const a = randomInt(1, 9); const b = randomInt(1, 8); const c = randomInt(1, 9 - b); return { text: `${a} × (${b} + ${c}) = ?`, answer: a * (b + c) }; },
-              () => { const a = randomInt(1, 9); const b = randomInt(2, 9); const c = randomInt(1, b - 1); return { text: `${a} × (${b} − ${c}) = ?`, answer: a * (b - c) }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(1, 8); const c = randomInt(1, 9 - b); return { text: `${a} × (${b} + ${c}) = ?`, answer: a * (b + c) }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(1, b - 1); return { text: `${a} × (${b} − ${c}) = ?`, answer: a * (b - c) }; },
               () => { const bc = randomInt(2, 9); const a = bc * randomInt(2, 9); if (a > 81) return null; const b = randomInt(1, bc - 1); const c = bc - b; return { text: `${a} ÷ (${b} + ${c}) = ?`, answer: a / (b + c) }; },
               () => { const bc = randomInt(2, 9); const a = bc * randomInt(2, 9); if (a > 81) return null; const b = randomInt(bc + 1, 9); const c = b - bc; return { text: `${a} ÷ (${b} − ${c}) = ?`, answer: a / (b - c) }; },
-              () => { const a = randomInt(0, 90); const b = randomInt(1, 9); const c = randomInt(1, 9); return { text: `${a} + (${b} × ${c}) = ?`, answer: a + b * c }; },
-              () => { const b = randomInt(1, 9); const c = randomInt(1, 9); const a = randomInt(b * c, 99); return { text: `${a} − (${b} × ${c}) = ?`, answer: a - b * c }; },
+              () => { const a = randomInt(0, 90); const b = randomInt(2, 9); const c = randomInt(2, 9); return { text: `${a} + (${b} × ${c}) = ?`, answer: a + b * c }; },
+              () => { const b = randomInt(2, 9); const c = randomInt(2, 9); const a = randomInt(b * c, 99); return { text: `${a} − (${b} × ${c}) = ?`, answer: a - b * c }; },
               () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(0, 100 - b / c); return { text: `${a} + (${b} ÷ ${c}) = ?`, answer: a + b / c }; },
               () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − (${b} ÷ ${c}) = ?`, answer: a - b / c }; }
             ];
@@ -1558,7 +2366,7 @@
               const r = t();
               if (r && Number.isInteger(r.answer) && r.answer >= 0) return { a: 0, b: 0, op: "+", text: r.text, answer: r.answer, baseLevelId: this.id };
             }
-            return { a: 1, b: 1, op: "+", text: "(1 + 1) × 1 = ?", answer: 2, baseLevelId: this.id };
+            return { a: 2, b: 2, op: "+", text: "(2 + 2) × 2 = ?", answer: 8, baseLevelId: this.id };
           }
         }
       ]
@@ -1582,6 +2390,7 @@
     }
 
     function showWrongbookViewFast() {
+      setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
@@ -1614,20 +2423,22 @@
     let wrongPracticeIndex = 0;
     let wrongPracticeResults = [];
     let trainingQuestionIndex = 0;
+    let trainingCorrectCount = 0;
 
     // ========= DOM引用 =========
     const dom = {};
 
     function initDomRefs() {
+      dom.appTitle = document.querySelector(".app-title");
       dom.homeSection = document.getElementById("home-section");
       dom.gameSection = document.getElementById("game-section");
-      dom.backHomeBtn = document.getElementById("back-home-btn");
       dom.currentLevelName = document.getElementById("current-level-name");
       dom.survivalTime = document.getElementById("survival-time");
       dom.consecutiveCorrect = document.getElementById("consecutive-correct");
       dom.runScore = document.getElementById("run-score");
       dom.bestSurvivalTime = document.getElementById("best-survival-time");
       dom.bestScore = document.getElementById("best-score");
+      dom.currentModeName = document.getElementById("current-mode-name");
 
       dom.timerChip = document.getElementById("timer-chip");
       dom.timerValue = document.getElementById("timer-value");
@@ -1648,7 +2459,47 @@
       dom.wrongbookList = document.getElementById("wrongbook-list");
       dom.wrongbookEmpty = document.getElementById("wrongbook-empty");
       dom.wrongbookPracticeBtn = document.getElementById("wrongbook-practice-btn");
-      dom.wrongbookBackBtn = document.getElementById("wrongbook-back-btn");
+    }
+
+    function getModeTitle() {
+      if (gameMode === "level") return "闯关模式";
+      if (gameMode === "training") return "训练模式";
+      if (gameMode === "wrong") return "错题本练习";
+      return "生存挑战";
+    }
+
+    function updateTopTitleForCurrentView(isHome) {
+      if (!dom.appTitle) return;
+      dom.appTitle.textContent = "Jarvis Math Lab";
+    }
+
+    function updateStatusModeLabel() {
+      if (!dom.currentModeName) return;
+      dom.currentModeName.textContent = getModeTitle();
+    }
+
+    function setTopActionsVisible(visible) {
+      const changePwdBtn = document.getElementById("change-password-btn");
+      const logoutBtn = document.getElementById("logout-btn");
+      const globalBackBtn = document.getElementById("global-back-home-btn");
+      if (visible) {
+        if (globalBackBtn) globalBackBtn.style.display = "none";
+        if (changePwdBtn) changePwdBtn.style.display = isGuestMode ? "none" : "";
+        if (logoutBtn) logoutBtn.style.display = "";
+        return;
+      }
+      if (globalBackBtn) globalBackBtn.style.display = "";
+      if (changePwdBtn) changePwdBtn.style.display = "none";
+      if (logoutBtn) logoutBtn.style.display = "";
+    }
+
+    function globalBackToHome() {
+      const gs = document.getElementById("game-section");
+      if (gs && gs.classList.contains("visible")) {
+        exitGameToHome();
+        return;
+      }
+      showHome();
     }
 
     // ===== 工具函数 =====
@@ -1666,6 +2517,14 @@
       const m = Math.floor(sec / 60);
       const s = sec % 60;
       return s === 0 ? m + "min" : m + "min " + s + "s";
+    }
+
+    /** 与训练/闯关正向计时器一致：分:秒（如 0:05、1:23） */
+    function formatGameElapsedClock(sec) {
+      sec = Math.max(0, Math.round(Number(sec) || 0));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + ":" + String(s).padStart(2, "0");
     }
 
     function formatDateTime(ts) {
@@ -1792,7 +2651,7 @@
 
     async function apiAppendRun(username, runEntry) {
       const base = getApiBase();
-      if (!base) return;
+      if (!base) return false;
       try {
         const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/runs", {
           method: "POST",
@@ -1800,16 +2659,17 @@
           body: JSON.stringify(runEntry),
           credentials: "include"
         });
-        if (res.status === 401) { handleAuthRequired(); return; }
+        if (res.status === 401) { handleAuthRequired(); return false; }
         const data = await res.json();
         if (data && data.user) {
           cachedUser = data.user;
           renderRecentRuns();
+          renderPrimeRecentRuns();
           updateHomeTotalScore();
-          return;
+          return true;
         }
         const u = cachedUser || {};
-        const mode = runEntry.mode === "level" ? "level" : (runEntry.mode === "training" ? "training" : "survival");
+        const mode = runEntry.mode === "level" ? "level" : (runEntry.mode === "training" ? "training" : (runEntry.mode === "primeComposite" ? "primeComposite" : "survival"));
         u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
         if (mode === "level") {
           if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
@@ -1819,6 +2679,10 @@
           if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
           u.recentTrainingRuns.unshift(runEntry);
           if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
+        } else if (mode === "primeComposite") {
+          if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
+          u.recentPrimeCompositeRuns.unshift(runEntry);
+          if (u.recentPrimeCompositeRuns.length > 10) u.recentPrimeCompositeRuns = u.recentPrimeCompositeRuns.slice(0, 10);
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -1831,13 +2695,20 @@
           ? { recentLevelRuns: u.recentLevelRuns, totalScore: u.totalScore }
           : mode === "training"
           ? { recentTrainingRuns: u.recentTrainingRuns, totalScore: u.totalScore }
+          : mode === "primeComposite"
+          ? { recentPrimeCompositeRuns: u.recentPrimeCompositeRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
+        renderRecentRuns();
+        renderPrimeRecentRuns();
+        return !!updated;
       } catch (e) {
         console.warn("同步记录到服务器失败", e);
       }
       renderRecentRuns();
+      renderPrimeRecentRuns();
+      return false;
     }
 
     function loadUsers() {
@@ -1967,6 +2838,7 @@
       if (!Array.isArray(user.recentSurvivalRuns)) user.recentSurvivalRuns = [];
       if (!Array.isArray(user.recentLevelRuns)) user.recentLevelRuns = [];
       if (!Array.isArray(user.recentTrainingRuns)) user.recentTrainingRuns = [];
+      if (!Array.isArray(user.recentPrimeCompositeRuns)) user.recentPrimeCompositeRuns = [];
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
@@ -1986,21 +2858,29 @@
       return s === 0 ? m + " 分" : m + " 分 " + s + " 秒";
     }
 
+    function formatCompactRunTime(sec) {
+      sec = Math.max(0, Math.round(sec));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + "'" + String(s).padStart(2, "0") + "''";
+    }
+
     function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared) {
       wrongCount = wrongCount ?? 0;
-      mode = mode === "level" ? "level" : (mode === "training" ? "training" : "survival");
+      mode = mode === "level" ? "level" : (mode === "training" ? "training" : (mode === "primeComposite" ? "primeComposite" : "survival"));
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
       if (mode === "survival" && survivalCleared === true) runEntry.survivalCleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
+        else if (mode === "primeComposite") { /* 游客不记录质数合数 */ }
         else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, survivalCleared);
-        return;
+        return Promise.resolve();
       }
       const name = loadCurrentUsername();
-      if (!name) return;
-      apiAppendRun(name, runEntry);
+      if (!name) return Promise.resolve(false);
+      return apiAppendRun(name, runEntry);
     }
 
     function recordWrongAnswer(text, answer, studentAnswer) {
@@ -2031,6 +2911,8 @@
       if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
       const titleEl = document.getElementById("recent-title");
       if (titleEl) titleEl.textContent = gameMode === "level" ? "最近十次闯关挑战" : (gameMode === "training" ? "最近十次训练模式" : "最近十次生存挑战");
+      const levelColEl = document.getElementById("recent-col-level");
+      if (levelColEl) levelColEl.textContent = gameMode === "training" ? "难度" : "最高难度";
       const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
       if (list.length === 0) {
         dom.recentHistoryBody.innerHTML = "";
@@ -2039,21 +2921,102 @@
       }
       dom.recentHistoryEmpty.style.display = "none";
       const rows = list.map(r => {
-        const timeStr = formatSurvivalTime(r.survivalTimeSec || 0);
+        const timeStr = formatCompactRunTime(r.survivalTimeSec || 0);
         const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
-        const levelName = DIFFICULTY_MODULE.levels[r.maxLevel] ? DIFFICULTY_MODULE.levels[r.maxLevel].id : "-";
-        const clearedStr = gameMode === "survival" ? (r.survivalCleared ? "是" : "否") : "-";
+        const levelIdx = Number(r.maxLevel);
+        const levelName = Number.isFinite(levelIdx) && levelIdx >= 0 ? ("L" + (levelIdx + 1)) : "-";
+        const clearedStr = gameMode === "survival"
+          ? (r.survivalCleared ? "是" : "否")
+          : gameMode === "level"
+            ? ((Number(r.maxLevel) >= 15) ? "是" : "否")
+            : "-";
         const dateStr = formatDateTime(r.ts);
         return `<tr>
+          <td>${dateStr}</td>
           <td>${timeStr}</td>
           <td>${r.score || 0}</td>
           <td>${wrongStr}</td>
           <td>${levelName}</td>
           <td>${clearedStr}</td>
-          <td>${dateStr}</td>
         </tr>`;
       });
       dom.recentHistoryBody.innerHTML = rows.join("");
+    }
+
+    function renderPrimeRecentRunsTable(runs) {
+      const body = document.getElementById("prime-recent-history-body");
+      const empty = document.getElementById("prime-recent-history-empty");
+      const titleEl = document.getElementById("prime-recent-title");
+      if (!body || !empty) return;
+      if (titleEl) titleEl.textContent = "最近十次质数合数";
+      const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
+      if (list.length === 0) {
+        body.innerHTML = "";
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+      const rows = list.map((r) => {
+        const timeStr = formatCompactRunTime(r.survivalTimeSec || 0);
+        const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
+        const dateStr = formatDateTime(r.ts);
+        return (
+          "<tr>" +
+          "<td>" + dateStr + "</td>" +
+          "<td>" + timeStr + "</td>" +
+          "<td>" + (r.score != null ? r.score : 0) + "</td>" +
+          "<td>" + wrongStr + "</td>" +
+          "<td>-</td>" +
+          "<td>-</td>" +
+          "</tr>"
+        );
+      });
+      body.innerHTML = rows.join("");
+    }
+
+    async function renderPrimeRecentRuns() {
+      const body = document.getElementById("prime-recent-history-body");
+      const empty = document.getElementById("prime-recent-history-empty");
+      if (!body || !empty) return;
+      if (isGuestMode) {
+        renderPrimeRecentRunsTable([]);
+        return;
+      }
+      const name = loadCurrentUsername();
+      if (getApiBase() && name) {
+        try {
+          const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() });
+          const data = await res.json();
+          if (res.status === 401) { handleAuthRequired(); return; }
+          const allRuns = data.ok && Array.isArray(data.runs) ? data.runs : [];
+          const runs = allRuns.filter((r) => (r.mode || "") === "primeComposite").slice(0, 10);
+          renderPrimeRecentRunsTable(runs);
+          return;
+        } catch (e) {
+          console.warn("拉取质数合数记录失败", e);
+        }
+      }
+      const user = getCurrentUser();
+      if (!user) {
+        renderPrimeRecentRunsTable([]);
+        return;
+      }
+      ensureUserProgressDefault(user);
+      const runs = Array.isArray(user.recentPrimeCompositeRuns) ? user.recentPrimeCompositeRuns : [];
+      renderPrimeRecentRunsTable(runs);
+    }
+
+    function abandonCurrentRun() {
+      if (!isPlaying || gameOver) return;
+      if (gameMode === "training") {
+        endTrainingGame(true);
+        return;
+      }
+      if (gameMode === "level") {
+        endLevelGame(false);
+        return;
+      }
+      endSurvivalGame(false);
     }
 
     async function renderRecentRuns() {
@@ -2115,10 +3078,11 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = "连续答对";
-      if (label3) label3.textContent = "本局得分";
-      if (label4) label4.textContent = "个人最佳时间";
-      if (label5) label5.textContent = "个人最高得分";
+      if (label2) label2.textContent = "连续答对：";
+      if (label3) label3.textContent = "本局得分：";
+      if (label4) label4.textContent = "最高等级：";
+      if (label5) label5.textContent = "错题数量：";
+      updateStatusModeLabel();
       const m = Math.floor(survivalTimeLeft / 60);
       const s = survivalTimeLeft % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
@@ -2133,24 +3097,10 @@
       const correctPerLevel = gameMode === "level" ? LEVEL_CHALLENGE_CORRECT_PER_LEVEL : SURVIVAL_CORRECT_PER_LEVEL;
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
       if (dom.runScore) dom.runScore.textContent = runScore;
-      if (isGuestMode) {
-        const guest = getGuestSurvivalData();
-        if (dom.bestSurvivalTime) {
-          dom.bestSurvivalTime.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
-        }
-        if (dom.bestScore) dom.bestScore.textContent = (guest.bestScore != null && guest.bestScore > 0) ? guest.bestScore : "-";
-        if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = "游客";
-      } else {
-        const user = getCurrentUser();
-        if (user) {
-          ensureUserProgressDefault(user);
-          if (dom.bestSurvivalTime) {
-            dom.bestSurvivalTime.textContent = user.bestSurvivalSec ? formatSurvivalTime(user.bestSurvivalSec) : "-";
-          }
-          if (dom.bestScore) dom.bestScore.textContent = (user.bestScore != null && user.bestScore > 0) ? user.bestScore : "-";
-        }
-        if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
-      }
+      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (Math.max(maxLevelThisRun, currentLevelIndex) + 1);
+      if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
+      if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
+      updateHomeAvatarPlaceholder();
     }
 
     function getDisplayName() {
@@ -2174,11 +3124,18 @@
       if (dom.batchSummary) dom.batchSummary.innerHTML = text || "";
     }
 
+    function setGameOverLayout(active) {
+      const card = document.getElementById("game-card");
+      if (!card) return;
+      card.classList.toggle("game-over-active", !!active);
+    }
+
     const QUESTION_REFRESH_MS = 25;  // 题目切换时先隐藏再出现的间隔，极短但肉眼可见
 
     function renderQuestion(question) {
       if (!question) return;
       dom.answerInput.value = "";
+      dom.questionText.classList.remove("rule-hint");
       dom.questionText.classList.add("question-refresh-hidden");
       if (dom.questionSubtext) dom.questionSubtext.classList.add("question-refresh-hidden");
       setTimeout(function () {
@@ -2216,14 +3173,15 @@
       gameOver = false;
       isPlaying = true;
       maxLevelThisRun = 0;
+      setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
-      const gameBackRow = document.getElementById("game-back-row");
-      if (gameBackRow) gameBackRow.classList.add("hidden");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
@@ -2244,7 +3202,11 @@
       }
       if (survivalTimerId) clearInterval(survivalTimerId);
       const lastLevel = getLevelChallengeLastLevel();
-      currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
+      if (lastLevel >= 15) {
+        currentLevelIndex = getRecentSurvivalPeakLevelForLevelMode();
+      } else {
+        currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
+      }
       survivalTimeLeft = SURVIVAL_INITIAL_SEC;
       runScore = 0;
       consecutiveCorrect = 0;
@@ -2254,14 +3216,15 @@
       gameOver = false;
       isPlaying = true;
       maxLevelThisRun = currentLevelIndex;
+      setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
-      const gameBackRow = document.getElementById("game-back-row");
-      if (gameBackRow) gameBackRow.classList.add("hidden");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
@@ -2299,22 +3262,19 @@
       if (dom.timerChip) dom.timerChip.classList.remove("low");
       const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
       if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
-      const cfg = getLevelSetting(currentLevelIndex);
-      const limit = (cfg && cfg.upgradeTimeLimit) || 300;
-      const upgradeAcc = (cfg && typeof cfg.upgradeAccuracy === "number") ? cfg.upgradeAccuracy : 0.95;
-      const passAcc = (cfg && typeof cfg.passAccuracy === "number") ? cfg.passAccuracy : 0.8;
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = "正确率";
-      if (label3) label3.textContent = "限时";
-      if (label4) label4.textContent = "通关准确率";
-      if (label5) label5.textContent = "及格准确率";
-      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = runScore + " / " + trainingQuestionIndex;
-      if (dom.runScore) dom.runScore.textContent = limit + " 秒";
-      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = Math.round(upgradeAcc * 100) + "%";
-      if (dom.bestScore) dom.bestScore.textContent = Math.round(passAcc * 100) + "%";
+      if (label2) label2.textContent = "正确数量：";
+      if (label3) label3.textContent = "本局得分：";
+      if (label4) label4.textContent = "本局难度：";
+      if (label5) label5.textContent = "错题数量：";
+      updateStatusModeLabel();
+      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = trainingCorrectCount + " / " + TRAINING_QUESTIONS;
+      if (dom.runScore) dom.runScore.textContent = runScore;
+      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (currentLevelIndex + 1);
+      if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
     }
 
     function startTrainingGame() {
@@ -2322,20 +3282,22 @@
       const saved = getLevelTrainingCurrentLevel();
       currentLevelIndex = saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
       trainingQuestionIndex = 0;
+      trainingCorrectCount = 0;
       runScore = 0;
       runWrongCount = 0;
       currentRunAttempts = [];
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
+      setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
-      const gameBackRow = document.getElementById("game-back-row");
-      if (gameBackRow) gameBackRow.classList.add("hidden");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
@@ -2374,14 +3336,19 @@
       }
       if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
+        setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
         if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "Game Over";
+        const durationLabelEl = document.getElementById("game-over-duration-label");
+        const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
         const scoreEl = document.getElementById("game-over-score");
         const maxLevelEl = document.getElementById("game-over-max-level");
         const bestTimeEl = document.getElementById("game-over-best-time");
         const bestScoreEl = document.getElementById("game-over-best-score");
+        if (durationLabelEl) durationLabelEl.textContent = "本局存活：";
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
@@ -2404,6 +3371,8 @@
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
     }
 
     function handleSubmit() {
@@ -2490,8 +3459,8 @@
       setFeedback("", null);
       if (dom.submitBtn) dom.submitBtn.style.display = "";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
-      const gameBackRow = document.getElementById("game-back-row");
-      if (gameBackRow) gameBackRow.classList.add("hidden");
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
     }
@@ -2579,7 +3548,7 @@
 
       if (isCorrect) {
         survivalTimeLeft += 2;
-        const points = currentLevelIndex + 1;
+        const points = 5;
         runScore += points;
         consecutiveCorrect += 1;
         if (consecutiveCorrect >= SURVIVAL_CORRECT_PER_LEVEL) {
@@ -2626,7 +3595,7 @@
 
       if (isCorrect) {
         survivalTimeLeft += 2;
-        const points = currentLevelIndex + 1;
+        const points = 5;
         runScore += points;
         consecutiveCorrect += 1;
         if (consecutiveCorrect >= LEVEL_CHALLENGE_CORRECT_PER_LEVEL) {
@@ -2672,8 +3641,9 @@
       const isCorrect = correct;
 
       if (isCorrect) {
-        runScore += 1;
-        setFeedback("<span class='feedback-title'>答对！</span> +1 分", "correct");
+        runScore += 5;
+        trainingCorrectCount += 1;
+        setFeedback("<span class='feedback-title'>答对！</span> +5 分", "correct");
       } else {
         runWrongCount += 1;
         recordWrongAnswer(question.text, question.answer, userAnswer);
@@ -2685,7 +3655,7 @@
 
       if (trainingQuestionIndex >= TRAINING_QUESTIONS) {
         if (dom.submitBtn) dom.submitBtn.disabled = true;
-        setTimeout(endTrainingGame, 600);
+        setTimeout(function () { endTrainingGame(false); }, 600);
         return;
       }
 
@@ -2695,7 +3665,7 @@
       if (dom.submitBtn) dom.submitBtn.disabled = false;
     }
 
-    async function endTrainingGame() {
+    async function endTrainingGame(abandoned) {
       if (survivalTimerId) {
         clearInterval(survivalTimerId);
         survivalTimerId = null;
@@ -2706,7 +3676,39 @@
       dom.answerInput.disabled = true;
 
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
-      const correctCount = runScore;
+
+      if (abandoned) {
+        if (lockWrongbookIfNeeded()) return;
+        setFeedback("", null);
+        if (dom.gameOverPanel) {
+          setGameOverLayout(true);
+          dom.gameOverPanel.style.display = "block";
+          const titleEl = document.getElementById("game-over-title");
+          if (titleEl) titleEl.textContent = "已放弃本局";
+          const durationLabelEl = document.getElementById("game-over-duration-label");
+          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
+          const durationEl = document.getElementById("game-over-duration");
+          const scoreEl = document.getElementById("game-over-score");
+          const wrongEl = document.getElementById("game-over-wrong");
+          const maxLevelEl = document.getElementById("game-over-max-level");
+          if (durationLabelEl) durationLabelEl.textContent = "本局用时：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "本局准确率：";
+          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
+          if (scoreEl) scoreEl.textContent = "0（放弃不计分）";
+          if (wrongEl) wrongEl.textContent = "—";
+          if (maxLevelEl) maxLevelEl.textContent = "—";
+        }
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        const inputRow = document.getElementById("answer-input-row");
+        if (inputRow) inputRow.style.display = "none";
+        const abandonRow = document.getElementById("abandon-row");
+        if (abandonRow) abandonRow.style.display = "none";
+        renderRecentRuns();
+        return;
+      }
+
+      const correctCount = trainingCorrectCount;
       const accuracy = TRAINING_QUESTIONS > 0 ? correctCount / TRAINING_QUESTIONS : 0;
       const cfg = getLevelSetting(currentLevelIndex);
       const passAccuracy = (cfg && typeof cfg.passAccuracy === "number") ? cfg.passAccuracy : 0.8;
@@ -2737,27 +3739,29 @@
       if (lockWrongbookIfNeeded()) return;
 
       if (dom.gameOverPanel) {
+        setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
         if (titleEl) titleEl.textContent = tipText;
+        const durationLabelEl = document.getElementById("game-over-duration-label");
+        const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
         const scoreEl = document.getElementById("game-over-score");
         const wrongEl = document.getElementById("game-over-wrong");
         const maxLevelEl = document.getElementById("game-over-max-level");
-        const bestTimeEl = document.getElementById("game-over-best-time");
-        const bestScoreEl = document.getElementById("game-over-best-score");
+        if (durationLabelEl) durationLabelEl.textContent = "本局用时：";
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "本局准确率：";
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec) + "（用时）";
-        if (scoreEl) scoreEl.textContent = runScore + " / " + TRAINING_QUESTIONS + "（正确 " + correctCount + " 题）";
+        if (scoreEl) scoreEl.textContent = runScore + " 分（正确 " + correctCount + " 题）";
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
         if (maxLevelEl) maxLevelEl.textContent = "准确率 " + Math.round(accuracy * 100) + "%";
-        if (bestTimeEl) bestTimeEl.textContent = "-";
-        if (bestScoreEl) bestScoreEl.textContent = "-";
       }
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
     }
 
     function endLevelGame(completed) {
@@ -2776,21 +3780,25 @@
       renderRecentRuns();
       if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
+        setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
         const levelNum = endLevel + 1;
         if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "恭喜你达到第 " + levelNum + " 级";
+        const durationLabelEl = document.getElementById("game-over-duration-label");
+        const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
         const scoreEl = document.getElementById("game-over-score");
         const maxLevelEl = document.getElementById("game-over-max-level");
         const bestTimeEl = document.getElementById("game-over-best-time");
         const bestScoreEl = document.getElementById("game-over-best-score");
+        if (durationLabelEl) durationLabelEl.textContent = "本局存活：";
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        const level = DIFFICULTY_MODULE.levels[endLevel];
-        if (maxLevelEl) maxLevelEl.textContent = level ? level.name : "-";
+        if (maxLevelEl) maxLevelEl.textContent = "第 " + (endLevel + 1) + " 级";
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
@@ -2807,25 +3815,39 @@
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
       updateTrainingButtonLabel();
     }
 
     // ===== 首页与模式切换 =====
     function updateHomeTotalScore() {
-      const el = document.getElementById("home-total-score");
-      if (!el) return;
+      const inlineEl = document.getElementById("home-total-score-inline");
+      if (!inlineEl) return;
       if (isGuestMode) {
-        el.style.display = "none";
+        inlineEl.style.display = "none";
         return;
       }
       const user = getCurrentUser();
       if (!user) {
-        el.style.display = "none";
+        inlineEl.style.display = "none";
         return;
       }
-      el.style.display = "block";
       const score = (user.totalScore != null && typeof user.totalScore === "number") ? user.totalScore : 0;
-      el.innerHTML = "个人总积分：<strong>" + score + "</strong>";
+      inlineEl.style.display = "block";
+      inlineEl.textContent = "总积分：" + score;
+    }
+
+    let toastTimerId = null;
+    function showToast(message) {
+      const el = document.getElementById("app-toast");
+      if (!el) return;
+      el.textContent = String(message || "");
+      el.classList.add("show");
+      if (toastTimerId) clearTimeout(toastTimerId);
+      toastTimerId = setTimeout(() => {
+        el.classList.remove("show");
+      }, 1800);
     }
 
     function exitGameToHome() {
@@ -2835,6 +3857,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      setGameOverLayout(false);
       if (gameMode === "wrong") {
         gameMode = "survival";
         if (dom.timerChip) dom.timerChip.style.display = "";
@@ -2845,23 +3868,37 @@
       }
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      setFeedback("", null);
       showHome();
     }
 
     function showHome() {
+      setTopActionsVisible(true);
+      setGameOverLayout(false);
+      setFeedback("", null);
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.remove("visible");
+      if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) primeSection.style.display = "none";
+      const avatarPickerSec = document.getElementById("avatar-picker-section");
+      if (avatarPickerSec) avatarPickerSec.style.display = "none";
+      primeCompositeResetToIdle();
       updateHomeTotalScore();
+      updateHomeAvatarPlaceholder();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
+      updateTopTitleForCurrentView(true);
     }
 
     function userHasClearedSurvival(user) {
@@ -2871,57 +3908,18 @@
     }
 
     async function showRankingView() {
-      if (!userHasClearedSurvival(cachedUser)) {
-        alert("必须通关生存模式才能查看生存排行。");
-        return;
-      }
+      setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) primeSection.style.display = "none";
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "block";
-      const base = getApiBase();
-      const table = document.getElementById("ranking-table");
-      const tbody = document.getElementById("ranking-body");
-      const empty = document.getElementById("ranking-empty");
-      if (!base) {
-        table.style.display = "none";
-        empty.style.display = "block";
-        empty.textContent = "需要连接服务器才能查看排行榜。";
-        return;
-      }
-      try {
-        const name = loadCurrentUsername();
-        const url = base + "/api/survival-ranking" + (name ? "?username=" + encodeURIComponent(name) : "");
-        const res = await fetch(url, { credentials: "include" });
-        const data = await res.json();
-        const list = data.ok && Array.isArray(data.list) ? data.list : [];
-        const myEntry = data.myEntry || null;
-        const myRank = data.myRank || 0;
-        if (list.length === 0 && !myEntry) {
-          table.style.display = "none";
-          empty.style.display = "block";
-          empty.textContent = "暂无通关记录。";
-          return;
-        }
-        empty.style.display = "none";
-        table.style.display = "table";
-        const row = (e, isMe) => {
-          const timeStr = formatSurvivalTime(e.survivalTimeSec || 0);
-          const dateStr = formatDateOnly(e.ts);
-          const meClass = isMe ? " ranking-row-me" : "";
-          const name = (e.displayName != null && e.displayName !== "") ? e.displayName : "新人";
-          return "<tr class=\"" + meClass + "\"><td>" + (e.rank || "-") + "</td><td>" + escapeHtml(name) + "</td><td>" + timeStr + "</td><td>" + (e.wrongCount != null ? e.wrongCount : "-") + "</td><td>" + dateStr + "</td></tr>";
-        };
-        const rows = list.map((e) => row(e, name && e.username === name));
-        if (myEntry && myRank > 50) rows.push(row(myEntry, true));
-        tbody.innerHTML = rows.join("");
-      } catch (e) {
-        console.warn("加载排行榜失败", e);
-        table.style.display = "none";
-        empty.style.display = "block";
-        empty.textContent = "加载失败，请稍后重试。";
-      }
+      initRankingUiSkeletonIfNeeded();
+      setRankingActiveTab("score");
     }
 
     function hideRankingView() {
@@ -2930,14 +3928,779 @@
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
     }
 
+    function showPrimeCompositePlaceholder() {
+      if (isGuestMode) {
+        showToast("请登录后使用质数合数专项");
+        return;
+      }
+      if (isWrongbookLocked()) {
+        alert(WRONGBOOK_LOCK_MSG);
+        showWrongbookViewFast();
+        return;
+      }
+      primeCompositeResetToIdle();
+      setTopActionsVisible(false);
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) primeSection.style.display = "block";
+      void renderPrimeRecentRuns();
+    }
+
+    function hidePrimeCompositePlaceholder() {
+      primeCompositeCleanup();
+      primeCompositeResetToIdle();
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) primeSection.style.display = "none";
+      if (dom.homeSection) dom.homeSection.classList.remove("hidden");
+    }
+
+    let primeCompositeTimerId = null;
+    let primeCompositeFeedbackTimerId = null;
+    let primeCompositeQuestions = [];
+    let primeCompositeIndex = 0;
+    let primeCompositeStartTs = 0;
+    let primeCompositeSessionScore = 0;
+    let primeCompositeCorrectCount = 0;
+    let primeCompositeWrongCount = 0;
+    let primeCompositeWrongItems = [];
+    let primeCompositeChoicesLocked = false;
+
+    function primeCompositeCleanup() {
+      if (primeCompositeTimerId) {
+        clearInterval(primeCompositeTimerId);
+        primeCompositeTimerId = null;
+      }
+      if (primeCompositeFeedbackTimerId) {
+        clearTimeout(primeCompositeFeedbackTimerId);
+        primeCompositeFeedbackTimerId = null;
+      }
+      primeCompositeChoicesLocked = false;
+      const btnP = document.getElementById("prime-btn-prime");
+      const btnC = document.getElementById("prime-btn-composite");
+      if (btnP) {
+        btnP.classList.remove("prime-choice-wrong");
+        btnP.disabled = false;
+      }
+      if (btnC) {
+        btnC.classList.remove("prime-choice-wrong");
+        btnC.disabled = false;
+      }
+    }
+
+    function primeCompositeResetStatusStrip() {
+      const JML = window.JMLPrimeComposite;
+      const total = JML && typeof JML.TOTAL_QUESTIONS === "number" ? JML.TOTAL_QUESTIONS : 50;
+      const scoreEl = document.getElementById("prime-session-score");
+      if (scoreEl) scoreEl.textContent = "0";
+      const prog = document.getElementById("prime-progress-text");
+      if (prog) prog.textContent = "—";
+      const correctEl = document.getElementById("prime-correct-count");
+      if (correctEl) correctEl.textContent = "0/" + total;
+      const liveWrongEl = document.getElementById("prime-live-wrong");
+      if (liveWrongEl) liveWrongEl.textContent = "0";
+    }
+
+    function primeCompositeResetToIdle() {
+      primeCompositeCleanup();
+      const abandonRow = document.getElementById("prime-abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
+      primeCompositeResetStatusStrip();
+      const idle = document.getElementById("prime-panel-idle");
+      const playing = document.getElementById("prime-panel-playing");
+      const finished = document.getElementById("prime-panel-finished");
+      if (idle) idle.style.display = "block";
+      if (playing) playing.style.display = "none";
+      if (finished) finished.style.display = "none";
+    }
+
+    function primeCompositeAbandon() {
+      const playing = document.getElementById("prime-panel-playing");
+      if (!playing || playing.style.display === "none") return;
+      if (!confirm("确定放弃本局？本局不计分。")) return;
+      primeCompositeCleanup();
+      if (primeCompositeTimerId) {
+        clearInterval(primeCompositeTimerId);
+        primeCompositeTimerId = null;
+      }
+      const elapsedEl = document.getElementById("prime-elapsed");
+      if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(0);
+      const abandonRow = document.getElementById("prime-abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
+      primeCompositeResetStatusStrip();
+      const idle = document.getElementById("prime-panel-idle");
+      const finished = document.getElementById("prime-panel-finished");
+      if (idle) idle.style.display = "block";
+      if (playing) playing.style.display = "none";
+      if (finished) finished.style.display = "none";
+    }
+
+    function primeCompositeRenderQuestion() {
+      const JML = window.JMLPrimeComposite;
+      if (!JML) return;
+      const q = primeCompositeQuestions[primeCompositeIndex];
+      if (!q) {
+        void primeCompositeFinish();
+        return;
+      }
+      const nEl = document.getElementById("prime-current-n");
+      if (nEl) nEl.textContent = String(q.n);
+      const prog = document.getElementById("prime-progress-text");
+      if (prog) prog.textContent = "第 " + (primeCompositeIndex + 1) + " / " + JML.TOTAL_QUESTIONS + " 题";
+      const correctStrip = document.getElementById("prime-correct-count");
+      if (correctStrip) correctStrip.textContent = primeCompositeCorrectCount + "/" + JML.TOTAL_QUESTIONS;
+      primeCompositeChoicesLocked = false;
+      const btnP = document.getElementById("prime-btn-prime");
+      const btnC = document.getElementById("prime-btn-composite");
+      if (btnP) {
+        btnP.classList.remove("prime-choice-wrong");
+        btnP.disabled = false;
+      }
+      if (btnC) {
+        btnC.classList.remove("prime-choice-wrong");
+        btnC.disabled = false;
+      }
+    }
+
+    function primeCompositeChoose(kind) {
+      const JML = window.JMLPrimeComposite;
+      if (!JML || primeCompositeChoicesLocked) return;
+      const q = primeCompositeQuestions[primeCompositeIndex];
+      if (!q) return;
+      const correct = q.kind === kind;
+      if (correct) {
+        primeCompositeCorrectCount += 1;
+        primeCompositeSessionScore += JML.SCORE_PER_CORRECT;
+        const scoreEl = document.getElementById("prime-session-score");
+        if (scoreEl) scoreEl.textContent = String(primeCompositeSessionScore);
+        primeCompositeIndex += 1;
+        if (primeCompositeIndex >= primeCompositeQuestions.length) {
+          void primeCompositeFinish();
+        } else {
+          primeCompositeRenderQuestion();
+        }
+      } else {
+        primeCompositeWrongCount += 1;
+        const liveWrongEl = document.getElementById("prime-live-wrong");
+        if (liveWrongEl) liveWrongEl.textContent = String(primeCompositeWrongCount);
+        primeCompositeWrongItems.push({ n: q.n, kindLabel: JML.kindLabel(q.kind) });
+        primeCompositeChoicesLocked = true;
+        const wrongBtn = kind === "prime" ? document.getElementById("prime-btn-prime") : document.getElementById("prime-btn-composite");
+        if (wrongBtn) wrongBtn.classList.add("prime-choice-wrong");
+        if (document.getElementById("prime-btn-prime")) document.getElementById("prime-btn-prime").disabled = true;
+        if (document.getElementById("prime-btn-composite")) document.getElementById("prime-btn-composite").disabled = true;
+        primeCompositeFeedbackTimerId = setTimeout(() => {
+          primeCompositeFeedbackTimerId = null;
+          primeCompositeIndex += 1;
+          primeCompositeChoicesLocked = false;
+          if (wrongBtn) wrongBtn.classList.remove("prime-choice-wrong");
+          if (primeCompositeIndex >= primeCompositeQuestions.length) {
+            void primeCompositeFinish();
+          } else {
+            primeCompositeRenderQuestion();
+          }
+        }, 980);
+      }
+    }
+
+    function primeCompositeStart() {
+      const JML = window.JMLPrimeComposite;
+      if (!JML) {
+        showToast("题库未加载，请刷新页面重试");
+        return;
+      }
+      try {
+        primeCompositeQuestions = JML.buildRoundQuestions();
+      } catch (e) {
+        console.warn(e);
+        showToast("出题失败，请重试");
+        return;
+      }
+      primeCompositeIndex = 0;
+      primeCompositeStartTs = Date.now();
+      primeCompositeSessionScore = 0;
+      primeCompositeCorrectCount = 0;
+      primeCompositeWrongCount = 0;
+      primeCompositeWrongItems = [];
+      primeCompositeCleanup();
+      const idle = document.getElementById("prime-panel-idle");
+      const playing = document.getElementById("prime-panel-playing");
+      const finished = document.getElementById("prime-panel-finished");
+      if (idle) idle.style.display = "none";
+      if (finished) finished.style.display = "none";
+      if (playing) playing.style.display = "block";
+      const abandonRow = document.getElementById("prime-abandon-row");
+      if (abandonRow) abandonRow.style.display = "";
+      const scoreEl = document.getElementById("prime-session-score");
+      if (scoreEl) scoreEl.textContent = "0";
+      const liveWrongEl = document.getElementById("prime-live-wrong");
+      if (liveWrongEl) liveWrongEl.textContent = "0";
+      const elapsedEl = document.getElementById("prime-elapsed");
+      if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(0);
+      primeCompositeTimerId = setInterval(() => {
+        const sec = Math.floor((Date.now() - primeCompositeStartTs) / 1000);
+        if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(sec);
+      }, 500);
+      primeCompositeRenderQuestion();
+    }
+
+    async function primeCompositeFinish() {
+      primeCompositeCleanup();
+      const abandonRowFinish = document.getElementById("prime-abandon-row");
+      if (abandonRowFinish) abandonRowFinish.style.display = "none";
+      if (primeCompositeTimerId) {
+        clearInterval(primeCompositeTimerId);
+        primeCompositeTimerId = null;
+      }
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - primeCompositeStartTs) / 1000));
+      const idle = document.getElementById("prime-panel-idle");
+      const playing = document.getElementById("prime-panel-playing");
+      const finished = document.getElementById("prime-panel-finished");
+      if (idle) idle.style.display = "none";
+      if (playing) playing.style.display = "none";
+      if (finished) finished.style.display = "block";
+      const syncOk = document.getElementById("prime-finished-sync-ok");
+      const syncFail = document.getElementById("prime-finished-sync-fail");
+      const syncLocal = document.getElementById("prime-finished-sync-local");
+      if (syncOk) syncOk.style.display = "none";
+      if (syncFail) syncFail.style.display = "none";
+      if (syncLocal) syncLocal.style.display = "none";
+      const fc = document.getElementById("prime-finish-correct");
+      const fw = document.getElementById("prime-finish-wrong");
+      const ft = document.getElementById("prime-finish-time");
+      const fs = document.getElementById("prime-finish-session");
+      if (fc) fc.textContent = String(primeCompositeCorrectCount);
+      if (fw) fw.textContent = String(primeCompositeWrongCount);
+      if (ft) ft.textContent = formatGameElapsedClock(elapsedSec);
+      if (fs) fs.textContent = String(primeCompositeSessionScore);
+      const listEl = document.getElementById("prime-finish-wrong-list");
+      if (listEl) {
+        if (primeCompositeWrongItems.length === 0) {
+          listEl.innerHTML = "<div class=\"stats-empty-msg\">本局无错题</div>";
+        } else {
+          listEl.innerHTML = primeCompositeWrongItems.map((w) => {
+            return "<div class=\"prime-wrong-row\">数字 " + escapeHtml(String(w.n)) + " · 正确应为「" + escapeHtml(w.kindLabel) + "」</div>";
+          }).join("");
+        }
+      }
+      const name = loadCurrentUsername();
+      const sessionScore = primeCompositeSessionScore;
+      const baseUrl = getApiBase();
+      if (name && baseUrl) {
+        const synced = await appendRun(elapsedSec, sessionScore, -1, primeCompositeWrongCount, "primeComposite", []);
+        if (sessionScore > 0) {
+          if (synced === true && syncOk) syncOk.style.display = "block";
+          else if (synced === false && syncFail) syncFail.style.display = "block";
+        }
+        updateHomeTotalScore();
+        await renderPrimeRecentRuns();
+      } else if (name && !baseUrl && cachedUser) {
+        ensureUserProgressDefault(cachedUser);
+        if (!Array.isArray(cachedUser.recentPrimeCompositeRuns)) cachedUser.recentPrimeCompositeRuns = [];
+        cachedUser.recentPrimeCompositeRuns.unshift({
+          survivalTimeSec: elapsedSec,
+          score: sessionScore,
+          maxLevel: -1,
+          wrongCount: primeCompositeWrongCount,
+          ts: Date.now(),
+          mode: "primeComposite"
+        });
+        if (cachedUser.recentPrimeCompositeRuns.length > 10) cachedUser.recentPrimeCompositeRuns = cachedUser.recentPrimeCompositeRuns.slice(0, 10);
+        cachedUser.totalScore = (typeof cachedUser.totalScore === "number" ? cachedUser.totalScore : 0) + sessionScore;
+        const updated = await apiPutUser(name, { recentPrimeCompositeRuns: cachedUser.recentPrimeCompositeRuns, totalScore: cachedUser.totalScore });
+        if (updated) {
+          cachedUser = updated;
+          if (sessionScore > 0 && syncLocal) syncLocal.style.display = "block";
+        } else if (sessionScore > 0 && syncFail) syncFail.style.display = "block";
+        updateHomeTotalScore();
+        await renderPrimeRecentRuns();
+      }
+    }
+
+    let rankingUiInited = false;
+    function initRankingUiSkeletonIfNeeded() {
+      if (rankingUiInited) return;
+      rankingUiInited = true;
+      const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
+      tabs.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tab = btn.getAttribute("data-tab");
+          if (!tab) return;
+          setRankingActiveTab(tab);
+        });
+      });
+    }
+
+    function buildRankingTheadHtml(tab) {
+      if (tab === "score") {
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">总积分</th></tr>";
+      }
+      if (tab === "survival") {
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">通关用时</th><th class=\"r-col r-col-wrong\">错题</th><th class=\"r-col r-col-date\">日期</th></tr>";
+      }
+      if (tab === "primePerfect") {
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">完成用时</th><th class=\"r-col r-col-date\">达成日期</th></tr>";
+      }
+      if (tab === "streak") {
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">最长连续挑战天数</th></tr>";
+      }
+      return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">最高连击</th></tr>";
+    }
+
+    function buildRankingPlaceholderRowsHtml() {
+      const displayName = getDisplayName();
+      const avatarLetter = getAvatarPlaceholderLetter(displayName);
+      const row = (rank, name, tag) => {
+        const tagHtml = tag ? ("<span class='tag'>" + escapeHtml(tag) + "</span>") : "";
+        return "<tr><td class=\"r-col r-col-rank\">" + rank + "</td><td class=\"r-col r-col-user\"><span class=\"user-cell\"><span class=\"avatar sm avatar-placeholder\">" + escapeHtml(avatarLetter) + "</span><span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + tagHtml + "</span></span></td><td class=\"r-col r-col-score\">-</td></tr>";
+      };
+      return row(1, "示例用户A", "") + row(2, "示例用户B", "") + row("-", displayName || "新人", "我的记录（占位）");
+    }
+
+    function buildRankingScoreRowHtml(entry, isMe) {
+      const name = entry.displayName || "新人";
+      const letter = getAvatarPlaceholderLetter(name);
+      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
+      const scoreStr = escapeHtml(String(entry.totalScore != null ? entry.totalScore : 0));
+      let avatarInner;
+      if (entry.avatarUrl) {
+        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
+        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
+      } else {
+        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
+      }
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + scoreStr + "</td></tr>";
+    }
+
+    async function loadScoreRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (hint) hint.textContent = "总积分榜 · 加载中…";
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "总积分榜 · 需要连接服务器";
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/score-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || "加载失败");
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingScoreRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"3\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingScoreRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) hint.textContent = "总积分榜 · 按总积分从高到低（展示前 50 名）";
+      } catch (e) {
+        console.warn("加载总积分榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "总积分榜 · 加载失败，请稍后重试";
+      }
+    }
+
+    function buildRankingSurvivalRowHtml(entry, isMe) {
+      const name = entry.displayName || "新人";
+      const letter = getAvatarPlaceholderLetter(name);
+      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
+      const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
+      const wrongStr = escapeHtml(String(entry.wrongCount != null ? entry.wrongCount : 0));
+      const dateStr = escapeHtml(formatDateTime(entry.ts));
+      let avatarInner;
+      if (entry.avatarUrl) {
+        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
+        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
+      } else {
+        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
+      }
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-wrong\">" + wrongStr + "</td><td class=\"r-col r-col-date\">" + dateStr + "</td></tr>";
+    }
+
+    async function loadSurvivalRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (!userHasClearedSurvival(cachedUser)) return;
+      if (hint) hint.textContent = "生存榜 · 加载中…";
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "生存榜 · 需要连接服务器";
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/survival-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || "加载失败");
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingSurvivalRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"5\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingSurvivalRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) hint.textContent = "生存榜 · 通关用时越短越好，同用时错题更少优先（展示前 50 名）";
+      } catch (e) {
+        console.warn("加载生存榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "生存榜 · 加载失败，请稍后重试";
+      }
+    }
+
+    function buildRankingPrimePerfectRowHtml(entry, isMe) {
+      const name = entry.displayName || "新人";
+      const letter = getAvatarPlaceholderLetter(name);
+      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
+      const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
+      const dateStr = escapeHtml(formatDateTime(entry.ts));
+      let avatarInner;
+      if (entry.avatarUrl) {
+        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
+        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
+      } else {
+        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
+      }
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-date\">" + dateStr + "</td></tr>";
+    }
+
+    async function loadPrimePerfectRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (hint) hint.textContent = "质数神探榜 · 加载中…";
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "质数神探榜 · 需要连接服务器";
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/prime-perfect-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || "加载失败");
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingPrimePerfectRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingPrimePerfectRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) hint.textContent = "质数神探榜 · 质数合数 50 题全对的最短用时（展示前 50 名）";
+      } catch (e) {
+        console.warn("加载质数神探榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "质数神探榜 · 加载失败，请稍后重试";
+      }
+    }
+
+    function setRankingActiveTab(tab) {
+      const next = (tab === "score" || tab === "survival" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
+      const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
+      tabs.forEach((b) => b.classList.toggle("active", b.getAttribute("data-tab") === next));
+
+      const hint = document.getElementById("ranking-panel-hint");
+      const thead = document.getElementById("ranking-thead-v2");
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const gate = document.getElementById("ranking-survival-gate");
+      const comingSoonEl = document.getElementById("ranking-coming-soon");
+      const tableEl = document.getElementById("ranking-table-v2");
+
+      if (thead) thead.innerHTML = buildRankingTheadHtml(next);
+      if (tbody) tbody.innerHTML = "";
+      if (empty) empty.style.display = "block";
+      if (gate) gate.style.display = "none";
+      if (comingSoonEl) comingSoonEl.style.display = "none";
+      if (tableEl) {
+        tableEl.style.display = "";
+        tableEl.className = "ranking-table-v2 ranking-mode-" + next;
+      }
+
+      if (hint) {
+        hint.textContent =
+          next === "score" ? "总积分榜 · 加载中…"
+          : next === "survival" ? "生存榜 · 加载中…"
+          : next === "primePerfect" ? "质数神探榜 · 加载中…"
+          : next === "streak" ? "耐力榜 · 敬请期待"
+          : "连击榜 · 敬请期待";
+      }
+
+      if (next === "score") {
+        void loadScoreRankingIntoTable();
+        return;
+      }
+
+      if (next === "survival" && gate) {
+        const cleared = userHasClearedSurvival(cachedUser);
+        gate.style.display = cleared ? "none" : "block";
+        if (!cleared) {
+          if (tbody) tbody.innerHTML = "";
+          if (empty) empty.style.display = "none";
+          if (hint) hint.textContent = "生存榜 · 仅对已通关生存挑战的用户开放";
+          return;
+        }
+        void loadSurvivalRankingIntoTable();
+        return;
+      }
+
+      if (next === "primePerfect") {
+        void loadPrimePerfectRankingIntoTable();
+        return;
+      }
+
+      if (next === "streak" || next === "combo") {
+        if (tbody) tbody.innerHTML = "";
+        if (thead) thead.innerHTML = "";
+        if (empty) empty.style.display = "none";
+        if (tableEl) tableEl.style.display = "none";
+        if (comingSoonEl) comingSoonEl.style.display = "block";
+        if (hint) hint.textContent = next === "streak" ? "耐力榜 · 敬请期待" : "连击榜 · 敬请期待";
+        return;
+      }
+
+      if (tbody) {
+        tbody.innerHTML = buildRankingPlaceholderRowsHtml();
+        if (empty) empty.style.display = "none";
+      }
+    }
+
+    function getAvatarPlaceholderLetter(displayName) {
+      const s = String(displayName || "").trim();
+      if (!s) return "头";
+      return s.slice(0, 1).toUpperCase();
+    }
+
+    function updateHomeAvatarPlaceholder() {
+      const el = document.getElementById("home-avatar-placeholder");
+      if (!el) return;
+      updateHomeAvatar();
+    }
+
+    // ===== 头像：加载与展示 / 选择页 =====
+    let avatarCatalogCache = null;
+    async function apiGetAvatars() {
+      const base = getApiBase();
+      const res = await fetch(base + "/api/avatars");
+      const data = await res.json();
+      if (!data || data.ok !== true) throw new Error((data && data.error) || "加载头像失败");
+      return Array.isArray(data.avatars) ? data.avatars : [];
+    }
+
+    async function ensureAvatarCatalogLoaded(force) {
+      if (!force && avatarCatalogCache) return avatarCatalogCache;
+      try {
+        avatarCatalogCache = await apiGetAvatars();
+      } catch (e) {
+        avatarCatalogCache = [];
+      }
+      return avatarCatalogCache;
+    }
+
+    function getCurrentAvatarEntry(user) {
+      if (!user || !user.avatarId) return null;
+      const id = String(user.avatarId || "").trim();
+      if (!id) return null;
+      const list = Array.isArray(avatarCatalogCache) ? avatarCatalogCache : [];
+      return list.find((x) => x && x.id === id) || null;
+    }
+
+    function updateHomeAvatar() {
+      const el = document.getElementById("home-avatar-placeholder");
+      if (!el) return;
+      const user = getCurrentUser();
+      if (!user) {
+        el.classList.remove("has-img");
+        el.style.backgroundImage = "";
+        el.textContent = "＋";
+        return;
+      }
+      // 首次进入首页时可能尚未加载头像清单：异步拉取后再重绘
+      if (user.avatarId && !avatarCatalogCache) {
+        ensureAvatarCatalogLoaded(false).then(() => updateHomeAvatar());
+      }
+      const entry = getCurrentAvatarEntry(user);
+      if (entry && entry.imageUrl) {
+        el.classList.add("has-img");
+        el.style.backgroundImage = `url("${String(entry.imageUrl).replace(/"/g, "%22")}")`;
+        el.textContent = "＋";
+        return;
+      }
+      el.classList.remove("has-img");
+      el.style.backgroundImage = "";
+      el.textContent = "＋";
+    }
+
+    function showAvatarPicker() {
+      const sec = document.getElementById("avatar-picker-section");
+      if (!sec) return;
+      setTopActionsVisible(false);
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) primeSection.style.display = "none";
+      sec.style.display = "block";
+      renderAvatarPicker();
+    }
+
+    function hideAvatarPicker() {
+      const sec = document.getElementById("avatar-picker-section");
+      if (sec) sec.style.display = "none";
+      if (dom.homeSection) dom.homeSection.classList.remove("hidden");
+      setTopActionsVisible(true);
+    }
+
+    async function renderAvatarPicker() {
+      const grid = document.getElementById("avatar-picker-grid");
+      if (!grid) return;
+      const user = getCurrentUser();
+      if (!user) {
+        grid.innerHTML = "<div class='stats-empty-msg'>请先登录</div>";
+        return;
+      }
+      await ensureAvatarCatalogLoaded();
+      const score = typeof user.totalScore === "number" ? user.totalScore : 0;
+      const list = Array.isArray(avatarCatalogCache) ? avatarCatalogCache.slice() : [];
+      list.sort((a, b) => (Number(a.order) - Number(b.order)) || String(a.id).localeCompare(String(b.id)));
+      const curId = String(user.avatarId || "").trim();
+      grid.innerHTML = "";
+      if (!list.length) {
+        grid.innerHTML = "<div class='stats-empty-msg'>暂无头像，请在管理端上传后再来选择。</div>";
+        return;
+      }
+      list.forEach((a) => {
+        const need = Number(a.unlockScore) || 0;
+        const locked = score < need || a.enabled === false;
+        const item = document.createElement("div");
+        item.className = "avatar-item";
+        const bubble = document.createElement("div");
+        bubble.className = "avatar-bubble" + (locked ? " locked" : "") + (curId && a.id === curId ? " selected" : "");
+        if (a.imageUrl) {
+          const img = document.createElement("img");
+          img.alt = a.name || a.id || "avatar";
+          img.src = a.imageUrl;
+          bubble.appendChild(img);
+        }
+        if (locked) {
+          const lk = document.createElement("div");
+          lk.className = "avatar-lock";
+          lk.textContent = "🔒";
+          bubble.appendChild(lk);
+        }
+        if (!locked && curId && a.id === curId) {
+          const ck = document.createElement("div");
+          ck.className = "avatar-check";
+          ck.textContent = "✓";
+          bubble.appendChild(ck);
+        }
+        bubble.addEventListener("click", async () => {
+          if (locked) {
+            showToast(`需 ${need} 分解锁`);
+            return;
+          }
+          const name = loadCurrentUsername();
+          if (!name) return;
+          try {
+            const updated = await apiPutUser(name, { avatarId: a.id });
+            if (updated) cachedUser = updated;
+            // 强制刷新一次清单，避免 imageUrl/order 等更新未同步
+            await ensureAvatarCatalogLoaded(true);
+            updateHomeAvatar();
+            renderAvatarPicker();
+            showToast("已更换头像");
+          } catch (e) {
+            showToast((e && e.message) || "更换失败");
+          }
+        });
+        const nm = document.createElement("div");
+        nm.className = "avatar-item-name";
+        nm.textContent = a.name || a.id || "-";
+        item.appendChild(bubble);
+        item.appendChild(nm);
+        if (locked) {
+          const needEl = document.createElement("div");
+          needEl.className = "avatar-item-need";
+          needEl.textContent = `需 ${need} 分`;
+          item.appendChild(needEl);
+        }
+        grid.appendChild(item);
+      });
+    }
+
     let statsChartInstance = null;
     async function showStatsView() {
       if (isGuestMode) return;
       const name = loadCurrentUsername();
       if (!name) return;
+      setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const primeSectionStats = document.getElementById("prime-composite-section");
+      if (primeSectionStats) primeSectionStats.style.display = "none";
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
       const base = getApiBase();
@@ -3068,16 +4831,27 @@
     }
 
     function showGameSection() {
+      setTopActionsVisible(false);
+      setGameOverLayout(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.add("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      setFeedback("", null);
+      // 开始前在题目区显示规则；开始后 renderQuestion 会覆盖为题目
+      if (dom.questionText) {
+        const sub = document.getElementById("game-subtitle");
+        const hint = sub ? String(sub.textContent || "").trim() : "";
+        dom.questionText.textContent = hint || "";
+        dom.questionText.classList.toggle("rule-hint", !!hint);
+      }
       // 进入模式时重置状态栏为新一局的初始值，避免显示上一局遗留数据
       if (gameMode === "training") {
         const saved = getLevelTrainingCurrentLevel();
         currentLevelIndex = saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
         runScore = 0;
         trainingQuestionIndex = 0;
+        trainingCorrectCount = 0;
         gameStartTime = 0;
         if (dom.timerChip) dom.timerChip.style.display = "";
         const statusGrid = document.getElementById("status-grid");
@@ -3101,11 +4875,13 @@
       }
       renderRecentRuns();
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
-      const gameBackRow = document.getElementById("game-back-row");
-      if (gameBackRow) gameBackRow.classList.remove("hidden");
+      updateTopTitleForCurrentView(false);
+      updateStatusModeLabel();
     }
 
     function getWrongAnswers() {
@@ -3116,6 +4892,7 @@
     }
 
     async function showWrongbookView() {
+      setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
@@ -3183,7 +4960,7 @@
       }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
       showGameSection();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
@@ -3193,7 +4970,7 @@
       if (isGuestMode) {
         gameMode = "survival";
         const sub = document.getElementById("game-subtitle");
-        if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+        if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
         showGameSection();
         return;
       }
@@ -3203,7 +4980,7 @@
         return;
       }
       if (isSurvivalLocked()) {
-        alert("必须闯关模式达到9级或以上才能解锁生存挑战。");
+        showToast("生存挑战：需闯关模式达到 9 级解锁");
         return;
       }
       const u = getCurrentUser();
@@ -3213,30 +4990,22 @@
       }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（L1=1 分…L16=16 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
       showGameSection();
     }
 
     function updateSurvivalButtonLabel() {
       const btn = document.getElementById("mode-survival");
       if (!btn) return;
-      if (isSurvivalLocked()) {
-        btn.textContent = "生存挑战（需闯关达9级解锁）";
-      } else {
-        btn.textContent = "生存挑战";
-      }
+      btn.textContent = "生存挑战";
+      btn.classList.toggle("mode-btn-locked", isSurvivalLocked());
     }
 
     function updateRankingButtonLabel() {
       const btn = document.getElementById("mode-ranking");
       if (!btn) return;
-      if (userHasClearedSurvival(cachedUser)) {
-        btn.textContent = "生存排行";
-        btn.classList.remove("mode-btn-locked");
-      } else {
-        btn.textContent = "生存排行（需通关解锁）";
-        btn.classList.add("mode-btn-locked");
-      }
+      btn.textContent = "排行榜";
+      btn.classList.remove("mode-btn-locked");
     }
 
     function getLevelChallengeLastLevel() {
@@ -3248,6 +5017,19 @@
       if (!u) return 0;
       ensureUserProgressDefault(u);
       return u.levelChallengeLastLevel || 0;
+    }
+
+    function getRecentSurvivalPeakLevelForLevelMode() {
+      const u = getCurrentUser();
+      if (!u) return 0;
+      ensureUserProgressDefault(u);
+      const runs = Array.isArray(u.recentSurvivalRuns) ? u.recentSurvivalRuns : [];
+      let peak = 0;
+      for (let i = 0; i < runs.length; i++) {
+        const idx = Number(runs[i] && runs[i].maxLevel);
+        if (Number.isFinite(idx)) peak = Math.max(peak, idx);
+      }
+      return Math.min(Math.max(peak, 0), 15);
     }
 
     function saveLevelChallengeLastLevel(lastLevel) {
@@ -3296,11 +5078,6 @@
         showWrongbookViewFast();
         return;
       }
-      const lastLevel = getLevelChallengeLastLevel();
-      if (lastLevel >= 15) {
-        if (!confirm("您已通关，是否从 L1 开始新游戏？")) return;
-        saveLevelChallengeLastLevel(0);
-      }
       gameMode = "level";
       const sub = document.getElementById("game-subtitle");
       if (sub) sub.textContent = "闯关挑战：每关 10 题，连续答对升级、错 1 题降级，1 分钟倒计时，答对 +2 秒。";
@@ -3319,7 +5096,7 @@
       const btn = document.getElementById("mode-practice");
       if (!btn) return;
       if (isTrainingLocked()) {
-        btn.textContent = "训练模式（需先完成一局闯关）";
+        btn.textContent = "训练模式";
         btn.classList.add("mode-btn-locked");
       } else {
         btn.textContent = "训练模式";
@@ -3338,7 +5115,7 @@
         return;
       }
       if (isTrainingLocked()) {
-        alert("请先完成一局闯关挑战，系统将根据你的水平确定训练起始难度。");
+        showToast("训练模式：请先完成一局闯关模式");
         return;
       }
       gameMode = "training";
@@ -3630,9 +5407,10 @@
         else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
       });
-      if (dom.backHomeBtn) dom.backHomeBtn.addEventListener("click", showHome);
-      const gameBackHomeBtn = document.getElementById("game-back-home-btn");
-      if (gameBackHomeBtn) gameBackHomeBtn.addEventListener("click", exitGameToHome);
+      const globalBackHomeBtn = document.getElementById("global-back-home-btn");
+      if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
+      const abandonGameBtn = document.getElementById("abandon-game-btn");
+      if (abandonGameBtn) abandonGameBtn.addEventListener("click", abandonCurrentRun);
 
       const modeSurvival = document.getElementById("mode-survival");
       const modeLevel = document.getElementById("mode-level");
@@ -3644,13 +5422,45 @@
       if (modeWrongbook) modeWrongbook.addEventListener("click", handleModeWrongbook);
       const modeStats = document.getElementById("mode-stats");
       if (modeStats) modeStats.addEventListener("click", showStatsView);
-      const statsBackBtn = document.getElementById("stats-back-btn");
-      if (statsBackBtn) statsBackBtn.addEventListener("click", hideStatsView);
       const modeRanking = document.getElementById("mode-ranking");
       if (modeRanking) modeRanking.addEventListener("click", showRankingView);
-      const rankingBackBtn = document.getElementById("ranking-back-btn");
-      if (rankingBackBtn) rankingBackBtn.addEventListener("click", hideRankingView);
-      if (dom.wrongbookBackBtn) dom.wrongbookBackBtn.addEventListener("click", showHome);
+
+      const modePrimeComposite = document.getElementById("mode-prime-composite");
+      if (modePrimeComposite) modePrimeComposite.addEventListener("click", showPrimeCompositePlaceholder);
+      const primeAbandonBtn = document.getElementById("prime-abandon-btn");
+      if (primeAbandonBtn) primeAbandonBtn.addEventListener("click", primeCompositeAbandon);
+      const primeStartBtn = document.getElementById("prime-composite-start-btn");
+      if (primeStartBtn) primeStartBtn.addEventListener("click", primeCompositeStart);
+      const primeAgainBtn = document.getElementById("prime-composite-again-btn");
+      if (primeAgainBtn) primeAgainBtn.addEventListener("click", primeCompositeStart);
+      const primeBtnP = document.getElementById("prime-btn-prime");
+      const primeBtnC = document.getElementById("prime-btn-composite");
+      if (primeBtnP) primeBtnP.addEventListener("click", () => primeCompositeChoose("prime"));
+      if (primeBtnC) primeBtnC.addEventListener("click", () => primeCompositeChoose("composite"));
+
+      const homeAvatarBtn = document.getElementById("home-avatar-btn");
+      if (homeAvatarBtn) homeAvatarBtn.addEventListener("click", async () => {
+        if (isGuestMode) {
+          showToast("游客模式暂不支持头像");
+          return;
+        }
+        await ensureAvatarCatalogLoaded();
+        updateHomeAvatar();
+        showAvatarPicker();
+      });
+
+      // 首页：未开放入口统一用提示，不拉长按钮文案
+      const soonButtons = [
+        { id: "mode-expand-brackets", msg: "拆括号：功能即将上线" },
+        { id: "mode-gcd", msg: "公因数：功能即将上线" },
+        { id: "mode-lcm", msg: "公倍数：功能即将上线" },
+      ];
+      soonButtons.forEach((x) => {
+        const btn = document.getElementById(x.id);
+        if (!btn) return;
+        btn.addEventListener("click", () => showToast(x.msg));
+      });
+
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
 
       dom.answerInput.addEventListener("keydown", (e) => {

@@ -42,9 +42,9 @@ const server = http.createServer((req, res) => {
   const parsedUrl = url.parse(req.url || "/");
   let pathname = parsedUrl.pathname || "/";
 
-  // 默认打开 admin.html
+  // 默认打开新版管理端 /admin/
   if (pathname === "/") {
-    pathname = "/admin.html";
+    pathname = "/admin/";
   }
 
   const safePath = safeResolve(decodeURIComponent(pathname.replace(/\\/g, "/").replace(/^\/+/, "")));
@@ -72,8 +72,9 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  const urlToOpen = `http://localhost:${PORT}/admin.html`;
+// 仅监听本机回环地址，避免局域网访问到管理端页面
+server.listen(PORT, "127.0.0.1", () => {
+  const urlToOpen = `http://localhost:${PORT}/admin/`;
   console.log(`本地管理端静态服务器已启动：${urlToOpen}`);
 
   // 在 macOS 上自动打开浏览器

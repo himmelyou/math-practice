@@ -32,9 +32,37 @@ const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
+const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.json");
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
+const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
+const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
 const DEFAULT_ADMIN_PIN = "2026";
 const SURVIVAL_RANKING_MAX = 50;
+const SCORE_RANKING_MAX = 50;
+
+function buildScoreRankingRowUser(u, req) {
+  if (!u || !u.username) return null;
+  const displayName = (u.nickname || "").trim() ? String(u.nickname).trim() : "新人";
+  const totalScore = Number(u.totalScore) || 0;
+  const avatarId = resolveUserAvatarIdOrEmpty(u);
+  let avatarUrl = "";
+  if (avatarId) {
+    const catalog = readAvatarCatalog();
+    const item = catalog.find((x) => x.id === avatarId);
+    if (item) {
+      avatarUrl = buildAvatarPublic(item, req).imageUrl || "";
+    }
+  }
+  return { username: u.username, displayName, totalScore, avatarUrl };
+}
+
+function avatarUrlForUsername(username, req) {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const u = (usersData.users || []).find((x) => x && x.username === username);
+  if (!u) return "";
+  const row = buildScoreRankingRowUser(u, req);
+  return row && row.avatarUrl ? row.avatarUrl : "";
+}
 
 function getAdminPin() {
   if (process.env.ADMIN_PIN) return process.env.ADMIN_PIN;
@@ -49,6 +77,9 @@ function getAdminPin() {
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
+if (!fs.existsSync(AVATAR_ASSET_DIR)) {
+  fs.mkdirSync(AVATAR_ASSET_DIR, { recursive: true });
+}
 
 app.use(cors({
   origin: true,
@@ -58,6 +89,121 @@ app.use(cors({
 }));
 app.use(cookieParser());
 app.use(express.json());
+app.use("/avatar-assets", express.static(AVATAR_ASSET_DIR));
+
+function clampUnlockScore(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
+function sanitizeAvatarName(v, fallback) {
+  const s = typeof v === "string" ? v.trim() : "";
+  if (!s) return fallback || "未命名头像";
+  return s.slice(0, 40);
+}
+
+function normalizeAvatarEntry(raw, index) {
+  const fallbackId = `avt_${index + 1}`;
+  const id = (raw && raw.id ? String(raw.id).trim() : fallbackId) || fallbackId;
+  const order = Number.isFinite(Number(raw && raw.order)) ? Number(raw.order) : index;
+  return {
+    id,
+    name: sanitizeAvatarName(raw && raw.name, id),
+    imagePath: typeof (raw && raw.imagePath) === "string" ? raw.imagePath : "",
+    unlockScore: clampUnlockScore(raw && raw.unlockScore),
+    order,
+    enabled: raw && raw.enabled !== false,
+    createdAt: Number(raw && raw.createdAt) || Date.now(),
+    updatedAt: Number(raw && raw.updatedAt) || Date.now(),
+  };
+}
+
+function readAvatarCatalog() {
+  const data = readJson(AVATARS_FILE, { avatars: [] });
+  const listRaw = Array.isArray(data.avatars) ? data.avatars : [];
+  const list = listRaw.map((x, i) => normalizeAvatarEntry(x, i));
+  list.sort((a, b) => (a.order - b.order) || String(a.id).localeCompare(String(b.id)));
+  return list.map((x, i) => ({ ...x, order: i }));
+}
+
+function writeAvatarCatalog(list) {
+  const now = Date.now();
+  const normalized = (Array.isArray(list) ? list : [])
+    .map((x, i) => normalizeAvatarEntry(x, i))
+    .sort((a, b) => (a.order - b.order) || String(a.id).localeCompare(String(b.id)))
+    .map((x, i) => ({
+      ...x,
+      order: i,
+      updatedAt: now,
+      createdAt: Number(x.createdAt) || now,
+    }));
+  writeJson(AVATARS_FILE, { avatars: normalized });
+  return normalized;
+}
+
+function parseDataUrl(dataUrl) {
+  const m = /^data:(image\/(?:png|jpeg|jpg|webp));base64,(.+)$/i.exec(String(dataUrl || ""));
+  if (!m) return null;
+  const mime = m[1].toLowerCase();
+  const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+  try {
+    const buf = Buffer.from(m[2], "base64");
+    if (!buf.length) return null;
+    return { buf, ext };
+  } catch (e) {
+    return null;
+  }
+}
+
+function createAvatarId() {
+  return `avt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function buildAvatarPublic(item, req) {
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.get("host");
+  let imageUrl = item.imagePath || "";
+  if (imageUrl && /^\/[^/]/.test(imageUrl) && host) {
+    imageUrl = `${proto}://${host}${imageUrl}`;
+  }
+  return {
+    id: item.id,
+    name: item.name,
+    imageUrl,
+    unlockScore: item.unlockScore,
+    order: item.order,
+    enabled: item.enabled !== false,
+  };
+}
+
+function resolveUserAvatarIdOrEmpty(user) {
+  const id = user && typeof user.avatarId === "string" ? user.avatarId.trim() : "";
+  if (!id) return "";
+  const catalog = readAvatarCatalog();
+  const item = catalog.find((x) => x.id === id);
+  if (!item || item.enabled === false) return "";
+  const score = Number(user && user.totalScore) || 0;
+  const need = clampUnlockScore(item.unlockScore);
+  if (score >= need) return id;
+  return "";
+}
+
+function validateAndNormalizeAvatarIdForUser(user, avatarId) {
+  const id = avatarId == null ? "" : String(avatarId).trim();
+  if (!id) return { ok: true, value: "" };
+  const catalog = readAvatarCatalog();
+  const item = catalog.find((x) => x.id === id);
+  if (!item || item.enabled === false) {
+    return { ok: false, status: 400, error: "无效的头像" };
+  }
+  const score = Number(user && user.totalScore) || 0;
+  const need = clampUnlockScore(item.unlockScore);
+  if (score < need) {
+    return { ok: false, status: 403, error: `头像未解锁：需要 ${need} 分` };
+  }
+  return { ok: true, value: id };
+}
 
 // 健康检查（用于确认服务是否在线）
 app.get("/api/health", (req, res) => {
@@ -174,6 +320,7 @@ app.post("/api/register", async (req, res) => {
     username: name,
     password: passwordHash,
     nickname: "",
+    avatarId: "",
     levelIndex: 0,
     bestLevelIndex: 0,
     totalScore: 0,
@@ -182,6 +329,7 @@ app.post("/api/register", async (req, res) => {
     recentSurvivalRuns: [],
     recentLevelRuns: [],
     recentTrainingRuns: [],
+    recentPrimeCompositeRuns: [],
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
@@ -260,6 +408,8 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
       writeJson(USERS_FILE, data);
     }
   }
+  // 头像：若被删/禁用/未解锁则回退为空（前端用默认符号展示）
+  user.avatarId = resolveUserAvatarIdOrEmpty(user);
   res.json({ ok: true, user: safeUser(user) });
 });
 
@@ -274,9 +424,15 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers", "survivalUnlocked"];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
+    if (k === "avatarId") {
+      const vr = validateAndNormalizeAvatarIdForUser(u, updates.avatarId);
+      if (!vr.ok) return;
+      u.avatarId = vr.value;
+      return;
+    }
     if (k === "totalScore" || k === "bestSurvivalSec" || k === "bestScore") {
       const cur = typeof u[k] === "number" ? u[k] : 0;
       const inc = updates[k];
@@ -285,7 +441,15 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
       data.users[idx][k] = updates[k];
     }
   });
+  // avatarId 校验失败时返回明确错误
+  if (updates.avatarId !== undefined) {
+    const vr = validateAndNormalizeAvatarIdForUser(u, updates.avatarId);
+    if (!vr.ok) {
+      return res.status(vr.status || 400).json({ ok: false, error: vr.error || "头像不可用" });
+    }
+  }
   writeJson(USERS_FILE, data);
+  data.users[idx].avatarId = resolveUserAvatarIdOrEmpty(data.users[idx]);
   res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
@@ -328,7 +492,10 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
   }
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const runs = (runsData.runs[username] || [])
-    .map((r) => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : "survival") }))
+    .map((r) => ({
+      ...r,
+      mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : (r.mode === "primeComposite" ? "primeComposite" : "survival")),
+    }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
 });
@@ -350,7 +517,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     maxLevel: run.maxLevel ?? 0,
     wrongCount: run.wrongCount ?? 0,
     ts: run.ts ?? Date.now(),
-    mode: run.mode === "level" ? "level" : (run.mode === "training" ? "training" : "survival"),
+    mode: run.mode === "level" ? "level" : (run.mode === "training" ? "training" : (run.mode === "primeComposite" ? "primeComposite" : "survival")),
   };
   if (runEntry.mode === "survival" && run.survivalCleared === true) runEntry.survivalCleared = true;
   if (Array.isArray(run.attempts)) runEntry.attempts = run.attempts;
@@ -359,6 +526,32 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     runsData.runs[username] = runsData.runs[username].slice(0, 500);
   }
   writeJson(RUNS_FILE, runsData);
+
+  // 质数神探榜：仅统计 50 题全对（wrongCount=0）的局，每人保留最短完成时间
+  if (runEntry.mode === "primeComposite" && (runEntry.wrongCount ?? 0) === 0) {
+    const elapsed = Number(runEntry.survivalTimeSec) || 0;
+    const score = Number(runEntry.score) || 0;
+    if (elapsed > 0 && score >= 250) {
+      const rankingData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+      let list = Array.isArray(rankingData.list) ? rankingData.list : [];
+      const entry = { username, survivalTimeSec: elapsed, ts: runEntry.ts };
+      const existing = list.find((e) => e.username === username);
+      const isBetterPrime = (a, b) => {
+        if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec < b.survivalTimeSec;
+        return (a.ts || 0) < (b.ts || 0);
+      };
+      if (!existing || isBetterPrime(entry, existing)) {
+        list = list.filter((e) => e.username !== username);
+        list.push(entry);
+        list.sort((a, b) => {
+          if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
+          return (a.ts || 0) - (b.ts || 0);
+        });
+        rankingData.list = list;
+        writeJson(PRIME_PERFECT_RANKING_FILE, rankingData);
+      }
+    }
+  }
 
   const userData = readJson(USERS_FILE, { users: [] });
   const uIdx = userData.users.findIndex((u) => u.username === username);
@@ -380,6 +573,10 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
       u.recentTrainingRuns.unshift(runEntry);
       if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
+    } else if (runEntry.mode === "primeComposite") {
+      if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
+      u.recentPrimeCompositeRuns.unshift(runEntry);
+      if (u.recentPrimeCompositeRuns.length > 10) u.recentPrimeCompositeRuns = u.recentPrimeCompositeRuns.slice(0, 10);
     }
   }
   if (runEntry.mode === "survival" && runEntry.survivalCleared === true) {
@@ -421,6 +618,39 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   res.json({ ok: true });
 });
 
+// ========== 总积分榜：按 totalScore 降序；返回前 50 + 当前用户名次（可选 ?username=） ==========
+app.get("/api/score-ranking", (req, res) => {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(usersData.users) ? usersData.users.slice() : [];
+  users.sort((a, b) => {
+    const sa = Number(a && a.totalScore) || 0;
+    const sb = Number(b && b.totalScore) || 0;
+    if (sb !== sa) return sb - sa;
+    return String((a && a.username) || "").localeCompare(String((b && b.username) || ""));
+  });
+  const top = users.slice(0, SCORE_RANKING_MAX).map((u, i) => {
+    const row = buildScoreRankingRowUser(u, req);
+    return row ? { rank: i + 1, ...row } : null;
+  }).filter(Boolean);
+  const username = (req.query.username || "").trim();
+  let myRank = 0;
+  let myEntry = null;
+  if (username) {
+    const idx = users.findIndex((u) => u && u.username === username);
+    if (idx >= 0) {
+      myRank = idx + 1;
+      const row = buildScoreRankingRowUser(users[idx], req);
+      if (row) myEntry = { rank: myRank, ...row };
+    }
+  }
+  res.json({
+    ok: true,
+    list: top,
+    myRank: username ? myRank : undefined,
+    myEntry: username ? myEntry : undefined,
+  });
+});
+
 // ========== 生存通关排行榜：每人只保留一条最佳，全量排名；返回前 50 + 当前用户的名次与记录 ==========
 function dedupeBestPerUser(list) {
   const byUser = {};
@@ -454,7 +684,8 @@ app.get("/api/survival-ranking", (req, res) => {
     displayName: nicknameMap[e.username] || "新人",
     survivalTimeSec: e.survivalTimeSec ?? 0,
     wrongCount: e.wrongCount ?? 0,
-    ts: e.ts
+    ts: e.ts,
+    avatarUrl: avatarUrlForUsername(e.username, req),
   }));
   const username = (req.query.username || "").trim();
   let myRank = 0;
@@ -464,7 +695,72 @@ app.get("/api/survival-ranking", (req, res) => {
     if (idx >= 0) {
       myRank = idx + 1;
       const e = list[idx];
-      myEntry = { rank: myRank, username: e.username, displayName: nicknameMap[e.username] || "新人", survivalTimeSec: e.survivalTimeSec ?? 0, wrongCount: e.wrongCount ?? 0, ts: e.ts };
+      myEntry = {
+        rank: myRank,
+        username: e.username,
+        displayName: nicknameMap[e.username] || "新人",
+        survivalTimeSec: e.survivalTimeSec ?? 0,
+        wrongCount: e.wrongCount ?? 0,
+        ts: e.ts,
+        avatarUrl: avatarUrlForUsername(e.username, req),
+      };
+    }
+  }
+  res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+});
+
+// ========== 质数神探榜：质数合数 50 题全对的最短用时；每人一条最佳；前 50 + 当前用户 ==========
+function dedupeBestPrimePerfect(list) {
+  const byUser = {};
+  (list || []).forEach((e) => {
+    if (!e || !e.username) return;
+    const k = e.username;
+    const cur = byUser[k];
+    if (!cur || e.survivalTimeSec < cur.survivalTimeSec || (e.survivalTimeSec === cur.survivalTimeSec && (e.ts || 0) < (cur.ts || 0))) {
+      byUser[k] = e;
+    }
+  });
+  return Object.values(byUser);
+}
+
+app.get("/api/prime-perfect-ranking", (req, res) => {
+  const data = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  let list = Array.isArray(data.list) ? data.list : [];
+  list = dedupeBestPrimePerfect(list);
+  list.sort((a, b) => {
+    if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
+    return (a.ts || 0) - (b.ts || 0);
+  });
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const nicknameMap = {};
+  (usersData.users || []).forEach((u) => {
+    const n = (u.nickname || "").trim();
+    nicknameMap[u.username] = n ? n : "新人";
+  });
+  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ({
+    rank: i + 1,
+    username: e.username,
+    displayName: nicknameMap[e.username] || "新人",
+    survivalTimeSec: e.survivalTimeSec ?? 0,
+    ts: e.ts,
+    avatarUrl: avatarUrlForUsername(e.username, req),
+  }));
+  const username = (req.query.username || "").trim();
+  let myRank = 0;
+  let myEntry = null;
+  if (username) {
+    const idx = list.findIndex((e) => e.username === username);
+    if (idx >= 0) {
+      myRank = idx + 1;
+      const e = list[idx];
+      myEntry = {
+        rank: myRank,
+        username: e.username,
+        displayName: nicknameMap[e.username] || "新人",
+        survivalTimeSec: e.survivalTimeSec ?? 0,
+        ts: e.ts,
+        avatarUrl: avatarUrlForUsername(e.username, req),
+      };
     }
   }
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
@@ -513,6 +809,7 @@ app.post("/api/admin/users", async (req, res) => {
     recentSurvivalRuns: [],
     recentLevelRuns: [],
     recentTrainingRuns: [],
+    recentPrimeCompositeRuns: [],
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
@@ -633,7 +930,7 @@ app.get("/api/admin/records/:username", (req, res) => {
   const { username } = req.params;
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const runs = (runsData.runs[username] || [])
-    .map(r => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : "survival") }))
+    .map(r => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : (r.mode === "primeComposite" ? "primeComposite" : "survival")) }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
 });
@@ -712,6 +1009,183 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
   } catch (e) {
     res.json({ ok: false, error: "恢复失败：" + (e.message || String(e)) });
   }
+});
+
+// ========== 头像：学员端获取头像列表（用于解锁/选择，先预留） ==========
+app.get("/api/avatars", (req, res) => {
+  const list = readAvatarCatalog().map((x) => buildAvatarPublic(x, req));
+  res.json({ ok: true, avatars: list });
+});
+
+// ========== 管理员：获取头像列表 ==========
+app.get("/api/admin/avatars", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const list = readAvatarCatalog().map((x) => buildAvatarPublic(x, req));
+  res.json({ ok: true, avatars: list });
+});
+
+// ========== 管理员：保存头像列表（名称/解锁积分/启用/排序） ==========
+app.put("/api/admin/avatars", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const avatars = req.body && req.body.avatars;
+  if (!Array.isArray(avatars)) {
+    return res.json({ ok: false, error: "无效的 avatars 格式" });
+  }
+  const cur = readAvatarCatalog();
+  const curMap = new Map(cur.map((x) => [x.id, x]));
+  const nextRaw = avatars.map((x, i) => {
+    const id = x && x.id ? String(x.id).trim() : "";
+    const old = curMap.get(id);
+    return normalizeAvatarEntry(
+      {
+        id,
+        name: x && x.name,
+        unlockScore: x && x.unlockScore,
+        enabled: x && x.enabled,
+        // order 只作为“同积分内的手动排序”权重使用；全局排序由服务端按规则重排
+        order: Number.isFinite(Number(x && x.order)) ? Number(x.order) : i,
+        imagePath: old ? old.imagePath : "",
+        createdAt: old ? old.createdAt : Date.now(),
+      },
+      i,
+    );
+  });
+  // 固化排序规则：
+  // 1) 启用的在前；禁用的全在最后
+  // 2) 启用部分按 unlockScore 升序
+  // 3) 同 unlockScore 内按传入 order（手动排序）升序
+  const next = nextRaw
+    .slice()
+    .sort((a, b) => {
+      const ea = a.enabled !== false ? 1 : 0;
+      const eb = b.enabled !== false ? 1 : 0;
+      if (ea !== eb) return eb - ea;
+      const sa = clampUnlockScore(a.unlockScore);
+      const sb = clampUnlockScore(b.unlockScore);
+      if (sa !== sb) return sa - sb;
+      const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
+      const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
+      if (oa !== ob) return oa - ob;
+      return String(a.id).localeCompare(String(b.id));
+    })
+    .map((x, i) => ({ ...x, order: i }));
+  const saved = writeAvatarCatalog(next);
+  res.json({ ok: true, avatars: saved.map((x) => buildAvatarPublic(x, req)) });
+});
+
+// ========== 管理员：上传新头像（dataUrl） ==========
+app.post("/api/admin/avatars/upload", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { name, unlockScore, dataUrl } = req.body || {};
+  const parsed = parseDataUrl(dataUrl);
+  if (!parsed) {
+    return res.json({ ok: false, error: "图片格式不支持（仅 png/jpg/webp 的 dataUrl）" });
+  }
+  const id = createAvatarId();
+  const fileName = `${id}.${parsed.ext}`;
+  const target = path.join(AVATAR_ASSET_DIR, fileName);
+  fs.writeFileSync(target, parsed.buf);
+  const cur = readAvatarCatalog();
+  cur.unshift({
+    id,
+    name: sanitizeAvatarName(name, id),
+    imagePath: `/avatar-assets/${fileName}`,
+    unlockScore: clampUnlockScore(unlockScore),
+    order: 0,
+    enabled: true,
+    createdAt: Date.now(),
+  });
+  const saved = writeAvatarCatalog(cur);
+  res.json({ ok: true, avatars: saved.map((x) => buildAvatarPublic(x, req)) });
+});
+
+// ========== 管理员：替换头像图片（dataUrl） ==========
+app.post("/api/admin/avatars/:id/replace-image", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const id = String(req.params.id || "").trim();
+  const parsed = parseDataUrl(req.body && req.body.dataUrl);
+  if (!id) return res.json({ ok: false, error: "缺少 id" });
+  if (!parsed) return res.json({ ok: false, error: "图片格式不支持" });
+  const cur = readAvatarCatalog();
+  const idx = cur.findIndex((x) => x.id === id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: "头像不存在" });
+  const fileName = `${id}.${parsed.ext}`;
+  const target = path.join(AVATAR_ASSET_DIR, fileName);
+  fs.writeFileSync(target, parsed.buf);
+  cur[idx].imagePath = `/avatar-assets/${fileName}`;
+  const saved = writeAvatarCatalog(cur);
+  res.json({ ok: true, avatars: saved.map((x) => buildAvatarPublic(x, req)) });
+});
+
+// ========== 管理员：删除头像 ==========
+app.delete("/api/admin/avatars/:id", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const id = String(req.params.id || "").trim();
+  if (!id) return res.json({ ok: false, error: "缺少 id" });
+  const cur = readAvatarCatalog();
+  const idx = cur.findIndex((x) => x.id === id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: "头像不存在" });
+  const removed = cur.splice(idx, 1)[0];
+  try {
+    // 尝试删除对应资源文件（不强制）
+    if (removed && removed.imagePath && removed.imagePath.startsWith("/avatar-assets/")) {
+      const rel = removed.imagePath.replace(/^\/avatar-assets\//, "");
+      const p = path.join(AVATAR_ASSET_DIR, rel);
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    }
+  } catch (e) {}
+  const saved = writeAvatarCatalog(cur);
+  res.json({ ok: true, avatars: saved.map((x) => buildAvatarPublic(x, req)) });
+});
+
+// ========== 管理员：从仓库 pictures/profile 导入（兼容旧资源） ==========
+app.post("/api/admin/avatars/init-legacy", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const repoProfileDir = path.resolve(__dirname, "../pictures/profile");
+  if (!fs.existsSync(repoProfileDir)) {
+    const list = readAvatarCatalog().map((x) => buildAvatarPublic(x, req));
+    return res.json({ ok: true, avatars: list, added: 0, msg: "未找到 pictures/profile，已保留现有头像库" });
+  }
+  const files = fs.readdirSync(repoProfileDir).filter((name) => /\.(png|jpe?g|webp)$/i.test(name));
+  const cur = readAvatarCatalog();
+  const nameSet = new Set(cur.map((x) => String(x.name || "").trim().toLowerCase()).filter(Boolean));
+  let added = 0;
+  files.forEach((file) => {
+    const ext = (path.extname(file) || "").toLowerCase();
+    const base = path.basename(file, ext).trim().slice(0, 40);
+    if (!base) return;
+    if (nameSet.has(base.toLowerCase())) return;
+    const id = createAvatarId();
+    const targetName = `${id}${ext}`;
+    const src = path.join(repoProfileDir, file);
+    const target = path.join(AVATAR_ASSET_DIR, targetName);
+    fs.copyFileSync(src, target);
+    cur.unshift({
+      id,
+      name: base,
+      imagePath: `/avatar-assets/${targetName}`,
+      unlockScore: 0,
+      order: 0,
+      enabled: true,
+      createdAt: Date.now(),
+    });
+    nameSet.add(base.toLowerCase());
+    added += 1;
+  });
+  const saved = writeAvatarCatalog(cur);
+  res.json({ ok: true, avatars: saved.map((x) => buildAvatarPublic(x, req)), added });
 });
 
 app.listen(PORT, () => {

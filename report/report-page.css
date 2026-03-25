@@ -1,0 +1,301 @@
+/* 学员数据页（与 admin 风格一致） */
+.jml-admin-wide.jml-shell-inner {
+  max-width: 1200px;
+}
+
+.jml-banner-warn {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.jml-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  font-family: inherit;
+}
+
+.jml-report-user-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.jml-report-user-row label {
+  font-size: 13px;
+  color: #37474f;
+  font-weight: 600;
+}
+
+.jml-report-user-filter {
+  flex: 1;
+  min-width: 140px;
+  max-width: 280px;
+  padding: 8px 12px;
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.jml-report-user-select {
+  min-width: 200px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.jml-report-hint {
+  font-size: 12px;
+  color: #78909c;
+  margin-bottom: 12px;
+}
+
+.jml-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 16px;
+}
+
+.jml-tab {
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  font-size: 0.92rem;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+}
+
+.jml-tab:hover {
+  color: #0f172a;
+}
+
+.jml-tab.active {
+  color: #2563eb;
+  font-weight: 600;
+  border-bottom-color: #2563eb;
+}
+
+.jml-tab-panel.hidden {
+  display: none;
+}
+
+.jml-report-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #eceff1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.jml-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.jml-report-table th,
+.jml-report-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #eceff1;
+}
+
+.jml-report-table th {
+  background: #f5f7fa;
+  color: #455a64;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.jml-report-table tr:last-child td {
+  border-bottom: none;
+}
+
+.jml-report-table .num {
+  text-align: right;
+}
+
+/* 挑战记录：列顺序与首页「最近十次」一致（日期时间最左） */
+.jml-report-runs-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.jml-report-runs-table th,
+.jml-report-runs-table td {
+  vertical-align: middle;
+}
+
+.jml-report-runs-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.jml-report-runs-table tbody tr:hover {
+  background: #f0f7ff;
+}
+
+.jml-report-runs-table th:nth-child(1),
+.jml-report-runs-table td.jml-runs-col-time {
+  width: 22%;
+  min-width: 148px;
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.jml-report-runs-table th:nth-child(2),
+.jml-report-runs-table td.jml-runs-col-mode {
+  width: 14%;
+  text-align: center;
+}
+
+/* 用时、得分、错误题数、最高难度：表头与数据均靠右 */
+.jml-report-runs-table thead th.num {
+  text-align: right;
+}
+
+.jml-report-runs-table th:nth-child(3),
+.jml-report-runs-table td.jml-runs-col-dur {
+  width: 14%;
+}
+
+.jml-report-runs-table th:nth-child(4),
+.jml-report-runs-table td.jml-runs-col-score {
+  width: 12%;
+}
+
+.jml-report-runs-table th:nth-child(5),
+.jml-report-runs-table td.jml-runs-col-wrong {
+  width: 12%;
+}
+
+.jml-report-runs-table th:nth-child(6),
+.jml-report-runs-table td.jml-runs-col-level {
+  width: 12%;
+}
+
+.jml-wrong-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jml-report-summary {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #607d8b;
+}
+
+.jml-wrong-item {
+  padding: 12px 14px;
+  border: 1px solid #eceff1;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  background: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.jml-wrong-item .expr {
+  font-weight: 600;
+  color: #1565c0;
+}
+
+.jml-wrong-item .meta {
+  font-size: 12px;
+  color: #78909c;
+  margin-top: 6px;
+}
+
+.jml-report-h3 {
+  margin: 20px 0 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.jml-stats-intro {
+  font-size: 13px;
+  color: #546e7a;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.jml-stats-level-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.jml-stats-level-row label {
+  font-size: 13px;
+  color: #37474f;
+  font-weight: 600;
+}
+
+.jml-stats-level-select {
+  flex: 1;
+  min-width: 200px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.jml-stats-chart-wrap {
+  width: 100%;
+  max-width: 720px;
+  height: 220px;
+  margin: 16px 0;
+  border: 1px solid #eceff1;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.jml-stats-chart-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.jml-report-empty {
+  padding: 24px;
+  text-align: center;
+  color: #90a4ae;
+  font-size: 14px;
+}
+
+.jml-report-error {
+  padding: 12px 14px;
+  background: #ffebee;
+  color: #c62828;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
