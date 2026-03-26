@@ -4500,18 +4500,18 @@
 
     function buildRankingTheadHtml(tab) {
       if (tab === "score") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">总积分</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">总积分</th></tr>";
       }
       if (tab === "survival") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-wrong\">错题</th><th class=\"r-col r-col-date\">日期</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-wrong\">错题</th><th class=\"r-col r-col-date\">日期</th></tr>";
       }
       if (tab === "primePerfect") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-date\">日期</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-date\">日期</th></tr>";
       }
       if (tab === "streak") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">最长连续挑战天数</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最长连续</th><th class=\"r-col r-col-score\">当前连续</th></tr>";
       }
-      return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">最高连击</th></tr>";
+      return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最高连击</th></tr>";
     }
 
     function buildRankingPlaceholderRowsHtml() {
@@ -4544,7 +4544,8 @@
       const name = entry.displayName || "新人";
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
-      const streakStr = escapeHtml(String(entry.streakBest != null ? entry.streakBest : 0));
+      const bestStr = escapeHtml(String(entry.streakBest != null ? entry.streakBest : 0));
+      const currentStr = escapeHtml(String(entry.streakCurrent != null ? entry.streakCurrent : 0));
       let avatarInner;
       if (entry.avatarUrl) {
         const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
@@ -4553,7 +4554,7 @@
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
       const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
-      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + streakStr + "</td></tr>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + bestStr + "</td><td class=\"r-col r-col-score\">" + currentStr + "</td></tr>";
     }
 
     async function loadScoreRankingIntoTable() {
@@ -4761,13 +4762,13 @@
         const myRank = data.myRank != null ? Number(data.myRank) : 0;
         const myEntry = data.myEntry;
         if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
-          rows.push("<tr class=\"ranking-gap\"><td colspan=\"3\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
           rows.push(buildRankingStreakRowHtml(myEntry, true));
         }
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "耐力榜 · 按最长连续挑战天数排序（展示前 50 名）";
+        if (hint) hint.textContent = "耐力榜 · 先按最长连续，再按当前连续排序（展示前 50 名）";
       } catch (e) {
         console.warn("加载耐力榜失败", e);
         tbody.innerHTML = "";

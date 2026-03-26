@@ -882,6 +882,19 @@
     }
   }
 
+  async function backfillStreakFields() {
+    try {
+      if (!confirm('将从 runs 重算并写回所有学员的 streakBest/streakCurrent/streakLastDate，确认继续？')) return;
+      setStatus('回填耐力字段中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-streak', { method: 'POST' });
+      var total = Number(data && data.totalUsers) || 0;
+      var updated = Number(data && data.updatedUsers) || 0;
+      setStatus('回填完成：共 ' + total + ' 人，更新 ' + updated + ' 人', 'ok');
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   function bindEvents() {
     document.querySelectorAll('.jml-tab').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -942,6 +955,9 @@
         doRestore(f);
       });
     }
+
+    var backfillStreakBtn = document.getElementById('jml-btn-backfill-streak');
+    if (backfillStreakBtn) backfillStreakBtn.addEventListener('click', backfillStreakFields);
 
     if (modal) {
       modal.addEventListener('click', function (e) {

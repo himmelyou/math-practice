@@ -83,7 +83,7 @@ function toChinaDateKey(ts) {
   }
 }
 
-function calcBestStreakFromRuns(runs) {
+function getStreakStatsFromRuns(runs) {
   const allowedModes = new Set(["survival", "level", "training", "primeComposite"]);
   const daySet = new Set();
   (runs || []).forEach((r) => {
@@ -94,9 +94,10 @@ function calcBestStreakFromRuns(runs) {
     if (key) daySet.add(key);
   });
   const days = Array.from(daySet).sort(); // YYYY-MM-DD lexicographical == chronological
-  if (days.length === 0) return { streakBest: 0, lastActiveDate: "" };
+  if (days.length === 0) return { streakCurrent: 0, streakBest: 0, lastActiveDate: "" };
   let best = 1;
   let cur = 1;
+  let currentEndingAtLast = 1;
   for (let i = 1; i < days.length; i += 1) {
     const prev = Date.parse(days[i - 1] + "T00:00:00Z");
     const now = Date.parse(days[i] + "T00:00:00Z");
@@ -107,8 +108,50 @@ function calcBestStreakFromRuns(runs) {
       cur = 1;
     }
     if (cur > best) best = cur;
+    if (i === days.length - 1) currentEndingAtLast = cur;
   }
-  return { streakBest: best, lastActiveDate: days[days.length - 1] || "" };
+  return { streakCurrent: currentEndingAtLast, streakBest: best, lastActiveDate: days[days.length - 1] || "" };
+}
+
+function normalizeDateKey(s) {
+  if (typeof s !== "string") return "";
+  const t = s.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : "";
+}
+
+function previousDateKey(dateKey) {
+  const d = new Date(dateKey + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() - 1);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function bumpUserStreakByDate(user, dateKey) {
+  const today = normalizeDateKey(dateKey);
+  if (!today || !user) return;
+  const last = normalizeDateKey(user.streakLastDate || "");
+  const current = Number(user.streakCurrent) || 0;
+  const best = Number(user.streakBest) || 0;
+
+  if (!last) {
+    user.streakCurrent = 1;
+    user.streakBest = Math.max(best, 1);
+    user.streakLastDate = today;
+    return;
+  }
+  if (last === today) return; // same day run does not increase
+
+  const prev = previousDateKey(today);
+  if (last === prev) {
+    user.streakCurrent = Math.max(1, current + 1);
+  } else {
+    user.streakCurrent = 1;
+  }
+  user.streakBest = Math.max(best, Number(user.streakCurrent) || 1);
+  user.streakLastDate = today;
 }
 
 function getAdminPin() {
@@ -628,6 +671,8 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     const u = userData.users[uIdx];
     u.lastGameTs = runEntry.ts;
     u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+    // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
+    bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));
     if (runEntry.mode === "survival") {
       if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
       if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
@@ -838,19 +883,17 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
 // ========== 耐力榜：按“最长连续挑战天数”排名；返回前 50 + 当前用户 ==========
 app.get("/api/streak-ranking", (req, res) => {
   const usersData = readJson(USERS_FILE, { users: [] });
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const users = Array.isArray(usersData.users) ? usersData.users : [];
 
   const rows = users
     .filter((u) => u && u.username)
     .map((u) => {
-      const runs = (runsData.runs && Array.isArray(runsData.runs[u.username])) ? runsData.runs[u.username] : [];
-      const streak = calcBestStreakFromRuns(runs);
       return {
         username: u.username,
         displayName: (u.nickname || "").trim() ? String(u.nickname).trim() : "新人",
-        streakBest: Number(streak.streakBest) || 0,
-        lastActiveDate: streak.lastActiveDate || "",
+        streakCurrent: Number(u.streakCurrent) || 0,
+        streakBest: Number(u.streakBest) || 0,
+        lastActiveDate: normalizeDateKey(u.streakLastDate || ""),
         avatarUrl: avatarUrlForUsername(u.username, req),
       };
     })
@@ -858,6 +901,7 @@ app.get("/api/streak-ranking", (req, res) => {
 
   rows.sort((a, b) => {
     if (b.streakBest !== a.streakBest) return b.streakBest - a.streakBest;
+    if (b.streakCurrent !== a.streakCurrent) return b.streakCurrent - a.streakCurrent;
     if ((b.lastActiveDate || "") !== (a.lastActiveDate || "")) return String(b.lastActiveDate || "").localeCompare(String(a.lastActiveDate || ""));
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
@@ -1120,6 +1164,36 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
   } catch (e) {
     res.json({ ok: false, error: "恢复失败：" + (e.message || String(e)) });
   }
+});
+
+// ========== 管理员：一次性回填耐力字段（streakCurrent/streakBest/streakLastDate） ==========
+app.post("/api/admin/maintenance/backfill-streak", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  let changed = 0;
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    const runs = (runsData.runs && Array.isArray(runsData.runs[u.username])) ? runsData.runs[u.username] : [];
+    const stats = getStreakStatsFromRuns(runs);
+    const nextCurrent = Number(stats.streakCurrent) || 0;
+    const nextBest = Number(stats.streakBest) || 0;
+    const nextLast = normalizeDateKey(stats.lastActiveDate || "");
+    const oldCurrent = Number(u.streakCurrent) || 0;
+    const oldBest = Number(u.streakBest) || 0;
+    const oldLast = normalizeDateKey(u.streakLastDate || "");
+    if (oldCurrent !== nextCurrent || oldBest !== nextBest || oldLast !== nextLast) {
+      changed += 1;
+      u.streakCurrent = nextCurrent;
+      u.streakBest = nextBest;
+      u.streakLastDate = nextLast;
+    }
+  });
+  writeJson(USERS_FILE, { users });
+  return res.json({ ok: true, totalUsers: users.length, updatedUsers: changed });
 });
 
 // ========== 头像：学员端获取头像列表（用于解锁/选择，先预留） ==========

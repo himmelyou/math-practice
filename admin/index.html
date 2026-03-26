@@ -43,6 +43,7 @@
         <button type="button" class="jml-tab" data-tab="levels" role="tab">等级设置</button>
         <button type="button" class="jml-tab" data-tab="avatars" role="tab">头像管理</button>
         <button type="button" class="jml-tab" data-tab="backup" role="tab">系统备份</button>
+        <button type="button" class="jml-tab" data-tab="maintenance" role="tab">初始化/维护</button>
       </div>
 
       <div id="panel-accounts" class="jml-tab-panel" data-panel="accounts" role="tabpanel">
@@ -122,6 +123,16 @@
         </div>
         <div class="jml-placeholder-panel">
           备份会下载全部数据；恢复会覆盖当前数据，请谨慎操作。
+        </div>
+      </div>
+
+      <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
+        <div class="jml-panel-head">
+          <button type="button" id="jml-btn-backfill-streak" class="jml-btn jml-btn-primary">回填耐力字段（best/current）</button>
+        </div>
+        <div class="jml-placeholder-panel">
+          该操作会从 runs 重算并写回每位学员的 <code>streakBest</code> / <code>streakCurrent</code> / <code>streakLastDate</code>。<br />
+          建议先做一次系统备份。
         </div>
       </div>
     </div>
