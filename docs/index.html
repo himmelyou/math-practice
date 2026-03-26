@@ -25,15 +25,21 @@
       -webkit-tap-highlight-color: transparent;
     }
 
+    html, body {
+      height: 100%;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
+      height: 100dvh;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background: radial-gradient(circle at top left, #f5fbff, var(--bg));
       color: var(--text-main);
       display: flex;
       justify-content: center;
       align-items: stretch;
+      overflow: hidden;
     }
 
     .login-view {
@@ -42,6 +48,8 @@
       justify-content: center;
       align-items: center;
       padding: 16px;
+      height: 100%;
+      overflow: hidden;
     }
 
     .login-card {
@@ -138,6 +146,9 @@
       padding: 16px;
       max-width: 720px;
       margin: 0 auto;
+      height: 100%;
+      max-height: 100dvh;
+      overflow: hidden;
     }
 
     .app-header {
@@ -1022,6 +1033,10 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
 
     .home-total-score {
@@ -1152,6 +1167,10 @@
 
     .wrongbook-section {
       margin-top: 16px;
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
     .wrongbook-header { margin-bottom: 12px; }
     .wrongbook-title { margin: 0 0 4px; font-size: 1.2rem; color: #e65100; }
@@ -1183,6 +1202,25 @@
 
     .game-section.visible {
       display: block;
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    .ranking-section {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    /* 头像选择页：避免超出一屏时整页滚动 */
+    #avatar-picker-section {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
 
     .game-section .subtitle {

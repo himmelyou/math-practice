@@ -14,7 +14,7 @@ echo [ADMIN] (This will use Render API per docs/config.js)
 start "JML ADMIN (Prod 8080)" cmd /k call set "ADMIN_PORT=%ADMIN_PORT%" ^&^& call node "%~dp0local-admin-server.js"
 
 timeout /t 1 /nobreak >nul
-start "" "http://localhost:%ADMIN_PORT%/admin/"
+start "" "http://localhost:%ADMIN_PORT%/admin/index.html"
 
 popd
 endlocal

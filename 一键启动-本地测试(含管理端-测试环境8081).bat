@@ -6,7 +6,7 @@ REM This script starts:
 REM - Local API (DATA_DIR points to repo server\data)
 REM - One static server on :8081 serving repo root
 REM   - User app: /docs/  (uses local API because host is localhost:8081)
-REM   - Admin:    /admin/ (also uses local API on :8081)
+REM   - Admin:    /admin/index.html (also uses local API on :8081)
 
 set "API_PORT=3001"
 set "WEB_PORT=8081"
@@ -29,7 +29,7 @@ start "JML WEB (8081 root)" cmd /k call npx http-server . -a 127.0.0.1 -p %WEB_P
 echo [JML] Opening browser tabs...
 timeout /t 2 /nobreak >nul
 start "" "http://localhost:%WEB_PORT%/docs/"
-start "" "http://localhost:%WEB_PORT%/admin/"
+start "" "http://localhost:%WEB_PORT%/admin/index.html"
 
 popd
 endlocal

@@ -9,7 +9,7 @@
       var segs = p.split('/').filter(Boolean);
       var last = segs[segs.length - 1];
       if (last === 'admin' || last === 'report') {
-        location.replace(p + '/' + location.search + location.hash);
+        location.replace(p + '/index.html' + location.search + location.hash);
       }
     })();
   </script>
@@ -25,7 +25,7 @@
   <div id="admin-app" class="jml-shell" hidden>
     <div class="jml-shell-inner jml-admin-wide">
       <div class="jml-admin-toolbar">
-        <a class="jml-toolbar-link" href="../report/">学员数据</a>
+        <a class="jml-toolbar-link" href="../report/index.html">学员数据</a>
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
 
