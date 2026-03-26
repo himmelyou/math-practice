@@ -129,9 +129,11 @@
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-backfill-streak" class="jml-btn jml-btn-primary">回填耐力字段（best/current）</button>
+          <button type="button" id="jml-btn-backfill-combo" class="jml-btn">回填连击字段（best/current）</button>
         </div>
         <div class="jml-placeholder-panel">
           该操作会从 runs 重算并写回每位学员的 <code>streakBest</code> / <code>streakCurrent</code> / <code>streakLastDate</code>。<br />
+          连击回填会重算并写回 <code>comboBest</code> / <code>comboCurrent</code>。<br />
           建议先做一次系统备份。
         </div>
       </div>

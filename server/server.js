@@ -40,6 +40,11 @@ const DEFAULT_ADMIN_PIN = "2026";
 const SURVIVAL_RANKING_MAX = 50;
 const SCORE_RANKING_MAX = 50;
 const STREAK_RANKING_MAX = 50;
+const COMBO_RANKING_MAX = 50;
+
+function normalizeRunMode(mode) {
+  return mode === "level" ? "level" : (mode === "training" ? "training" : (mode === "primeComposite" ? "primeComposite" : "survival"));
+}
 
 function buildScoreRankingRowUser(u, req) {
   if (!u || !u.username) return null;
@@ -88,7 +93,7 @@ function getStreakStatsFromRuns(runs) {
   const daySet = new Set();
   (runs || []).forEach((r) => {
     if (!r) return;
-    const mode = r.mode === "level" ? "level" : (r.mode === "training" ? "training" : (r.mode === "primeComposite" ? "primeComposite" : "survival"));
+    const mode = normalizeRunMode(r.mode);
     if (!allowedModes.has(mode)) return;
     const key = toChinaDateKey(r.ts);
     if (key) daySet.add(key);
@@ -111,6 +116,45 @@ function getStreakStatsFromRuns(runs) {
     if (i === days.length - 1) currentEndingAtLast = cur;
   }
   return { streakCurrent: currentEndingAtLast, streakBest: best, lastActiveDate: days[days.length - 1] || "" };
+}
+
+function bumpUserComboFromAttempts(user, attempts) {
+  if (!user || !Array.isArray(attempts) || attempts.length === 0) return;
+  let cur = Number(user.comboCurrent) || 0;
+  let best = Number(user.comboBest) || 0;
+  attempts.forEach((a) => {
+    const ok = !!(a && a.correct === true);
+    if (ok) {
+      cur += 1;
+      if (cur > best) best = cur;
+    } else {
+      cur = 0;
+    }
+  });
+  user.comboCurrent = cur;
+  user.comboBest = best;
+}
+
+function getComboStatsFromRuns(runs) {
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite"]);
+  const seq = (runs || [])
+    .filter((r) => r && allowedModes.has(normalizeRunMode(r.mode)) && Array.isArray(r.attempts) && r.attempts.length > 0)
+    .slice()
+    .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  let cur = 0;
+  let best = 0;
+  seq.forEach((r) => {
+    r.attempts.forEach((a) => {
+      const ok = !!(a && a.correct === true);
+      if (ok) {
+        cur += 1;
+        if (cur > best) best = cur;
+      } else {
+        cur = 0;
+      }
+    });
+  });
+  return { comboCurrent: cur, comboBest: best };
 }
 
 function normalizeDateKey(s) {
@@ -442,6 +486,11 @@ app.post("/api/register", async (req, res) => {
     recentLevelRuns: [],
     recentTrainingRuns: [],
     recentPrimeCompositeRuns: [],
+    streakCurrent: 0,
+    streakBest: 0,
+    streakLastDate: "",
+    comboCurrent: 0,
+    comboBest: 0,
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
@@ -622,25 +671,29 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const runsData = readJson(RUNS_FILE, { runs: {} });
-  if (!runsData.runs[username]) runsData.runs[username] = [];
+  const comboOnly = run.comboOnly === true;
+  if (!comboOnly && !runsData.runs[username]) runsData.runs[username] = [];
   const runEntry = {
     survivalTimeSec: run.survivalTimeSec ?? 0,
     score: run.score ?? 0,
     maxLevel: run.maxLevel ?? 0,
     wrongCount: run.wrongCount ?? 0,
     ts: run.ts ?? Date.now(),
-    mode: run.mode === "level" ? "level" : (run.mode === "training" ? "training" : (run.mode === "primeComposite" ? "primeComposite" : "survival")),
+    mode: normalizeRunMode(run.mode),
   };
+  if (comboOnly) runEntry.comboOnly = true;
   if (runEntry.mode === "survival" && run.survivalCleared === true) runEntry.survivalCleared = true;
   if (Array.isArray(run.attempts)) runEntry.attempts = run.attempts;
-  runsData.runs[username].unshift(runEntry);
-  if (runsData.runs[username].length > 500) {
-    runsData.runs[username] = runsData.runs[username].slice(0, 500);
+  if (!comboOnly) {
+    runsData.runs[username].unshift(runEntry);
+    if (runsData.runs[username].length > 500) {
+      runsData.runs[username] = runsData.runs[username].slice(0, 500);
+    }
+    writeJson(RUNS_FILE, runsData);
   }
-  writeJson(RUNS_FILE, runsData);
 
   // 质数神探榜：仅统计 50 题全对（wrongCount=0）的局，每人保留最短完成时间
-  if (runEntry.mode === "primeComposite" && (runEntry.wrongCount ?? 0) === 0) {
+  if (!comboOnly && runEntry.mode === "primeComposite" && (runEntry.wrongCount ?? 0) === 0) {
     const elapsed = Number(runEntry.survivalTimeSec) || 0;
     const score = Number(runEntry.score) || 0;
     if (elapsed > 0 && score >= 250) {
@@ -670,30 +723,34 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   if (uIdx >= 0) {
     const u = userData.users[uIdx];
     u.lastGameTs = runEntry.ts;
-    u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
-    // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
-    bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));
-    if (runEntry.mode === "survival") {
+    // 增量维护连击：放弃局（comboOnly）也计入
+    bumpUserComboFromAttempts(u, runEntry.attempts);
+    if (!comboOnly) {
+      u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+      // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
+      bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));
+    }
+    if (!comboOnly && runEntry.mode === "survival") {
       if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
       if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
       if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
       u.recentSurvivalRuns.unshift(runEntry);
       if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
-    } else if (runEntry.mode === "level") {
+    } else if (!comboOnly && runEntry.mode === "level") {
       if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
       u.recentLevelRuns.unshift(runEntry);
       if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
-    } else if (runEntry.mode === "training") {
+    } else if (!comboOnly && runEntry.mode === "training") {
       if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
       u.recentTrainingRuns.unshift(runEntry);
       if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
-    } else if (runEntry.mode === "primeComposite") {
+    } else if (!comboOnly && runEntry.mode === "primeComposite") {
       if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
       u.recentPrimeCompositeRuns.unshift(runEntry);
       if (u.recentPrimeCompositeRuns.length > 10) u.recentPrimeCompositeRuns = u.recentPrimeCompositeRuns.slice(0, 10);
     }
   }
-  if (runEntry.mode === "survival" && runEntry.survivalCleared === true) {
+  if (!comboOnly && runEntry.mode === "survival" && runEntry.survivalCleared === true) {
     const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
     let list = Array.isArray(rankingData.list) ? rankingData.list : [];
     const entry = {
@@ -921,6 +978,42 @@ app.get("/api/streak-ranking", (req, res) => {
   res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
 });
 
+// ========== 连击榜：按“最高连对”排名；同分按“当前连对” ==========
+app.get("/api/combo-ranking", (req, res) => {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+
+  const rows = users
+    .filter((u) => u && u.username)
+    .map((u) => ({
+      username: u.username,
+      displayName: (u.nickname || "").trim() ? String(u.nickname).trim() : "新人",
+      comboCurrent: Number(u.comboCurrent) || 0,
+      comboBest: Number(u.comboBest) || 0,
+      avatarUrl: avatarUrlForUsername(u.username, req),
+    }))
+    .filter((r) => r.comboBest > 0 || r.comboCurrent > 0);
+
+  rows.sort((a, b) => {
+    if (b.comboBest !== a.comboBest) return b.comboBest - a.comboBest;
+    if (b.comboCurrent !== a.comboCurrent) return b.comboCurrent - a.comboCurrent;
+    return String(a.username || "").localeCompare(String(b.username || ""));
+  });
+
+  const top = rows.slice(0, COMBO_RANKING_MAX).map((r, i) => ({ rank: i + 1, ...r }));
+  const username = (req.query.username || "").trim();
+  let myRank = 0;
+  let myEntry = null;
+  if (username) {
+    const idx = rows.findIndex((r) => r.username === username);
+    if (idx >= 0) {
+      myRank = idx + 1;
+      myEntry = { rank: myRank, ...rows[idx] };
+    }
+  }
+  res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+});
+
 // ========== 管理员：获取所有学员 ==========
 app.get("/api/admin/users", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -965,6 +1058,11 @@ app.post("/api/admin/users", async (req, res) => {
     recentLevelRuns: [],
     recentTrainingRuns: [],
     recentPrimeCompositeRuns: [],
+    streakCurrent: 0,
+    streakBest: 0,
+    streakLastDate: "",
+    comboCurrent: 0,
+    comboBest: 0,
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
     wrongAnswers: [],
@@ -1190,6 +1288,33 @@ app.post("/api/admin/maintenance/backfill-streak", (req, res) => {
       u.streakCurrent = nextCurrent;
       u.streakBest = nextBest;
       u.streakLastDate = nextLast;
+    }
+  });
+  writeJson(USERS_FILE, { users });
+  return res.json({ ok: true, totalUsers: users.length, updatedUsers: changed });
+});
+
+// ========== 管理员：一次性回填连击字段（comboCurrent/comboBest） ==========
+app.post("/api/admin/maintenance/backfill-combo", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  let changed = 0;
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    const runs = (runsData.runs && Array.isArray(runsData.runs[u.username])) ? runsData.runs[u.username] : [];
+    const stats = getComboStatsFromRuns(runs);
+    const nextCurrent = Number(stats.comboCurrent) || 0;
+    const nextBest = Number(stats.comboBest) || 0;
+    const oldCurrent = Number(u.comboCurrent) || 0;
+    const oldBest = Number(u.comboBest) || 0;
+    if (oldCurrent !== nextCurrent || oldBest !== nextBest) {
+      changed += 1;
+      u.comboCurrent = nextCurrent;
+      u.comboBest = nextBest;
     }
   });
   writeJson(USERS_FILE, { users });

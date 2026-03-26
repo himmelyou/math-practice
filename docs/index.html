@@ -569,6 +569,59 @@
     .ranking-table-v2.ranking-mode-score td.r-col-score {
       text-align: center;
     }
+    /* 耐力榜：两列天数宽度一致，整体更均衡 */
+    .ranking-table-v2.ranking-mode-streak .r-col-user {
+      width: auto;
+      text-align: left;
+    }
+    .ranking-table-v2.ranking-mode-streak .r-col-user .user-cell {
+      justify-content: flex-start;
+      width: 100%;
+    }
+    .ranking-table-v2.ranking-mode-streak .r-col-score,
+    .ranking-table-v2.ranking-mode-streak td.r-col-score {
+      width: 82px;
+      text-align: center;
+    }
+    .ranking-table-v2.ranking-mode-combo .r-col-user {
+      width: auto;
+      text-align: left;
+    }
+    .ranking-table-v2.ranking-mode-combo .r-col-user .user-cell {
+      justify-content: flex-start;
+      width: 100%;
+    }
+    .ranking-table-v2.ranking-mode-combo .r-col-score,
+    .ranking-table-v2.ranking-mode-combo td.r-col-score {
+      width: 82px;
+      text-align: center;
+    }
+    @media (max-width: 520px) {
+      .ranking-table-v2.ranking-mode-streak th,
+      .ranking-table-v2.ranking-mode-streak td {
+        padding: 8px 5px;
+      }
+      .ranking-table-v2.ranking-mode-streak .r-col-rank {
+        width: 40px;
+        max-width: 40px;
+      }
+      .ranking-table-v2.ranking-mode-streak .r-col-score,
+      .ranking-table-v2.ranking-mode-streak td.r-col-score {
+        width: 74px;
+      }
+      .ranking-table-v2.ranking-mode-combo th,
+      .ranking-table-v2.ranking-mode-combo td {
+        padding: 8px 5px;
+      }
+      .ranking-table-v2.ranking-mode-combo .r-col-rank {
+        width: 40px;
+        max-width: 40px;
+      }
+      .ranking-table-v2.ranking-mode-combo .r-col-score,
+      .ranking-table-v2.ranking-mode-combo td.r-col-score {
+        width: 74px;
+      }
+    }
     /* 生存榜：收窄用户列并居中，通关用时左对齐，拉近两列间距 */
     .ranking-table-v2.ranking-mode-survival .r-col-user {
       width: 38%;
@@ -2689,15 +2742,40 @@
       if (globalBackBtn) globalBackBtn.style.display = "";
       if (changePwdBtn) changePwdBtn.style.display = "none";
       if (logoutBtn) logoutBtn.style.display = "";
+      updateGlobalBackButtonState();
+    }
+
+    function isPrimeCompositePlayingNow() {
+      const playing = document.getElementById("prime-panel-playing");
+      return !!(playing && playing.style.display !== "none");
+    }
+
+    function updateGlobalBackButtonState() {
+      const globalBackBtn = document.getElementById("global-back-home-btn");
+      if (!globalBackBtn) return;
+      const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow();
+      globalBackBtn.textContent = inProgress ? "放弃本局" : "返回首页";
     }
 
     function globalBackToHome() {
+      if (isPrimeCompositePlayingNow()) {
+        primeCompositeAbandon();
+        updateGlobalBackButtonState();
+        return;
+      }
+      if (isPlaying && !gameOver) {
+        abandonCurrentRun();
+        updateGlobalBackButtonState();
+        return;
+      }
       const gs = document.getElementById("game-section");
       if (gs && gs.classList.contains("visible")) {
         exitGameToHome();
+        updateGlobalBackButtonState();
         return;
       }
       showHome();
+      updateGlobalBackButtonState();
     }
 
     // ===== 工具函数 =====
@@ -3037,6 +3115,8 @@
       if (!Array.isArray(user.recentLevelRuns)) user.recentLevelRuns = [];
       if (!Array.isArray(user.recentTrainingRuns)) user.recentTrainingRuns = [];
       if (!Array.isArray(user.recentPrimeCompositeRuns)) user.recentPrimeCompositeRuns = [];
+      if (typeof user.comboCurrent !== "number") user.comboCurrent = 0;
+      if (typeof user.comboBest !== "number") user.comboBest = 0;
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
@@ -3063,12 +3143,13 @@
       return m + "'" + String(s).padStart(2, "0") + "''";
     }
 
-    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared) {
+    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared, comboOnly) {
       wrongCount = wrongCount ?? 0;
       mode = mode === "level" ? "level" : (mode === "training" ? "training" : (mode === "primeComposite" ? "primeComposite" : "survival"));
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
       if (mode === "survival" && survivalCleared === true) runEntry.survivalCleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
+      if (comboOnly === true) runEntry.comboOnly = true;
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
@@ -3379,13 +3460,14 @@
         dom.submitBtn.disabled = false;
       }
       const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "";
+      if (abandonRow) abandonRow.style.display = "none";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
       updateSurvivalStatusUI();
+      updateGlobalBackButtonState();
       survivalTimerId = setInterval(survivalTick, 1000);
       showNextSurvivalQuestion();
     }
@@ -3422,13 +3504,14 @@
         dom.submitBtn.disabled = false;
       }
       const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "";
+      if (abandonRow) abandonRow.style.display = "none";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
       updateSurvivalStatusUI();
+      updateGlobalBackButtonState();
       survivalTimerId = setInterval(survivalTick, 1000);
       showNextSurvivalQuestion();
     }
@@ -3495,13 +3578,14 @@
         dom.submitBtn.disabled = false;
       }
       const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "";
+      if (abandonRow) abandonRow.style.display = "none";
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
       updateTrainingStatusUI();
+      updateGlobalBackButtonState();
       survivalTimerId = setInterval(trainingTick, 1000);
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
@@ -3523,6 +3607,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      updateGlobalBackButtonState();
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
@@ -3551,6 +3636,7 @@
         if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
+        appendRun(survivalTimeSec, 0, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice(), false, true);
         renderRecentRuns();
         return;
       }
@@ -3898,6 +3984,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      updateGlobalBackButtonState();
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
 
@@ -3930,6 +4017,7 @@
         if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
+        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, true);
         renderRecentRuns();
         return;
       }
@@ -4025,6 +4113,7 @@
         if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
+        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "level", currentRunAttempts.slice(), false, true);
         renderRecentRuns();
         updateTrainingButtonLabel();
         return;
@@ -4224,6 +4313,7 @@
     let primeCompositeCorrectCount = 0;
     let primeCompositeWrongCount = 0;
     let primeCompositeWrongItems = [];
+    let primeCompositeAttempts = [];
     let primeCompositeChoicesLocked = false;
 
     function primeCompositeCleanup() {
@@ -4272,12 +4362,14 @@
       if (idle) idle.style.display = "block";
       if (playing) playing.style.display = "none";
       if (finished) finished.style.display = "none";
+      updateGlobalBackButtonState();
     }
 
     function primeCompositeAbandon() {
       const playing = document.getElementById("prime-panel-playing");
       if (!playing || playing.style.display === "none") return;
       if (!confirm("确定放弃本局？本局不计分。")) return;
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - primeCompositeStartTs) / 1000));
       primeCompositeCleanup();
       if (primeCompositeTimerId) {
         clearInterval(primeCompositeTimerId);
@@ -4293,6 +4385,9 @@
       if (idle) idle.style.display = "block";
       if (playing) playing.style.display = "none";
       if (finished) finished.style.display = "none";
+      appendRun(elapsedSec, 0, -1, primeCompositeWrongCount, "primeComposite", primeCompositeAttempts.slice(), false, true);
+      renderPrimeRecentRuns();
+      updateHomeTotalScore();
     }
 
     function primeCompositeRenderQuestion() {
@@ -4328,6 +4423,7 @@
       const q = primeCompositeQuestions[primeCompositeIndex];
       if (!q) return;
       const correct = q.kind === kind;
+      primeCompositeAttempts.push({ levelIndex: -1, correct, timeSpentMs: 0 });
       if (correct) {
         primeCompositeCorrectCount += 1;
         primeCompositeSessionScore += JML.SCORE_PER_CORRECT;
@@ -4382,6 +4478,7 @@
       primeCompositeCorrectCount = 0;
       primeCompositeWrongCount = 0;
       primeCompositeWrongItems = [];
+      primeCompositeAttempts = [];
       primeCompositeCleanup();
       const idle = document.getElementById("prime-panel-idle");
       const playing = document.getElementById("prime-panel-playing");
@@ -4390,7 +4487,7 @@
       if (finished) finished.style.display = "none";
       if (playing) playing.style.display = "block";
       const abandonRow = document.getElementById("prime-abandon-row");
-      if (abandonRow) abandonRow.style.display = "";
+      if (abandonRow) abandonRow.style.display = "none";
       const scoreEl = document.getElementById("prime-session-score");
       if (scoreEl) scoreEl.textContent = "0";
       const liveWrongEl = document.getElementById("prime-live-wrong");
@@ -4401,6 +4498,7 @@
         const sec = Math.floor((Date.now() - primeCompositeStartTs) / 1000);
         if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(sec);
       }, 500);
+      updateGlobalBackButtonState();
       primeCompositeRenderQuestion();
     }
 
@@ -4419,6 +4517,7 @@
       if (idle) idle.style.display = "none";
       if (playing) playing.style.display = "none";
       if (finished) finished.style.display = "block";
+      updateGlobalBackButtonState();
       const syncOk = document.getElementById("prime-finished-sync-ok");
       const syncFail = document.getElementById("prime-finished-sync-fail");
       const syncLocal = document.getElementById("prime-finished-sync-local");
@@ -4447,7 +4546,7 @@
       const sessionScore = primeCompositeSessionScore;
       const baseUrl = getApiBase();
       if (name && baseUrl) {
-        const synced = await appendRun(elapsedSec, sessionScore, -1, primeCompositeWrongCount, "primeComposite", []);
+        const synced = await appendRun(elapsedSec, sessionScore, -1, primeCompositeWrongCount, "primeComposite", primeCompositeAttempts.slice());
         if (sessionScore > 0) {
           if (synced === true && syncOk) syncOk.style.display = "block";
           else if (synced === false && syncFail) syncFail.style.display = "block";
@@ -4511,7 +4610,7 @@
       if (tab === "streak") {
         return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最长连续</th><th class=\"r-col r-col-score\">当前连续</th></tr>";
       }
-      return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最高连击</th></tr>";
+      return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最高连对</th><th class=\"r-col r-col-score\">当前连对</th></tr>";
     }
 
     function buildRankingPlaceholderRowsHtml() {
@@ -4546,6 +4645,23 @@
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const bestStr = escapeHtml(String(entry.streakBest != null ? entry.streakBest : 0));
       const currentStr = escapeHtml(String(entry.streakCurrent != null ? entry.streakCurrent : 0));
+      let avatarInner;
+      if (entry.avatarUrl) {
+        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
+        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
+      } else {
+        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
+      }
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + bestStr + "</td><td class=\"r-col r-col-score\">" + currentStr + "</td></tr>";
+    }
+
+    function buildRankingComboRowHtml(entry, isMe) {
+      const name = entry.displayName || "新人";
+      const letter = getAvatarPlaceholderLetter(name);
+      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
+      const bestStr = escapeHtml(String(entry.comboBest != null ? entry.comboBest : 0));
+      const currentStr = escapeHtml(String(entry.comboCurrent != null ? entry.comboCurrent : 0));
       let avatarInner;
       if (entry.avatarUrl) {
         const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
@@ -4768,12 +4884,58 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "耐力榜 · 先按最长连续，再按当前连续排序（展示前 50 名）";
+        if (hint) hint.textContent = "耐力榜 · 展示最长连续挑战天数与当前连续挑战天数（前 50 名）";
       } catch (e) {
         console.warn("加载耐力榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
         if (hint) hint.textContent = "耐力榜 · 加载失败，请稍后重试";
+      }
+    }
+
+    async function loadComboRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (hint) hint.textContent = "连击榜 · 加载中…";
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "连击榜 · 需要连接服务器";
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/combo-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || "加载失败");
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingComboRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingComboRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) hint.textContent = "连击榜 · 展示最高连对与当前连对（前 50 名）";
+      } catch (e) {
+        console.warn("加载连击榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "连击榜 · 加载失败，请稍后重试";
       }
     }
 
@@ -4807,8 +4969,8 @@
           next === "score" ? "总积分榜 · 加载中…"
           : next === "survival" ? "生存榜 · 加载中…"
           : next === "primePerfect" ? "质数神探榜 · 加载中…"
-          : next === "streak" ? "耐力榜 · 敬请期待"
-          : "连击榜 · 敬请期待";
+          : next === "streak" ? "耐力榜 · 加载中…"
+          : "连击榜 · 加载中…";
       }
 
       if (next === "score") {
@@ -4840,12 +5002,7 @@
       }
 
       if (next === "combo") {
-        if (tbody) tbody.innerHTML = "";
-        if (thead) thead.innerHTML = "";
-        if (empty) empty.style.display = "none";
-        if (tableEl) tableEl.style.display = "none";
-        if (comingSoonEl) comingSoonEl.style.display = "block";
-        if (hint) hint.textContent = "连击榜 · 敬请期待";
+        void loadComboRankingIntoTable();
         return;
       }
 
