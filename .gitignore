@@ -1,5 +1,7 @@
 .DS_Store
 server/.DS_Store
+server/data/**
+!server/data/.gitkeep
 
 # Local-only admin/report pages
 admin.html

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Number Sense Lab 计算游戏</title>
+  <title>Number Sense Lab</title>
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
@@ -72,11 +72,13 @@
     }
 
     .login-title {
-      margin: 0 0 6px;
+      margin: 0 0 50px;
       font-size: 1.4rem;
       font-weight: 700;
       color: #0d47a1;
-      text-align: left;
+      text-align: center;
+      width: 100%;
+      display: block;
     }
 
     .login-subtitle {
@@ -176,6 +178,9 @@
       font-weight: 700;
       letter-spacing: 0.04em;
       color: #0d47a1;
+      text-align: center;
+      width: 100%;
+      display: block;
     }
 
     .subtitle {
@@ -438,7 +443,12 @@
       max-width: 52vw;
     }
     .ranking-subtitle { margin: 6px 0 0; font-size: 0.86rem; color: var(--muted); }
-    .ranking-main-row { display: flex; gap: 10px; }
+    .ranking-main-row {
+      display: flex;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+    }
     .ranking-tabs {
       width: 112px;
       flex: 0 0 auto;
@@ -465,11 +475,22 @@
     .ranking-panel {
       flex: 1;
       min-width: 0;
+      min-height: 0;
       background: #fff;
       border-radius: 14px;
       box-shadow: var(--shadow-soft);
       padding: 12px;
       border: 1px solid rgba(25, 118, 210, 0.08);
+      display: flex;
+      flex-direction: column;
+    }
+    .ranking-table-scroll {
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
 
     /* 手机端：用下拉替代左侧 Tab，把宽度还给表格 */
@@ -513,6 +534,9 @@
     /* 表头强制居中（覆盖各列 .r-col-* 的左右对齐设置，仅影响 th 不影响 td） */
     .ranking-table-v2 thead th {
       text-align: center !important;
+      position: sticky;
+      top: 0;
+      z-index: 2;
     }
     /* 列对齐与宽度（三榜共用 class） */
     .ranking-table-v2 .r-col-rank {
@@ -873,6 +897,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
+      min-width: 0;
     }
 
     .question-label {
@@ -882,6 +907,20 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      min-width: 0;
+      flex: 1 1 auto;
+      white-space: nowrap;
+    }
+    .question-label .status-label {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    .question-label .status-value {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .badge {
@@ -909,6 +948,8 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      flex: 0 0 auto;
+      white-space: nowrap;
     }
 
     .timer-chip.low {
@@ -954,7 +995,7 @@
     .input-row {
       display: flex;
       gap: 10px;
-      margin-top: 12px;
+      margin-top: 0;
       width: min(47%, 192px);
       margin-left: auto;
       margin-right: auto;
@@ -968,7 +1009,9 @@
       width: 100%;
       box-sizing: border-box;
       padding: 10px 12px;
-      font-size: 16px; /* 避免 iOS 聚焦输入框时自动放大页面 */
+      font-size: 1.25rem;
+      font-weight: 600;
+      line-height: 1.2;
       border-radius: 999px;
       border: 1px solid rgba(13, 71, 161, 0.16);
       outline: none;
@@ -1015,11 +1058,6 @@
       flex: none !important;
     }
 
-    #start-row #submit-btn {
-      width: 100% !important;
-      flex: none !important;
-    }
-
     #start-row {
       width: min(47%, 192px);
       margin-left: auto;
@@ -1060,11 +1098,6 @@
       box-shadow: 0 6px 14px rgba(25, 118, 210, 0.4);
     }
 
-    #submit-btn {
-      padding: 20px 14px;
-      min-height: 2.8em;
-    }
-
     .btn-primary:disabled {
       opacity: 0.55;
       box-shadow: none;
@@ -1087,7 +1120,7 @@
 
     .feedback {
       min-height: 40px;
-      margin-top: 6px;
+      margin-top: 4px;
       font-size: 0.9rem;
       line-height: 1.5;
       border-radius: 12px;
@@ -1117,6 +1150,12 @@
       color: var(--muted);
       border-top: 1px dashed rgba(96, 125, 139, 0.35);
       padding-top: 6px;
+    }
+    .batch-summary:empty {
+      display: none;
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
     }
 
     .batch-summary strong {
@@ -1166,6 +1205,108 @@
       font-weight: 600;
       color: var(--muted);
       font-size: 0.78rem;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #fff;
+    }
+
+    /* 软键盘（方案B）：独立卡片，开局后替换最近记录区域 */
+    .soft-kbd-card {
+      margin-top: 10px;
+      padding: 4px 10px 6px;
+      background: #ffffff;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-soft);
+      font-size: 0.82rem;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+    .soft-kbd {
+      width: 100%;
+      padding-bottom: 6px;
+      box-sizing: border-box;
+    }
+    .soft-kbd-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .soft-kbd-key {
+      border-radius: 14px;
+      padding: 0;
+      height: 45px;
+      min-height: 45px;
+      font-size: 0.98rem;
+      font-weight: 800;
+      background: #f7fbff;
+      color: #0d47a1;
+      border: 1px solid rgba(25, 118, 210, 0.18);
+      box-shadow: 0 6px 14px rgba(13, 71, 161, 0.06);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .soft-kbd-key:active {
+      transform: scale(0.98);
+    }
+    .soft-kbd-key.soft-kbd-key-back {
+      font-size: 0.88rem;
+      font-weight: 800;
+      background: #fff4f4;
+      color: #c62828;
+      border-color: rgba(198, 40, 40, 0.18);
+    }
+    .soft-kbd-enter-row {
+      margin-top: 6px;
+    }
+    .soft-kbd-enter {
+      width: 100%;
+      border-radius: 14px;
+      padding: 0;
+      height: 45px;
+      min-height: 45px;
+      font-size: 0.94rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: #fff;
+      box-shadow: 0 10px 18px rgba(25, 118, 210, 0.32);
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .feedback.soft-kbd-feedback {
+      min-height: 24px !important;
+      margin-top: 0 !important;
+      margin-bottom: 10px !important;
+      padding: 4px 8px !important;
+      font-size: 0.82rem !important;
+      line-height: 1.3 !important;
+      border-radius: 10px !important;
+      background: #f7fbff !important;
+      border: 1px solid rgba(25, 118, 210, 0.12) !important;
+      box-shadow: none !important;
+      color: #607d8b !important;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: center !important;
+    }
+    .feedback.soft-kbd-feedback.correct {
+      background: #e8f5e9 !important;
+      color: #2e7d32 !important;
+    }
+    .feedback.soft-kbd-feedback.incorrect {
+      background: #ffebee !important;
+      color: #c62828 !important;
+    }
+    #soft-kbd-card .feedback {
+      text-align: center !important;
     }
 
     .recent-table td:first-child {
@@ -1225,6 +1366,35 @@
       margin: 6px 0;
       font-size: 0.9rem;
       color: var(--text-main);
+    }
+    .game-over-stats-grid {
+      display: block;
+    }
+    /* 训练结算：四项两列，按钮上移 */
+    .game-over-panel.training-summary {
+      padding: 12px 12px 10px;
+    }
+    .game-over-panel.training-summary .game-over-title {
+      margin-bottom: 8px;
+      font-size: 1.1rem;
+    }
+    .game-over-panel.training-summary .game-over-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      text-align: left;
+    }
+    .game-over-panel.training-summary .game-over-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-width: 0;
+      margin: 0;
+      font-size: 0.86rem;
+    }
+    .game-over-panel.training-summary .game-over-buttons {
+      margin-top: 8px;
+      width: min(56%, 220px);
     }
 
     .game-over-best {
@@ -1351,22 +1521,51 @@
       box-shadow: none !important;
     }
 
-    .stats-section { display: none; margin-top: 12px; }
-    .stats-section.visible { display: block; }
+    .stats-section {
+      display: none;
+      margin-top: 12px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .stats-section.visible {
+      display: flex;
+      flex-direction: column;
+    }
     .stats-back-row { margin-bottom: 12px; }
     .stats-tab-row { display: flex; gap: 0; margin-bottom: 12px; border-bottom: 1px solid #e0e0e0; }
     .stats-tab-btn { padding: 10px 16px; border: none; background: transparent; cursor: pointer; font-size: 0.9rem; color: #607d8b; border-bottom: 2px solid transparent; margin-bottom: -1px; }
     .stats-tab-btn.active { color: #1976d2; font-weight: 600; border-bottom-color: #1976d2; }
     .stats-panel { display: none; }
     .stats-panel.active { display: block; }
-    .stats-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; margin-bottom: 12px; }
+    .stats-table-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .stats-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; margin-bottom: 0; }
     .stats-table th, .stats-table td { border-bottom: 1px solid #e8ecf4; padding: 8px 6px; text-align: center; }
     .stats-table th { background: #f0f4ff; font-weight: 600; }
+    .stats-table thead th { position: sticky; top: 0; z-index: 2; }
     .stats-table td:first-child { text-align: left; }
     .stats-table tr.ranking-row-me td { background: rgba(25, 118, 210, 0.12); font-weight: 600; }
     .stats-level-chart-wrap { margin-bottom: 16px; }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-    .stats-level-chart-row select { padding: 6px 10px; border-radius: 6px; border: 1px solid #c5d3ea; min-width: 110px; }
+    .stats-level-chart-row label { white-space: nowrap; }
+    .stats-level-chart-row select {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #c5d3ea;
+      min-width: 110px;
+      font-size: 0.8rem;
+      line-height: 1.2;
+    }
+    .stats-level-chart-row select option {
+      font-size: 0.8rem;
+      line-height: 1.2;
+    }
     .stats-wrong-item { padding: 10px 0; border-bottom: 1px solid #eee; font-size: 0.9rem; }
     .stats-wrong-item .q { font-weight: 600; margin-bottom: 4px; }
     .stats-empty-msg { text-align: center; padding: 24px 16px; color: #607d8b; font-size: 0.9rem; }
@@ -1407,18 +1606,19 @@
     }
 
     .game-section.visible {
-      display: block;
+      display: flex;
+      flex-direction: column;
       flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
+      min-height: 0;
+      overflow: hidden;
     }
 
     .ranking-section {
       flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     /* 头像选择页：避免超出一屏时整页滚动 */
@@ -1452,6 +1652,64 @@
       width: 100%;
     }
 
+    /* 游戏区固定壳：题目卡固定高度，避免开局前后高度变化导致抖动 */
+    #game-card {
+      flex: 0 0 auto;
+      height: clamp(190px, 30vh, 240px);
+      overflow: hidden;
+    }
+    .game-section .recent-card {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .game-section .recent-card .recent-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .game-section .soft-kbd-card {
+      flex: 1;
+      min-height: 0;
+    }
+    /* 未开局压缩：在固定高度下保证开始按钮可见（生存/闯关/训练） */
+    .game-section.training-prestart #game-card {
+      gap: 8px;
+    }
+    .game-section.training-prestart .question-text.rule-hint {
+      font-size: 0.82rem;
+      line-height: 1.35;
+      padding: 4px 6px 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .game-section.training-prestart #start-row {
+      margin-top: 2px;
+    }
+    .game-section.wrong-practice-active .question-header {
+      display: none;
+    }
+    .game-section.wrong-practice-active #question-subtext {
+      display: none;
+    }
+    .game-section.wrong-practice-active #question-text {
+      margin-top: 14px;
+      padding-top: 14px;
+    }
+    .game-section.wrong-practice-active #answer-input-row {
+      margin-top: 10px;
+    }
+    @media (max-width: 520px) {
+      #game-card { height: clamp(140px, 28vh, 180px); }
+    }
+
     @media (min-width: 768px) {
       .app {
         padding: 20px 24px;
@@ -1470,31 +1728,65 @@
     .prime-composite-page #prime-status-grid {
       margin-top: 8px;
     }
+    /* 质数合数页同样固定壳，避免开局/结束切换导致高度跳动 */
+    #prime-composite-section {
+      overflow: hidden;
+    }
+    #prime-composite-section .prime-panel-idle,
+    #prime-composite-section .prime-panel-playing,
+    #prime-composite-section .prime-panel-finished {
+      flex: 1;
+      min-height: 0;
+    }
+    /* 与主游戏区同档位高度，保证各模式视觉统一 */
+    .prime-composite-page #prime-game-card.card {
+      height: clamp(190px, 30vh, 240px);
+      overflow: hidden;
+    }
+    .prime-composite-page .prime-idle-card.card {
+      height: clamp(190px, 30vh, 240px);
+      overflow: hidden;
+    }
+    #prime-panel-finished #prime-finished-panel-inner.game-over-panel {
+      height: clamp(190px, 30vh, 240px);
+      overflow: hidden;
+    }
+    @media (max-width: 520px) {
+      .prime-composite-page #prime-game-card.card { height: clamp(140px, 28vh, 180px); }
+      .prime-composite-page .prime-idle-card.card { height: clamp(140px, 28vh, 180px); }
+      #prime-panel-finished #prime-finished-panel-inner.game-over-panel { height: clamp(140px, 28vh, 180px); }
+    }
+    .prime-wrong-list {
+      max-height: none;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
     .prime-composite-page .prime-idle-card.card,
     .prime-composite-page #prime-game-card.card,
     .prime-composite-page #prime-panel-finished {
       margin-top: 8px;
     }
     .question-text.prime-question-num {
-      margin-top: 4px;
-      font-size: clamp(2rem, 11vw, 3.4rem);
+      margin-top: 0;
+      font-size: clamp(1.6rem, 9vw, 2.6rem);
       font-weight: 800;
       letter-spacing: 0.02em;
       color: #0d47a1;
       line-height: 1.12;
-      padding: 12px 8px 4px;
+      padding: 6px 6px 0;
     }
     .prime-composite-page .button-row.prime-choice-row {
       width: min(94%, 384px);
       max-width: 100%;
-      margin-top: 8px;
-      gap: 10px;
+      margin-top: 0;
+      gap: 8px;
     }
     .prime-composite-page .button-row.prime-choice-row .btn-primary {
       flex: 1 1 50%;
       min-width: 0;
-      padding: 12px 16px;
-      min-height: 3em;
+      padding: 10px 12px;
+      min-height: 2.6em;
     }
     .prime-choice-btn.prime-choice-wrong {
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
@@ -1522,10 +1814,15 @@
     }
     .prime-intro-text {
       text-align: left;
-      line-height: 1.65;
-      margin: 0 0 4px;
-      font-size: 0.88rem;
+      line-height: 1.4;
+      margin: 0 0 2px;
+      font-size: 0.82rem;
       color: var(--muted);
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .prime-composite-page #prime-abandon-row.button-row {
       width: min(47%, 192px);
@@ -1535,7 +1832,7 @@
       width: 100%;
       flex: none !important;
     }
-    .prime-wrong-list { max-height: 220px; overflow-y: auto; margin-top: 8px; text-align: left; }
+    .prime-wrong-list { max-height: 90px; overflow-y: auto; margin-top: 6px; text-align: left; }
     .prime-wrong-row {
       padding: 8px 0;
       border-bottom: 1px solid #eee;
@@ -1547,8 +1844,7 @@
 <body>
   <div id="login-view" class="login-view">
     <div class="login-card">
-      <h1 class="login-title">Number Sense Lab 计算游戏</h1>
-      <p class="login-subtitle">登录或注册学员账号，开始练习。</p>
+      <h1 class="login-title">Number Sense Lab</h1>
       <div class="login-panel active" id="login-panel">
         <div class="login-field">
           <input id="login-username" type="text" autocomplete="username" placeholder="用户名" />
@@ -1557,8 +1853,8 @@
           <input id="login-password" type="password" autocomplete="current-password" placeholder="密码" />
         </div>
         <button id="login-btn" class="login-btn">登录</button>
-        <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
         <button id="go-register-btn" class="login-btn" type="button">注册</button>
+        <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
       </div>
       <div class="login-panel" id="register-panel">
         <div class="login-field">
@@ -1658,7 +1954,7 @@
     </section>
 
     <div class="game-section" id="game-section">
-      <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！</p>
+      <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。</p>
 
       <div class="status-grid" id="status-grid">
         <div class="status-item status-item-full" id="status-row-mode">
@@ -1699,10 +1995,9 @@
 
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
         <div class="input-row" id="answer-input-row" style="display:none">
-          <input id="answer-input" type="text" inputmode="numeric" autocomplete="off" placeholder="在这里输入你的答案" enterkeyhint="go" />
+          <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly />
         </div>
         <div class="button-row" id="start-row">
-          <button type="submit" class="btn-primary" id="submit-btn">提交答案</button>
           <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
         </div>
         <div class="button-row" id="abandon-row" style="display:none;">
@@ -1710,15 +2005,16 @@
         </div>
       </form>
 
-      <div class="feedback" id="feedback"></div>
       <div class="batch-summary" id="batch-summary"></div>
 
       <div id="game-over-panel" class="game-over-panel" style="display:none;">
         <h2 class="game-over-title" id="game-over-title">Game Over</h2>
-        <p class="game-over-line"><span id="game-over-duration-label">本局存活：</span><strong id="game-over-duration">-</strong></p>
-        <p class="game-over-line">本局得分：<strong id="game-over-score">0</strong></p>
-        <p class="game-over-line">本局错题：<strong id="game-over-wrong">0</strong></p>
-        <p class="game-over-line"><span id="game-over-max-level-label">到达最高难度：</span><strong id="game-over-max-level">-</strong></p>
+        <div class="game-over-stats-grid" id="game-over-stats-grid">
+          <p class="game-over-line"><span id="game-over-duration-label">本局存活：</span><strong id="game-over-duration">-</strong></p>
+          <p class="game-over-line"><span id="game-over-score-label">本局得分：</span><strong id="game-over-score">0</strong></p>
+          <p class="game-over-line"><span id="game-over-wrong-label">本局错题：</span><strong id="game-over-wrong">0</strong></p>
+          <p class="game-over-line"><span id="game-over-max-level-label">到达最高难度：</span><strong id="game-over-max-level">-</strong></p>
+        </div>
         <div class="game-over-buttons">
           <button class="btn-primary" id="play-again-btn">再玩一局</button>
         </div>
@@ -1730,20 +2026,44 @@
         <span class="recent-title" id="recent-title">最近十次生存挑战</span>
       </div>
       <div class="recent-body">
-        <table class="recent-table">
-          <thead>
-            <tr>
-              <th>日期时间</th>
-              <th>用时</th>
-              <th>得分</th>
-              <th>错题</th>
-              <th id="recent-col-level">最高难度</th>
-              <th>通关</th>
-            </tr>
-          </thead>
-          <tbody id="recent-history-body"></tbody>
-        </table>
-        <div id="recent-history-empty" class="recent-empty">当前还没有练习记录。</div>
+        <div id="recent-history-wrap">
+          <table class="recent-table">
+            <thead>
+              <tr>
+                <th>日期时间</th>
+                <th>用时</th>
+                <th>得分</th>
+                <th>错题</th>
+                <th id="recent-col-level">最高难度</th>
+                <th>通关</th>
+              </tr>
+            </thead>
+            <tbody id="recent-history-body"></tbody>
+          </table>
+          <div id="recent-history-empty" class="recent-empty">当前还没有练习记录。</div>
+        </div>
+      </div>
+    </section>
+    <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;">
+      <div class="feedback" id="feedback"></div>
+      <div class="soft-kbd" id="soft-kbd" aria-label="数字键盘">
+        <div class="soft-kbd-grid">
+          <button type="button" class="soft-kbd-key" data-key="1">1</button>
+          <button type="button" class="soft-kbd-key" data-key="2">2</button>
+          <button type="button" class="soft-kbd-key" data-key="3">3</button>
+          <button type="button" class="soft-kbd-key" data-key="4">4</button>
+          <button type="button" class="soft-kbd-key" data-key="5">5</button>
+          <button type="button" class="soft-kbd-key" data-key="6">6</button>
+          <button type="button" class="soft-kbd-key" data-key="7">7</button>
+          <button type="button" class="soft-kbd-key" data-key="8">8</button>
+          <button type="button" class="soft-kbd-key" data-key="9">9</button>
+          <button type="button" class="soft-kbd-key" data-key=".">.</button>
+          <button type="button" class="soft-kbd-key" data-key="0">0</button>
+          <button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back">删除</button>
+        </div>
+        <div class="soft-kbd-enter-row">
+          <button type="button" class="soft-kbd-enter" data-key="enter">确认</button>
+        </div>
       </div>
     </section>
     </div>
@@ -1776,7 +2096,6 @@
             </select>
           </div>
         </div>
-        <p class="ranking-subtitle">总积分榜、生存榜与质数神探榜已接入服务端；其余榜单将陆续开放。</p>
       </div>
       <div class="ranking-main-row">
         <div class="ranking-tabs" role="tablist" aria-label="排行榜 Tab">
@@ -1795,10 +2114,12 @@
             <p class="gate-text">你尚未在生存模式中通关。请先完成一局生存挑战并通关后，再来查看本榜。</p>
           </div>
 
-          <table class="ranking-table-v2" id="ranking-table-v2">
-            <thead id="ranking-thead-v2"></thead>
-            <tbody id="ranking-tbody-v2"></tbody>
-          </table>
+          <div class="ranking-table-scroll" id="ranking-table-scroll">
+            <table class="ranking-table-v2" id="ranking-table-v2">
+              <thead id="ranking-thead-v2"></thead>
+              <tbody id="ranking-tbody-v2"></tbody>
+            </table>
+          </div>
           <div class="panel-empty" id="ranking-empty-v2">暂无排行数据。</div>
           <div id="ranking-coming-soon" class="panel-empty" style="display:none;text-align:center;padding:28px 14px;color:var(--muted);font-size:0.95rem;">敬请期待</div>
         </div>
@@ -1806,7 +2127,7 @@
     </section>
 
     <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分；状态栏与主游戏同结构 -->
-    <section class="ranking-section prime-composite-page" id="prime-composite-section" style="display:none;margin-top:12px;">
+    <section class="ranking-section prime-composite-page" id="prime-composite-section" style="display:none;margin-top:12px;flex-direction:column;">
       <div class="status-grid" id="prime-status-grid">
         <div class="status-item status-item-full">
           <span class="status-label">当前模式：</span>
@@ -1822,7 +2143,7 @@
         </div>
         <div class="status-item">
           <span class="status-label">答对数量：</span>
-          <span class="status-value" id="prime-correct-count">0/50</span>
+          <span class="status-value" id="prime-correct-count">0 / 50</span>
         </div>
         <div class="status-item">
           <span class="status-label">错题数量：</span>
@@ -1843,14 +2164,14 @@
         <main class="card" id="prime-game-card">
           <div class="question-header">
             <div class="question-label">
-              <span class="status-label">当前数</span>
+              <span class="status-label" id="prime-header-hint">请判断是质数还是合数</span>
             </div>
             <div class="timer-chip" id="prime-timer-chip">
               用时 <span id="prime-elapsed">0:00</span>
             </div>
           </div>
           <div class="question-text prime-question-num" id="prime-current-n">—</div>
-          <p class="question-subtext" id="prime-hint-sub">请判断是质数还是合数</p>
+          <p class="question-subtext" id="prime-hint-sub" style="display:none;"></p>
           <div class="button-row prime-choice-row">
             <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-prime">质数</button>
             <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-composite">合数</button>
@@ -1917,8 +2238,10 @@
         <div class="stats-level-chart-row"><label>选择难度：</label><select id="stats-level-select"></select></div>
         <div style="position:relative;height:260px;"><canvas id="stats-level-canvas"></canvas></div>
       </div>
-      <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th>难度</th><th>答题数</th><th>错误率</th><th>平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
-      <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
+      <div class="stats-table-wrap" id="stats-level-table-wrap">
+        <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th>难度</th><th>答题数</th><th>错误率</th><th>平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
+        <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
+      </div>
     </section>
 
     <footer class="app-footer" style="display:none;"></footer>
@@ -2027,6 +2350,17 @@
         }
       }
 
+      function getAdminPinForSettingsSync() {
+        try {
+          if (window.__JML_ADMIN_PIN__) return String(window.__JML_ADMIN_PIN__).trim();
+        } catch (e) {}
+        try {
+          return (sessionStorage.getItem("jml_admin_pin_v2") || "").trim();
+        } catch (e) {
+          return "";
+        }
+      }
+
       function saveAdminSettings() {
         const form = document.getElementById("admin-form");
         const newLevels = [];
@@ -2040,10 +2374,11 @@
         cachedGameSettings = newSettings;
         localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(newSettings));
         const base = getApiBase();
-        if (base && adminAuthed) {
+        const adminPin = getAdminPinForSettingsSync();
+        if (base && adminAuthed && adminPin) {
           fetch(base + "/api/admin/settings", {
             method: "PUT",
-            headers: { "Content-Type": "application/json", "X-Admin-Pin": ADMIN_PIN },
+            headers: { "Content-Type": "application/json", "X-Admin-Pin": adminPin },
             body: JSON.stringify(newSettings),
             credentials: "include"
           }).catch(function(e) { console.warn("同步设置到服务器失败", e); });
@@ -2074,7 +2409,6 @@
     ];
 
     // ===== 后台访问口令与登录状态（仅前端保护，防止普通学生误进）=====
-    const ADMIN_PIN = "2026"; // TODO：改成你自己的后台访问口令
     const ADMIN_AUTH_KEY = "adaptive_math_admin_authed_v1";
     let adminAuthed = false;
 
@@ -2706,10 +3040,63 @@
       dom.currentUsernameLabel = document.getElementById("current-username-label");
       dom.recentHistoryBody = document.getElementById("recent-history-body");
       dom.recentHistoryEmpty = document.getElementById("recent-history-empty");
+      dom.recentHistoryWrap = document.getElementById("recent-history-wrap");
+      dom.recentCard = document.querySelector("#game-section .recent-card");
+      dom.softKbdCard = document.getElementById("soft-kbd-card");
+      dom.softKbd = document.getElementById("soft-kbd");
       dom.wrongbookSection = document.getElementById("wrongbook-section");
       dom.wrongbookList = document.getElementById("wrongbook-list");
       dom.wrongbookEmpty = document.getElementById("wrongbook-empty");
       dom.wrongbookPracticeBtn = document.getElementById("wrongbook-practice-btn");
+    }
+
+    function setSoftKeyboardVisible(visible) {
+      if (dom.softKbdCard) dom.softKbdCard.style.display = visible ? "flex" : "none";
+      if (dom.recentCard) dom.recentCard.style.display = visible ? "none" : "flex";
+      if (dom.feedback) dom.feedback.classList.toggle("soft-kbd-feedback", !!visible);
+    }
+
+    function softKeyboardBackspace(s) {
+      if (!s) return "";
+      return s.slice(0, -1);
+    }
+
+    function softKeyboardAppend(current, ch) {
+      current = String(current || "");
+      if (ch === ".") {
+        if (current.includes(".")) return current;
+        if (current === "" || current === "-") return (current === "-" ? "-0." : "0.");
+      }
+      return current + ch;
+    }
+
+    function initSoftKeyboardIfNeeded() {
+      if (!dom.softKbd || dom.softKbd.__bound) return;
+      dom.softKbd.__bound = true;
+
+      // 阻止把点击落到 input 导致系统键盘/滚动
+      if (dom.answerInput) {
+        dom.answerInput.addEventListener("focus", function () { try { dom.answerInput.blur(); } catch (e) {} });
+        dom.answerInput.addEventListener("click", function (e) { e.preventDefault(); try { dom.answerInput.blur(); } catch (err) {} });
+      }
+
+      dom.softKbd.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest("button[data-key]") : null;
+        if (!btn) return;
+        var k = btn.getAttribute("data-key");
+        if (!dom.answerInput) return;
+        if (k === "back") {
+          dom.answerInput.value = softKeyboardBackspace(dom.answerInput.value);
+          return;
+        }
+        if (k === "enter") {
+          handleSubmit();
+          return;
+        }
+        if (/^[0-9]$/.test(k) || k === ".") {
+          dom.answerInput.value = softKeyboardAppend(dom.answerInput.value, k);
+        }
+      });
     }
 
     function getModeTitle() {
@@ -3403,10 +3790,34 @@
       if (dom.batchSummary) dom.batchSummary.innerHTML = text || "";
     }
 
+    function updateWrongPracticeStatusUI() {
+      const label2 = document.getElementById("status-label-2");
+      const label3 = document.getElementById("status-label-3");
+      const label4 = document.getElementById("status-label-4");
+      const label5 = document.getElementById("status-label-5");
+      if (label2) label2.textContent = "正确数量：";
+      if (label3) label3.textContent = "本局得分：";
+      if (label4) label4.textContent = "本局难度：";
+      if (label5) label5.textContent = "错题数量：";
+      updateStatusModeLabel();
+
+      const total = wrongPracticeQueue.length || 0;
+      const correctCount = wrongPracticeResults.filter((r) => r && r.correct).length;
+      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = correctCount + " / " + total;
+      if (dom.runScore) dom.runScore.textContent = "--";
+      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "--";
+      if (dom.bestScore) dom.bestScore.textContent = String(runWrongCount || 0);
+      if (dom.timerChip) dom.timerChip.style.display = "none";
+    }
+
     function setGameOverLayout(active) {
       const card = document.getElementById("game-card");
       if (!card) return;
       card.classList.toggle("game-over-active", !!active);
+    }
+    function setTrainingSummaryLayout(active) {
+      if (!dom.gameOverPanel) return;
+      dom.gameOverPanel.classList.toggle("training-summary", !!active);
     }
 
     const QUESTION_REFRESH_MS = 25;  // 题目切换时先隐藏再出现的间隔，极短但肉眼可见
@@ -3426,10 +3837,7 @@
           dom.questionSubtext.classList.remove("question-refresh-hidden");
         }
         // 不在此清除反馈，让上一题的答对/答错提示保留到下一题提交时
-        dom.answerInput.focus();
-        setTimeout(function () {
-          dom.answerInput.focus();
-        }, 50);
+        // 使用自定义键盘输入，避免弹系统键盘
       }, QUESTION_REFRESH_MS);
     }
 
@@ -3451,6 +3859,7 @@
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
+      if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
       maxLevelThisRun = 0;
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
@@ -3468,6 +3877,8 @@
       setFeedback("", null);
       updateSurvivalStatusUI();
       updateGlobalBackButtonState();
+      initSoftKeyboardIfNeeded();
+      setSoftKeyboardVisible(true);
       survivalTimerId = setInterval(survivalTick, 1000);
       showNextSurvivalQuestion();
     }
@@ -3495,6 +3906,7 @@
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
+      if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
       maxLevelThisRun = currentLevelIndex;
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
@@ -3512,6 +3924,8 @@
       setFeedback("", null);
       updateSurvivalStatusUI();
       updateGlobalBackButtonState();
+      initSoftKeyboardIfNeeded();
+      setSoftKeyboardVisible(true);
       survivalTimerId = setInterval(survivalTick, 1000);
       showNextSurvivalQuestion();
     }
@@ -3570,6 +3984,7 @@
       gameStartTime = Date.now();
       gameOver = false;
       isPlaying = true;
+      if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
@@ -3586,6 +4001,8 @@
       setFeedback("", null);
       updateTrainingStatusUI();
       updateGlobalBackButtonState();
+      initSoftKeyboardIfNeeded();
+      setSoftKeyboardVisible(true);
       survivalTimerId = setInterval(trainingTick, 1000);
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
@@ -3607,7 +4024,9 @@
       }
       isPlaying = false;
       gameOver = true;
+      setTrainingSummaryLayout(true);
       updateGlobalBackButtonState();
+      setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
@@ -3623,10 +4042,14 @@
           const scoreEl = document.getElementById("game-over-score");
           const wrongEl = document.getElementById("game-over-wrong");
           const maxLevelEl = document.getElementById("game-over-max-level");
-          if (durationLabelEl) durationLabelEl.textContent = "本局存活：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
+          const scoreLabelEl = document.getElementById("game-over-score-label");
+          const wrongLabelEl = document.getElementById("game-over-wrong-label");
+          if (durationLabelEl) durationLabelEl.textContent = "用时：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
+          if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
+          if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = "0（放弃不计分）";
+          if (scoreEl) scoreEl.textContent = "0";
           if (wrongEl) wrongEl.textContent = "—";
           if (maxLevelEl) maxLevelEl.textContent = "—";
         }
@@ -3657,10 +4080,14 @@
         const durationEl = document.getElementById("game-over-duration");
         const scoreEl = document.getElementById("game-over-score");
         const maxLevelEl = document.getElementById("game-over-max-level");
+        const scoreLabelEl = document.getElementById("game-over-score-label");
+        const wrongLabelEl = document.getElementById("game-over-wrong-label");
         const bestTimeEl = document.getElementById("game-over-best-time");
         const bestScoreEl = document.getElementById("game-over-best-score");
-        if (durationLabelEl) durationLabelEl.textContent = "本局存活：";
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
+        if (durationLabelEl) durationLabelEl.textContent = "用时：";
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
+        if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
+        if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
@@ -3694,7 +4121,6 @@
       }
       if (gameMode === "training") {
         if (!isPlaying || gameOver || !currentQuestion) return;
-        if (dom.answerInput) dom.answerInput.focus();
         const value = dom.answerInput.value.trim();
         if (value === "") {
           setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
@@ -3711,12 +4137,10 @@
         return;
       }
       if (!isPlaying || gameOver || !currentQuestion) return;
-      // 提交后尽快把焦点拉回输入框，避免手机软键盘收起
-      if (dom.answerInput) dom.answerInput.focus();
+      // 使用自定义键盘输入，不再依赖系统软键盘焦点
       const value = dom.answerInput.value.trim();
       if (value === "") {
         setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
-        dom.answerInput.focus();
         return;
       }
       const userAnswer = Number(value);
@@ -3732,7 +4156,6 @@
 
     function handleWrongPracticeSubmit() {
       if (wrongPracticeIndex >= wrongPracticeQueue.length) return;
-      if (dom.answerInput) dom.answerInput.focus();
       const value = dom.answerInput.value.trim();
       if (value === "") {
         setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
@@ -3755,20 +4178,28 @@
       wrongPracticeIndex = 0;
       wrongPracticeResults = [];
       gameMode = "wrong";
+      runWrongCount = 0;
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
-      if (dom.gameSection) dom.gameSection.classList.add("visible");
+      if (dom.gameSection) {
+        dom.gameSection.classList.add("visible");
+        dom.gameSection.classList.add("wrong-practice-active");
+      }
       if (dom.timerChip) dom.timerChip.style.display = "none";
       const statusGrid = document.getElementById("status-grid");
-      if (statusGrid) statusGrid.style.display = "none";
+      if (statusGrid) statusGrid.style.display = "";
       const subtitle = document.getElementById("game-subtitle");
-      if (subtitle) subtitle.style.display = "none";
-      if (dom.questionSubtext) dom.questionSubtext.textContent = "错题练习 " + (wrongPracticeIndex + 1) + " / " + wrongPracticeQueue.length;
+      if (subtitle) subtitle.style.display = "";
+      updateStatusModeLabel();
+      if (dom.questionSubtext) dom.questionSubtext.textContent = "";
       currentQuestion = { text: wrongPracticeQueue[0].text, answer: wrongPracticeQueue[0].answer };
       renderQuestion(currentQuestion);
       dom.answerInput.value = "";
       dom.answerInput.disabled = false;
       setFeedback("", null);
+      updateWrongPracticeStatusUI();
+      initSoftKeyboardIfNeeded();
+      setSoftKeyboardVisible(true);
       if (dom.submitBtn) dom.submitBtn.style.display = "";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
@@ -3784,9 +4215,11 @@
       if (correct) {
         setFeedback("<span class='feedback-title'>答对！</span>", "correct");
       } else {
+        runWrongCount += 1;
         setFeedback("<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + q.answer + "</strong>", "incorrect");
       }
       wrongPracticeIndex++;
+      updateWrongPracticeStatusUI();
       if (wrongPracticeIndex >= wrongPracticeQueue.length) {
         setTimeout(showWrongPracticeResult, 800);
         return;
@@ -3794,7 +4227,7 @@
       setTimeout(() => {
         currentQuestion = { text: wrongPracticeQueue[wrongPracticeIndex].text, answer: wrongPracticeQueue[wrongPracticeIndex].answer };
         renderQuestion(currentQuestion);
-        if (dom.questionSubtext) dom.questionSubtext.textContent = "错题练习 " + (wrongPracticeIndex + 1) + " / " + wrongPracticeQueue.length;
+        if (dom.questionSubtext) dom.questionSubtext.textContent = "";
         dom.answerInput.value = "";
         if (dom.submitBtn) dom.submitBtn.disabled = false;
         setFeedback("", null);
@@ -3827,6 +4260,7 @@
       box.querySelector("#wrong-result-ok").onclick = async function() {
         document.body.removeChild(overlay);
         gameMode = "survival";
+        setSoftKeyboardVisible(false);
 
         // 零错误：清空错题本，并解锁正常模式
         if (isPerfectAllCorrect && !isGuestMode) {
@@ -3984,7 +4418,9 @@
       }
       isPlaying = false;
       gameOver = true;
+      setTrainingSummaryLayout(true);
       updateGlobalBackButtonState();
+      setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
 
@@ -4004,10 +4440,14 @@
           const scoreEl = document.getElementById("game-over-score");
           const wrongEl = document.getElementById("game-over-wrong");
           const maxLevelEl = document.getElementById("game-over-max-level");
-          if (durationLabelEl) durationLabelEl.textContent = "本局用时：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "本局准确率：";
+          const scoreLabelEl = document.getElementById("game-over-score-label");
+          const wrongLabelEl = document.getElementById("game-over-wrong-label");
+          if (durationLabelEl) durationLabelEl.textContent = "用时：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "准确率：";
+          if (scoreLabelEl) scoreLabelEl.textContent = "得分：";
+          if (wrongLabelEl) wrongLabelEl.textContent = "错题：";
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = "0（放弃不计分）";
+          if (scoreEl) scoreEl.textContent = "0";
           if (wrongEl) wrongEl.textContent = "—";
           if (maxLevelEl) maxLevelEl.textContent = "—";
         }
@@ -4063,12 +4503,16 @@
         const scoreEl = document.getElementById("game-over-score");
         const wrongEl = document.getElementById("game-over-wrong");
         const maxLevelEl = document.getElementById("game-over-max-level");
-        if (durationLabelEl) durationLabelEl.textContent = "本局用时：";
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "本局准确率：";
-        if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec) + "（用时）";
-        if (scoreEl) scoreEl.textContent = runScore + " 分（正确 " + correctCount + " 题）";
+        const scoreLabelEl = document.getElementById("game-over-score-label");
+        const wrongLabelEl = document.getElementById("game-over-wrong-label");
+        if (durationLabelEl) durationLabelEl.textContent = "用时：";
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "准确率：";
+        if (scoreLabelEl) scoreLabelEl.textContent = "得分：";
+        if (wrongLabelEl) wrongLabelEl.textContent = "错题：";
+        if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
+        if (scoreEl) scoreEl.textContent = String(runScore);
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = "准确率 " + Math.round(accuracy * 100) + "%";
+        if (maxLevelEl) maxLevelEl.textContent = Math.round(accuracy * 100) + "%";
       }
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -4085,6 +4529,8 @@
       }
       isPlaying = false;
       gameOver = true;
+      setTrainingSummaryLayout(true);
+      setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
@@ -4100,10 +4546,14 @@
           const scoreEl = document.getElementById("game-over-score");
           const wrongEl = document.getElementById("game-over-wrong");
           const maxLevelEl = document.getElementById("game-over-max-level");
-          if (durationLabelEl) durationLabelEl.textContent = "本局用时：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
+          const scoreLabelEl = document.getElementById("game-over-score-label");
+          const wrongLabelEl = document.getElementById("game-over-wrong-label");
+          if (durationLabelEl) durationLabelEl.textContent = "用时：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
+          if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
+          if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = "0（放弃不计分）";
+          if (scoreEl) scoreEl.textContent = "0";
           if (wrongEl) wrongEl.textContent = "—";
           if (maxLevelEl) maxLevelEl.textContent = "—";
         }
@@ -4134,10 +4584,14 @@
         const durationEl = document.getElementById("game-over-duration");
         const scoreEl = document.getElementById("game-over-score");
         const maxLevelEl = document.getElementById("game-over-max-level");
+        const scoreLabelEl = document.getElementById("game-over-score-label");
+        const wrongLabelEl = document.getElementById("game-over-wrong-label");
         const bestTimeEl = document.getElementById("game-over-best-time");
         const bestScoreEl = document.getElementById("game-over-best-score");
-        if (durationLabelEl) durationLabelEl.textContent = "本局存活：";
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
+        if (durationLabelEl) durationLabelEl.textContent = "用时：";
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
+        if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
+        if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
@@ -4204,6 +4658,7 @@
       setGameOverLayout(false);
       if (gameMode === "wrong") {
         gameMode = "survival";
+        if (dom.gameSection) dom.gameSection.classList.remove("wrong-practice-active");
         if (dom.timerChip) dom.timerChip.style.display = "";
         const statusGrid = document.getElementById("status-grid");
         if (statusGrid) statusGrid.style.display = "";
@@ -4225,7 +4680,10 @@
       setGameOverLayout(false);
       setFeedback("", null);
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
-      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.gameSection) {
+        dom.gameSection.classList.remove("visible");
+        dom.gameSection.classList.remove("wrong-practice-active");
+      }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       const statsSection = document.getElementById("stats-section");
@@ -4261,7 +4719,7 @@
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) primeSection.style.display = "none";
       const rankingSection = document.getElementById("ranking-section");
-      if (rankingSection) rankingSection.style.display = "block";
+      if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
       setRankingActiveTab("score");
     }
@@ -4346,7 +4804,7 @@
       const prog = document.getElementById("prime-progress-text");
       if (prog) prog.textContent = "—";
       const correctEl = document.getElementById("prime-correct-count");
-      if (correctEl) correctEl.textContent = "0/" + total;
+      if (correctEl) correctEl.textContent = "0 / " + total;
       const liveWrongEl = document.getElementById("prime-live-wrong");
       if (liveWrongEl) liveWrongEl.textContent = "0";
     }
@@ -4401,9 +4859,9 @@
       const nEl = document.getElementById("prime-current-n");
       if (nEl) nEl.textContent = String(q.n);
       const prog = document.getElementById("prime-progress-text");
-      if (prog) prog.textContent = "第 " + (primeCompositeIndex + 1) + " / " + JML.TOTAL_QUESTIONS + " 题";
+      if (prog) prog.textContent = (primeCompositeIndex + 1) + " / " + JML.TOTAL_QUESTIONS;
       const correctStrip = document.getElementById("prime-correct-count");
-      if (correctStrip) correctStrip.textContent = primeCompositeCorrectCount + "/" + JML.TOTAL_QUESTIONS;
+      if (correctStrip) correctStrip.textContent = primeCompositeCorrectCount + " / " + JML.TOTAL_QUESTIONS;
       primeCompositeChoicesLocked = false;
       const btnP = document.getElementById("prime-btn-prime");
       const btnC = document.getElementById("prime-btn-composite");
@@ -5367,6 +5825,8 @@
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+      if (dom.startGameBtn) dom.startGameBtn.textContent = "开始挑战";
+      if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
       updateTopTitleForCurrentView(false);
@@ -5449,7 +5909,7 @@
       }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+      if (sub) sub.textContent = "生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。";
       showGameSection();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
@@ -5459,7 +5919,7 @@
       if (isGuestMode) {
         gameMode = "survival";
         const sub = document.getElementById("game-subtitle");
-        if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+        if (sub) sub.textContent = "生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。";
         showGameSection();
         return;
       }
@@ -5479,7 +5939,7 @@
       }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "生存挑战：从 L1 开始，答对加 2 秒并得分（每题固定 5 分），连续对 5 题升级、错 1 题降级，看你能撑多久！";
+      if (sub) sub.textContent = "生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。";
       showGameSection();
     }
 
@@ -5609,7 +6069,7 @@
       }
       gameMode = "training";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "训练模式：每局 " + TRAINING_QUESTIONS + " 题，正向计时。准确率≥通关且未超时则升级，≥及格则保持，<及格则降级。";
+      if (sub) sub.textContent = "训练模式：每局 " + TRAINING_QUESTIONS + " 题；达升级线且未超时升级，达及格线保持，否则降级。";
       showGameSection();
     }
 
@@ -5878,13 +6338,6 @@
           handleSubmit();
         });
       }
-      // 提交后立即把焦点拉回输入框，减少手机软键盘收起、画面缩放
-      dom.submitBtn.addEventListener("mousedown", function () {
-        if (dom.answerInput && isPlaying && !gameOver) dom.answerInput.focus();
-      });
-      dom.submitBtn.addEventListener("touchstart", function () {
-        if (dom.answerInput && isPlaying && !gameOver) dom.answerInput.focus();
-      }, { passive: true });
       if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", function () {
         if (gameMode === "training") startTrainingGame();
         else if (gameMode === "level") startLevelGame();

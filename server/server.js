@@ -10,7 +10,10 @@ const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
 
-const JWT_SECRET = process.env.JWT_SECRET || "jarvis-math-lab-dev-secret-change-in-production";
+const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
+if (!JWT_SECRET) {
+  throw new Error("Missing required env var JWT_SECRET");
+}
 const JWT_EXPIRES_IN = "7d";
 
 const BCRYPT_ROUNDS = 10;
@@ -36,7 +39,6 @@ const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.js
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
 const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
-const DEFAULT_ADMIN_PIN = "2026";
 const SURVIVAL_RANKING_MAX = 50;
 const SCORE_RANKING_MAX = 50;
 const STREAK_RANKING_MAX = 50;
@@ -199,12 +201,12 @@ function bumpUserStreakByDate(user, dateKey) {
 }
 
 function getAdminPin() {
-  if (process.env.ADMIN_PIN) return process.env.ADMIN_PIN;
+  if (process.env.ADMIN_PIN && String(process.env.ADMIN_PIN).trim()) return String(process.env.ADMIN_PIN).trim();
   try {
     const data = readJson(ADMIN_PIN_FILE, {});
     if (data && typeof data.pin === "string" && data.pin.length > 0) return data.pin;
   } catch (e) {}
-  return DEFAULT_ADMIN_PIN;
+  return "";
 }
 
 // 确保 data 目录存在
@@ -384,7 +386,9 @@ function writeJson(filePath, data) {
 // 校验管理员口令（从 header 或 body 获取）
 function checkAdminPin(req) {
   const pin = req.headers["x-admin-pin"] || req.body?.adminPin;
-  return pin === getAdminPin();
+  const configuredPin = getAdminPin();
+  if (!configuredPin) return false;
+  return pin === configuredPin;
 }
 
 // ========== 学员接口鉴权：支持 Cookie 或 Authorization Bearer，只允许访问自己的数据 ==========
@@ -1156,13 +1160,17 @@ app.put("/api/admin/pin", (req, res) => {
   res.json({ ok: true });
 });
 
-// ========== 管理员：重置口令为默认 ==========
+// ========== 管理员：重置口令为环境变量 ADMIN_PIN ==========
 app.post("/api/admin/pin/reset", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
+  const envPin = String(process.env.ADMIN_PIN || "").trim();
+  if (!envPin) {
+    return res.status(400).json({ ok: false, error: "未配置 ADMIN_PIN 环境变量，无法重置" });
+  }
   try {
-    writeJson(ADMIN_PIN_FILE, { pin: DEFAULT_ADMIN_PIN });
+    writeJson(ADMIN_PIN_FILE, { pin: envPin });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "写入失败" });
   }
