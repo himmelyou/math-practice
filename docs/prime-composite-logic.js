@@ -1,6 +1,9 @@
 /**
- * 质数合数专项：2～99，每局 25 个质数 + 25 个随机合数，共 50 题。
- * 与小程序 JarvisMathLab/utils/prime-composite-logic.js 对齐。
+ * 质数合数专项：2～99，每局 50 题（按“易混淆优先”抽题）。
+ * 规则：
+ * 1) 必含所有 1/3/7/9 尾数数字（去掉 1）=> 39 个
+ * 2) 补上 2、5 两个尾数特例质数 => 41 个
+ * 3) 再从剩余“偶数 + 5 结尾”数字中随机抽 9 个 => 合计 50 题
  */
 (function (global) {
   const PRIMES_2_TO_99 = [
@@ -20,27 +23,48 @@
     return out;
   }
 
-  function getCompositePool() {
+  function getEvenOrFiveEndingPool(excludeSet) {
     const pool = [];
     for (let n = 2; n <= 99; n += 1) {
-      if (!PRIME_SET.has(n)) pool.push(n);
+      const isEven = n % 2 === 0;
+      const endsWithFive = n % 10 === 5;
+      if ((isEven || endsWithFive) && !excludeSet.has(n)) {
+        pool.push(n);
+      }
     }
     return pool;
   }
 
   function buildRoundQuestions() {
-    const pool = getCompositePool();
-    if (pool.length < 25) {
-      throw new Error("composite pool too small");
+    const mustInclude = [];
+    // 1/3/7/9 尾数（排除 1）
+    for (let n = 3; n <= 99; n += 1) {
+      const last = n % 10;
+      if (last === 1 || last === 3 || last === 7 || last === 9) {
+        mustInclude.push(n);
+      }
     }
-    const pickedComposites = shuffle(pool).slice(0, 25);
+
+    // 补上两个漏网质数
+    mustInclude.push(2, 5);
+
+    const mustSet = new Set(mustInclude);
+    const candidatePool = getEvenOrFiveEndingPool(mustSet);
+    if (candidatePool.length < 9) {
+      throw new Error("candidate pool too small");
+    }
+    const pickedExtra = shuffle(candidatePool).slice(0, 9);
+
     const qs = [];
-    PRIMES_2_TO_99.forEach((n) => {
-      qs.push({ n, kind: "prime" });
+
+    mustInclude.forEach((n) => {
+      qs.push({ n, kind: PRIME_SET.has(n) ? "prime" : "composite" });
     });
-    pickedComposites.forEach((n) => {
-      qs.push({ n, kind: "composite" });
+    pickedExtra.forEach((n) => {
+      qs.push({ n, kind: PRIME_SET.has(n) ? "prime" : "composite" });
     });
+
+    if (qs.length !== 50) throw new Error("round question count mismatch");
     return shuffle(qs);
   }
 

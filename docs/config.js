@@ -4,6 +4,26 @@
  * - 线上部署（如 GitHub Pages）：使用 Render 后端
  */
 (function () {
+  var params = new URLSearchParams(location.search || "");
+  // 体验版 bat：在地址后加 ?jml_api=render 可连正式 Render，不写则仍按 host 自动判断
+  if (params.get("jml_api") === "render") {
+    try {
+      sessionStorage.setItem("jml_api", "render");
+    } catch (e) {}
+  }
+  if (params.get("jml_api") === "local") {
+    try {
+      sessionStorage.removeItem("jml_api");
+    } catch (e) {}
+  }
+  try {
+    if (sessionStorage.getItem("jml_api") === "render") {
+      window.API_BASE_URL = "https://math-practice-lo1u.onrender.com";
+      window.__JML_API_BASE__ = window.__JML_API_BASE__ || window.API_BASE_URL;
+      return;
+    }
+  } catch (e) {}
+
   var host = location.host || "";
   // 约定：
   // - 本地开发页面（如 127.0.0.1:xxxx）默认连本地后端 http://localhost:3001

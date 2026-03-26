@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Jarvis Math Lab 计算游戏</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Number Sense Lab 计算游戏</title>
   <script src="config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
@@ -25,14 +25,18 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    html, body {
+    html {
       height: 100%;
+      height: -webkit-fill-available;
     }
 
     body {
       margin: 0;
       min-height: 100vh;
+      min-height: 100dvh;
+      min-height: -webkit-fill-available;
       height: 100dvh;
+      max-height: 100dvh;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background: radial-gradient(circle at top left, #f5fbff, var(--bg));
       color: var(--text-main);
@@ -40,6 +44,11 @@
       justify-content: center;
       align-items: stretch;
       overflow: hidden;
+      /* 刘海/圆角屏安全区（需 viewport-fit=cover） */
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
     }
 
     .login-view {
@@ -48,7 +57,8 @@
       justify-content: center;
       align-items: center;
       padding: 16px;
-      height: 100%;
+      min-height: 0;
+      align-self: stretch;
       overflow: hidden;
     }
 
@@ -143,17 +153,21 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 16px;
+      /* 内边距与安全区叠加：避免标题进刘海、底部误留白 */
+      padding: 10px 16px 12px;
       max-width: 720px;
       margin: 0 auto;
+      width: 100%;
+      min-height: 0;
       height: 100%;
-      max-height: 100dvh;
+      align-self: stretch;
       overflow: hidden;
     }
 
     .app-header {
       text-align: center;
-      padding: 6px 4px 4px;
+      padding: 4px 4px 2px;
+      flex-shrink: 0;
     }
 
     .app-title {
@@ -283,6 +297,19 @@
     @media (max-width: 380px) {
       .mode-list { grid-template-columns: 1fr; }
     }
+
+    /* 小屏一屏优先：压缩间距与按钮高度（更像小程序“固定屏”） */
+    @media (max-width: 430px) and (max-height: 780px) {
+      .home-section { margin-top: 10px; gap: 10px; }
+      .home-groups { gap: 8px; }
+      .mode-group { padding: 4px 2px 0; }
+      .group-head { margin: 8px 0 8px; }
+      .group-title { font-size: 0.9rem; padding: 0 12px; }
+      .mode-list { gap: 10px; }
+      .mode-btn { padding: 10px 10px; font-size: 0.9rem; border-radius: 11px; }
+      .mode-btn-locked::after { top: 8px; right: 8px; }
+      .mode-btn-soon::after { top: 8px; right: 8px; }
+    }
     .mode-btn-soon {
       opacity: 0.92;
       position: relative;
@@ -398,6 +425,18 @@
     /* ===== 排行榜：左侧 Tab + 右侧内容（先占位） ===== */
     .ranking-header { margin: 8px 0 10px; }
     .ranking-title { margin: 0; font-size: 1.1rem; color: #263238; }
+    .ranking-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .ranking-mode-select { display: none; }
+    .ranking-mode-select select {
+      border: 1px solid rgba(25, 118, 210, 0.18);
+      border-radius: 12px;
+      padding: 9px 10px;
+      font-weight: 700;
+      font-size: 0.86rem;
+      color: #0d47a1;
+      background: linear-gradient(135deg, #e3f2fd, #f5f9ff);
+      max-width: 52vw;
+    }
     .ranking-subtitle { margin: 6px 0 0; font-size: 0.86rem; color: var(--muted); }
     .ranking-main-row { display: flex; gap: 10px; }
     .ranking-tabs {
@@ -432,6 +471,13 @@
       padding: 12px;
       border: 1px solid rgba(25, 118, 210, 0.08);
     }
+
+    /* 手机端：用下拉替代左侧 Tab，把宽度还给表格 */
+    @media (max-width: 520px) {
+      .ranking-main-row { flex-direction: column; }
+      .ranking-tabs { display: none; }
+      .ranking-mode-select { display: block; }
+    }
     .panel-hint { margin: 0 0 10px; font-size: 0.82rem; color: var(--muted); }
     .panel-empty { margin: 12px 0 0; font-size: 0.9rem; color: var(--muted); text-align: center; padding: 16px; }
     .gate-card {
@@ -462,6 +508,11 @@
       color: #546e7a;
       font-size: 0.8rem;
       letter-spacing: 0.02em;
+      text-align: center;
+    }
+    /* 表头强制居中（覆盖各列 .r-col-* 的左右对齐设置，仅影响 th 不影响 td） */
+    .ranking-table-v2 thead th {
+      text-align: center !important;
     }
     /* 列对齐与宽度（三榜共用 class） */
     .ranking-table-v2 .r-col-rank {
@@ -469,6 +520,12 @@
       max-width: 56px;
       text-align: center;
       font-variant-numeric: tabular-nums;
+    }
+    .ranking-table-v2 .r-col-spacer {
+      width: 30px;
+      min-width: 30px;
+      max-width: 30px;
+      padding: 0 !important;
     }
     .ranking-table-v2 .r-col-user {
       text-align: left;
@@ -496,14 +553,21 @@
       font-size: 0.8rem;
       font-variant-numeric: tabular-nums;
     }
-    /* 总积分榜：用户列内容居中 */
+    /* 总积分榜：用户列左对齐（头像与昵称更规整） */
     .ranking-table-v2.ranking-mode-score .r-col-user {
       width: auto;
-      text-align: center;
+      text-align: left;
     }
     .ranking-table-v2.ranking-mode-score .r-col-user .user-cell {
-      justify-content: center;
+      justify-content: flex-start;
       width: 100%;
+    }
+    .ranking-table-v2.ranking-mode-score td.r-col-user {
+      padding-left: 14px;
+    }
+    .ranking-table-v2.ranking-mode-score .r-col-score,
+    .ranking-table-v2.ranking-mode-score td.r-col-score {
+      text-align: center;
     }
     /* 生存榜：收窄用户列并居中，通关用时左对齐，拉近两列间距 */
     .ranking-table-v2.ranking-mode-survival .r-col-user {
@@ -519,6 +583,47 @@
       width: 88px;
       text-align: left;
     }
+
+    /* 手机端生存榜：列更紧凑，优先让“用户”可见 */
+    @media (max-width: 520px) {
+      .ranking-table-v2.ranking-mode-survival th,
+      .ranking-table-v2.ranking-mode-survival td {
+        padding: 8px 5px;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .r-col-rank {
+        width: 40px;
+        max-width: 40px;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .r-col-time {
+        width: 60px;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .r-col-wrong {
+        width: 40px;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .r-col-date {
+        width: 86px;
+        font-size: 0.76rem;
+        white-space: nowrap;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .r-col-user {
+        width: auto;
+        max-width: none;
+        text-align: left;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .r-col-user .user-cell {
+        justify-content: flex-start;
+      }
+
+      .ranking-table-v2.ranking-mode-survival .user-meta .name {
+        max-width: 100%;
+      }
+    }
     /* 质数神探榜：用户列与总榜/生存榜一致（标题与内容居中）；完成用时左对齐 */
     .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
       width: 38%;
@@ -532,7 +637,60 @@
     .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
       text-align: left;
     }
+    /* 用时数据居中：避免表头与数据错位（不改变表头居中覆盖规则） */
+    .ranking-table-v2 td.r-col-time {
+      text-align: center;
+    }
+    .ranking-table-v2.ranking-mode-survival td.r-col-time,
+    .ranking-table-v2.ranking-mode-primePerfect td.r-col-time {
+      text-align: center;
+    }
     .ranking-table-v2.ranking-mode-primePerfect .r-col-date { width: 140px; }
+
+    /* 手机端质数神探榜：列更紧凑，优先让“用户”可见 */
+    @media (max-width: 520px) {
+      .ranking-table-v2.ranking-mode-primePerfect th,
+      .ranking-table-v2.ranking-mode-primePerfect td {
+        padding: 8px 4px;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .r-col-rank {
+        width: 40px;
+        max-width: 40px;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
+        width: 86px;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .r-col-date {
+        width: 96px;
+        font-size: 0.76rem;
+        white-space: nowrap;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
+        width: auto;
+        max-width: 130px;
+        text-align: left;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
+        justify-content: flex-start;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .user-meta .name {
+        max-width: 100%;
+      }
+
+      .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
+        gap: 6px;
+      }
+      .ranking-table-v2.ranking-mode-primePerfect .avatar.sm {
+        width: 24px;
+        height: 24px;
+      }
+    }
     .ranking-table-v2 .r-col-user .user-meta .name {
       max-width: 100%;
     }
@@ -1021,12 +1179,7 @@
       font-size: 0.85rem;
     }
 
-    .app-footer {
-      margin-top: 10px;
-      font-size: 0.76rem;
-      text-align: center;
-      color: var(--muted);
-    }
+    .app-footer { display: none; }
 
     .home-section {
       margin-top: 16px;
@@ -1341,7 +1494,7 @@
 <body>
   <div id="login-view" class="login-view">
     <div class="login-card">
-      <h1 class="login-title">Jarvis Math Lab 计算游戏</h1>
+      <h1 class="login-title">Number Sense Lab 计算游戏</h1>
       <p class="login-subtitle">登录或注册学员账号，开始练习。</p>
       <div class="login-panel active" id="login-panel">
         <div class="login-field">
@@ -1375,7 +1528,7 @@
 
   <div class="app" id="app-view" style="display:none;">
     <header class="app-header">
-      <h1 class="app-title">Jarvis Math Lab</h1>
+      <h1 class="app-title">Number Sense Lab</h1>
       <div class="user-bar">
         <span class="profile-row">
           <button class="avatar-wrap" id="home-avatar-btn" type="button" title="头像（占位）">
@@ -1558,7 +1711,18 @@
 
     <section class="ranking-section" id="ranking-section" style="display:none;margin-top:12px;">
       <div class="ranking-header">
-        <h2 class="ranking-title">排行榜</h2>
+        <div class="ranking-title-row">
+          <h2 class="ranking-title">排行榜</h2>
+          <div class="ranking-mode-select">
+            <select id="ranking-mode-select" aria-label="选择榜单">
+              <option value="score">总积分榜</option>
+              <option value="survival">生存榜</option>
+              <option value="primePerfect">质数神探</option>
+              <option value="streak">耐力榜</option>
+              <option value="combo">连击榜</option>
+            </select>
+          </div>
+        </div>
         <p class="ranking-subtitle">总积分榜、生存榜与质数神探榜已接入服务端；其余榜单将陆续开放。</p>
       </div>
       <div class="ranking-main-row">
@@ -1704,11 +1868,7 @@
       <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
     </section>
 
-    <footer class="app-footer">
-      本页面为单文件 H5，自适应手机与电脑访问。登录后数据同步至服务器，换设备可继续练习。<br>
-      <!-- 每次修改代码后请同步更新此处及登录页的版本号 -->
-      <strong>版本 v1.6.0</strong>
-    </footer>
+    <footer class="app-footer" style="display:none;"></footer>
   </div>
 
   <div id="change-password-modal-overlay" class="change-password-modal-overlay">
@@ -2508,7 +2668,7 @@
 
     function updateTopTitleForCurrentView(isHome) {
       if (!dom.appTitle) return;
-      dom.appTitle.textContent = "Jarvis Math Lab";
+      dom.appTitle.textContent = "Number Sense Lab";
     }
 
     function updateStatusModeLabel() {
@@ -3051,10 +3211,10 @@
         return;
       }
       if (gameMode === "level") {
-        endLevelGame(false);
+        endLevelGame(false, true);
         return;
       }
-      endSurvivalGame(false);
+      endSurvivalGame(false, true);
     }
 
     async function renderRecentRuns() {
@@ -3356,7 +3516,7 @@
       if (dom.submitBtn) dom.submitBtn.disabled = false;
     }
 
-    function endSurvivalGame(completed) {
+    function endSurvivalGame(completed, abandoned) {
       if (survivalTimerId) {
         clearInterval(survivalTimerId);
         survivalTimerId = null;
@@ -3366,6 +3526,34 @@
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
+      if (abandoned) {
+        if (dom.gameOverPanel) {
+          setGameOverLayout(true);
+          dom.gameOverPanel.style.display = "block";
+          const titleEl = document.getElementById("game-over-title");
+          if (titleEl) titleEl.textContent = "已放弃本局";
+          const durationLabelEl = document.getElementById("game-over-duration-label");
+          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
+          const durationEl = document.getElementById("game-over-duration");
+          const scoreEl = document.getElementById("game-over-score");
+          const wrongEl = document.getElementById("game-over-wrong");
+          const maxLevelEl = document.getElementById("game-over-max-level");
+          if (durationLabelEl) durationLabelEl.textContent = "本局存活：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
+          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
+          if (scoreEl) scoreEl.textContent = "0（放弃不计分）";
+          if (wrongEl) wrongEl.textContent = "—";
+          if (maxLevelEl) maxLevelEl.textContent = "—";
+        }
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        const inputRow = document.getElementById("answer-input-row");
+        if (inputRow) inputRow.style.display = "none";
+        const abandonRow = document.getElementById("abandon-row");
+        if (abandonRow) abandonRow.style.display = "none";
+        renderRecentRuns();
+        return;
+      }
       appendRun(survivalTimeSec, runScore, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice(), !!completed);
       renderRecentRuns();
       if (completed && !isGuestMode && cachedUser) {
@@ -3802,7 +3990,7 @@
       if (abandonRow) abandonRow.style.display = "none";
     }
 
-    function endLevelGame(completed) {
+    function endLevelGame(completed, abandoned) {
       if (survivalTimerId) {
         clearInterval(survivalTimerId);
         survivalTimerId = null;
@@ -3812,6 +4000,35 @@
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
+      if (abandoned) {
+        if (dom.gameOverPanel) {
+          setGameOverLayout(true);
+          dom.gameOverPanel.style.display = "block";
+          const titleEl = document.getElementById("game-over-title");
+          if (titleEl) titleEl.textContent = "已放弃本局";
+          const durationLabelEl = document.getElementById("game-over-duration-label");
+          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
+          const durationEl = document.getElementById("game-over-duration");
+          const scoreEl = document.getElementById("game-over-score");
+          const wrongEl = document.getElementById("game-over-wrong");
+          const maxLevelEl = document.getElementById("game-over-max-level");
+          if (durationLabelEl) durationLabelEl.textContent = "本局用时：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "到达最高难度：";
+          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
+          if (scoreEl) scoreEl.textContent = "0（放弃不计分）";
+          if (wrongEl) wrongEl.textContent = "—";
+          if (maxLevelEl) maxLevelEl.textContent = "—";
+        }
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        const inputRow = document.getElementById("answer-input-row");
+        if (inputRow) inputRow.style.display = "none";
+        const abandonRow = document.getElementById("abandon-row");
+        if (abandonRow) abandonRow.style.display = "none";
+        renderRecentRuns();
+        updateTrainingButtonLabel();
+        return;
+      }
       const endLevel = completed ? 15 : currentLevelIndex;
       saveLevelChallengeLastLevel(endLevel);
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
@@ -4264,6 +4481,13 @@
     function initRankingUiSkeletonIfNeeded() {
       if (rankingUiInited) return;
       rankingUiInited = true;
+      const sel = document.getElementById("ranking-mode-select");
+      if (sel) {
+        sel.addEventListener("change", () => {
+          const tab = sel.value || "score";
+          setRankingActiveTab(tab);
+        });
+      }
       const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
       tabs.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -4276,13 +4500,13 @@
 
     function buildRankingTheadHtml(tab) {
       if (tab === "score") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">总积分</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">总积分</th></tr>";
       }
       if (tab === "survival") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">通关用时</th><th class=\"r-col r-col-wrong\">错题</th><th class=\"r-col r-col-date\">日期</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-wrong\">错题</th><th class=\"r-col r-col-date\">日期</th></tr>";
       }
       if (tab === "primePerfect") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">完成用时</th><th class=\"r-col r-col-date\">达成日期</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-date\">日期</th></tr>";
       }
       if (tab === "streak") {
         return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">用户</th><th class=\"r-col r-col-score\">最长连续挑战天数</th></tr>";
@@ -4295,7 +4519,7 @@
       const avatarLetter = getAvatarPlaceholderLetter(displayName);
       const row = (rank, name, tag) => {
         const tagHtml = tag ? ("<span class='tag'>" + escapeHtml(tag) + "</span>") : "";
-        return "<tr><td class=\"r-col r-col-rank\">" + rank + "</td><td class=\"r-col r-col-user\"><span class=\"user-cell\"><span class=\"avatar sm avatar-placeholder\">" + escapeHtml(avatarLetter) + "</span><span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + tagHtml + "</span></span></td><td class=\"r-col r-col-score\">-</td></tr>";
+        return "<tr><td class=\"r-col r-col-rank\">" + rank + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\"><span class=\"user-cell\"><span class=\"avatar sm avatar-placeholder\">" + escapeHtml(avatarLetter) + "</span><span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + tagHtml + "</span></span></td><td class=\"r-col r-col-score\">-</td></tr>";
       };
       return row(1, "示例用户A", "") + row(2, "示例用户B", "") + row("-", displayName || "新人", "我的记录（占位）");
     }
@@ -4313,7 +4537,23 @@
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
       const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
-      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + scoreStr + "</td></tr>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + scoreStr + "</td></tr>";
+    }
+
+    function buildRankingStreakRowHtml(entry, isMe) {
+      const name = entry.displayName || "新人";
+      const letter = getAvatarPlaceholderLetter(name);
+      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
+      const streakStr = escapeHtml(String(entry.streakBest != null ? entry.streakBest : 0));
+      let avatarInner;
+      if (entry.avatarUrl) {
+        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
+        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
+      } else {
+        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
+      }
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + streakStr + "</td></tr>";
     }
 
     async function loadScoreRankingIntoTable() {
@@ -4347,7 +4587,7 @@
         const myRank = data.myRank != null ? Number(data.myRank) : 0;
         const myEntry = data.myEntry;
         if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
-          rows.push("<tr class=\"ranking-gap\"><td colspan=\"3\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
           rows.push(buildRankingScoreRowHtml(myEntry, true));
         }
         tbody.innerHTML = rows.join("");
@@ -4368,7 +4608,7 @@
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
       const wrongStr = escapeHtml(String(entry.wrongCount != null ? entry.wrongCount : 0));
-      const dateStr = escapeHtml(formatDateTime(entry.ts));
+      const dateStr = escapeHtml(formatDateOnly(entry.ts));
       let avatarInner;
       if (entry.avatarUrl) {
         const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
@@ -4432,7 +4672,7 @@
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
-      const dateStr = escapeHtml(formatDateTime(entry.ts));
+      const dateStr = escapeHtml(formatDateOnly(entry.ts));
       let avatarInner;
       if (entry.avatarUrl) {
         const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
@@ -4490,10 +4730,58 @@
       }
     }
 
+    async function loadStreakRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (hint) hint.textContent = "耐力榜 · 加载中…";
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "耐力榜 · 需要连接服务器";
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/streak-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || "加载失败");
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingStreakRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"3\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingStreakRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) hint.textContent = "耐力榜 · 按最长连续挑战天数排序（展示前 50 名）";
+      } catch (e) {
+        console.warn("加载耐力榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = "耐力榜 · 加载失败，请稍后重试";
+      }
+    }
+
     function setRankingActiveTab(tab) {
       const next = (tab === "score" || tab === "survival" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
       const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
       tabs.forEach((b) => b.classList.toggle("active", b.getAttribute("data-tab") === next));
+      const sel = document.getElementById("ranking-mode-select");
+      if (sel && sel.value !== next) sel.value = next;
 
       const hint = document.getElementById("ranking-panel-hint");
       const thead = document.getElementById("ranking-thead-v2");
@@ -4545,13 +4833,18 @@
         return;
       }
 
-      if (next === "streak" || next === "combo") {
+      if (next === "streak") {
+        void loadStreakRankingIntoTable();
+        return;
+      }
+
+      if (next === "combo") {
         if (tbody) tbody.innerHTML = "";
         if (thead) thead.innerHTML = "";
         if (empty) empty.style.display = "none";
         if (tableEl) tableEl.style.display = "none";
         if (comingSoonEl) comingSoonEl.style.display = "block";
-        if (hint) hint.textContent = next === "streak" ? "耐力榜 · 敬请期待" : "连击榜 · 敬请期待";
+        if (hint) hint.textContent = "连击榜 · 敬请期待";
         return;
       }
 

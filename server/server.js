@@ -39,6 +39,7 @@ const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
 const DEFAULT_ADMIN_PIN = "2026";
 const SURVIVAL_RANKING_MAX = 50;
 const SCORE_RANKING_MAX = 50;
+const STREAK_RANKING_MAX = 50;
 
 function buildScoreRankingRowUser(u, req) {
   if (!u || !u.username) return null;
@@ -62,6 +63,52 @@ function avatarUrlForUsername(username, req) {
   if (!u) return "";
   const row = buildScoreRankingRowUser(u, req);
   return row && row.avatarUrl ? row.avatarUrl : "";
+}
+
+function toChinaDateKey(ts) {
+  const d = new Date(Number(ts) || 0);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  } catch (e) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+}
+
+function calcBestStreakFromRuns(runs) {
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite"]);
+  const daySet = new Set();
+  (runs || []).forEach((r) => {
+    if (!r) return;
+    const mode = r.mode === "level" ? "level" : (r.mode === "training" ? "training" : (r.mode === "primeComposite" ? "primeComposite" : "survival"));
+    if (!allowedModes.has(mode)) return;
+    const key = toChinaDateKey(r.ts);
+    if (key) daySet.add(key);
+  });
+  const days = Array.from(daySet).sort(); // YYYY-MM-DD lexicographical == chronological
+  if (days.length === 0) return { streakBest: 0, lastActiveDate: "" };
+  let best = 1;
+  let cur = 1;
+  for (let i = 1; i < days.length; i += 1) {
+    const prev = Date.parse(days[i - 1] + "T00:00:00Z");
+    const now = Date.parse(days[i] + "T00:00:00Z");
+    const diffDays = Math.round((now - prev) / 86400000);
+    if (diffDays === 1) {
+      cur += 1;
+    } else {
+      cur = 1;
+    }
+    if (cur > best) best = cur;
+  }
+  return { streakBest: best, lastActiveDate: days[days.length - 1] || "" };
 }
 
 function getAdminPin() {
@@ -786,6 +833,48 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
     }
   }
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+});
+
+// ========== 耐力榜：按“最长连续挑战天数”排名；返回前 50 + 当前用户 ==========
+app.get("/api/streak-ranking", (req, res) => {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+
+  const rows = users
+    .filter((u) => u && u.username)
+    .map((u) => {
+      const runs = (runsData.runs && Array.isArray(runsData.runs[u.username])) ? runsData.runs[u.username] : [];
+      const streak = calcBestStreakFromRuns(runs);
+      return {
+        username: u.username,
+        displayName: (u.nickname || "").trim() ? String(u.nickname).trim() : "新人",
+        streakBest: Number(streak.streakBest) || 0,
+        lastActiveDate: streak.lastActiveDate || "",
+        avatarUrl: avatarUrlForUsername(u.username, req),
+      };
+    })
+    .filter((r) => r.streakBest > 0);
+
+  rows.sort((a, b) => {
+    if (b.streakBest !== a.streakBest) return b.streakBest - a.streakBest;
+    if ((b.lastActiveDate || "") !== (a.lastActiveDate || "")) return String(b.lastActiveDate || "").localeCompare(String(a.lastActiveDate || ""));
+    return String(a.username || "").localeCompare(String(b.username || ""));
+  });
+
+  const top = rows.slice(0, STREAK_RANKING_MAX).map((r, i) => ({ rank: i + 1, ...r }));
+  const username = (req.query.username || "").trim();
+  let myRank = 0;
+  let myEntry = null;
+  if (username) {
+    const idx = rows.findIndex((r) => r.username === username);
+    if (idx >= 0) {
+      myRank = idx + 1;
+      myEntry = { rank: myRank, ...rows[idx] };
+    }
+  }
+
+  res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
 });
 
 // ========== 管理员：获取所有学员 ==========
