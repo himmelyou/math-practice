@@ -33,6 +33,7 @@ const os = require("os");
 const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), ".jarvis-math-lab", "data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
+const I18N_FILE = path.join(DATA_DIR, "i18n.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
 const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.json");
@@ -207,6 +208,126 @@ function getAdminPin() {
     if (data && typeof data.pin === "string" && data.pin.length > 0) return data.pin;
   } catch (e) {}
   return "";
+}
+
+function defaultI18nPayload() {
+  return {
+    zhHant: {
+      "lang.label": "語言",
+      "lang.zhHant": "繁體中文",
+      "lang.en": "English",
+      "login.username.placeholder": "使用者名稱",
+      "login.password.placeholder": "密碼",
+      "login.submit": "登入",
+      "login.register": "註冊",
+      "login.guest": "遊客試玩",
+      "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線中文）",
+      "login.register.password.placeholder": "密碼（至少6位）",
+      "login.register.confirm.placeholder": "確認密碼",
+      "login.register.submit": "註冊",
+      "login.register.back": "返回登入",
+      "login.hint": "登入/註冊需連網。可遊客試玩（僅本機保存，無需連網）。",
+      "login.version": "版本",
+      "home.group.arith": "四則運算",
+      "home.group.special": "專項練習",
+      "home.group.numberSense": "數感練習",
+      "home.group.tools": "工具與統計",
+      "home.mode.level": "闖關模式",
+      "home.mode.training": "訓練模式",
+      "home.mode.survival": "生存挑戰",
+      "home.mode.expandBrackets": "拆括號",
+      "home.mode.primeComposite": "質數合數",
+      "home.mode.gcd": "公因數",
+      "home.mode.lcm": "公倍數",
+      "home.mode.wrongbook": "錯題本",
+      "home.mode.stats": "數據統計",
+      "home.mode.ranking": "排行榜",
+      "ranking.title": "排行榜",
+      "ranking.score": "總積分榜",
+      "ranking.survival": "生存榜",
+      "ranking.primePerfect": "質數達人",
+      "ranking.streak": "耐力榜",
+      "ranking.combo": "連擊榜",
+      "stats.subtitle": "按難度統計的錯誤率與用時（基於最近 500 局）。",
+      "stats.level.select": "選擇難度：",
+      "stats.th.level": "難度",
+      "stats.th.attempts": "答題數",
+      "stats.th.errorRate": "錯誤率",
+      "stats.th.avgTime": "平均每題用時(秒)",
+      "wrongbook.title": "錯題本",
+      "wrongbook.subtitle": "以下是最新錯題，可自行複習。",
+      "wrongbook.practice": "錯題練習",
+      "home.soon.expandBrackets": "拆括號：功能即將上線",
+      "home.soon.gcd": "公因數：功能即將上線",
+      "home.soon.lcm": "公倍數：功能即將上線",
+    },
+    en: {
+      "lang.label": "Language",
+      "lang.zhHant": "Traditional Chinese",
+      "lang.en": "English",
+      "login.username.placeholder": "Username",
+      "login.password.placeholder": "Password",
+      "login.submit": "Sign In",
+      "login.register": "Register",
+      "login.guest": "Guest Demo",
+      "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore, Chinese)",
+      "login.register.password.placeholder": "Password (at least 6 characters)",
+      "login.register.confirm.placeholder": "Confirm password",
+      "login.register.submit": "Create Account",
+      "login.register.back": "Back to Sign In",
+      "login.hint": "Login/Register requires internet. Guest demo is local-only and does not require internet.",
+      "login.version": "Version",
+      "home.group.arith": "Arithmetic",
+      "home.group.special": "Special Practice",
+      "home.group.numberSense": "Number Sense",
+      "home.group.tools": "Tools & Stats",
+      "home.mode.level": "Level Mode",
+      "home.mode.training": "Training Mode",
+      "home.mode.survival": "Survival Challenge",
+      "home.mode.expandBrackets": "Expand Brackets",
+      "home.mode.primeComposite": "Prime/Composite",
+      "home.mode.gcd": "Common Factors",
+      "home.mode.lcm": "Common Multiples",
+      "home.mode.wrongbook": "Wrongbook",
+      "home.mode.stats": "Statistics",
+      "home.mode.ranking": "Leaderboard",
+      "ranking.title": "Leaderboard",
+      "ranking.score": "Total Score",
+      "ranking.survival": "Survival",
+      "ranking.primePerfect": "Prime Master",
+      "ranking.streak": "Streak",
+      "ranking.combo": "Combo",
+      "stats.subtitle": "Error rate and time by level (based on latest 500 runs).",
+      "stats.level.select": "Level:",
+      "stats.th.level": "Level",
+      "stats.th.attempts": "Attempts",
+      "stats.th.errorRate": "Error Rate",
+      "stats.th.avgTime": "Avg Time per Question (s)",
+      "wrongbook.title": "Wrongbook",
+      "wrongbook.subtitle": "Latest wrong questions for review.",
+      "wrongbook.practice": "Practice Wrong Questions",
+      "home.soon.expandBrackets": "Expand Brackets: coming soon",
+      "home.soon.gcd": "Common Factors: coming soon",
+      "home.soon.lcm": "Common Multiples: coming soon",
+    },
+  };
+}
+
+function normalizeI18nPayload(input) {
+  const base = defaultI18nPayload();
+  const out = { zhHant: { ...base.zhHant }, en: { ...base.en } };
+  if (!input || typeof input !== "object") return out;
+  ["zhHant", "en"].forEach((lang) => {
+    const src = input[lang];
+    if (!src || typeof src !== "object") return;
+    Object.keys(src).forEach((k) => {
+      const key = String(k || "").trim();
+      if (!key) return;
+      const val = src[k];
+      out[lang][key] = typeof val === "string" ? val : String(val ?? "");
+    });
+  });
+  return out;
 }
 
 // 确保 data 目录存在
@@ -1142,6 +1263,24 @@ app.put("/api/admin/settings", (req, res) => {
   res.json({ ok: true });
 });
 
+// ========== 管理员：多语言文案 ==========
+app.get("/api/admin/i18n", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const data = normalizeI18nPayload(readJson(I18N_FILE, defaultI18nPayload()));
+  res.json({ ok: true, i18n: data });
+});
+
+app.put("/api/admin/i18n", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const payload = normalizeI18nPayload(req.body && req.body.i18n);
+  writeJson(I18N_FILE, payload);
+  res.json({ ok: true, i18n: payload });
+});
+
 // ========== 管理员：修改口令 ==========
 app.put("/api/admin/pin", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -1181,6 +1320,12 @@ app.post("/api/admin/pin/reset", (req, res) => {
 app.get("/api/settings", (req, res) => {
   const data = readJson(SETTINGS_FILE, { levels: [] });
   res.json({ ok: true, settings: data });
+});
+
+// ========== 学员端：获取多语言文案（公开） ==========
+app.get("/api/i18n", (req, res) => {
+  const data = normalizeI18nPayload(readJson(I18N_FILE, defaultI18nPayload()));
+  res.json({ ok: true, i18n: data });
 });
 
 // ========== 管理员：获取某学员全部练习记录（生存+闯关，按时间排序） ==========
@@ -1238,7 +1383,8 @@ app.get("/api/admin/backup", (req, res) => {
   const users = readJson(USERS_FILE, { users: [] });
   const runs = readJson(RUNS_FILE, { runs: {} });
   const settings = readJson(SETTINGS_FILE, { levels: [] });
-  const backup = { users, runs, settings, ts: Date.now() };
+  const i18n = readJson(I18N_FILE, defaultI18nPayload());
+  const backup = { users, runs, settings, i18n, ts: Date.now() };
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Content-Disposition", "attachment; filename=jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json");
   res.send(JSON.stringify(backup, null, 2));
@@ -1265,6 +1411,9 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
     if (body.settings) {
       const s = body.settings;
       writeJson(SETTINGS_FILE, (s.levels && Array.isArray(s.levels)) ? s : { levels: Array.isArray(s) ? s : [] });
+    }
+    if (body.i18n && typeof body.i18n === "object") {
+      writeJson(I18N_FILE, normalizeI18nPayload(body.i18n));
     }
     res.json({ ok: true, msg: "数据已恢复" });
   } catch (e) {

@@ -42,6 +42,7 @@
         <button type="button" class="jml-tab active" data-tab="accounts" role="tab">账号管理</button>
         <button type="button" class="jml-tab" data-tab="levels" role="tab">等级设置</button>
         <button type="button" class="jml-tab" data-tab="avatars" role="tab">头像管理</button>
+        <button type="button" class="jml-tab" data-tab="i18n" role="tab">文字管理</button>
         <button type="button" class="jml-tab" data-tab="backup" role="tab">系统备份</button>
         <button type="button" class="jml-tab" data-tab="maintenance" role="tab">初始化/维护</button>
       </div>
@@ -112,6 +113,24 @@
             </thead>
             <tbody id="jml-avatars-tbody"></tbody>
           </table>
+        </div>
+      </div>
+
+      <div id="panel-i18n" class="jml-tab-panel hidden" data-panel="i18n" role="tabpanel">
+        <div class="jml-panel-head">
+          <button type="button" id="jml-btn-load-i18n" class="jml-btn">刷新文案</button>
+          <button type="button" id="jml-btn-save-i18n" class="jml-btn jml-btn-primary">保存文案</button>
+        </div>
+        <p class="muted jml-levels-hint">按 key 维护文案。保存后前端重新加载即可生效（公开接口 <code>/api/i18n</code>）。</p>
+        <div class="jml-i18n-grid">
+          <div class="jml-i18n-col">
+            <h3>繁體中文（zhHant）</h3>
+            <textarea id="jml-i18n-zhhant" class="jml-i18n-textarea" spellcheck="false"></textarea>
+          </div>
+          <div class="jml-i18n-col">
+            <h3>English（en）</h3>
+            <textarea id="jml-i18n-en" class="jml-i18n-textarea" spellcheck="false"></textarea>
+          </div>
         </div>
       </div>
 

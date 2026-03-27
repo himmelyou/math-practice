@@ -71,6 +71,31 @@
       padding: 18px 18px 16px;
     }
 
+    .lang-switch {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      margin-bottom: 8px;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .lang-switch-btn {
+      border: 1px solid rgba(13, 71, 161, 0.2);
+      background: #fff;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.76rem;
+      color: #0d47a1;
+      cursor: pointer;
+      line-height: 1.4;
+    }
+    .lang-switch-btn.active {
+      color: #fff;
+      background: #1976d2;
+      border-color: #1976d2;
+    }
+
     .login-title {
       margin: 0 0 50px;
       font-size: 1.4rem;
@@ -1844,6 +1869,11 @@
 <body>
   <div id="login-view" class="login-view">
     <div class="login-card">
+      <div class="lang-switch" id="lang-switch">
+        <span id="lang-switch-label">语言</span>
+        <button type="button" class="lang-switch-btn" id="lang-btn-zhhant">繁體</button>
+        <button type="button" class="lang-switch-btn" id="lang-btn-en">EN</button>
+      </div>
       <h1 class="login-title">Number Sense Lab</h1>
       <div class="login-panel active" id="login-panel">
         <div class="login-field">
@@ -1904,7 +1934,7 @@
         <section class="mode-group">
           <div class="group-head">
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
-            <div class="group-title">四则运算</div>
+            <div class="group-title" id="group-title-arith">四则运算</div>
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
           </div>
           <div class="mode-list">
@@ -1917,7 +1947,7 @@
         <section class="mode-group">
           <div class="group-head">
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
-            <div class="group-title">专项练习</div>
+            <div class="group-title" id="group-title-special">专项练习</div>
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
           </div>
           <div class="mode-list">
@@ -1928,7 +1958,7 @@
         <section class="mode-group">
           <div class="group-head">
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
-            <div class="group-title">数感练习</div>
+            <div class="group-title" id="group-title-number-sense">数感练习</div>
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
           </div>
           <div class="mode-list">
@@ -1941,7 +1971,7 @@
         <section class="mode-group">
           <div class="group-head">
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
-            <div class="group-title">工具与统计</div>
+            <div class="group-title" id="group-title-tools">工具与统计</div>
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
           </div>
           <div class="mode-list">
@@ -2085,7 +2115,7 @@
     <section class="ranking-section" id="ranking-section" style="display:none;margin-top:12px;">
       <div class="ranking-header">
         <div class="ranking-title-row">
-          <h2 class="ranking-title">排行榜</h2>
+          <h2 class="ranking-title" id="ranking-title-main">排行榜</h2>
           <div class="ranking-mode-select">
             <select id="ranking-mode-select" aria-label="选择榜单">
               <option value="score">总积分榜</option>
@@ -2233,13 +2263,13 @@
     </section>
 
     <section class="stats-section" id="stats-section">
-      <p class="stats-subtitle" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的错误率与用时（基于最近 500 局）。</p>
+      <p class="stats-subtitle" id="stats-subtitle-main" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的错误率与用时（基于最近 500 局）。</p>
       <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="display:none;">
-        <div class="stats-level-chart-row"><label>选择难度：</label><select id="stats-level-select"></select></div>
+        <div class="stats-level-chart-row"><label id="stats-level-select-label">选择难度：</label><select id="stats-level-select"></select></div>
         <div style="position:relative;height:260px;"><canvas id="stats-level-canvas"></canvas></div>
       </div>
       <div class="stats-table-wrap" id="stats-level-table-wrap">
-        <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th>难度</th><th>答题数</th><th>错误率</th><th>平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
+        <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th id="stats-th-level">难度</th><th id="stats-th-attempts">答题数</th><th id="stats-th-error-rate">错误率</th><th id="stats-th-avg-time">平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
         <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
       </div>
     </section>
@@ -3251,9 +3281,257 @@
     let cachedUser = null;
 
     const AUTH_TOKEN_KEY = "jarvis_math_auth_token";
+    const APP_LANG_KEY = "jml_lang_v1";
+
+    const I18N_FALLBACK = {
+      zhHant: {
+        "lang.label": "語言",
+        "lang.zhHant": "繁體中文",
+        "lang.en": "English",
+        "login.username.placeholder": "使用者名稱",
+        "login.password.placeholder": "密碼",
+        "login.submit": "登入",
+        "login.register": "註冊",
+        "login.guest": "遊客試玩",
+        "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線中文）",
+        "login.register.password.placeholder": "密碼（至少6位）",
+        "login.register.confirm.placeholder": "確認密碼",
+        "login.register.submit": "註冊",
+        "login.register.back": "返回登入",
+        "login.hint": "登入/註冊需連網。可遊客試玩（僅本機保存，無需連網）。",
+        "login.version": "版本",
+        "home.group.arith": "四則運算",
+        "home.group.special": "專項練習",
+        "home.group.numberSense": "數感練習",
+        "home.group.tools": "工具與統計",
+        "home.mode.level": "闖關模式",
+        "home.mode.training": "訓練模式",
+        "home.mode.survival": "生存挑戰",
+        "home.mode.expandBrackets": "拆括號",
+        "home.mode.primeComposite": "質數合數",
+        "home.mode.gcd": "公因數",
+        "home.mode.lcm": "公倍數",
+        "home.mode.wrongbook": "錯題本",
+        "home.mode.stats": "數據統計",
+        "home.mode.ranking": "排行榜",
+        "ranking.title": "排行榜",
+        "ranking.score": "總積分榜",
+        "ranking.survival": "生存榜",
+        "ranking.primePerfect": "質數達人",
+        "ranking.streak": "耐力榜",
+        "ranking.combo": "連擊榜",
+        "stats.subtitle": "按難度統計的錯誤率與用時（基於最近 500 局）。",
+        "stats.level.select": "選擇難度：",
+        "stats.th.level": "難度",
+        "stats.th.attempts": "答題數",
+        "stats.th.errorRate": "錯誤率",
+        "stats.th.avgTime": "平均每題用時(秒)",
+        "wrongbook.title": "錯題本",
+        "wrongbook.subtitle": "以下是最新錯題，可自行複習。",
+        "wrongbook.practice": "錯題練習",
+        "home.soon.expandBrackets": "拆括號：功能即將上線",
+        "home.soon.gcd": "公因數：功能即將上線",
+        "home.soon.lcm": "公倍數：功能即將上線",
+      },
+      en: {
+        "lang.label": "Language",
+        "lang.zhHant": "Traditional Chinese",
+        "lang.en": "English",
+        "login.username.placeholder": "Username",
+        "login.password.placeholder": "Password",
+        "login.submit": "Sign In",
+        "login.register": "Register",
+        "login.guest": "Guest Demo",
+        "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore, Chinese)",
+        "login.register.password.placeholder": "Password (at least 6 characters)",
+        "login.register.confirm.placeholder": "Confirm password",
+        "login.register.submit": "Create Account",
+        "login.register.back": "Back to Sign In",
+        "login.hint": "Login/Register requires internet. Guest demo is local-only and does not require internet.",
+        "login.version": "Version",
+        "home.group.arith": "Arithmetic",
+        "home.group.special": "Special Practice",
+        "home.group.numberSense": "Number Sense",
+        "home.group.tools": "Tools & Stats",
+        "home.mode.level": "Level Mode",
+        "home.mode.training": "Training Mode",
+        "home.mode.survival": "Survival Challenge",
+        "home.mode.expandBrackets": "Expand Brackets",
+        "home.mode.primeComposite": "Prime/Composite",
+        "home.mode.gcd": "Common Factors",
+        "home.mode.lcm": "Common Multiples",
+        "home.mode.wrongbook": "Wrongbook",
+        "home.mode.stats": "Statistics",
+        "home.mode.ranking": "Leaderboard",
+        "ranking.title": "Leaderboard",
+        "ranking.score": "Total Score",
+        "ranking.survival": "Survival",
+        "ranking.primePerfect": "Prime Master",
+        "ranking.streak": "Streak",
+        "ranking.combo": "Combo",
+        "stats.subtitle": "Error rate and time by level (based on latest 500 runs).",
+        "stats.level.select": "Level:",
+        "stats.th.level": "Level",
+        "stats.th.attempts": "Attempts",
+        "stats.th.errorRate": "Error Rate",
+        "stats.th.avgTime": "Avg Time per Question (s)",
+        "wrongbook.title": "Wrongbook",
+        "wrongbook.subtitle": "Latest wrong questions for review.",
+        "wrongbook.practice": "Practice Wrong Questions",
+        "home.soon.expandBrackets": "Expand Brackets: coming soon",
+        "home.soon.gcd": "Common Factors: coming soon",
+        "home.soon.lcm": "Common Multiples: coming soon",
+      },
+    };
+    let currentLang = "zhHant";
+    let i18nRuntime = {
+      zhHant: { ...I18N_FALLBACK.zhHant },
+      en: { ...I18N_FALLBACK.en },
+    };
 
     function getApiBase() {
       return (typeof window !== "undefined" && window.API_BASE_URL) || "";
+    }
+
+    function normalizeLang(input) {
+      return input === "en" ? "en" : "zhHant";
+    }
+
+    function getSavedLang() {
+      try {
+        const v = localStorage.getItem(APP_LANG_KEY) || "";
+        if (v) return normalizeLang(v);
+      } catch (e) {}
+      return "zhHant";
+    }
+
+    function saveLang(lang) {
+      currentLang = normalizeLang(lang);
+      try { localStorage.setItem(APP_LANG_KEY, currentLang); } catch (e) {}
+    }
+
+    function t(key) {
+      const k = String(key || "");
+      if (!k) return "";
+      const cur = (i18nRuntime[currentLang] && i18nRuntime[currentLang][k]) || "";
+      if (cur) return cur;
+      const fallback = (i18nRuntime.zhHant && i18nRuntime.zhHant[k]) || "";
+      if (fallback) return fallback;
+      return k;
+    }
+
+    async function loadI18nFromServer() {
+      const base = getApiBase();
+      if (!base) return;
+      try {
+        const res = await fetch(base + "/api/i18n", { credentials: "include" });
+        const data = await res.json();
+        if (!data || !data.ok || !data.i18n) return;
+        const nextZh = data.i18n.zhHant && typeof data.i18n.zhHant === "object" ? data.i18n.zhHant : {};
+        const nextEn = data.i18n.en && typeof data.i18n.en === "object" ? data.i18n.en : {};
+        i18nRuntime = {
+          zhHant: { ...I18N_FALLBACK.zhHant, ...nextZh },
+          en: { ...I18N_FALLBACK.en, ...nextEn },
+        };
+      } catch (e) {
+        // ignore network errors, keep built-in copy
+      }
+    }
+
+    function applyI18nToLoginView() {
+      const byId = (id) => document.getElementById(id);
+      const loginUsername = byId("login-username");
+      const loginPassword = byId("login-password");
+      const loginBtn = byId("login-btn");
+      const goRegisterBtn = byId("go-register-btn");
+      const guestBtn = byId("guest-btn");
+      const registerUsername = byId("register-username");
+      const registerPassword = byId("register-password");
+      const registerConfirm = byId("register-confirm");
+      const registerBtn = byId("register-btn");
+      const backToLoginBtn = byId("back-to-login-btn");
+      const loginHint = document.querySelector(".login-hint");
+      const loginVersion = document.querySelector(".login-version");
+      const langLabel = byId("lang-switch-label");
+      const zhBtn = byId("lang-btn-zhhant");
+      const enBtn = byId("lang-btn-en");
+
+      if (loginUsername) loginUsername.placeholder = t("login.username.placeholder");
+      if (loginPassword) loginPassword.placeholder = t("login.password.placeholder");
+      if (loginBtn) loginBtn.textContent = t("login.submit");
+      if (goRegisterBtn) goRegisterBtn.textContent = t("login.register");
+      if (guestBtn) guestBtn.textContent = t("login.guest");
+      if (registerUsername) registerUsername.placeholder = t("login.register.username.placeholder");
+      if (registerPassword) registerPassword.placeholder = t("login.register.password.placeholder");
+      if (registerConfirm) registerConfirm.placeholder = t("login.register.confirm.placeholder");
+      if (registerBtn) registerBtn.textContent = t("login.register.submit");
+      if (backToLoginBtn) backToLoginBtn.textContent = t("login.register.back");
+      if (loginHint) loginHint.textContent = t("login.hint");
+      if (langLabel) langLabel.textContent = t("lang.label");
+      if (zhBtn) {
+        zhBtn.textContent = currentLang === "zhHant" ? "繁體" : t("lang.zhHant");
+        zhBtn.classList.toggle("active", currentLang === "zhHant");
+      }
+      if (enBtn) {
+        enBtn.textContent = "EN";
+        enBtn.classList.toggle("active", currentLang === "en");
+      }
+      if (loginVersion) {
+        const raw = String(loginVersion.textContent || "");
+        const m = raw.match(/v[\d.]+/i);
+        const ver = m ? m[0] : "v1.6.0";
+        loginVersion.textContent = `${t("login.version")} ${ver}`;
+      }
+    }
+
+    function setTextById(id, key) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = t(key);
+    }
+
+    function applyI18nToMainView() {
+      setTextById("group-title-arith", "home.group.arith");
+      setTextById("group-title-special", "home.group.special");
+      setTextById("group-title-number-sense", "home.group.numberSense");
+      setTextById("group-title-tools", "home.group.tools");
+      setTextById("mode-level", "home.mode.level");
+      setTextById("mode-practice", "home.mode.training");
+      setTextById("mode-survival", "home.mode.survival");
+      setTextById("mode-expand-brackets", "home.mode.expandBrackets");
+      setTextById("mode-prime-composite", "home.mode.primeComposite");
+      setTextById("mode-gcd", "home.mode.gcd");
+      setTextById("mode-lcm", "home.mode.lcm");
+      setTextById("mode-wrongbook", "home.mode.wrongbook");
+      setTextById("mode-stats", "home.mode.stats");
+      setTextById("mode-ranking", "home.mode.ranking");
+
+      setTextById("ranking-tab-score", "ranking.score");
+      setTextById("ranking-tab-survival", "ranking.survival");
+      setTextById("ranking-tab-prime-perfect", "ranking.primePerfect");
+      setTextById("ranking-tab-streak", "ranking.streak");
+      setTextById("ranking-tab-combo", "ranking.combo");
+      setTextById("ranking-title-main", "ranking.title");
+      const rankingSelect = document.getElementById("ranking-mode-select");
+      if (rankingSelect && rankingSelect.options && rankingSelect.options.length >= 5) {
+        rankingSelect.options[0].textContent = t("ranking.score");
+        rankingSelect.options[1].textContent = t("ranking.survival");
+        rankingSelect.options[2].textContent = t("ranking.primePerfect");
+        rankingSelect.options[3].textContent = t("ranking.streak");
+        rankingSelect.options[4].textContent = t("ranking.combo");
+      }
+
+      setTextById("stats-subtitle-main", "stats.subtitle");
+      setTextById("stats-level-select-label", "stats.level.select");
+      setTextById("stats-th-level", "stats.th.level");
+      setTextById("stats-th-attempts", "stats.th.attempts");
+      setTextById("stats-th-error-rate", "stats.th.errorRate");
+      setTextById("stats-th-avg-time", "stats.th.avgTime");
+
+      setTextById("wrongbook-practice-btn", "wrongbook.practice");
+      const wbTitle = document.querySelector(".wrongbook-title");
+      if (wbTitle) wbTitle.textContent = t("wrongbook.title");
+      const wbSub = document.querySelector(".wrongbook-subtitle");
+      if (wbSub) wbSub.textContent = t("wrongbook.subtitle");
     }
 
     function getAuthToken() {
@@ -6423,14 +6701,14 @@
 
       // 首页：未开放入口统一用提示，不拉长按钮文案
       const soonButtons = [
-        { id: "mode-expand-brackets", msg: "拆括号：功能即将上线" },
-        { id: "mode-gcd", msg: "公因数：功能即将上线" },
-        { id: "mode-lcm", msg: "公倍数：功能即将上线" },
+        { id: "mode-expand-brackets", key: "home.soon.expandBrackets" },
+        { id: "mode-gcd", key: "home.soon.gcd" },
+        { id: "mode-lcm", key: "home.soon.lcm" },
       ];
       soonButtons.forEach((x) => {
         const btn = document.getElementById(x.id);
         if (!btn) return;
-        btn.addEventListener("click", () => showToast(x.msg));
+        btn.addEventListener("click", () => showToast(t(x.key)));
       });
 
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
@@ -6445,6 +6723,18 @@
 
       const loginBtn = document.getElementById("login-btn");
       loginBtn.addEventListener("click", handleLogin);
+      const langBtnZh = document.getElementById("lang-btn-zhhant");
+      const langBtnEn = document.getElementById("lang-btn-en");
+      if (langBtnZh) langBtnZh.addEventListener("click", function () {
+        saveLang("zhHant");
+        applyI18nToLoginView();
+        applyI18nToMainView();
+      });
+      if (langBtnEn) langBtnEn.addEventListener("click", function () {
+        saveLang("en");
+        applyI18nToLoginView();
+        applyI18nToMainView();
+      });
       const guestBtn = document.getElementById("guest-btn");
       if (guestBtn) guestBtn.addEventListener("click", handleGuestEnter);
       const loginPassword = document.getElementById("login-password");
@@ -6512,7 +6802,11 @@
     }
 
     async function init() {
+      saveLang(getSavedLang());
+      await loadI18nFromServer();
       initDomRefs();
+      applyI18nToLoginView();
+      applyI18nToMainView();
       bindEvents();
       const name = loadCurrentUsername();
       if (!name) {

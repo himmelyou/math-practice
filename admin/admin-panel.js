@@ -30,6 +30,7 @@
     avatars: [],
     selectedAvatarId: '',
     avatarDragFrom: -1,
+    i18n: null,
   };
 
   function apiBase() {
@@ -908,6 +909,55 @@
     }
   }
 
+  function i18nTextareaValue(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value || "") : "";
+  }
+
+  function setI18nTextareaValue(id, obj) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.value = JSON.stringify(obj || {}, null, 2);
+  }
+
+  async function loadI18n() {
+    setStatus('加载文案中…', '');
+    try {
+      var data = await apiFetch('/api/admin/i18n', { method: 'GET' });
+      state.i18n = data && data.i18n ? data.i18n : { zhHant: {}, en: {} };
+      setI18nTextareaValue('jml-i18n-zhhant', state.i18n.zhHant || {});
+      setI18nTextareaValue('jml-i18n-en', state.i18n.en || {});
+      setStatus('文案已加载', 'ok');
+    } catch (e) {
+      setStatus(e.message || '加载失败', 'err');
+    }
+  }
+
+  async function saveI18n() {
+    var zhRaw = i18nTextareaValue('jml-i18n-zhhant');
+    var enRaw = i18nTextareaValue('jml-i18n-en');
+    var zhObj;
+    var enObj;
+    try {
+      zhObj = zhRaw ? JSON.parse(zhRaw) : {};
+      enObj = enRaw ? JSON.parse(enRaw) : {};
+    } catch (e) {
+      setStatus('JSON 格式错误，请先修正文案内容', 'err');
+      return;
+    }
+    setStatus('保存文案中…', '');
+    try {
+      var payload = { i18n: { zhHant: zhObj || {}, en: enObj || {} } };
+      var data = await apiFetch('/api/admin/i18n', { method: 'PUT', body: JSON.stringify(payload) });
+      state.i18n = data && data.i18n ? data.i18n : payload.i18n;
+      setI18nTextareaValue('jml-i18n-zhhant', state.i18n.zhHant || {});
+      setI18nTextareaValue('jml-i18n-en', state.i18n.en || {});
+      setStatus('文案已保存', 'ok');
+    } catch (e) {
+      setStatus(e.message || '保存失败', 'err');
+    }
+  }
+
   function bindEvents() {
     document.querySelectorAll('.jml-tab').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -916,6 +966,7 @@
         if (id === 'accounts') loadUsers();
         if (id === 'levels') loadLevels();
         if (id === 'avatars') loadAvatars();
+        if (id === 'i18n') loadI18n();
       });
     });
 
@@ -973,6 +1024,10 @@
     if (backfillStreakBtn) backfillStreakBtn.addEventListener('click', backfillStreakFields);
     var backfillComboBtn = document.getElementById('jml-btn-backfill-combo');
     if (backfillComboBtn) backfillComboBtn.addEventListener('click', backfillComboFields);
+    var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
+    if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
+    var saveI18nBtn = document.getElementById('jml-btn-save-i18n');
+    if (saveI18nBtn) saveI18nBtn.addEventListener('click', saveI18n);
 
     if (modal) {
       modal.addEventListener('click', function (e) {
