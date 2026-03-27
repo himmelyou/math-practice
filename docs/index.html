@@ -701,7 +701,7 @@
         max-width: 100%;
       }
     }
-    /* 质数神探榜：用户列与总榜/生存榜一致（标题与内容居中）；完成用时左对齐 */
+    /* 质数达人榜：用户列与总榜/生存榜一致（标题与内容居中）；完成用时左对齐 */
     .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
       width: 38%;
       max-width: 220px;
@@ -724,7 +724,7 @@
     }
     .ranking-table-v2.ranking-mode-primePerfect .r-col-date { width: 140px; }
 
-    /* 手机端质数神探榜：列更紧凑，优先让“用户”可见 */
+    /* 手机端质数达人榜：列更紧凑，优先让“用户”可见 */
     @media (max-width: 520px) {
       .ranking-table-v2.ranking-mode-primePerfect th,
       .ranking-table-v2.ranking-mode-primePerfect td {
@@ -2090,7 +2090,7 @@
             <select id="ranking-mode-select" aria-label="选择榜单">
               <option value="score">总积分榜</option>
               <option value="survival">生存榜</option>
-              <option value="primePerfect">质数神探</option>
+              <option value="primePerfect">质数达人</option>
               <option value="streak">耐力榜</option>
               <option value="combo">连击榜</option>
             </select>
@@ -2101,7 +2101,7 @@
         <div class="ranking-tabs" role="tablist" aria-label="排行榜 Tab">
           <button class="ranking-tab active" type="button" data-tab="score" id="ranking-tab-score">总积分榜</button>
           <button class="ranking-tab" type="button" data-tab="survival" id="ranking-tab-survival">生存榜</button>
-          <button class="ranking-tab" type="button" data-tab="primePerfect" id="ranking-tab-prime-perfect">质数神探</button>
+          <button class="ranking-tab" type="button" data-tab="primePerfect" id="ranking-tab-prime-perfect">质数达人</button>
           <button class="ranking-tab" type="button" data-tab="streak" id="ranking-tab-streak">耐力榜</button>
           <button class="ranking-tab" type="button" data-tab="combo" id="ranking-tab-combo">连击榜</button>
         </div>
@@ -5264,12 +5264,12 @@
       const empty = document.getElementById("ranking-empty-v2");
       const hint = document.getElementById("ranking-panel-hint");
       if (!tbody || !empty) return;
-      if (hint) hint.textContent = "质数神探榜 · 加载中…";
+      if (hint) hint.textContent = "质数达人榜 · 加载中…";
       const base = getApiBase();
       if (!base) {
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "质数神探榜 · 需要连接服务器";
+        if (hint) hint.textContent = "质数达人榜 · 需要连接服务器";
         return;
       }
       const me = loadCurrentUsername();
@@ -5296,12 +5296,12 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "质数神探榜 · 质数合数 50 题全对的最短用时（展示前 50 名）";
+        if (hint) hint.textContent = "质数达人榜 · 质数合数 50 题全对的最短用时（展示前 50 名）";
       } catch (e) {
-        console.warn("加载质数神探榜失败", e);
+        console.warn("加载质数达人榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "质数神探榜 · 加载失败，请稍后重试";
+        if (hint) hint.textContent = "质数达人榜 · 加载失败，请稍后重试";
       }
     }
 
@@ -5426,7 +5426,7 @@
         hint.textContent =
           next === "score" ? "总积分榜 · 加载中…"
           : next === "survival" ? "生存榜 · 加载中…"
-          : next === "primePerfect" ? "质数神探榜 · 加载中…"
+          : next === "primePerfect" ? "质数达人榜 · 加载中…"
           : next === "streak" ? "耐力榜 · 加载中…"
           : "连击榜 · 加载中…";
       }

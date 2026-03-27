@@ -696,7 +696,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     writeJson(RUNS_FILE, runsData);
   }
 
-  // 质数神探榜：仅统计 50 题全对（wrongCount=0）的局，每人保留最短完成时间
+  // 质数达人榜：仅统计 50 题全对（wrongCount=0）的局，每人保留最短完成时间
   if (!comboOnly && runEntry.mode === "primeComposite" && (runEntry.wrongCount ?? 0) === 0) {
     const elapsed = Number(runEntry.survivalTimeSec) || 0;
     const score = Number(runEntry.score) || 0;
@@ -884,7 +884,7 @@ app.get("/api/survival-ranking", (req, res) => {
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
 });
 
-// ========== 质数神探榜：质数合数 50 题全对的最短用时；每人一条最佳；前 50 + 当前用户 ==========
+// ========== 质数达人榜：质数合数 50 题全对的最短用时；每人一条最佳；前 50 + 当前用户 ==========
 function dedupeBestPrimePerfect(list) {
   const byUser = {};
   (list || []).forEach((e) => {
