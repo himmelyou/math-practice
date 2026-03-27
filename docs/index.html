@@ -3048,12 +3048,35 @@
       dom.wrongbookList = document.getElementById("wrongbook-list");
       dom.wrongbookEmpty = document.getElementById("wrongbook-empty");
       dom.wrongbookPracticeBtn = document.getElementById("wrongbook-practice-btn");
+      syncAnswerInputInteractionMode();
     }
 
     function setSoftKeyboardVisible(visible) {
       if (dom.softKbdCard) dom.softKbdCard.style.display = visible ? "flex" : "none";
       if (dom.recentCard) dom.recentCard.style.display = visible ? "none" : "flex";
       if (dom.feedback) dom.feedback.classList.toggle("soft-kbd-feedback", !!visible);
+    }
+
+    function shouldLockAnswerInputForSoftKeyboard() {
+      try {
+        if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
+      } catch (e) {}
+      try {
+        if (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints) > 0) return true;
+      } catch (e) {}
+      return false;
+    }
+
+    function syncAnswerInputInteractionMode() {
+      if (!dom.answerInput) return;
+      const lockForTouch = shouldLockAnswerInputForSoftKeyboard();
+      if (lockForTouch) {
+        dom.answerInput.setAttribute("readonly", "readonly");
+        dom.answerInput.setAttribute("inputmode", "none");
+      } else {
+        dom.answerInput.removeAttribute("readonly");
+        dom.answerInput.setAttribute("inputmode", "decimal");
+      }
     }
 
     function softKeyboardBackspace(s) {
@@ -3074,10 +3097,17 @@
       if (!dom.softKbd || dom.softKbd.__bound) return;
       dom.softKbd.__bound = true;
 
-      // 阻止把点击落到 input 导致系统键盘/滚动
+      // 仅触屏设备阻止 input 聚焦，避免弹出系统键盘
       if (dom.answerInput) {
-        dom.answerInput.addEventListener("focus", function () { try { dom.answerInput.blur(); } catch (e) {} });
-        dom.answerInput.addEventListener("click", function (e) { e.preventDefault(); try { dom.answerInput.blur(); } catch (err) {} });
+        dom.answerInput.addEventListener("focus", function () {
+          if (!shouldLockAnswerInputForSoftKeyboard()) return;
+          try { dom.answerInput.blur(); } catch (e) {}
+        });
+        dom.answerInput.addEventListener("click", function (e) {
+          if (!shouldLockAnswerInputForSoftKeyboard()) return;
+          e.preventDefault();
+          try { dom.answerInput.blur(); } catch (err) {}
+        });
       }
 
       dom.softKbd.addEventListener("click", function (e) {
