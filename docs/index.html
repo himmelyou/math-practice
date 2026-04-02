@@ -1205,6 +1205,10 @@
       display: none;
       min-height: 0;
     }
+    .game-section.expand-brackets-active .expand-brackets-panel {
+      width: 100%;
+      margin-top: 6px;
+    }
     .expand-choices {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1742,6 +1746,10 @@
     #game-card {
       flex: 0 0 auto;
       height: clamp(190px, 30vh, 240px);
+      overflow: hidden;
+    }
+    .game-section.expand-brackets-active #game-card {
+      height: clamp(360px, 58vh, 560px);
       overflow: hidden;
     }
     .game-section .recent-card {
@@ -3492,6 +3500,8 @@
         const sec = Math.floor((now - expandStartTs) / 1000);
         const el = document.getElementById("timer-value");
         if (el) el.textContent = formatElapsedSec(sec);
+        const v3 = document.getElementById("run-score");
+        if (v3) v3.textContent = formatElapsedSec(sec);
       }, 250);
     }
 
@@ -3575,6 +3585,10 @@
         dom.questionText.classList.remove("rule-hint");
       }
       if (dom.questionSubtext) dom.questionSubtext.textContent = `${expandQuestionIndex + 1} / 20 · 错 ${expandWrongCount}`;
+      const v2 = document.getElementById("consecutive-correct");
+      const v5 = document.getElementById("best-score");
+      if (v2) v2.textContent = `${expandQuestionIndex + 1} / 20`;
+      if (v5) v5.textContent = String(expandWrongCount);
       renderExpandChoices(q);
       expandQuestionIndex += 1;
     }
@@ -6583,6 +6597,7 @@
             dom.timerValue = document.getElementById("timer-value");
           }
         }
+        if (dom.questionSubtext) dom.questionSubtext.textContent = "";
         if (dom.recentCard) dom.recentCard.style.display = "flex";
         if (dom.softKbdCard) dom.softKbdCard.style.display = "none";
         if (dom.expandPanel) dom.expandPanel.style.display = "none";
@@ -6618,17 +6633,35 @@
         expandCurrent = null;
         expandStartTs = 0;
 
-        // UI：选择题不需要输入框/软键盘
+        if (dom.gameSection) dom.gameSection.classList.add("expand-brackets-active");
+        // UI：选择题不需要输入框/软键盘，但状态栏保持与其他模式一致
         if (dom.timerChip) dom.timerChip.style.display = "";
         const statusGrid = document.getElementById("status-grid");
-        if (statusGrid) statusGrid.style.display = "none";
+        if (statusGrid) statusGrid.style.display = "";
         const subtitle = document.getElementById("game-subtitle");
         if (subtitle) subtitle.style.display = "";
         const timerChip = document.getElementById("timer-chip");
         if (timerChip) timerChip.innerHTML = `用时 <span id="timer-value">0:00</span>`;
         dom.timerValue = document.getElementById("timer-value");
         if (dom.currentLevelName) dom.currentLevelName.textContent = `L${expandLevel + 1}`;
-        if (dom.questionSubtext) dom.questionSubtext.textContent = "20 题 · 全对升级，错 2 题降级";
+        // 状态栏文案与数据
+        const l2 = document.getElementById("status-label-2");
+        const l3 = document.getElementById("status-label-3");
+        const l4 = document.getElementById("status-label-4");
+        const l5 = document.getElementById("status-label-5");
+        if (l2) l2.textContent = "进度：";
+        if (l3) l3.textContent = "用时：";
+        if (l4) l4.textContent = "当前等级：";
+        if (l5) l5.textContent = "错题：";
+        const v2 = document.getElementById("consecutive-correct");
+        const v3 = document.getElementById("run-score");
+        const v4 = document.getElementById("best-survival-time");
+        const v5 = document.getElementById("best-score");
+        if (v2) v2.textContent = "0 / 20";
+        if (v3) v3.textContent = "0:00";
+        if (v4) v4.textContent = `L${expandLevel + 1}`;
+        if (v5) v5.textContent = "0";
+        if (dom.questionSubtext) dom.questionSubtext.textContent = "20题，全对升级，错2题降级";
 
         const inputRow2 = document.getElementById("answer-input-row");
         if (inputRow2) inputRow2.style.display = "none";
@@ -6641,6 +6674,7 @@
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
         if (dom.startGameBtn) dom.startGameBtn.textContent = "开始挑战";
       } else if (gameMode === "level") {
+        if (dom.gameSection) dom.gameSection.classList.remove("expand-brackets-active");
         const lastLevel = getLevelChallengeLastLevel();
         currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
         runScore = 0;
@@ -6648,6 +6682,7 @@
         survivalTimeLeft = SURVIVAL_INITIAL_SEC;
         updateSurvivalStatusUI();
       } else {
+        if (dom.gameSection) dom.gameSection.classList.remove("expand-brackets-active");
         currentLevelIndex = 0;
         runScore = 0;
         consecutiveCorrect = 0;
