@@ -18,7 +18,7 @@
   }
   try {
     if (sessionStorage.getItem("jml_api") === "render") {
-      window.API_BASE_URL = "https://math-practice-lo1u.onrender.com";
+      window.API_BASE_URL = "https://api.adsmathlab.com";
       window.__JML_API_BASE__ = window.__JML_API_BASE__ || window.API_BASE_URL;
       return;
     }
@@ -36,7 +36,7 @@
   var useLocalApi = (isLocalHost || isTestAdmin) && !isProdAdmin;
 
   window.API_BASE_URL = window.API_BASE_URL || (
-    useLocalApi ? "http://localhost:3001" : "https://math-practice-lo1u.onrender.com"
+    useLocalApi ? "http://localhost:3001" : "https://api.adsmathlab.com"
   );
 
   // 兼容小程序版管理端/报表页代码的命名

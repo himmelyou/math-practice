@@ -46,7 +46,11 @@ const STREAK_RANKING_MAX = 50;
 const COMBO_RANKING_MAX = 50;
 
 function normalizeRunMode(mode) {
-  return mode === "level" ? "level" : (mode === "training" ? "training" : (mode === "primeComposite" ? "primeComposite" : "survival"));
+  if (mode === "level") return "level";
+  if (mode === "training") return "training";
+  if (mode === "primeComposite") return "primeComposite";
+  if (mode === "expandBrackets") return "expandBrackets";
+  return "survival";
 }
 
 function buildScoreRankingRowUser(u, req) {
@@ -92,7 +96,7 @@ function toChinaDateKey(ts) {
 }
 
 function getStreakStatsFromRuns(runs) {
-  const allowedModes = new Set(["survival", "level", "training", "primeComposite"]);
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets"]);
   const daySet = new Set();
   (runs || []).forEach((r) => {
     if (!r) return;
@@ -139,7 +143,7 @@ function bumpUserComboFromAttempts(user, attempts) {
 }
 
 function getComboStatsFromRuns(runs) {
-  const allowedModes = new Set(["survival", "level", "training", "primeComposite"]);
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets"]);
   const seq = (runs || [])
     .filter((r) => r && allowedModes.has(normalizeRunMode(r.mode)) && Array.isArray(r.attempts) && r.attempts.length > 0)
     .slice()
@@ -611,6 +615,7 @@ app.post("/api/register", async (req, res) => {
     recentLevelRuns: [],
     recentTrainingRuns: [],
     recentPrimeCompositeRuns: [],
+    recentExpandBracketsRuns: [],
     streakCurrent: 0,
     streakBest: 0,
     streakLastDate: "",
@@ -618,6 +623,7 @@ app.post("/api/register", async (req, res) => {
     comboBest: 0,
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
+    levelExpandBracketsCurrentLevel: 0,
     wrongAnswers: [],
     survivalUnlocked: false,
     createdBy: "self",
@@ -710,7 +716,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "wrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "survivalUnlocked"];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
     if (k === "avatarId") {
@@ -780,7 +786,7 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
   const runs = (runsData.runs[username] || [])
     .map((r) => ({
       ...r,
-      mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : (r.mode === "primeComposite" ? "primeComposite" : "survival")),
+      mode: normalizeRunMode(r.mode),
     }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
@@ -873,6 +879,10 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
       u.recentPrimeCompositeRuns.unshift(runEntry);
       if (u.recentPrimeCompositeRuns.length > 10) u.recentPrimeCompositeRuns = u.recentPrimeCompositeRuns.slice(0, 10);
+    } else if (!comboOnly && runEntry.mode === "expandBrackets") {
+      if (!Array.isArray(u.recentExpandBracketsRuns)) u.recentExpandBracketsRuns = [];
+      u.recentExpandBracketsRuns.unshift(runEntry);
+      if (u.recentExpandBracketsRuns.length > 10) u.recentExpandBracketsRuns = u.recentExpandBracketsRuns.slice(0, 10);
     }
   }
   if (!comboOnly && runEntry.mode === "survival" && runEntry.survivalCleared === true) {
