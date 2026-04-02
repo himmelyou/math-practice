@@ -1215,6 +1215,14 @@
       gap: 10px;
       margin-top: 10px;
     }
+    .expand-start-row {
+      width: min(47%, 192px);
+      margin: 6px auto 0;
+    }
+    .expand-start-row .btn-primary {
+      width: 100%;
+      flex: none !important;
+    }
     .expand-choice-btn {
       width: 100%;
       min-height: 44px;
@@ -2092,6 +2100,9 @@
       <div class="question-subtext" id="question-subtext"></div>
 
       <div class="expand-brackets-panel" id="expand-brackets-panel" style="display:none;">
+        <div class="expand-start-row" id="expand-start-row" style="display:none;">
+          <button type="button" class="btn-primary" id="expand-start-btn">开始挑战</button>
+        </div>
         <div class="expand-choices" id="expand-choices"></div>
         <div class="expand-explain" id="expand-explain" style="display:none;">
           <div class="expand-explain-title" id="expand-explain-title">解析</div>
@@ -2102,17 +2113,17 @@
         </div>
         <div class="expand-history" id="expand-history">
           <div class="recent-header" style="margin-top:10px;">
-            <span class="recent-title">最近十次拆括号</span>
+            <span class="recent-title" id="expand-recent-title">最近十次拆括号</span>
           </div>
           <div class="recent-body">
             <div id="expand-history-wrap">
               <table class="recent-table">
                 <thead>
                   <tr>
-                    <th>日期时间</th>
-                    <th>用时</th>
-                    <th>错题</th>
-                    <th>等级</th>
+                    <th id="expand-th-dt">日期时间</th>
+                    <th id="expand-th-time">用时</th>
+                    <th id="expand-th-wrong">错题</th>
+                    <th id="expand-th-level">等级</th>
                   </tr>
                 </thead>
                 <tbody id="expand-history-body"></tbody>
@@ -3144,6 +3155,7 @@
     let expandLevel = 0; // 0-based
     let expandQuestionIndex = 0;
     let expandWrongCount = 0;
+    let expandScore = 0;
     let expandAttempts = [];
     let expandStartTs = 0;
     let expandLocked = false;
@@ -3193,6 +3205,8 @@
       dom.expandExplain = document.getElementById("expand-explain");
       dom.expandExplainBody = document.getElementById("expand-explain-body");
       dom.expandNextBtn = document.getElementById("expand-next-btn");
+      dom.expandStartBtn = document.getElementById("expand-start-btn");
+      dom.expandStartRow = document.getElementById("expand-start-row");
       dom.expandHistory = document.getElementById("expand-history");
       dom.expandHistoryBody = document.getElementById("expand-history-body");
       dom.expandHistoryEmpty = document.getElementById("expand-history-empty");
@@ -3281,6 +3295,7 @@
       if (gameMode === "level") return "闯关模式";
       if (gameMode === "training") return "训练模式";
       if (gameMode === "wrong") return "错题本练习";
+      if (gameMode === "expandBrackets") return "拆括号";
       return "生存挑战";
     }
 
@@ -3500,8 +3515,6 @@
         const sec = Math.floor((now - expandStartTs) / 1000);
         const el = document.getElementById("timer-value");
         if (el) el.textContent = formatElapsedSec(sec);
-        const v3 = document.getElementById("run-score");
-        if (v3) v3.textContent = formatElapsedSec(sec);
       }, 250);
     }
 
@@ -3562,6 +3575,9 @@
         b.disabled = true;
       });
       if (ok) {
+        expandScore += 1;
+        const v3 = document.getElementById("run-score");
+        if (v3) v3.textContent = String(expandScore);
         setTimeout(() => {
           nextExpandQuestion();
         }, 250);
@@ -3584,7 +3600,7 @@
         dom.questionText.textContent = q.prompt;
         dom.questionText.classList.remove("rule-hint");
       }
-      if (dom.questionSubtext) dom.questionSubtext.textContent = `${expandQuestionIndex + 1} / 20 · 错 ${expandWrongCount}`;
+      if (dom.questionSubtext) dom.questionSubtext.textContent = "";
       const v2 = document.getElementById("consecutive-correct");
       const v5 = document.getElementById("best-score");
       if (v2) v2.textContent = `${expandQuestionIndex + 1} / 20`;
@@ -3599,14 +3615,16 @@
       gameOver = false;
       expandQuestionIndex = 0;
       expandWrongCount = 0;
+      expandScore = 0;
       expandAttempts = [];
       expandPendingNext = false;
       expandCurrent = null;
 
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
       setExpandHistoryVisible(false);
+      if (dom.expandChoices) dom.expandChoices.style.display = "grid";
       startExpandTimer();
       nextExpandQuestion();
     }
@@ -3625,7 +3643,7 @@
       expandLevel = nextLevel;
 
       // 写入 runs（计入耐力/连击：attempts 20 条）
-      appendRun(durationSec, 0, startLevel, expandWrongCount, "expandBrackets", expandAttempts.slice());
+      appendRun(durationSec, expandScore, startLevel, expandWrongCount, "expandBrackets", expandAttempts.slice());
       saveExpandBracketsCurrentLevel(nextLevel);
 
       // 本地历史列表即时更新
@@ -3651,21 +3669,21 @@
       // 结算展示
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "";
       const title = document.getElementById("game-over-title");
-      if (title) title.textContent = "本局结束";
+      if (title) title.textContent = t("expand.end.title");
       const dl = document.getElementById("game-over-duration-label");
-      if (dl) dl.textContent = "用时：";
+      if (dl) dl.textContent = t("expand.end.time");
       const d = document.getElementById("game-over-duration");
       if (d) d.textContent = formatCompactRunTime(durationSec);
       const sl = document.getElementById("game-over-score-label");
-      if (sl) sl.textContent = "等级：";
+      if (sl) sl.textContent = t("expand.end.level");
       const sc = document.getElementById("game-over-score");
       if (sc) sc.textContent = `L${startLevel + 1}`;
       const wl = document.getElementById("game-over-wrong-label");
-      if (wl) wl.textContent = "错题：";
+      if (wl) wl.textContent = t("expand.end.wrong");
       const wv = document.getElementById("game-over-wrong");
       if (wv) wv.textContent = String(expandWrongCount);
       const ml = document.getElementById("game-over-max-level-label");
-      if (ml) ml.textContent = "结果：";
+      if (ml) ml.textContent = t("expand.end.result");
       const mv = document.getElementById("game-over-max-level");
       if (mv) {
         mv.textContent = expandWrongCount === 0 ? `升级到 L${nextLevel + 1}` : (expandWrongCount >= 2 ? `降级到 L${nextLevel + 1}` : `保持 L${nextLevel + 1}`);
@@ -3777,6 +3795,21 @@
         "home.soon.expandBrackets": "拆括號：功能即將上線",
         "home.soon.gcd": "公因數：功能即將上線",
         "home.soon.lcm": "公倍數：功能即將上線",
+        "expand.title": "拆括號",
+        "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
+        "expand.start": "開始挑戰",
+        "expand.next": "下一題",
+        "expand.explain": "解析",
+        "expand.recent": "最近十次拆括號",
+        "expand.th.datetime": "日期時間",
+        "expand.th.time": "用時",
+        "expand.th.wrong": "錯題",
+        "expand.th.level": "等級",
+        "expand.end.title": "本局結束",
+        "expand.end.time": "用時：",
+        "expand.end.level": "等級：",
+        "expand.end.wrong": "錯題：",
+        "expand.end.result": "結果：",
       },
       en: {
         "lang.label": "Language",
@@ -3826,6 +3859,21 @@
         "home.soon.expandBrackets": "Expand Brackets: coming soon",
         "home.soon.gcd": "Common Factors: coming soon",
         "home.soon.lcm": "Common Multiples: coming soon",
+        "expand.title": "Expand Brackets",
+        "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
+        "expand.start": "Start",
+        "expand.next": "Next",
+        "expand.explain": "Explanation",
+        "expand.recent": "Last 10 Runs",
+        "expand.th.datetime": "Date/Time",
+        "expand.th.time": "Time",
+        "expand.th.wrong": "Wrong",
+        "expand.th.level": "Level",
+        "expand.end.title": "Session Complete",
+        "expand.end.time": "Time:",
+        "expand.end.level": "Level:",
+        "expand.end.wrong": "Wrong:",
+        "expand.end.result": "Result:",
       },
     };
     let currentLang = "zhHant";
@@ -3975,6 +4023,15 @@
       if (wbTitle) wbTitle.textContent = t("wrongbook.title");
       const wbSub = document.querySelector(".wrongbook-subtitle");
       if (wbSub) wbSub.textContent = t("wrongbook.subtitle");
+
+      setTextById("expand-start-btn", "expand.start");
+      setTextById("expand-next-btn", "expand.next");
+      setTextById("expand-explain-title", "expand.explain");
+      setTextById("expand-recent-title", "expand.recent");
+      setTextById("expand-th-dt", "expand.th.datetime");
+      setTextById("expand-th-time", "expand.th.time");
+      setTextById("expand-th-wrong", "expand.th.wrong");
+      setTextById("expand-th-level", "expand.th.level");
     }
 
     function getAuthToken() {
@@ -6627,6 +6684,7 @@
         expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), 15);
         expandQuestionIndex = 0;
         expandWrongCount = 0;
+        expandScore = 0;
         expandAttempts = [];
         expandLocked = false;
         expandPendingNext = false;
@@ -6650,7 +6708,7 @@
         const l4 = document.getElementById("status-label-4");
         const l5 = document.getElementById("status-label-5");
         if (l2) l2.textContent = "进度：";
-        if (l3) l3.textContent = "用时：";
+        if (l3) l3.textContent = "本局得分：";
         if (l4) l4.textContent = "当前等级：";
         if (l5) l5.textContent = "错题：";
         const v2 = document.getElementById("consecutive-correct");
@@ -6658,10 +6716,10 @@
         const v4 = document.getElementById("best-survival-time");
         const v5 = document.getElementById("best-score");
         if (v2) v2.textContent = "0 / 20";
-        if (v3) v3.textContent = "0:00";
+        if (v3) v3.textContent = "0";
         if (v4) v4.textContent = `L${expandLevel + 1}`;
         if (v5) v5.textContent = "0";
-        if (dom.questionSubtext) dom.questionSubtext.textContent = "20题，全对升级，错2题降级";
+        if (dom.questionSubtext) dom.questionSubtext.textContent = "";
 
         const inputRow2 = document.getElementById("answer-input-row");
         if (inputRow2) inputRow2.style.display = "none";
@@ -6671,8 +6729,10 @@
         if (dom.expandPanel) dom.expandPanel.style.display = "block";
         if (dom.expandExplain) dom.expandExplain.style.display = "none";
         if (dom.expandHistory) dom.expandHistory.style.display = "block";
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-        if (dom.startGameBtn) dom.startGameBtn.textContent = "开始挑战";
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        if (dom.expandStartRow) dom.expandStartRow.style.display = "";
+        if (dom.expandStartBtn) dom.expandStartBtn.textContent = "开始挑战";
+        if (dom.expandChoices) dom.expandChoices.style.display = "none";
       } else if (gameMode === "level") {
         if (dom.gameSection) dom.gameSection.classList.remove("expand-brackets-active");
         const lastLevel = getLevelChallengeLastLevel();
@@ -6689,13 +6749,22 @@
         survivalTimeLeft = SURVIVAL_INITIAL_SEC;
         updateSurvivalStatusUI();
       }
-      renderRecentRuns();
+      if (gameMode !== "expandBrackets") {
+        renderRecentRuns();
+      } else {
+        renderExpandBracketsRecentRuns();
+      }
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-      if (dom.startGameBtn) dom.startGameBtn.textContent = "开始挑战";
-      if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
+      if (gameMode !== "expandBrackets") {
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+        if (dom.startGameBtn) dom.startGameBtn.textContent = "开始挑战";
+        if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
+      } else {
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
+      }
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
       updateTopTitleForCurrentView(false);
@@ -6967,7 +7036,7 @@
     function handleModeExpandBrackets() {
       gameMode = "expandBrackets";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "拆括号：20 题选择题。全对升级；错 2 题降级。";
+      if (sub) sub.textContent = t("expand.subtitle");
       showGameSection();
     }
 
@@ -7320,6 +7389,9 @@
           if (!expandPendingNext) return;
           nextExpandQuestion();
         });
+      }
+      if (dom.expandStartBtn) {
+        dom.expandStartBtn.addEventListener("click", startExpandBracketsGame);
       }
 
       dom.answerInput.addEventListener("keydown", (e) => {

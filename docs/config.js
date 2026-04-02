@@ -13,12 +13,19 @@
   }
   if (params.get("jml_api") === "local") {
     try {
-      sessionStorage.removeItem("jml_api");
+      sessionStorage.setItem("jml_api", "local");
     } catch (e) {}
   }
   try {
     if (sessionStorage.getItem("jml_api") === "render") {
       window.API_BASE_URL = "https://api.adsmathlab.com";
+      window.__JML_API_BASE__ = window.__JML_API_BASE__ || window.API_BASE_URL;
+      return;
+    }
+    if (sessionStorage.getItem("jml_api") === "local") {
+      // 支持局域网手机访问：让 API 指向同一台机器的 3001 端口
+      var hostName = location.hostname || "localhost";
+      window.API_BASE_URL = "http://" + hostName + ":3001";
       window.__JML_API_BASE__ = window.__JML_API_BASE__ || window.API_BASE_URL;
       return;
     }
