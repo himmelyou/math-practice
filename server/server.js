@@ -279,6 +279,11 @@ function defaultI18nPayload() {
       "expand.end.level": "等級：",
       "expand.end.wrong": "錯題：",
       "expand.end.result": "結果：",
+      "expand.level.L1": "一層括號、整數加減去括號（括號外為「+」或「−」，括號內兩項）。",
+      "expand.level.L2": "乘除去括號；括號與數字 k 之間僅「×」或「÷」，括號內兩數可為 +、−、×、÷。",
+      "expand.level.L3": "兩個括號並排（段間為「+」或「−」）；可含 a、b、x、y 與整數，只展開不計算。",
+      "expand.level.L4": "一層括號前係數 k，或雙係數兩段括號（±k1(…)±k2(…)）；分配與段間變號。",
+      "expand.level.L5": "單項×括號、(…)÷A、兩括號相乘三型（約 1∶1∶2）；可出現 xy 項。",
     },
     en: {
       "lang.label": "Language",
@@ -343,6 +348,11 @@ function defaultI18nPayload() {
       "expand.end.level": "Level:",
       "expand.end.wrong": "Wrong:",
       "expand.end.result": "Result:",
+      "expand.level.L1": "One layer of parentheses; integers only (+/− outside; two terms inside).",
+      "expand.level.L2": "×/÷ outside parentheses only; inner pair uses +, −, ×, or ÷.",
+      "expand.level.L3": "Two groups side by side (+/− between); a, b, x, y and integers; expand only.",
+      "expand.level.L4": "Coefficient k before one group, or k1/k2 on two groups; distribute and sign rules.",
+      "expand.level.L5": "Three types: A×(…), (…)÷A, (…)×(…); about 1:1:2; xy terms allowed.",
     },
   };
 }
