@@ -2063,6 +2063,7 @@
             <button type="button" class="mode-btn mode-btn-wrongbook" id="mode-wrongbook">错题本</button>
             <button type="button" class="mode-btn mode-btn-stats" id="mode-stats" style="display:none;">数据统计</button>
             <button type="button" class="mode-btn mode-btn-ranking" id="mode-ranking" style="display:none;">排行榜</button>
+            <button type="button" class="mode-btn mode-btn-ranking mode-btn-soon" id="mode-achievement-wall" aria-disabled="true">成就墙</button>
           </div>
         </section>
       </div>
@@ -4223,6 +4224,7 @@
         "home.mode.wrongbook": "錯題本",
         "home.mode.stats": "數據統計",
         "home.mode.ranking": "排行榜",
+        "home.mode.achievementWall": "成就牆",
         "ranking.title": "排行榜",
         "ranking.score": "總積分榜",
         "ranking.survival": "生存榜",
@@ -4241,6 +4243,7 @@
         "home.soon.expandBrackets": "拆括號：功能即將上線",
         "home.soon.gcd": "公因數：功能即將上線",
         "home.soon.lcm": "公倍數：功能即將上線",
+        "home.soon.achievementWall": "成就牆：功能即將上線",
         "expand.title": "拆括號",
         "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
         "expand.start": "開始挑戰",
@@ -4292,6 +4295,7 @@
         "home.mode.wrongbook": "Wrongbook",
         "home.mode.stats": "Statistics",
         "home.mode.ranking": "Leaderboard",
+        "home.mode.achievementWall": "Achievement Wall",
         "ranking.title": "Leaderboard",
         "ranking.score": "Total Score",
         "ranking.survival": "Survival",
@@ -4310,6 +4314,7 @@
         "home.soon.expandBrackets": "Expand Brackets: coming soon",
         "home.soon.gcd": "Common Factors: coming soon",
         "home.soon.lcm": "Common Multiples: coming soon",
+        "home.soon.achievementWall": "Achievement Wall: coming soon",
         "expand.title": "Expand Brackets",
         "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
         "expand.start": "Start",
@@ -4451,6 +4456,7 @@
       setTextById("mode-wrongbook", "home.mode.wrongbook");
       setTextById("mode-stats", "home.mode.stats");
       setTextById("mode-ranking", "home.mode.ranking");
+      setTextById("mode-achievement-wall", "home.mode.achievementWall");
 
       setTextById("ranking-tab-score", "ranking.score");
       setTextById("ranking-tab-survival", "ranking.survival");
@@ -7905,6 +7911,7 @@
       const soonButtons = [
         { id: "mode-gcd", key: "home.soon.gcd" },
         { id: "mode-lcm", key: "home.soon.lcm" },
+        { id: "mode-achievement-wall", key: "home.soon.achievementWall" },
       ];
       soonButtons.forEach((x) => {
         const btn = document.getElementById(x.id);
