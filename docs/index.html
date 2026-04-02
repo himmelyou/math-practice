@@ -6571,6 +6571,22 @@
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       setFeedback("", null);
+
+      // 进入任意模式先做一次 UI 复位，避免上一个模式残留（尤其拆括号会改 timerChip 结构）
+      (function resetGameUiBaseline() {
+        const statusGrid = document.getElementById("status-grid");
+        if (statusGrid) statusGrid.style.display = "";
+        if (dom.timerChip) {
+          dom.timerChip.style.display = "";
+          if (!document.getElementById("timer-value")) {
+            dom.timerChip.innerHTML = `剩余 <span id="timer-value">1:00</span>`;
+            dom.timerValue = document.getElementById("timer-value");
+          }
+        }
+        if (dom.recentCard) dom.recentCard.style.display = "flex";
+        if (dom.softKbdCard) dom.softKbdCard.style.display = "none";
+        if (dom.expandPanel) dom.expandPanel.style.display = "none";
+      })();
       // 开始前在题目区显示规则；开始后 renderQuestion 会覆盖为题目
       if (dom.questionText) {
         const sub = document.getElementById("game-subtitle");
@@ -6610,6 +6626,7 @@
         if (subtitle) subtitle.style.display = "";
         const timerChip = document.getElementById("timer-chip");
         if (timerChip) timerChip.innerHTML = `用时 <span id="timer-value">0:00</span>`;
+        dom.timerValue = document.getElementById("timer-value");
         if (dom.currentLevelName) dom.currentLevelName.textContent = `L${expandLevel + 1}`;
         if (dom.questionSubtext) dom.questionSubtext.textContent = "20 题 · 全对升级，错 2 题降级";
 
