@@ -1252,6 +1252,17 @@
       border-style: dashed;
       background: rgba(13, 71, 161, 0.04);
     }
+    .expand-level-select {
+      min-width: 72px;
+      padding: 2px 8px;
+      border: 1px solid rgba(13, 71, 161, 0.22);
+      border-radius: 8px;
+      background: #fff;
+      color: #123047;
+      font-size: 1rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
     .expand-explain {
       margin-top: 8px;
       padding: 0;
@@ -2221,6 +2232,7 @@
           <div class="question-label">
             <span class="status-label">当前难度：</span>
             <span class="status-value" id="expand-current-level-name">L1</span>
+            <select class="expand-level-select" id="expand-level-select" style="display:none;" aria-label="选择拆括号难度"></select>
           </div>
           <div class="timer-chip" id="expand-timer-chip">
             用时 <span id="expand-timer-value">0:00</span>
@@ -3290,6 +3302,7 @@
       dom.expandQuestionText = document.getElementById("expand-question-text");
       dom.expandQuestionSubtext = document.getElementById("expand-question-subtext");
       dom.expandCurrentLevelName = document.getElementById("expand-current-level-name");
+      dom.expandLevelSelect = document.getElementById("expand-level-select");
       dom.expandTimerValue = document.getElementById("expand-timer-value");
       dom.expandProgressText = document.getElementById("expand-progress-text");
       dom.expandScoreText = document.getElementById("expand-score-text");
@@ -4027,6 +4040,50 @@
       if (dom.expandHistory) dom.expandHistory.style.display = visible ? "block" : "none";
     }
 
+    function getExpandBracketsUnlockedMaxLevel() {
+      const user = getCurrentUser();
+      if (!user) return 0;
+      ensureUserProgressDefault(user);
+      const current = getExpandBracketsCurrentLevel();
+      const runs = Array.isArray(user.recentExpandBracketsRuns) ? user.recentExpandBracketsRuns : [];
+      let maxRun = 0;
+      runs.forEach((r) => {
+        const lv = Number(r && (r.maxLevel != null ? r.maxLevel : r.level));
+        if (Number.isFinite(lv)) maxRun = Math.max(maxRun, Math.floor(lv));
+      });
+      return Math.max(0, Math.min(4, Math.max(current, maxRun)));
+    }
+
+    function syncExpandLevelTexts() {
+      if (dom.expandCurrentLevelName) dom.expandCurrentLevelName.textContent = `L${expandLevel + 1}`;
+      if (dom.expandLevelText) dom.expandLevelText.textContent = `L${expandLevel + 1}`;
+      if (dom.expandQuestionSubtext && dom.expandStartRow && dom.expandStartRow.style.display !== "none") {
+        const lk = `expand.level.L${expandLevel + 1}`;
+        dom.expandQuestionSubtext.textContent = t(lk) || "";
+        dom.expandQuestionSubtext.style.display = dom.expandQuestionSubtext.textContent ? "" : "none";
+      }
+    }
+
+    function setExpandLevelPickerVisible(visible) {
+      if (dom.expandLevelSelect) dom.expandLevelSelect.style.display = visible ? "" : "none";
+      if (dom.expandCurrentLevelName) dom.expandCurrentLevelName.style.display = visible ? "none" : "";
+    }
+
+    function renderExpandLevelSelect() {
+      if (!dom.expandLevelSelect) return;
+      const unlockedMax = getExpandBracketsUnlockedMaxLevel();
+      if (expandLevel > unlockedMax) expandLevel = unlockedMax;
+      const opts = [];
+      for (let lv = 0; lv <= unlockedMax; lv += 1) {
+        const selected = lv === expandLevel ? " selected" : "";
+        opts.push(`<option value="${lv}"${selected}>L${lv + 1}</option>`);
+      }
+      dom.expandLevelSelect.innerHTML = opts.join("");
+      dom.expandLevelSelect.value = String(expandLevel);
+      dom.expandLevelSelect.disabled = !!isPlaying;
+      syncExpandLevelTexts();
+    }
+
     function lockExpandChoices(lock) {
       expandLocked = !!lock;
       if (!dom.expandChoices) return;
@@ -4107,6 +4164,10 @@
 
     function startExpandBracketsGame() {
       if (gameMode !== "expandBrackets") return;
+      if (dom.expandLevelSelect && dom.expandLevelSelect.value !== "") {
+        const picked = Number(dom.expandLevelSelect.value);
+        if (Number.isFinite(picked)) expandLevel = Math.max(0, Math.min(4, Math.floor(picked)));
+      }
       setExpandGameCardGameOver(false);
       isPlaying = true;
       gameOver = false;
@@ -4128,8 +4189,9 @@
       if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
       if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "none";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
-      if (dom.expandCurrentLevelName) dom.expandCurrentLevelName.textContent = `L${expandLevel + 1}`;
-      if (dom.expandLevelText) dom.expandLevelText.textContent = `L${expandLevel + 1}`;
+      if (dom.expandLevelSelect) dom.expandLevelSelect.disabled = true;
+      setExpandLevelPickerVisible(false);
+      syncExpandLevelTexts();
       if (dom.expandProgressText) dom.expandProgressText.textContent = "0 / 20";
       if (dom.expandScoreText) dom.expandScoreText.textContent = "0";
       if (dom.expandWrongText) dom.expandWrongText.textContent = "0";
@@ -4183,7 +4245,7 @@
         dom.expandGoResult.textContent = expandWrongCount === 0 ? `升级到 L${nextLevel + 1}` : (expandWrongCount >= 2 ? `降级到 L${nextLevel + 1}` : `保持 L${nextLevel + 1}`);
       }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
-      if (dom.expandLevelText) dom.expandLevelText.textContent = `L${expandLevel + 1}`;
+      syncExpandLevelTexts();
       setExpandHistoryVisible(true);
       renderExpandBracketsRecentRuns();
       gameOver = true;
@@ -7330,10 +7392,12 @@
       stopExpandTimer();
 
       if (dom.expandTimerValue) dom.expandTimerValue.textContent = "0:00";
-      if (dom.expandCurrentLevelName) dom.expandCurrentLevelName.textContent = `L${expandLevel + 1}`;
+      renderExpandLevelSelect();
+      if (dom.expandLevelSelect) dom.expandLevelSelect.disabled = false;
+      setExpandLevelPickerVisible(true);
       if (dom.expandProgressText) dom.expandProgressText.textContent = "0 / 20";
       if (dom.expandScoreText) dom.expandScoreText.textContent = "0";
-      if (dom.expandLevelText) dom.expandLevelText.textContent = `L${expandLevel + 1}`;
+      syncExpandLevelTexts();
       if (dom.expandWrongText) dom.expandWrongText.textContent = "0";
 
       if (dom.expandQuestionText) {
@@ -7915,6 +7979,15 @@
         if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "none";
         startExpandBracketsGame();
       });
+      if (dom.expandLevelSelect) {
+        dom.expandLevelSelect.addEventListener("change", () => {
+          if (isPlaying) return;
+          const v = Number(dom.expandLevelSelect.value);
+          if (!Number.isFinite(v)) return;
+          expandLevel = Math.max(0, Math.min(4, Math.floor(v)));
+          syncExpandLevelTexts();
+        });
+      }
       const globalBackHomeBtn = document.getElementById("global-back-home-btn");
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
       const abandonGameBtn = document.getElementById("abandon-game-btn");
