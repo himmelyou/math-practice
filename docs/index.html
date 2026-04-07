@@ -3599,6 +3599,7 @@
       let correctText;
       let presetWrong;
       const wCopy = "误把除法当成可分配进括号，展开成两项之和。";
+      const wMul = "乘法分配时有项未正确处理。";
       const wFlip = "符号或分配有误。";
       const wDrop = "漏乘了括号内某一项。";
 
@@ -3610,7 +3611,7 @@
         correctText = ebJoinSum([t1, t2]);
         presetWrong = [
           { text: ebJoinSum([`${k} × ${A}`, `${ebFmtAtom({ type: "n", v: B })}`]), explain: wDrop },
-          { text: `${k} × (${inner})`, explain: wCopy },
+          { text: innerOp === "+" ? `${k} × ${A} - ${k} × ${B}` : `${k} × ${A} + ${k} × ${B}`, explain: wMul },
           { text: ebJoinSum([`${A}`, `${k} × ${B}`]), explain: wFlip },
         ];
       } else if (layout <= 3) {
@@ -3860,6 +3861,14 @@
         // 防止“肉眼相同但字符串不同”（如双空格）导致的重复选项
         return s.replace(/\s+/g, " ").trim();
       }
+      function normalizeMulCommutative(input) {
+        const s = normalizeExpandChoiceText(input);
+        const m = s.match(/^(\d+)\s*×\s*\((.+)\)$/);
+        if (!m) return s;
+        const k = m[1];
+        const body = m[2];
+        return `(${body}) × ${k}`;
+      }
 
       const correctRaw =
         q.correctText != null ? q.correctText : formatExpandedTerms(q.correctTerms);
@@ -3869,6 +3878,12 @@
       function addText(text, kind, explain) {
         const t = normalizeExpandChoiceText(text);
         if (!t || choices.some((c) => c.text === t)) return false;
+        // L2: 过滤与题面仅乘法交换律等价的“假错项”
+        if (q && q.expandKind === "L2") {
+          const promptNorm = normalizeMulCommutative(q.prompt || "");
+          const textNorm = normalizeMulCommutative(t);
+          if (promptNorm && textNorm && promptNorm === textNorm) return false;
+        }
         choices.push({ text: t, kind: kind || "w", explain: explain || "" });
         return true;
       }
