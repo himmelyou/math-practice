@@ -3617,9 +3617,10 @@
         const leftP = layout === 2;
         prompt = leftP ? `(${inner}) ÷ ${k}` : `${k} ÷ (${inner})`;
         if (!leftP) {
-          correctText = prompt;
+          correctText = t("expand.choice.cannotRemoveBrackets") || "此类情况无法去除括号";
+          const w2 = innerOp === "+" ? `${k} ÷ ${B}` : `- ${k} ÷ ${B}`;
           presetWrong = [
-            { text: ebJoinSum([`${k} ÷ ${A}`, `${k} ÷ ${B}`]), explain: "误用除法分配到括号内每一项。" },
+            { text: ebJoinSum([`${k} ÷ ${A}`, w2]), explain: "误用除法分配到括号内每一项。" },
             { text: `${k} ÷ ${A} + ${B}`, explain: wFlip },
             { text: `${k} ÷ ${A} - ${B}`, explain: wFlip },
           ];
@@ -3854,13 +3855,21 @@
     }
 
     function buildExpandChoices(q) {
-      const correct =
+      function normalizeExpandChoiceText(input) {
+        const s = String(input == null ? "" : input);
+        // 防止“肉眼相同但字符串不同”（如双空格）导致的重复选项
+        return s.replace(/\s+/g, " ").trim();
+      }
+
+      const correctRaw =
         q.correctText != null ? q.correctText : formatExpandedTerms(q.correctTerms);
+      const correct = normalizeExpandChoiceText(correctRaw);
       const choices = [{ text: correct, kind: "correct", explain: "" }];
 
       function addText(text, kind, explain) {
-        if (!text || choices.some((c) => c.text === text)) return false;
-        choices.push({ text, kind: kind || "w", explain: explain || "" });
+        const t = normalizeExpandChoiceText(text);
+        if (!t || choices.some((c) => c.text === t)) return false;
+        choices.push({ text: t, kind: kind || "w", explain: explain || "" });
         return true;
       }
 
@@ -4022,15 +4031,16 @@
       if (!expandCurrent || expandLocked) return;
       const selectedIdx = Number(idx);
       if (expandCurrent.choiceKinds && expandCurrent.choiceKinds[selectedIdx] === "noop") return;
-      const canonical = expandCanonicalAnswer(expandCurrent);
+      const canonical = String(expandCanonicalAnswer(expandCurrent) || "").replace(/\s+/g, " ").trim();
       const picked =
         expandCurrent.choiceTexts && expandCurrent.choiceTexts[selectedIdx] != null
           ? String(expandCurrent.choiceTexts[selectedIdx])
           : "";
-      const ok = picked === canonical;
+      const pickedNorm = picked.replace(/\s+/g, " ").trim();
+      const ok = pickedNorm === canonical;
       const correctIdx =
         expandCurrent.choiceTexts && canonical
-          ? expandCurrent.choiceTexts.findIndex((t) => String(t) === canonical)
+          ? expandCurrent.choiceTexts.findIndex((t) => String(t).replace(/\s+/g, " ").trim() === canonical)
           : expandCurrent.correctIndex;
       expandAttempts.push({ correct: ok === true, ts: Date.now() });
       if (!dom.expandChoices) return;
@@ -4284,6 +4294,7 @@
         "expand.end.level": "等級：",
         "expand.end.wrong": "錯題：",
         "expand.end.result": "結果：",
+        "expand.choice.cannotRemoveBrackets": "此類情況無法去除括號",
         "expand.level.L1": "一層括號、整數加減去括號（括號外為「+」或「−」，括號內兩項）。",
         "expand.level.L2": "乘除去括號；括號與數字 k 之間僅「×」或「÷」，括號內兩數可為 +、−、×、÷。",
         "expand.level.L3": "兩個括號並排（段間為「+」或「−」）；可含 a、b、x、y 與整數，只展開不計算。",
@@ -4355,6 +4366,7 @@
         "expand.end.level": "Level:",
         "expand.end.wrong": "Wrong:",
         "expand.end.result": "Result:",
+        "expand.choice.cannotRemoveBrackets": "This type cannot remove brackets.",
         "expand.level.L1": "One layer of parentheses; integers only (+/− outside; two terms inside).",
         "expand.level.L2": "×/÷ outside parentheses only; inner pair uses +, −, ×, or ÷.",
         "expand.level.L3": "Two groups side by side (+/− between); a, b, x, y and integers; expand only.",
