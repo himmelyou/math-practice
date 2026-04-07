@@ -1259,8 +1259,8 @@
       border-radius: 8px;
       background: #fff;
       color: #123047;
-      font-size: 1rem;
-      font-weight: 700;
+      font-size: 0.9rem;
+      font-weight: 600;
       line-height: 1.2;
     }
     .expand-explain {
@@ -3644,7 +3644,7 @@
           correctText = ebJoinSum([t1, t2]);
           presetWrong = [
             { text: `${A} ÷ ${k} + ${B}`, explain: wDrop },
-            { text: `(${inner}) ÷ ${k}`, explain: "未完成除法分配展开。" },
+            { text: innerOp === "+" ? `${A} ÷ ${k} - ${B} ÷ ${k}` : `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "分配后符号处理有误。" },
             { text: `${A} + ${B} ÷ ${k}`, explain: "除法只作用在括号内其中一项，书写顺序错误。" },
           ];
         }
@@ -3655,8 +3655,8 @@
         else correctText = `${k} × ${A} ÷ ${B}`;
         presetWrong = [
           { text: `${k} × ${A} + ${k} × ${B}`, explain: "括号内为乘除时误用加减分配。" },
-          { text: `${k} × (${A} + ${B})`, explain: wFlip },
-          { text: `${A} × ${B} × ${k}`, explain: "运算顺序书写不一致。" },
+          { text: opIn === "×" ? `${k} × ${A} - ${k} × ${B}` : `${k} × ${A} + ${k} × ${B}`, explain: wFlip },
+          { text: `${A} × ${B} + ${k}`, explain: wMul },
         ];
       } else if (layout === 5) {
         const opIn = Math.random() < 0.5 ? "×" : "÷";
@@ -3665,7 +3665,7 @@
         else correctText = `${A} ÷ ${B} × ${k}`;
         presetWrong = [
           { text: `${k} × ${A} + ${k} × ${B}`, explain: "括号内为乘除时误用加减分配。" },
-          { text: `(${A} + ${B}) × ${k}`, explain: wFlip },
+          { text: opIn === "×" ? `${A} × ${k} + ${B}` : `${A} ÷ ${B} + ${k}`, explain: wFlip },
           { text: `${A} × ${B} + ${k}`, explain: wFlip },
         ];
       } else {
@@ -3675,7 +3675,7 @@
         else correctText = `${A} ÷ ${B} ÷ ${k}`;
         presetWrong = [
           { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。" },
-          { text: `(${A} + ${B}) ÷ ${k}`, explain: wFlip },
+          { text: opIn === "×" ? `${A} × ${k} ÷ ${B}` : `${A} ÷ ${k} ÷ ${B}`, explain: wFlip },
           { text: `${A} ÷ ${k} × ${B}`, explain: wFlip },
         ];
       }
