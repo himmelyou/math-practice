@@ -1246,6 +1246,12 @@
     .expand-choice-btn:hover { background: #f7fbff; }
     .expand-choice-btn.correct { border-color: rgba(21, 128, 61, 0.35); color: #15803d; }
     .expand-choice-btn.wrong { border-color: rgba(185, 28, 28, 0.3); color: #b91c1c; }
+    .expand-choice-btn.expand-choice-noop {
+      cursor: default;
+      opacity: 0.38;
+      border-style: dashed;
+      background: rgba(13, 71, 161, 0.04);
+    }
     .expand-explain {
       margin-top: 8px;
       padding: 0;
@@ -3624,7 +3630,7 @@
           presetWrong = [
             { text: `${A} ÷ ${k} + ${B}`, explain: wDrop },
             { text: `(${inner}) ÷ ${k}`, explain: "未完成除法分配展开。" },
-            { text: ebJoinSum([`${A} ÷ ${k}`, `${B}`]), explain: wFlip },
+            { text: `${A} + ${B} ÷ ${k}`, explain: "除法只作用在括号内其中一项，书写顺序错误。" },
           ];
         }
       } else if (layout === 4) {
@@ -3906,23 +3912,35 @@
         }
       }
 
-      let pad = 0;
-      while (choices.length < 4) {
+      let nearAttempts = 0;
+      while (choices.length < 4 && nearAttempts < 48) {
+        nearAttempts += 1;
         if (q.correctTerms && q.correctTerms.length && q.correctTerms.every((x) => typeof x === "number")) {
           const more = q.correctTerms.slice();
           const pos = randomInt(0, more.length - 1);
           more[pos] += Math.random() < 0.5 ? 1 : -1;
           addText(formatExpandedTerms(more), "near", "这道题的符号/项处理有误。");
         } else {
-          pad += 1;
-          addText(correct + "\u200b".repeat(pad), "pad", "再检查一下展开过程。");
+          break;
         }
       }
 
-      const shuffled = shuffleInPlace(choices.slice());
-      const correctIndex = shuffled.findIndex((c) => c.kind === "correct");
-      const explains = shuffled.map((c) => c.explain || "");
-      return { choiceTexts: shuffled.map((c) => c.text), correctIndex, explains };
+      const real = choices.slice();
+      const padCount = Math.max(0, 4 - real.length);
+      const shuffledReal = shuffleInPlace(real);
+      const final = shuffledReal.concat(
+        Array(padCount)
+          .fill(0)
+          .map(() => ({ text: "", kind: "noop", explain: "" }))
+      );
+      const correctIndex = final.findIndex((c) => c.kind === "correct");
+      const explains = final.map((c) => c.explain || "");
+      return {
+        choiceTexts: final.map((c) => c.text),
+        choiceKinds: final.map((c) => c.kind || ""),
+        correctIndex,
+        explains,
+      };
     }
 
     function formatElapsedSec(sec) {
@@ -3952,8 +3970,14 @@
       if (!dom.expandChoices) return;
       const built = buildExpandChoices(q);
       expandCurrent = { ...q, ...built };
+      const kinds = built.choiceKinds || [];
       dom.expandChoices.innerHTML = built.choiceTexts
-        .map((txt, idx) => `<button type="button" class="expand-choice-btn" data-idx="${idx}">${escapeHtml(txt)}</button>`)
+        .map((txt, idx) => {
+          const isNoop = kinds[idx] === "noop";
+          const cls = isNoop ? "expand-choice-btn expand-choice-noop" : "expand-choice-btn";
+          const label = isNoop ? ' aria-hidden="true" tabindex="-1" data-noop="1"' : "";
+          return `<button type="button" class="${cls}" data-idx="${idx}"${label}>${isNoop ? "" : escapeHtml(txt)}</button>`;
+        })
         .join("");
     }
 
@@ -3997,6 +4021,7 @@
     function handleExpandChoiceClick(idx) {
       if (!expandCurrent || expandLocked) return;
       const selectedIdx = Number(idx);
+      if (expandCurrent.choiceKinds && expandCurrent.choiceKinds[selectedIdx] === "noop") return;
       const canonical = expandCanonicalAnswer(expandCurrent);
       const picked =
         expandCurrent.choiceTexts && expandCurrent.choiceTexts[selectedIdx] != null
