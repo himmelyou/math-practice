@@ -3675,7 +3675,7 @@
         else correctText = `${A} ÷ ${B} ÷ ${k}`;
         presetWrong = [
           { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。" },
-          { text: opIn === "×" ? `${A} × ${k} ÷ ${B}` : `${A} ÷ ${k} ÷ ${B}`, explain: wFlip },
+          { text: opIn === "×" ? `${A} × ${k} ÷ ${B}` : `${A} ÷ ${B} × ${k}`, explain: wFlip },
           { text: `${A} ÷ ${k} × ${B}`, explain: wFlip },
         ];
       }
