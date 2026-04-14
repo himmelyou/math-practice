@@ -2003,7 +2003,7 @@
       </div>
       <div id="login-error" class="login-error"></div>
       <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
-      <p class="login-version">版本 v1.6.0</p><!-- 与页脚版本号保持一致 -->
+      <p class="login-version">版本 v1.6.1</p><!-- 与页脚版本号保持一致 -->
     </div>
   </div>
 
@@ -4554,7 +4554,7 @@
       if (loginVersion) {
         const raw = String(loginVersion.textContent || "");
         const m = raw.match(/v[\d.]+/i);
-        const ver = m ? m[0] : "v1.6.0";
+        const ver = m ? m[0] : "v1.6.1";
         loginVersion.textContent = `${t("login.version")} ${ver}`;
       }
     }
