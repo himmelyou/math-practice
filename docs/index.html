@@ -1630,6 +1630,13 @@
     .mode-btn:active {
       transform: translateY(0) scale(0.98);
     }
+    .mode-dev-tag {
+      margin-left: 6px;
+      font-size: 0.72em;
+      font-weight: 600;
+      color: rgba(38, 50, 56, 0.65);
+      white-space: nowrap;
+    }
 
     /* 未开放（尚未开发）按钮：强制浅灰底（覆盖所有按钮类型的白底） */
     .mode-btn.mode-btn-soon {
@@ -2053,7 +2060,7 @@
             <div class="group-rules"><div class="group-rule"></div><div class="group-rule"></div></div>
           </div>
           <div class="mode-list">
-            <button type="button" class="mode-btn mode-btn-practice" id="mode-expand-brackets">拆括号</button>
+            <button type="button" class="mode-btn mode-btn-practice" id="mode-expand-brackets">拆括号 <span class="mode-dev-tag">(开发中)</span></button>
           </div>
         </section>
 
@@ -3982,41 +3989,40 @@
         function addChoiceFromTerms(terms, kind, explain) {
           return addText(formatExpandedTerms(terms), kind, explain);
         }
+        const firstInner = q.innerTerms[0];
+        const secondInner = q.innerTerms[1];
         if (q.outerMinus) {
-          const t1 = [q.correctTerms[0], -q.innerTerms[0], q.innerTerms[1]];
           addChoiceFromTerms(
-            t1,
-            "t1",
-            "括号前是「-」，括号里每一项都要变号。你只改变了第一项。"
-          );
-          const t2 = q.correctTerms.slice();
-          const idxs = [];
-          for (let i = 1; i < t2.length; i++) idxs.push(i);
-          const miss = idxs[randomInt(0, idxs.length - 1)];
-          t2[miss] = -t2[miss];
-          addChoiceFromTerms(
-            t2,
-            "t2",
-            "括号前是「-」，括号里每一项都要变号。有一项没有改到。"
+            [q.correctTerms[0], firstInner, secondInner],
+            "l1_m1",
+            "括号前是「-」，括号内每一项都要变号。你没有按规则整体变号。"
           );
           addChoiceFromTerms(
-            [q.correctTerms[0], ...q.innerTerms],
-            "t3",
-            "这里不是把括号直接去掉。因为括号前是「-」，括号内每一项符号都要改变。"
+            [q.correctTerms[0], -firstInner, secondInner],
+            "l1_m2",
+            "括号前是「-」，你只改了第一项，第二项没有跟着变号。"
+          );
+          addChoiceFromTerms(
+            [q.correctTerms[0], firstInner, -secondInner],
+            "l1_m3",
+            "括号前是「-」，你只改了第二项，第一项没有跟着变号。"
           );
         } else {
-          const base = q.correctTerms.slice();
-          const t1 = base.slice();
-          const pos = randomInt(1, t1.length - 1);
-          t1[pos] = -t1[pos];
-          addChoiceFromTerms(t1, "s1", "这里括号前是「+」，去括号后符号不需要改变。你把其中一项的符号改错了。");
-          addChoiceFromTerms(base.slice(0, -1), "drop", "去括号后每一项都要保留。你漏了一项。");
-          const t3 = base.slice();
-          if (t3.length >= 3) {
-            t3[t3.length - 1] = -t3[t3.length - 1];
-            t3[t3.length - 2] = -t3[t3.length - 2];
-          }
-          addChoiceFromTerms(t3, "s2", "去括号后符号应与括号内一致（括号前为「+」）。你把符号处理错了。");
+          addChoiceFromTerms(
+            [q.correctTerms[0], -firstInner, -secondInner],
+            "l1_p4",
+            "括号前是「+」，去括号后不应整体变号。"
+          );
+          addChoiceFromTerms(
+            [q.correctTerms[0], -firstInner, secondInner],
+            "l1_p5",
+            "括号前是「+」，第一项不应改号。"
+          );
+          addChoiceFromTerms(
+            [q.correctTerms[0], firstInner, -secondInner],
+            "l1_p6",
+            "括号前是「+」，第二项不应改号。"
+          );
         }
       }
 
@@ -4634,7 +4640,15 @@
       setTextById("mode-level", "home.mode.level");
       setTextById("mode-practice", "home.mode.training");
       setTextById("mode-survival", "home.mode.survival");
-      setTextById("mode-expand-brackets", "home.mode.expandBrackets");
+      const modeExpandBtn = document.getElementById("mode-expand-brackets");
+      if (modeExpandBtn) {
+        modeExpandBtn.textContent = t("home.mode.expandBrackets");
+        const devTag = document.createElement("span");
+        devTag.className = "mode-dev-tag";
+        devTag.textContent = "(开发中)";
+        modeExpandBtn.appendChild(document.createTextNode(" "));
+        modeExpandBtn.appendChild(devTag);
+      }
       setTextById("mode-prime-composite", "home.mode.primeComposite");
       setTextById("mode-gcd", "home.mode.gcd");
       setTextById("mode-lcm", "home.mode.lcm");
