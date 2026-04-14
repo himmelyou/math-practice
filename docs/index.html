@@ -3513,7 +3513,11 @@
     /** k × (带符号原子)，用于 L4 分配 */
     function ebKTimesTerm(k, s, at) {
       const kk = k * s;
-      if (at.type === "n") return String(kk * at.v);
+      if (at.type === "n") {
+        const v = at.v;
+        if (kk >= 0) return `${kk} × ${v}`;
+        return `-${Math.abs(kk)} × ${v}`;
+      }
       if (kk === 1) return at.ch;
       if (kk === -1) return "-" + at.ch;
       return kk + " × " + at.ch;
@@ -3752,7 +3756,10 @@
         presetWrong = [
           { text: ebJoinSum([parts[0], ebFmtAtom(B), ebFmtAtom(C)]), explain: "系数 k 要乘到括号内每一项。" },
           { text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, 1, B)]), explain: "漏乘了括号内某一项。" },
-          { text: prompt, explain: "尚未去括号或未分配。" },
+          {
+            text: ebJoinSum([ebKTimesTerm(k * kfac, 1, B), ebKTimesTerm(k * kfac, 1, C)]),
+            explain: "漏写了括号外的一项。",
+          },
         ];
       } else {
         const A = ebPickAtom();
@@ -3802,7 +3809,7 @@
         const correctText = ebJoinSum(parts);
         const presetWrong = [
           { text: ebJoinSum([ebFmtAtom(A) + " × " + ebFmtAtom(B), ebFmtAtom(C)]), explain: "乘法要分配到括号内每一项。" },
-          { text: prompt, explain: "未完成分配展开。" },
+          { text: parts[0], explain: "分配未完成，只展开了一项。" },
           { text: ebJoinSum([parts[0], String(B.type === "n" ? B.v : 1)]), explain: "项或符号有误。" },
         ];
         return { expandKind: "L5a", prompt, correctText, presetWrong };
@@ -3817,7 +3824,7 @@
         const parts = seg.map(([s, at]) => ebTermSignedAtom(s, at) + " ÷ " + ebFmtAtom(A));
         const correctText = ebJoinSum(parts);
         const presetWrong = [
-          { text: prompt + " ", explain: "未完成展开。" },
+          { text: parts[0], explain: "分子除法展开不完整，漏了一项。" },
           { text: ebJoinSum([ebFmtAtom(B) + " ÷ " + ebFmtAtom(A), ebFmtAtom(C)]), explain: "除法与分子项对应关系有误。" },
           { text: ebJoinSum([parts[0], String(C.type === "n" ? C.v : 1)]), explain: "漏项。" },
         ];
@@ -3891,6 +3898,8 @@
       function addText(text, kind, explain) {
         const t = normalizeExpandChoiceText(text);
         if (!t || choices.some((c) => c.text === t)) return false;
+        const promptPlain = normalizeExpandChoiceText(q && q.prompt != null ? q.prompt : "");
+        if (promptPlain && t === promptPlain) return false;
         // L2: 过滤与题面仅乘法交换律等价的“假错项”
         if (q && q.expandKind === "L2") {
           const promptNorm = normalizeMulCommutative(q.prompt || "");
