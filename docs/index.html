@@ -3501,7 +3501,12 @@
 
     /** 常数×字母：省略乘号；系数 1 不写 1 */
     function ebFormatNumTimesLetter(k, letterCh) {
-      const ch = String(letterCh || "");
+      const ch =
+        typeof letterCh === "string"
+          ? letterCh
+          : letterCh && typeof letterCh.ch === "string"
+            ? letterCh.ch
+            : "";
       if (!ch) return String(k);
       if (k === 1) return ch;
       if (k === -1) return "-" + ch;
@@ -3539,10 +3544,10 @@
         return ebFormatTwoNumberProduct(prod < 0 ? -1 : 1, a1.v, a2.v);
       }
       if (a1.type === "n" && a2.type === "l") {
-        return ebFormatNumTimesLetter(s1 * a1.v * s2, a2);
+        return ebFormatNumTimesLetter(s1 * a1.v * s2, a2.ch);
       }
       if (a1.type === "l" && a2.type === "n") {
-        return ebFormatNumTimesLetter(s2 * a2.v * s1, a1);
+        return ebFormatNumTimesLetter(s2 * a2.v * s1, a1.ch);
       }
       return ebFormatTwoLettersProduct(s1 * s2, a1.ch, a2.ch);
     }
@@ -3555,10 +3560,10 @@
         return ebFormatTwoNumberProduct(prod < 0 ? -1 : 1, Math.abs(A.v), Math.abs(v2));
       }
       if (A.type === "n" && at.type === "l") {
-        return ebFormatNumTimesLetter(A.v * s, at);
+        return ebFormatNumTimesLetter(A.v * s, at.ch);
       }
       if (A.type === "l" && at.type === "n") {
-        return ebFormatNumTimesLetter(at.v * s, A);
+        return ebFormatNumTimesLetter(at.v * s, A.ch);
       }
       return ebFormatTwoLettersProduct(s, A.ch, at.ch);
     }
