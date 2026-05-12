@@ -3671,6 +3671,35 @@
         innerTerms,
         outerMinus: minusOuter,
         correctText: formatExpandedTerms(correctTerms),
+        wrongPool: minusOuter
+          ? [
+              {
+                text: formatExpandedTerms([A, innerTerms[0], innerTerms[1]]),
+                explain: "括号外为「−」时：整体未按规则变号。",
+              },
+              {
+                text: formatExpandedTerms([A, -innerTerms[0], innerTerms[1]]),
+                explain: "括号外为「−」时：只变第一项，第二项未跟着变号。",
+              },
+              {
+                text: formatExpandedTerms([A, innerTerms[0], -innerTerms[1]]),
+                explain: "括号外为「−」时：只变第二项，第一项未跟着变号。",
+              },
+            ]
+          : [
+              {
+                text: formatExpandedTerms([A, -innerTerms[0], -innerTerms[1]]),
+                explain: "括号外为「+」时：整体都变号。",
+              },
+              {
+                text: formatExpandedTerms([A, -innerTerms[0], innerTerms[1]]),
+                explain: "括号外为「+」时：无故改变第一项符号，第二项不变号。",
+              },
+              {
+                text: formatExpandedTerms([A, innerTerms[0], -innerTerms[1]]),
+                explain: "括号外为「+」时：无故改变第二项符号，第一项不变号。",
+              },
+            ],
       };
     }
 
@@ -3683,11 +3712,7 @@
       const layout = randomInt(0, 7);
       let prompt;
       let correctText;
-      let presetWrong;
-      const wCopy = "误把除法当成可分配进括号，展开成两项之和。";
-      const wMul = "乘法分配时有项未正确处理。";
-      const wFlip = "符号或分配有误。";
-      const wDrop = "漏乘了括号内某一项。";
+      let wrongPool = [];
 
       if (layout <= 1) {
         const leftK = layout === 0;
@@ -3695,10 +3720,21 @@
         const t1 = `${k} × ${A}`;
         const t2 = innerOp === "+" ? `${k} × ${B}` : `- ${k} × ${B}`;
         correctText = ebJoinSum([t1, t2]);
-        presetWrong = [
-          { text: ebJoinSum([`${k} × ${A}`, `${ebFmtAtom({ type: "n", v: B })}`]), explain: wDrop },
-          { text: innerOp === "+" ? `${k} × ${A} - ${k} × ${B}` : `${k} × ${A} + ${k} × ${B}`, explain: wMul },
-          { text: ebJoinSum([`${A}`, `${k} × ${B}`]), explain: wFlip },
+        wrongPool = [
+          { text: ebJoinSum([t2]), explain: "乘法分配时漏乘括号内第一项。" },
+          { text: ebJoinSum([t1]), explain: "乘法分配时漏乘括号内第二项。" },
+          {
+            text: innerOp === "+" ? ebJoinSum([t1, `- ${k} × ${B}`]) : ebJoinSum([t1, `${k} × ${B}`]),
+            explain: "乘法分配时，当括号内符号为加号或减号时，错看原有符号，导致分配后第二项符号错误。",
+          },
+          {
+            text: innerOp === "+" ? `${k} + ${A} + ${B}` : `${k} - ${A} + ${B}`,
+            explain: "对于 `k × (A op B)` 或 `(A op B) × k`，且 op 为加号或减号时，将中间乘号看成 op 进行分配。",
+          },
+          {
+            text: innerOp === "+" ? `${k} × ${A} + ${k} × ${B}` : `${k} × ${A} - ${k} × ${B}`,
+            explain: "对于 `k × (A op B)` 或 `(A op B) × k`，且 op 为乘号时，将 op 看成加号导致误用加法分配律。",
+          },
         ];
       } else if (layout <= 3) {
         const leftP = layout === 2;
@@ -3706,54 +3742,98 @@
         if (!leftP) {
           correctText = t("expand.choice.cannotRemoveBrackets") || "此类情况无法去除括号";
           const w2 = innerOp === "+" ? `${k} ÷ ${B}` : `- ${k} ÷ ${B}`;
-          presetWrong = [
-            { text: ebJoinSum([`${k} ÷ ${A}`, w2]), explain: "误用除法分配到括号内每一项。" },
-            { text: `${k} ÷ ${A} + ${B}`, explain: wFlip },
-            { text: `${k} ÷ ${A} - ${B}`, explain: wFlip },
+          wrongPool = [
+            { text: ebJoinSum([`${k} ÷ ${A}`, `${k} ÷ ${B}`]), explain: "对于 `k ÷ (A ± B)` 时，对括号内强行分配所有项。" },
+            { text: ebJoinSum([`${k} ÷ ${A}`]), explain: "对于 `k ÷ (A ± B)` 时，对括号内强行分配，且只分配部分项。" },
+            { text: `${k} ÷ ${A} + ${B}`, explain: "对于 `k ÷ (A ± B)` 时，强行展开但项衔接错误。" },
+            { text: `${k} ÷ ${A} - ${B}`, explain: "对于 `k ÷ (A ± B)` 时，强行展开且符号处理错误。" },
           ];
         } else {
           const t1 = `${A} ÷ ${k}`;
           const t2 = innerOp === "+" ? `${B} ÷ ${k}` : `- ${B} ÷ ${k}`;
           correctText = ebJoinSum([t1, t2]);
-          presetWrong = [
-            { text: `${A} ÷ ${k} + ${B}`, explain: wDrop },
-            { text: innerOp === "+" ? `${A} ÷ ${k} - ${B} ÷ ${k}` : `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "分配后符号处理有误。" },
+          wrongPool = [
+            {
+              text: innerOp === "+" ? ebJoinSum([t1, `- ${B} ÷ ${k}`]) : ebJoinSum([t1, `${B} ÷ ${k}`]),
+              explain: "对于 `(A ± B) ÷ k`，分配后对于原括号内的符号分配错误（例如加号变减号等）。",
+            },
+            {
+              text: innerOp === "+" ? `${A} + ${B} ÷ ${k}` : `${A} - ${B} ÷ ${k}`,
+              explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项照抄。",
+            },
+            {
+              text: innerOp === "+" ? `${A} ÷ ${k} + ${B}` : `${A} ÷ ${k} - ${B}`,
+              explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项照抄。",
+            },
+            { text: ebJoinSum([t1]), explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项漏抄。" },
+            { text: ebJoinSum([t2]), explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项漏抄。" },
             { text: `${A} + ${B} ÷ ${k}`, explain: "除法只作用在括号内其中一项，书写顺序错误。" },
           ];
         }
       } else if (layout === 4) {
         const opIn = Math.random() < 0.5 ? "×" : "÷";
         prompt = `${k} × (${A} ${opIn} ${B})`;
-        if (opIn === "×") correctText = `${k} × ${A} × ${B}`;
-        else correctText = `${k} × ${A} ÷ ${B}`;
-        presetWrong = [
-          { text: `${k} × ${A} + ${k} × ${B}`, explain: "括号内为乘除时误用加减分配。" },
-          { text: opIn === "×" ? `${k} × ${A} - ${k} × ${B}` : `${k} × ${A} + ${k} × ${B}`, explain: wFlip },
-          { text: `${A} × ${B} + ${k}`, explain: wMul },
-        ];
+        if (opIn === "×") {
+          correctText = `${k} × ${A} × ${B}`;
+          wrongPool = [
+            { text: `${k} × ${A} + ${k} × ${B}`, explain: "对于 `k × (A op B)` 且 op 为乘号时，将 op 看成加号导致误用加法分配律。" },
+            { text: `${k} + ${A} + ${B}`, explain: "对于 `k × (A op B)` 或 `(A op B) × k`，且 op 为加号或减号时，将中间乘号看成 op 进行分配。" },
+            { text: `${A} × ${B} + ${k}`, explain: "运算顺序或拆写错误。" },
+          ];
+        } else {
+          correctText = `${k} × ${A} ÷ ${B}`;
+          wrongPool = [
+            { text: `${k} × ${A} ÷ ${k} × ${B}`, explain: "对于 `k × (A ÷ B)` 或 `(A ÷ B) × k`，写成 `k × A ÷ k × B` 的错误分配。" },
+            { text: `${k} × ${A} + ${k} × ${B}`, explain: "括号内为除号时误用加法分配律拆开。" },
+            { text: `${k} × ${A} + ${k} ÷ ${B}`, explain: "括号内为除号时，拆写衔接错误。" },
+            { text: `${A} × ${B} + ${k}`, explain: "运算顺序或拆写错误。" },
+          ];
+        }
       } else if (layout === 5) {
         const opIn = Math.random() < 0.5 ? "×" : "÷";
         prompt = `(${A} ${opIn} ${B}) × ${k}`;
-        if (opIn === "×") correctText = `${A} × ${B} × ${k}`;
-        else correctText = `${A} ÷ ${B} × ${k}`;
-        presetWrong = [
-          { text: `${k} × ${A} + ${k} × ${B}`, explain: "括号内为乘除时误用加减分配。" },
-          { text: opIn === "×" ? `${A} × ${k} + ${B}` : `${A} ÷ ${B} + ${k}`, explain: wFlip },
-          { text: `${A} × ${B} + ${k}`, explain: wFlip },
-        ];
+        if (opIn === "×") {
+          correctText = `${A} × ${B} × ${k}`;
+          wrongPool = [
+            { text: `${k} × ${A} + ${k} × ${B}`, explain: "对于 `k × (A op B)` 且 op 为乘号时，将 op 看成加号导致误用加法分配律。" },
+            { text: `${A} × ${k} + ${B}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第一项，第二项照抄。" },
+            { text: `${A} + ${B} × ${k}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第二项，第一项照抄。" },
+            { text: `${A} × ${B} + ${k}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第一项，第二项漏抄。" },
+            { text: `${B} × ${k}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第二项，第一项漏抄。" },
+          ];
+        } else {
+          correctText = `${A} ÷ ${B} × ${k}`;
+          wrongPool = [
+            { text: `${k} × ${A} ÷ ${k} × ${B}`, explain: "对于 `k × (A ÷ B)` 或 `(A ÷ B) × k`，写成 `k × A ÷ k × B` 的错误分配。" },
+            { text: `${A} ÷ ${k} + ${B}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项照抄。" },
+            { text: `${A} + ${B} ÷ ${k}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项照抄。" },
+            { text: `${A} ÷ ${B}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项漏抄。" },
+            { text: `${B} ÷ ${k}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项漏抄。" },
+          ];
+        }
       } else {
         const opIn = Math.random() < 0.5 ? "×" : "÷";
         prompt = `(${A} ${opIn} ${B}) ÷ ${k}`;
-        if (opIn === "×") correctText = `${A} × ${B} ÷ ${k}`;
-        else correctText = `${A} ÷ ${B} ÷ ${k}`;
-        presetWrong = [
-          { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。" },
-          { text: opIn === "×" ? `${A} × ${k} ÷ ${B}` : `${A} ÷ ${B} × ${k}`, explain: wFlip },
-          { text: `${A} ÷ ${k} × ${B}`, explain: wFlip },
-        ];
+        if (opIn === "×") {
+          correctText = `${A} × ${B} ÷ ${k}`;
+          wrongPool = [
+            { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。" },
+            { text: `${k} ÷ ${A} × ${k} ÷ ${B}`, explain: "对于 `k ÷ (A × B)` 或 `(A × B) ÷ k`，写成 `k ÷ A × k ÷ B` 的错误分配。" },
+            { text: `${A} × ${k} ÷ ${B}`, explain: "除法与括号衔接或运算顺序错误。" },
+            { text: `${A} ÷ ${k} × ${B}`, explain: "除法与括号衔接或运算顺序错误。" },
+          ];
+        } else {
+          correctText = `${A} ÷ ${B} ÷ ${k}`;
+          wrongPool = [
+            { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。" },
+            { text: `${k} ÷ ${A} ÷ ${k} ÷ ${B}`, explain: "对于 `k ÷ (A ÷ B)` 时对括号内强行分配。" },
+            { text: `${A} ÷ ${B} × ${k}`, explain: "除法与括号衔接错误。" },
+            { text: `${A} × ${B} ÷ ${k}`, explain: "除法与括号衔接错误。" },
+          ];
+        }
       }
 
-      return { expandKind: "L2", prompt, correctText, presetWrong };
+      return { expandKind: "L2", prompt, correctText, wrongPool, presetWrong: [] };
     }
 
     function buildExpandQuestion_L3() {
@@ -3771,18 +3851,76 @@
       const seg2 = ebSegPair(sC, C, opCD, D);
       const pairs = ebCombineSegs(seg1, seg2, mid);
       const correctText = ebPairsToSum(pairs);
-      const presetWrong = [
-        {
-          text: ebPairsToSum([pairs[0], pairs[1], ebNegPair(pairs[2]), pairs[3]]),
-          explain: "段间为「-」时，后一段整体应变号。",
-        },
-        { text: ebPairsToSum(pairs.slice(0, 3)), explain: "展开后漏了一项。" },
-        {
-          text: ebPairsToSum([ebNegPair(pairs[0]), pairs[1], pairs[2], pairs[3]]),
-          explain: "第一段首项符号处理有误。",
-        },
-      ];
-      return { expandKind: "L3", prompt, correctText, presetWrong };
+      const [p1, p2, q1, q2] = pairs;
+      const wrongPool = [];
+
+      if (mid === "-") {
+        wrongPool.push({
+          text: ebPairsToSum([p1, p2, seg2[0], seg2[1]]),
+          explain: "段间为「−」时，第二段整体忘变号。",
+        });
+        wrongPool.push({
+          text: ebPairsToSum([p1, p2, ebNegPair(q1), q2]),
+          explain: "段间为「−」时，第二段只变第一项符号，第二项未变号。",
+        });
+        wrongPool.push({
+          text: ebPairsToSum([p1, p2, q1, ebNegPair(q2)]),
+          explain: "段间为「−」时，第二段只变第二项符号，第一项未变号。",
+        });
+      }
+      wrongPool.push({
+        text: ebPairsToSum([p1, p2, q2]),
+        explain: "段间为「− / +」时，第二段漏抄第一项。",
+      });
+      wrongPool.push({
+        text: ebPairsToSum([p1, p2, q1]),
+        explain: "段间为「− / +」时，第二段漏抄第二项。",
+      });
+      if (mid === "+") {
+        wrongPool.push({
+          text: ebPairsToSum([p1, p2, ebNegPair(q1), ebNegPair(q2)]),
+          explain: "段间为「+」时，第二段无故整体变号。",
+        });
+        wrongPool.push({
+          text: ebPairsToSum([p1, p2, ebNegPair(q1), q2]),
+          explain: "段间为「+」时，第二段无故仅改变第一项符号。",
+        });
+        wrongPool.push({
+          text: ebPairsToSum([p1, p2, q1, ebNegPair(q2)]),
+          explain: "段间为「+」时，第二段无故仅改变第二项符号。",
+        });
+      }
+      wrongPool.push({
+        text: ebPairsToSum([ebNegPair(p1), p2, q1, q2]),
+        explain: "某段首项前的「+ / −」被吃掉或重复变号；或第一段展开后第一项符号错误。",
+      });
+      wrongPool.push({
+        text: ebPairsToSum([q1, q2, p1, p2]),
+        explain: "第一段与第二段符号混抄、段界不清。",
+      });
+      wrongPool.push({
+        text: ebPairsToSum([p2, q1, q2]),
+        explain: "第一段漏抄第一项。",
+      });
+      wrongPool.push({
+        text: ebPairsToSum([p1, q1, q2]),
+        explain: "第一段漏抄第二项。",
+      });
+      wrongPool.push({
+        text: ebPairsToSum([p1, ebNegPair(p2), q1, q2]),
+        explain: "第一段展开后第二项符号错误。",
+      });
+
+      const seen = new Set([correctText]);
+      const deduped = [];
+      for (let i = 0; i < wrongPool.length; i += 1) {
+        const w = wrongPool[i];
+        if (!w || !w.text || seen.has(w.text)) continue;
+        seen.add(w.text);
+        deduped.push(w);
+      }
+
+      return { expandKind: "L3", prompt, correctText, wrongPool: deduped, presetWrong: [] };
     }
 
     function buildExpandQuestion_L4() {
@@ -3790,7 +3928,7 @@
       const k = randomInt(1, 12);
       const k1 = randomInt(1, 12);
       const k2 = randomInt(1, 12);
-      let presetWrong;
+      let wrongPool = [];
       let prompt;
       let correctText;
 
@@ -3822,12 +3960,38 @@
           parts.push(ebKTimesTerm(k * kfac, s, at));
         });
         correctText = ebJoinSum(parts);
-        presetWrong = [
-          { text: ebJoinSum([parts[0], ebFmtAtom(B), ebFmtAtom(C)]), explain: "系数 k 要乘到括号内每一项。" },
-          { text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, 1, B)]), explain: "漏乘了括号内某一项。" },
+        wrongPool = [
+          {
+            text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, 1, B)]),
+            explain: "对于含 `± k (± B ± C)`，`± k` 只乘括号内第一项。",
+          },
+          {
+            text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, 1, C)]),
+            explain: "对于含 `± k (± B ± C)`，`± k` 只乘括号内第二项。",
+          },
+          {
+            text: ebJoinSum([parts[0], ebFmtAtom(B), ebFmtAtom(C)]),
+            explain: "对于含 `± k (± B ± C)`，系数 `± k` 直接被遗忘，得到结果为 `± B ± C`（错形）。",
+          },
+          {
+            text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, -1, B), ebKTimesTerm(k * kfac, 1, C)]),
+            explain: "对于含 `± k (± B ± C)`，分配时将括号内 `B` 或 `C` 的符号弄错。",
+          },
           {
             text: ebJoinSum([ebKTimesTerm(k * kfac, 1, B), ebKTimesTerm(k * kfac, 1, C)]),
-            explain: "漏写了括号外的一项。",
+            explain: "对于含 `± A ± k (± B ± C)`，遗忘 `± A`。",
+          },
+          {
+            text: ebJoinSum([`${ebFmtAtom(A)} × ${ebFmtAtom(B)}`, ebKTimesTerm(k * kfac, 1, C)]),
+            explain: "对于含 `± A ± k (± B ± C)`，误将 `A` 当成系数与括号内项错误相乘（错形）。",
+          },
+          {
+            text: ebJoinSum([parts[0], `${k}`, ebFmtAtom(B), ebFmtAtom(C)]),
+            explain: "对于含 `± k (± B ± C)`，分配时把 `k` 当作普通加减项插入（错形）。",
+          },
+          {
+            text: ebJoinSum([`${k} × ${ebFmtAtom(B)}`, `${k} + ${ebFmtAtom(C)}`]),
+            explain: "含括号的展开后分配时计算错误（如把 `k × (A ± B)` 错成 `(k × A) ± (k ± B)` 一类错形）。",
           },
         ];
       } else {
@@ -3853,18 +4017,97 @@
         const sm = mid === "+" ? 1 : -1;
         const leftParts = seg1.map(([s, at]) => ebKTimesTerm(k1, s, at));
         const rightParts = seg2.map(([s, at]) => ebKTimesTerm(k2, sm * s, at));
-        const parts = leftParts.concat(rightParts);
-        correctText = ebJoinSum(parts);
-        presetWrong = [
-          { text: ebJoinSum(leftParts.concat(rightParts.slice(0, 1))), explain: "漏乘了某一段或某一项。" },
-          { text: ebJoinSum(leftParts.map((p, i) => (i === 0 ? p + " " : p)).concat(rightParts)), explain: "符号或段间运算有误。" },
-          { text: ebJoinSum(leftParts.concat(seg2.map(([s, at]) => ebKTimesTerm(k2, s, at)))), explain: "段间为「-」时，后一段整体应变号。" },
+        const rawRight = seg2.map(([s, at]) => ebKTimesTerm(k2, s, at));
+        correctText = ebJoinSum(leftParts.concat(rightParts));
+        wrongPool = [
+          {
+            text: ebJoinSum(leftParts.concat(rightParts.slice(0, 1))),
+            explain: "双段中，段间或段首为「− / +」时，第二段漏抄第二项。",
+          },
+          {
+            text: ebJoinSum(leftParts.concat([rightParts[1]])),
+            explain: "双段中，段间或段首为「− / +」时，第二段漏抄第一项。",
+          },
+          {
+            text: ebJoinSum(leftParts.map((p, i) => (i === 0 ? p + " " : p)).concat(rightParts)),
+            explain: "某段首项前的「+ / −」被吃掉或重复变号；或双段符号衔接有误。",
+          },
+          {
+            text: ebJoinSum(leftParts.concat(rawRight)),
+            explain: "双段中，段间或段首为「−」时，第二段整体忘变号。",
+          },
         ];
+        if (mid === "-") {
+          wrongPool.push({
+            text: ebJoinSum(leftParts.concat([rawRight[0], rightParts[1]])),
+            explain: "双段中，段间或段首为「−」时，第二段只变第一项符号，第二项未变号。",
+          });
+          wrongPool.push({
+            text: ebJoinSum(leftParts.concat([rightParts[0], rawRight[1]])),
+            explain: "双段中，段间或段首为「−」时，第二段只变第二项符号，第一项未变号。",
+          });
+        }
+        if (mid === "+") {
+          wrongPool.push({
+            text: ebJoinSum(leftParts.concat(seg2.map(([s, at]) => ebKTimesTerm(k2, -s, at)))),
+            explain: "双段中，段间或段首为「+」时，第二段无故整体变号。",
+          });
+          wrongPool.push({
+            text: ebJoinSum(leftParts.concat([ebKTimesTerm(k2, -seg2[0][0], seg2[0][1]), rightParts[1]])),
+            explain: "双段中，段间或段首为「+」时，第二段无故仅改变第一项符号。",
+          });
+          wrongPool.push({
+            text: ebJoinSum(leftParts.concat([rightParts[0], ebKTimesTerm(k2, -seg2[1][0], seg2[1][1])])),
+            explain: "双段中，段间或段首为「+」时，第二段无故仅改变第二项符号。",
+          });
+        }
+        wrongPool.push({
+          text: ebJoinSum([leftParts[1], leftParts[0], rightParts[0], rightParts[1]]),
+          explain: "第一段与第二段符号混抄、段界不清。",
+        });
+        wrongPool.push({
+          text: ebJoinSum([`${k1} × ${ebFmtAtom(A)}`, `${k1} × ${ebFmtAtom(B)}`, rightParts[0], rightParts[1]]),
+          explain: "含括号的展开后分配时计算错误（错形）。",
+        });
+        wrongPool.push({
+          text: ebJoinSum(leftParts.slice(0, 1).concat(rightParts)),
+          explain: "漏写含 `x`、`y` 的项，或漏写常数 `a`、`b` 项（错形）。",
+        });
       }
-      return { expandKind: "L4", prompt, correctText, presetWrong };
+
+      const seen = new Set([correctText]);
+      const deduped = [];
+      for (let i = 0; i < wrongPool.length; i += 1) {
+        const w = wrongPool[i];
+        if (!w || !w.text || seen.has(w.text)) continue;
+        seen.add(w.text);
+        deduped.push(w);
+      }
+
+      return { expandKind: "L4", prompt, correctText, wrongPool: deduped, presetWrong: [] };
     }
 
     function buildExpandQuestion_L5() {
+      function dedupeExpandWrongPool(correctText, wrongPool) {
+        const seen = new Set([correctText]);
+        const deduped = [];
+        for (let i = 0; i < wrongPool.length; i += 1) {
+          const w = wrongPool[i];
+          if (!w || !w.text || seen.has(w.text)) continue;
+          seen.add(w.text);
+          deduped.push(w);
+        }
+        return deduped;
+      }
+
+      /** L5a：题面最左「±A」乘入括号时，把展开项整体变号（分配律下的外符号） */
+      function ebL5aApplyOuter(outer, frag) {
+        if (outer === 1) return frag;
+        if (!frag) return frag;
+        if (frag.charAt(0) === "-") return frag.slice(1);
+        return "-" + frag;
+      }
+
       const r = Math.random() * 4;
       const t = r < 1 ? 1 : r < 2 ? 2 : 3;
       if (t === 1) {
@@ -3872,16 +4115,56 @@
         const B = ebPickAtom();
         const C = ebPickAtom();
         const innerOp = Math.random() < 0.5 ? "+" : "-";
-        const prompt = ebFmtAtom(A) + " × " + ebBracketPrompt(1, B, innerOp, C);
+        const outerS = Math.random() < 0.5 ? 1 : -1;
+        const prompt = ebTermSignedAtom(outerS, A) + " × " + ebBracketPrompt(1, B, innerOp, C);
         const seg = ebSegPair(1, B, innerOp, C);
-        const parts = seg.map(([s, at]) => ebAtomTimesSignedTerm(A, s, at));
+        const parts = seg.map(([s, at]) => ebL5aApplyOuter(outerS, ebAtomTimesSignedTerm(A, s, at)));
         const correctText = ebJoinSum(parts);
-        const presetWrong = [
-          { text: ebJoinSum([ebProductPair([1, A], [1, B]), ebFmtAtom(C)]), explain: "乘法要分配到括号内每一项。" },
-          { text: parts[0], explain: "分配未完成，只展开了一项。" },
-          { text: ebJoinSum([parts[0], String(B.type === "n" ? B.v : 1)]), explain: "项或符号有误。" },
+        const innerSum = ebJoinSum([ebTermSignedAtom(seg[0][0], seg[0][1]), ebTermSignedAtom(seg[1][0], seg[1][1])]);
+        const wrongPool = [
+          {
+            text: ebJoinSum(seg.map(([s, at]) => ebAtomTimesSignedTerm(A, s, at))),
+            explain: "对于 `± A × (± B ± C)`，`± A` 分配时将 `A` 前的 `±` 符号遗忘。",
+          },
+          {
+            text: parts[0],
+            explain: "对于 `± A × (± B ± C)`，`± A` 只乘括号内第一项。",
+          },
+          {
+            text: parts[1],
+            explain: "对于 `± A × (± B ± C)`，`± A` 只乘括号内第二项。",
+          },
+          {
+            text: ebJoinSum([
+              ebL5aApplyOuter(outerS, ebAtomTimesSignedTerm(A, -seg[0][0], seg[0][1])),
+              parts[1],
+            ]),
+            explain: "对于 `± A × (± B ± C)`，分配时将 `B` 或 `C` 的符号弄错。",
+          },
+          {
+            text: ebJoinSum([
+              parts[0],
+              ebL5aApplyOuter(outerS, ebAtomTimesSignedTerm(A, -seg[1][0], seg[1][1])),
+            ]),
+            explain: "对于 `± A × (± B ± C)`，分配时将 `B` 或 `C` 的符号弄错。",
+          },
+          {
+            text: innerSum,
+            explain: "对于 `± A × (± B ± C)`，遗忘 `± A`，直接显示结果为 `± B ± C`。",
+          },
+          {
+            text: ebJoinSum([parts[0], ebTermSignedAtom(outerS, A), ebTermSignedAtom(seg[1][0], seg[1][1])]),
+            explain:
+              "对于 `± A × (± B ± C)`，分配时运算符号错误，例如 `± A × (± B) ± A + (± C)` 或者 `± A + (± B) ± A × (± C)`。",
+          },
         ];
-        return { expandKind: "L5a", prompt, correctText, presetWrong };
+        return {
+          expandKind: "L5a",
+          prompt,
+          correctText,
+          wrongPool: dedupeExpandWrongPool(correctText, wrongPool),
+          presetWrong: [],
+        };
       }
       if (t === 2) {
         const B = ebPickAtom();
@@ -3890,14 +4173,41 @@
         const innerOp = Math.random() < 0.5 ? "+" : "-";
         const prompt = ebBracketPrompt(1, B, innerOp, C) + " ÷ " + ebFmtAtom(A);
         const seg = ebSegPair(1, B, innerOp, C);
-        const parts = seg.map(([s, at]) => ebTermSignedAtom(s, at) + " ÷ " + ebFmtAtom(A));
+        const divA = " ÷ " + ebFmtAtom(A);
+        const parts = seg.map(([s, at]) => ebTermSignedAtom(s, at) + divA);
         const correctText = ebJoinSum(parts);
-        const presetWrong = [
-          { text: parts[0], explain: "分子除法展开不完整，漏了一项。" },
-          { text: ebJoinSum([ebFmtAtom(B) + " ÷ " + ebFmtAtom(A), ebFmtAtom(C)]), explain: "除法与分子项对应关系有误。" },
-          { text: ebJoinSum([parts[0], String(C.type === "n" ? C.v : 1)]), explain: "漏项。" },
+        const wrongPool = [
+          {
+            text: ebJoinSum([parts[0], ebTermSignedAtom(seg[1][0], seg[1][1])]),
+            explain: "对于 `(± B ± C) ÷ A`，只除括号内第一项，第二项未除。",
+          },
+          {
+            text: ebJoinSum([ebTermSignedAtom(seg[0][0], seg[0][1]), parts[1]]),
+            explain: "对于 `(± B ± C) ÷ A`，只除括号内第二项，第一项未除。",
+          },
+          {
+            text: ebJoinSum([
+              ebTermSignedAtom(seg[1][0], seg[0][1]) + divA,
+              ebTermSignedAtom(seg[0][0], seg[1][1]) + divA,
+            ]),
+            explain: "对于 `(± B ± C) ÷ A`，除法分配时将括号内第一项 `B` 前符号与第二项 `C` 前符号两者弄混。",
+          },
+          {
+            text: ebJoinSum([ebTermSignedAtom(-seg[0][0], seg[0][1]) + divA, parts[1]]),
+            explain: "对于 `(± B ± C) ÷ A`，除法分配时将括号内第一项 `B` 前符号或第二项 `C` 前符号看错。",
+          },
+          {
+            text: ebJoinSum([parts[0], ebTermSignedAtom(-seg[1][0], seg[1][1]) + divA]),
+            explain: "对于 `(± B ± C) ÷ A`，除法分配时将括号内第一项 `B` 前符号或第二项 `C` 前符号看错。",
+          },
         ];
-        return { expandKind: "L5b", prompt, correctText, presetWrong };
+        return {
+          expandKind: "L5b",
+          prompt,
+          correctText,
+          wrongPool: dedupeExpandWrongPool(correctText, wrongPool),
+          presetWrong: [],
+        };
       }
       const A = ebPickAtom();
       const B = ebPickAtom();
@@ -3921,18 +4231,85 @@
         ebProductPair(p2, q2),
       ];
       const correctText = ebJoinSum(order);
-      const presetWrong = [
-        { text: ebJoinSum(order.slice(0, 3)), explain: "漏乘了一项。" },
+      const p1n = ebNegPair(p1);
+      const p2n = ebNegPair(p2);
+      const q1n = ebNegPair(q1);
+      const q2n = ebNegPair(q2);
+      const wrongPool = [
         {
-          text: ebJoinSum(order.map((o) => (o.charAt(0) === "-" ? o.slice(1) : "-" + o))),
-          explain: "多项符号有误。",
+          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p1, q2)]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，乘法分配时漏乘第一个或第二个括号中某项。",
         },
         {
-          text: ebJoinSum([order[0], order[1], order[2], order[2]]),
-          explain: "展开项有误。",
+          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p2, q1)]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，乘法分配时漏乘第一个或第二个括号中某项。",
+        },
+        {
+          text: ebJoinSum([order[0], order[1], order[3]]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，乘法分配时漏乘某一括号中某项。",
+        },
+        {
+          text: ebJoinSum([ebProductPair(p1n, q1), ebProductPair(p1n, q2), ebProductPair(p2, q1), ebProductPair(p2, q2)]),
+          explain:
+            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第一个括号内某项符号（即 `A` 与 `B` 前的符号在分配时某一个被改变）。",
+        },
+        {
+          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p1, q2), ebProductPair(p2n, q1), ebProductPair(p2n, q2)]),
+          explain:
+            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第一个括号内某项符号（即 `A` 与 `B` 前的符号在分配时某一个被改变）。",
+        },
+        {
+          text: ebJoinSum([ebProductPair(p1n, q1), ebProductPair(p1n, q2), ebProductPair(p2n, q1), ebProductPair(p2n, q2)]),
+          explain:
+            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第一个括号内整体符号（即 `A` 与 `B` 前的符号在分配时均被改变）。",
+        },
+        {
+          text: ebJoinSum([ebProductPair(p1, q1n), ebProductPair(p1, q2), ebProductPair(p2, q1n), ebProductPair(p2, q2)]),
+          explain:
+            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第二个括号内某项符号（即 `C` 与 `D` 前的符号在分配时某一个被改变）。",
+        },
+        {
+          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p1, q2n), ebProductPair(p2, q1), ebProductPair(p2, q2n)]),
+          explain:
+            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第二个括号内某项符号（即 `C` 与 `D` 前的符号在分配时某一个被改变）。",
+        },
+        {
+          text: ebJoinSum([ebProductPair(p1, q1n), ebProductPair(p1, q2n), ebProductPair(p2, q1n), ebProductPair(p2, q2n)]),
+          explain:
+            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第二个括号内整体符号（即 `C` 与 `D` 前的符号在分配时均被改变）。",
+        },
+        {
+          text: ebJoinSum([order[0], order[3]]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉交叉项（只做了 `AC` 和 `BD`）。",
+        },
+        {
+          text: ebJoinSum(order.slice(0, 3)),
+          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉 `AC` / `AD` / `BC` / `BD` 中某一项（一项，非多项）。",
+        },
+        {
+          text: ebJoinSum(order.slice(1)),
+          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉 `AC` / `AD` / `BC` / `BD` 中某一项（一项，非多项）。",
+        },
+        {
+          text: ebJoinSum([order[0], order[2], order[3]]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉 `AC` / `AD` / `BC` / `BD` 中某一项（一项，非多项）。",
+        },
+        {
+          text: ebJoinSum([order[0], order[0], order[1], order[2], order[3]]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，弄错分配后 `AC` / `AD` / `BC` / `BD` 中某一项前的系数（一项，非多项）。",
+        },
+        {
+          text: ebJoinSum([order[0], order[1], order[1], order[2], order[3]]),
+          explain: "对于 `(± A ± B) × (± C ± D)`，弄错分配后 `AC` / `AD` / `BC` / `BD` 中某一项前的系数（一项，非多项）。",
         },
       ];
-      return { expandKind: "L5c", prompt, correctText, presetWrong };
+      return {
+        expandKind: "L5c",
+        prompt,
+        correctText,
+        wrongPool: dedupeExpandWrongPool(correctText, wrongPool),
+        presetWrong: [],
+      };
     }
 
     function buildExpandBracketsQuestion(level) {
@@ -3979,51 +4356,21 @@
         return true;
       }
 
-      if (Array.isArray(q.presetWrong)) {
+      function pickWrongPoolIntoChoices(pool) {
+        if (!Array.isArray(pool) || !pool.length) return;
+        const shuffled = shuffleInPlace(pool.slice());
+        for (let i = 0; i < shuffled.length && choices.length < 4; i += 1) {
+          const w = shuffled[i];
+          if (w && w.text) addText(w.text, w.kind || "w", w.explain || "");
+        }
+      }
+
+      if (Array.isArray(q.wrongPool) && q.wrongPool.length) {
+        pickWrongPoolIntoChoices(q.wrongPool);
+      } else if (Array.isArray(q.presetWrong)) {
         q.presetWrong.forEach((w) => {
           if (w && w.text) addText(w.text, w.kind, w.explain);
         });
-      }
-
-      if (q.expandKind === "L1" && q.correctTerms && q.outerMinus != null) {
-        function addChoiceFromTerms(terms, kind, explain) {
-          return addText(formatExpandedTerms(terms), kind, explain);
-        }
-        const firstInner = q.innerTerms[0];
-        const secondInner = q.innerTerms[1];
-        if (q.outerMinus) {
-          addChoiceFromTerms(
-            [q.correctTerms[0], firstInner, secondInner],
-            "l1_m1",
-            "括号前是「-」，括号内每一项都要变号。你没有按规则整体变号。"
-          );
-          addChoiceFromTerms(
-            [q.correctTerms[0], -firstInner, secondInner],
-            "l1_m2",
-            "括号前是「-」，你只改了第一项，第二项没有跟着变号。"
-          );
-          addChoiceFromTerms(
-            [q.correctTerms[0], firstInner, -secondInner],
-            "l1_m3",
-            "括号前是「-」，你只改了第二项，第一项没有跟着变号。"
-          );
-        } else {
-          addChoiceFromTerms(
-            [q.correctTerms[0], -firstInner, -secondInner],
-            "l1_p4",
-            "括号前是「+」，去括号后不应整体变号。"
-          );
-          addChoiceFromTerms(
-            [q.correctTerms[0], -firstInner, secondInner],
-            "l1_p5",
-            "括号前是「+」，第一项不应改号。"
-          );
-          addChoiceFromTerms(
-            [q.correctTerms[0], firstInner, -secondInner],
-            "l1_p6",
-            "括号前是「+」，第二项不应改号。"
-          );
-        }
       }
 
       let nearAttempts = 0;
