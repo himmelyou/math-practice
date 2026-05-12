@@ -35,10 +35,10 @@
   // 约定：
   // - 本地开发页面（如 127.0.0.1:xxxx）默认连本地后端 http://localhost:3001
   // - 本地管理端「测试环境」使用端口 8081，也连本地后端
-  // - 本地管理端「真实环境」使用端口 8080，连线上 Render 后端
+  // - 本地管理端「真实环境」使用端口 8090（原 8080 在部分 Win 环境下会 EACCES），连线上 Render 后端
   var isLocalHost = /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host);
   var isTestAdmin = /^(localhost|127\.0\.0\.1):8081$/.test(host);
-  var isProdAdmin = /^(localhost|127\.0\.0\.1):8080$/.test(host);
+  var isProdAdmin = /^(localhost|127\.0\.0\.1):8090$/.test(host);
 
   var useLocalApi = (isLocalHost || isTestAdmin) && !isProdAdmin;
 
