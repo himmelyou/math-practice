@@ -1252,8 +1252,8 @@
       border-style: dashed;
       background: rgba(13, 71, 161, 0.04);
     }
-    /* 拆括号测试：?expand_cause=1 时在选项后显示《拆括号等级说明》错因编号 */
-    .expand-choices.expand-choices--cause-debug .expand-choice-btn:not(.expand-choice-noop) {
+    /* 拆括号：选项含错因编号时允许换行，避免被截断 */
+    .expand-brackets-page .expand-choices .expand-choice-btn:not(.expand-choice-noop) {
       white-space: normal;
       overflow: visible;
       text-overflow: clip;
@@ -4418,11 +4418,10 @@
       return buildExpandQuestion_L5();
     }
 
-    /** 拆括号：选项旁显示错因编号（与《拆括号等级说明》各档条目对应）。`?expand_cause=1` 或 `window.__JML_EXPAND_CAUSE_DEBUG__ = true` */
-    function isExpandCauseNoDebugEnabled() {
+    /** 拆括号：是否在选项后显示《拆括号等级说明》错因编号。默认开启；地址栏加 `?expand_cause=0` 可关闭。 */
+    function shouldHideExpandCauseLabels() {
       try {
-        if (typeof window !== "undefined" && window.__JML_EXPAND_CAUSE_DEBUG__ === true) return true;
-        return new URLSearchParams(location.search || "").get("expand_cause") === "1";
+        return new URLSearchParams(location.search || "").get("expand_cause") === "0";
       } catch (e) {
         return false;
       }
@@ -4543,8 +4542,7 @@
       expandCurrent = { ...q, ...built };
       const kinds = built.choiceKinds || [];
       const causeNos = built.choiceCauseNos || [];
-      const showCause = isExpandCauseNoDebugEnabled();
-      dom.expandChoices.classList.toggle("expand-choices--cause-debug", showCause);
+      const hideCause = shouldHideExpandCauseLabels();
       dom.expandChoices.innerHTML = built.choiceTexts
         .map((txt, idx) => {
           const isNoop = kinds[idx] === "noop";
@@ -4552,7 +4550,7 @@
           const label = isNoop ? ' aria-hidden="true" tabindex="-1" data-noop="1"' : "";
           const cn = causeNos[idx];
           const causeHtml =
-            showCause && !isNoop && cn
+            !hideCause && !isNoop && cn
               ? ` <span class="expand-choice-cause-no">(${escapeHtml(String(cn))})</span>`
               : "";
           return `<button type="button" class="${cls}" data-idx="${idx}"${label}>${isNoop ? "" : `${escapeHtml(txt)}${causeHtml}`}</button>`;
