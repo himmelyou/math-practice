@@ -1519,6 +1519,23 @@ function writeCohortLevelStatsCache(builtAt, result) {
   });
 }
 
+/** 全体难度常模只读快照（无需管理员口令；不触发重算，仅读磁盘缓存） */
+app.get("/api/public/level-cohort", (req, res) => {
+  const cache = readCohortLevelStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({ ok: false, error: "暂无全体常模，请管理员在后台拉取或刷新常模后再试" });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
 app.get("/api/admin/stats/level-cohort", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });

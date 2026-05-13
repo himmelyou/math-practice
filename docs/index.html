@@ -1704,7 +1704,43 @@
     .stats-table thead th { position: sticky; top: 0; z-index: 2; }
     .stats-table td:first-child { text-align: left; }
     .stats-table tr.ranking-row-me td { background: rgba(25, 118, 210, 0.12); font-weight: 600; }
-    .stats-level-chart-wrap { margin-bottom: 16px; }
+    .stats-level-chart-wrap { margin-bottom: 16px; position: relative; }
+    .stats-heatmap-grid-compact {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      max-width: 100%;
+      margin-bottom: 10px;
+    }
+    .stats-heat-cell {
+      cursor: pointer;
+      border-radius: 8px;
+      padding: 6px 4px;
+      min-height: 72px;
+      font-size: 11px;
+      line-height: 1.25;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      word-break: break-all;
+    }
+    .stats-heat-cell.inactive {
+      background: #eceff1;
+      color: #546e7a;
+      border: 1px solid #cfd8dc;
+    }
+    .stats-heat-cell-selected {
+      outline: 3px solid #1565c0;
+      outline-offset: 1px;
+      position: relative;
+      z-index: 1;
+    }
+    .stats-heat-l { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+    .stats-heat-num { font-size: 11px; }
+    .stats-chart-title { margin: 10px 0 8px; font-size: 0.95rem; font-weight: 600; color: #37474f; }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .stats-level-chart-row label { white-space: nowrap; }
     .stats-level-chart-row select {
@@ -2489,15 +2525,15 @@
     </section>
 
     <section class="stats-section" id="stats-section">
-      <p class="stats-subtitle" id="stats-subtitle-main" style="margin:0 0 12px;font-size:0.88rem;color:var(--muted);">按难度统计的错误率与用时（基于最近 500 局）。</p>
-      <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="display:none;">
-        <div class="stats-level-chart-row"><label id="stats-level-select-label">选择难度：</label><select id="stats-level-select"></select></div>
-        <div style="position:relative;height:260px;"><canvas id="stats-level-canvas"></canvas></div>
+      <p class="stats-subtitle" id="stats-subtitle-hint" style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);"></p>
+      <div id="stats-heatmap-host" style="display:none;"></div>
+      <div id="stats-chart-block" style="display:none;">
+        <h3 class="stats-chart-title" id="stats-chart-title"></h3>
+        <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="height:260px;">
+          <canvas id="stats-level-canvas"></canvas>
+        </div>
       </div>
-      <div class="stats-table-wrap" id="stats-level-table-wrap">
-        <table class="stats-table" id="stats-level-table" style="display:none;"><thead><tr><th id="stats-th-level">难度</th><th id="stats-th-attempts">答题数</th><th id="stats-th-error-rate">错误率</th><th id="stats-th-avg-time">平均每题用时(秒)</th></tr></thead><tbody id="stats-level-body"></tbody></table>
-        <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
-      </div>
+      <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
     </section>
 
     <footer class="app-footer" style="display:none;"></footer>
@@ -2539,7 +2575,9 @@
   </div>
 
   <script src="prime-composite-logic.js"></script>
-  <script src="stats-heatmap-browser.js?v=7"></script>
+  <script src="stats-heatmap-browser.js?v=9"></script>
+  <script src="stats-aggregate-browser.js?v=1"></script>
+  <script src="stats-chart-browser.js?v=1"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -4876,7 +4914,9 @@
         "ranking.primePerfect": "質數達人",
         "ranking.streak": "耐力榜",
         "ranking.combo": "連擊榜",
-        "stats.subtitle": "按難度統計的錯誤率與用時（基於最近 500 局）。",
+        "stats.subtitle": "點格切換下方曲線。",
+        "stats.chartPrefix": "按日曲線（",
+        "stats.chartSuffix": " · 最近最多 14 個有練習日）",
         "stats.level.select": "選擇難度：",
         "stats.th.level": "難度",
         "stats.th.attempts": "答題數",
@@ -4948,7 +4988,9 @@
         "ranking.primePerfect": "Prime Master",
         "ranking.streak": "Streak",
         "ranking.combo": "Combo",
-        "stats.subtitle": "Error rate and time by level (based on latest 500 runs).",
+        "stats.subtitle": "Tap a cell to change the chart below.",
+        "stats.chartPrefix": "Daily chart (",
+        "stats.chartSuffix": " · up to 14 recent practice days)",
         "stats.level.select": "Level:",
         "stats.th.level": "Level",
         "stats.th.attempts": "Attempts",
@@ -5135,12 +5177,7 @@
         rankingSelect.options[4].textContent = t("ranking.combo");
       }
 
-      setTextById("stats-subtitle-main", "stats.subtitle");
-      setTextById("stats-level-select-label", "stats.level.select");
-      setTextById("stats-th-level", "stats.th.level");
-      setTextById("stats-th-attempts", "stats.th.attempts");
-      setTextById("stats-th-error-rate", "stats.th.errorRate");
-      setTextById("stats-th-avg-time", "stats.th.avgTime");
+      setTextById("stats-subtitle-hint", "stats.subtitle");
 
       setTextById("wrongbook-practice-btn", "wrongbook.practice");
       const wbTitle = document.querySelector(".wrongbook-title");
@@ -5156,6 +5193,8 @@
       setTextById("expand-th-time", "expand.th.time");
       setTextById("expand-th-wrong", "expand.th.wrong");
       setTextById("expand-th-level", "expand.th.level");
+      const statsSec = document.getElementById("stats-section");
+      if (statsSec && statsSec.classList.contains("visible")) updateStudentStatsChartTitle();
     }
 
     function getAuthToken() {
@@ -6761,7 +6800,6 @@
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.remove("visible");
-      if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       const primeSection = document.getElementById("prime-composite-section");
@@ -7722,7 +7760,206 @@
       });
     }
 
-    let statsChartInstance = null;
+    const studentStatsState = {
+      agg: null,
+      chartModel: null,
+      statsLevelIndex: 0,
+      heat: null,
+    };
+    let studentStatsHeatmapBound = false;
+
+    function studentHeatmapCellStyle(c) {
+      if (!c.active) return "";
+      const p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
+      const tp = c.timePct;
+      const t = tp != null && Number.isFinite(tp) ? Math.max(0, Math.min(1, tp / 100)) : 0.5;
+      let hue;
+      let sat;
+      let light;
+      if (p < 0.95) {
+        if (p < 0.9) {
+          hue = 18 + (38 - 18) * (p / 0.9);
+        } else {
+          hue = 38 + (88 - 38) * ((p - 0.9) / 0.05);
+        }
+        sat = Math.min(95, 55 + 25 * p);
+        light = Math.max(36, 58 - 12 * p);
+      } else {
+        hue = 108 + 8 * (1 - t);
+        sat = Math.max(48, Math.min(92, 72 - 18 * t));
+        light = Math.max(34, Math.min(62, 38 + 22 * t));
+      }
+      const bw = 1 + (tp != null ? (tp / 100) * 4 : 0);
+      return (
+        "background:hsl(" +
+        Math.round(hue) +
+        "," +
+        Math.round(sat) +
+        "%," +
+        Math.round(light) +
+        "%);border:" +
+        bw.toFixed(1) +
+        "px solid #37474f"
+      );
+    }
+
+    function buildStudentStatsHeatmapCellsHtml(heat) {
+      if (!heat || !Array.isArray(heat.cells)) return "";
+      return heat.cells
+        .map(function (c) {
+          const label = "L" + (c.levelIndex + 1);
+          const cls = "stats-heat-cell" + (c.active ? "" : " inactive");
+          const st = studentHeatmapCellStyle(c);
+          const sel = c.levelIndex === studentStatsState.statsLevelIndex ? " stats-heat-cell-selected" : "";
+          const sec = c.avgSecText != null ? escapeHtml(String(c.avgSecText)) : "-";
+          return (
+            '<div class="' +
+            cls +
+            sel +
+            '" data-level-index="' +
+            c.levelIndex +
+            '" role="button" tabindex="0"' +
+            (st ? ' style="' + st + '"' : "") +
+            ">" +
+            '<div class="stats-heat-l">' +
+            escapeHtml(label) +
+            "</div>" +
+            '<div class="stats-heat-num">' +
+            escapeHtml(c.pText != null ? String(c.pText) : "-") +
+            "</div>" +
+            '<div class="stats-heat-num">' +
+            sec +
+            "</div></div>"
+          );
+        })
+        .join("");
+    }
+
+    function setStudentStatsHeatmapSelection(levelIdx) {
+      const host = document.getElementById("stats-heatmap-host");
+      if (!host) return;
+      host.querySelectorAll(".stats-heat-cell").forEach(function (el) {
+        const i = parseInt(el.getAttribute("data-level-index"), 10);
+        el.classList.toggle("stats-heat-cell-selected", i === levelIdx);
+      });
+    }
+
+    function updateStudentStatsChartTitle() {
+      const h = document.getElementById("stats-chart-title");
+      if (!h) return;
+      const i = studentStatsState.statsLevelIndex;
+      const names = DIFFICULTY_MODULE && DIFFICULTY_MODULE.levels ? DIFFICULTY_MODULE.levels.map(function (x) { return x.name; }) : [];
+      const name = names[i] || "L" + (i + 1);
+      h.textContent = t("stats.chartPrefix") + name + t("stats.chartSuffix");
+    }
+
+    function drawStudentStatsChart() {
+      const canvas = document.getElementById("stats-level-canvas");
+      if (!canvas) return;
+      const model = studentStatsState.chartModel;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const wrap = document.getElementById("stats-level-chart-wrap");
+      const cssW = wrap ? wrap.clientWidth : 320;
+      const cssH = wrap ? wrap.clientHeight : 260;
+      canvas.width = Math.max(10, Math.floor(cssW * (window.devicePixelRatio || 1)));
+      canvas.height = Math.max(10, Math.floor(cssH * (window.devicePixelRatio || 1)));
+      ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+      if (!model) {
+        ctx.clearRect(0, 0, cssW, cssH);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, cssW, cssH);
+        ctx.fillStyle = "#90a4ae";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("暂无曲线数据", cssW / 2, cssH / 2);
+        return;
+      }
+      const payload = {
+        dates: model.dates,
+        errorRates: model.series.map(function (x) { return x.errorRate; }),
+        avgSecs: model.series.map(function (x) { return x.avgSec; }),
+        yMaxErr: model.yMaxErr,
+        yMaxSec: model.yMaxSec,
+      };
+      if (window.JmlStatsChart && window.JmlStatsChart.drawStatsDualAxisChart) {
+        window.JmlStatsChart.drawStatsDualAxisChart(ctx, cssW, cssH, payload);
+      }
+    }
+
+    function bindStudentStatsHeatmapOnce() {
+      if (studentStatsHeatmapBound) return;
+      const section = document.getElementById("stats-section");
+      if (!section) return;
+      section.addEventListener("click", function (ev) {
+        const cell = ev.target.closest(".stats-heat-cell");
+        if (!cell || !section.contains(cell)) return;
+        const Agg = window.JmlStatsAggregate;
+        if (!Agg || !studentStatsState.agg) return;
+        const idx = parseInt(cell.getAttribute("data-level-index"), 10);
+        if (!Number.isFinite(idx) || idx < 0 || idx > 15) return;
+        studentStatsState.statsLevelIndex = idx;
+        studentStatsState.chartModel = Agg.buildChartSeries(studentStatsState.agg.byDay, idx);
+        setStudentStatsHeatmapSelection(idx);
+        updateStudentStatsChartTitle();
+        requestAnimationFrame(drawStudentStatsChart);
+      });
+      studentStatsHeatmapBound = true;
+    }
+
+    window.addEventListener("resize", function () {
+      const sec = document.getElementById("stats-section");
+      if (sec && sec.classList.contains("visible") && studentStatsState.chartModel) {
+        requestAnimationFrame(drawStudentStatsChart);
+      }
+    });
+
+    function renderStudentStatsFromRuns(runs, cohort) {
+      const heatHost = document.getElementById("stats-heatmap-host");
+      const chartBlock = document.getElementById("stats-chart-block");
+      const empty = document.getElementById("stats-level-empty");
+      const chartWrap = document.getElementById("stats-level-chart-wrap");
+      if (!heatHost || !empty || !chartWrap || !chartBlock) return;
+      const HM = window.JmlStatsHeatmap;
+      const Agg = window.JmlStatsAggregate;
+      if (!HM || !Agg) {
+        heatHost.style.display = "none";
+        chartBlock.style.display = "none";
+        empty.style.display = "block";
+        empty.textContent = "统计脚本未加载。";
+        return;
+      }
+      const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+      const heat = HM.buildHeatmapCells({
+        runs: runs || [],
+        cohort: cohort && cohort.ok ? cohort : null,
+        maxTimeSpentMs: capMs,
+      });
+      studentStatsState.heat = heat;
+      const agg = Agg.aggregateFromRuns(runs || []);
+      studentStatsState.agg = agg;
+      if (!agg.hasAny) {
+        heatHost.style.display = "none";
+        chartBlock.style.display = "none";
+        chartWrap.style.display = "none";
+        empty.style.display = "block";
+        empty.textContent = "暂无按题记录的难度数据，多玩几局后查看。";
+        return;
+      }
+      empty.style.display = "none";
+      studentStatsState.statsLevelIndex = Agg.firstLevelWithData(agg.byLevel);
+      studentStatsState.chartModel = Agg.buildChartSeries(agg.byDay, studentStatsState.statsLevelIndex);
+      heatHost.innerHTML = '<div class="stats-heatmap-grid-compact">' + buildStudentStatsHeatmapCellsHtml(heat) + "</div>";
+      heatHost.style.display = "block";
+      chartBlock.style.display = "block";
+      chartWrap.style.display = "block";
+      setStudentStatsHeatmapSelection(studentStatsState.statsLevelIndex);
+      updateStudentStatsChartTitle();
+      bindStudentStatsHeatmapOnce();
+      requestAnimationFrame(drawStudentStatsChart);
+    }
+
     async function showStatsView() {
       if (isGuestMode) return;
       const name = loadCurrentUsername();
@@ -7739,26 +7976,36 @@
       if (primeSectionStats) primeSectionStats.style.display = "none";
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
+      const empty = document.getElementById("stats-level-empty");
+      const heatHost = document.getElementById("stats-heatmap-host");
+      const chartBlock = document.getElementById("stats-chart-block");
       const base = getApiBase();
       if (!base) {
-        document.getElementById("stats-level-empty").style.display = "block";
-        document.getElementById("stats-level-empty").textContent = "需要连接服务器才能查看数据统计，请配置 API 后重试。";
-        document.getElementById("stats-level-table").style.display = "none";
-        document.getElementById("stats-level-chart-wrap").style.display = "none";
+        if (empty) {
+          empty.style.display = "block";
+          empty.textContent = "需要连接服务器才能查看数据统计，请配置 API 后重试。";
+        }
+        if (heatHost) heatHost.style.display = "none";
+        if (chartBlock) chartBlock.style.display = "none";
         return;
       }
       try {
-        const runsRes = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() });
+        const [cohort, runsRes] = await Promise.all([
+          fetchPublicLevelCohortForTraining(),
+          fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() }),
+        ]);
         const runsData = await runsRes.json();
         if (runsRes.status === 401) { handleAuthRequired(); return; }
         const runs = runsData.ok ? runsData.runs : [];
-        renderStatsLevel(runs);
+        renderStudentStatsFromRuns(runs, cohort);
       } catch (e) {
         console.warn("加载数据统计失败", e);
-        document.getElementById("stats-level-empty").style.display = "block";
-        document.getElementById("stats-level-empty").textContent = "加载失败，请稍后重试。";
-        document.getElementById("stats-level-table").style.display = "none";
-        document.getElementById("stats-level-chart-wrap").style.display = "none";
+        if (empty) {
+          empty.style.display = "block";
+          empty.textContent = "加载失败，请稍后重试。";
+        }
+        if (heatHost) heatHost.style.display = "none";
+        if (chartBlock) chartBlock.style.display = "none";
       }
     }
 
@@ -7766,121 +8013,9 @@
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.remove("visible");
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
-      if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
-    }
-
-    /** 与 server `normalizeRunMode` 一致，用于筛「按难度」统计/图表的 runs */
-    function normalizeRunModeForStats(mode) {
-      if (mode === "level") return "level";
-      if (mode === "training") return "training";
-      if (mode === "primeComposite") return "primeComposite";
-      if (mode === "expandBrackets") return "expandBrackets";
-      return "survival";
-    }
-    const STATS_LEVEL_AGG_MODES = new Set(["survival", "level", "training"]);
-    function filterRunsForStatsLevelAggregation(runs) {
-      if (!Array.isArray(runs)) return [];
-      return runs.filter(function (r) {
-        return r && STATS_LEVEL_AGG_MODES.has(normalizeRunModeForStats(r.mode));
-      });
-    }
-
-    function renderStatsLevel(runs) {
-      runs = filterRunsForStatsLevelAggregation(runs);
-      const byLevel = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
-      (runs || []).forEach(r => {
-        if (!Array.isArray(r.attempts)) return;
-        r.attempts.forEach(a => {
-          const idx = Math.max(0, Math.min(15, Number(a.levelIndex) || 0));
-          byLevel[idx].total += 1;
-          if (a.correct) byLevel[idx].correct += 1;
-          byLevel[idx].totalTimeMs += Number(a.timeSpentMs) || 0;
-        });
-      });
-      const byDay = {};
-      (runs || []).forEach(r => {
-        const ts = r.ts || 0;
-        const d = new Date(ts);
-        const dateStr = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-        if (!byDay[dateStr]) byDay[dateStr] = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
-        if (!Array.isArray(r.attempts)) return;
-        r.attempts.forEach(a => {
-          const idx = Math.max(0, Math.min(15, Number(a.levelIndex) || 0));
-          byDay[dateStr][idx].total += 1;
-          if (a.correct) byDay[dateStr][idx].correct += 1;
-          byDay[dateStr][idx].totalTimeMs += Number(a.timeSpentMs) || 0;
-        });
-      });
-      const table = document.getElementById("stats-level-table");
-      const tbody = document.getElementById("stats-level-body");
-      const empty = document.getElementById("stats-level-empty");
-      const chartWrap = document.getElementById("stats-level-chart-wrap");
-      const hasAny = byLevel.some(l => l.total > 0);
-      if (!hasAny) {
-        table.style.display = "none";
-        empty.style.display = "block";
-        chartWrap.style.display = "none";
-        if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
-        return;
-      }
-      empty.style.display = "none";
-      table.style.display = "table";
-      const levelNames = DIFFICULTY_MODULE.levels.map(l => l.name) || [];
-      tbody.innerHTML = byLevel.map((l, i) => {
-        const errRate = l.total > 0 ? Math.round((1 - l.correct / l.total) * 100) : "-";
-        const avgSec = l.total > 0 ? (Math.round((l.totalTimeMs / l.total) / 1000 * 10) / 10) : "-";
-        return "<tr><td>" + (levelNames[i] || "L" + (i + 1)) + "</td><td>" + l.total + "</td><td>" + errRate + (l.total > 0 ? "%" : "") + "</td><td>" + avgSec + "</td></tr>";
-      }).join("");
-      const sel = document.getElementById("stats-level-select");
-      sel.innerHTML = Array.from({ length: 16 }, (_, i) => "<option value=\"" + i + "\">" + (levelNames[i] || "L" + (i + 1)) + "</option>").join("");
-      const firstWithData = byLevel.findIndex(l => l.total > 0);
-      sel.value = firstWithData >= 0 ? firstWithData : 0;
-      function updateStatsChart() {
-        const levelIndex = parseInt(sel.value, 10);
-        const datesRaw = Object.keys(byDay).sort();
-        if (datesRaw.length === 0) { chartWrap.style.display = "none"; return; }
-        chartWrap.style.display = "block";
-        const first = new Date(datesRaw[0]);
-        const last = new Date(datesRaw[datesRaw.length - 1]);
-        const allDates = [];
-        for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
-          allDates.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"));
-        }
-        let lastErrorRate = null, lastAvgSec = null;
-        const acc = allDates.map(d => {
-          const L = byDay[d] ? byDay[d][levelIndex] : null;
-          const total = L ? (L.total || 0) : 0;
-          if (total > 0) {
-            lastErrorRate = Math.round((1 - L.correct / total) * 100);
-            lastAvgSec = Math.round((L.totalTimeMs / total) / 1000 * 10) / 10;
-          }
-          return { errorRate: lastErrorRate, avgSec: lastAvgSec };
-        });
-        const errRates = acc.map(x => x.errorRate).filter(v => v != null);
-        const yMax = Math.max(20, errRates.length ? Math.max.apply(null, errRates) : 20);
-        const canvas = document.getElementById("stats-level-canvas");
-        if (statsChartInstance) statsChartInstance.destroy();
-        statsChartInstance = new Chart(canvas, {
-          type: "line",
-          data: {
-            labels: allDates,
-            datasets: [
-              { label: "错误率(%)", data: acc.map(x => x.errorRate), borderColor: "#1976d2", backgroundColor: "rgba(25,118,210,0.1)", yAxisID: "y", tension: 0.2 },
-              { label: "平均每题用时(秒)", data: acc.map(x => x.avgSec), borderColor: "#2e7d32", backgroundColor: "rgba(46,125,50,0.1)", yAxisID: "y1", tension: 0.2 }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              y: { type: "linear", position: "left", min: 0, max: yMax, title: { display: true, text: "错误率(%)" } },
-              y1: { type: "linear", position: "right", min: 0, title: { display: true, text: "平均用时(秒)" }, grid: { drawOnChartArea: false } }
-            }
-          }
-        });
-      }
-      updateStatsChart();
-      sel.onchange = updateStatsChart;
+      studentStatsState.agg = null;
+      studentStatsState.chartModel = null;
+      studentStatsState.heat = null;
     }
 
     function showGameSection() {
@@ -8313,6 +8448,20 @@
       });
     }
 
+    async function fetchPublicLevelCohortForTraining() {
+      const base = getApiBase();
+      if (!base) return null;
+      try {
+        const res = await fetch(base + "/api/public/level-cohort", { credentials: "include" });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data && data.ok ? data : null;
+      } catch (e) {
+        console.warn("拉取公共常模失败（刷热图选关）", e);
+        return null;
+      }
+    }
+
     function pickHeatmapLevelFromPool(heat, poolIndices) {
       const poolSet = new Set(poolIndices);
       const HM = window.JmlStatsHeatmap;
@@ -8320,6 +8469,10 @@
       const subset = heat.cells.filter(function (c) {
         return poolSet.has(c.levelIndex);
       });
+      if (HM && typeof HM.recommendLevelIndexAccuracyBrush === "function") {
+        const recBrush = HM.recommendLevelIndexAccuracyBrush({ cells: subset });
+        if (recBrush != null && poolSet.has(recBrush)) return recBrush;
+      }
       if (HM && typeof HM.recommendLevelIndex === "function") {
         const rec = HM.recommendLevelIndex({ cells: subset });
         if (rec != null && poolSet.has(rec)) return rec;
@@ -8347,7 +8500,11 @@
       }
       if (pool.length === 0) pool.push(0);
 
-      const runs = filterArithmeticRunsForTrainingHeatmap(await fetchRunsForTrainingHeatmap());
+      const [cohort, runsRaw] = await Promise.all([
+        fetchPublicLevelCohortForTraining(),
+        fetchRunsForTrainingHeatmap(),
+      ]);
+      const runs = filterArithmeticRunsForTrainingHeatmap(runsRaw);
       const HM = window.JmlStatsHeatmap;
       if (!HM || typeof HM.buildHeatmapCells !== "function") {
         console.log("[JML 训练刷热图选关]", JSON.stringify({
@@ -8357,6 +8514,7 @@
           forcedBrush: loadTrainingFlowState().forcedBrush,
           pool,
           runsCount: runs.length,
+          cohortOk: !!(cohort && cohort.ok),
           fallbackIndex: pool[0],
           fallbackL: pool[0] + 1,
         }, null, 2));
@@ -8364,7 +8522,7 @@
       }
       const heat = HM.buildHeatmapCells({
         runs: runs,
-        cohort: null,
+        cohort: cohort && cohort.ok ? cohort : null,
         minAttempts: 10,
         maxTimeSpentMs: 60 * 1000,
       });
@@ -8374,8 +8532,8 @@
         const subset = (heat.cells || []).filter(function (c) {
           return poolSet.has(c.levelIndex);
         });
-        const rec = typeof HM.recommendLevelIndex === "function"
-          ? HM.recommendLevelIndex({ cells: subset })
+        const recBrush = typeof HM.recommendLevelIndexAccuracyBrush === "function"
+          ? HM.recommendLevelIndexAccuracyBrush({ cells: subset })
           : null;
         console.log("[JML 训练刷热图选关]", JSON.stringify({
           at: new Date().toISOString(),
@@ -8383,6 +8541,7 @@
           forcedBrush: loadTrainingFlowState().forcedBrush,
           pool,
           runsCount: runs.length,
+          cohortLoaded: heat.cohortLoaded,
           heatMinAttempts: heat.minAttempts,
           cellsInPool: subset.map(function (c) {
             return {
@@ -8394,8 +8553,8 @@
               timePct: c.timePct,
             };
           }),
-          recommendLevelIndex: rec,
-          recommendL: rec != null ? rec + 1 : null,
+          recommendAccuracyBrush: recBrush,
+          recommendBrushL: recBrush != null ? recBrush + 1 : null,
           pickedLevelIndex: picked,
           pickedL: picked + 1,
         }, null, 2));

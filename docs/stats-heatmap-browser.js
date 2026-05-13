@@ -255,6 +255,57 @@
     return ranked.length ? ranked[0].k : null;
   }
 
+  /**
+   * 训练刷热图选关：存在任一 active 且 p < 0.95 时取加权 p 最小；否则取 timePct 最大（相对常模最慢）。
+   * p 并列取较小 levelIndex；timePct 并列取较小 levelIndex。
+   */
+  function recommendLevelIndexAccuracyBrush(cellsResult) {
+    var list = (cellsResult && cellsResult.cells) || [];
+    var active = [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].active) active.push(list[i]);
+    }
+    if (!active.length) return null;
+    var anyBelow95 = false;
+    for (var j = 0; j < active.length; j++) {
+      var pj = active[j].p;
+      if (pj != null && pj < 0.95) {
+        anyBelow95 = true;
+        break;
+      }
+    }
+    function cmpMinP(a, b) {
+      var pa = a.p != null ? a.p : 1;
+      var pb = b.p != null ? b.p : 1;
+      if (pa !== pb) return pa - pb;
+      return a.levelIndex - b.levelIndex;
+    }
+    if (anyBelow95) {
+      var best = active[0];
+      for (var k = 1; k < active.length; k++) {
+        if (cmpMinP(active[k], best) < 0) best = active[k];
+      }
+      return best.levelIndex;
+    }
+    var withPct = [];
+    for (var t = 0; t < active.length; t++) {
+      if (active[t].timePct != null) withPct.push(active[t]);
+    }
+    if (withPct.length) {
+      var bt = withPct[0];
+      for (var u = 1; u < withPct.length; u++) {
+        var du = withPct[u].timePct - bt.timePct;
+        if (du > 0 || (du === 0 && withPct[u].levelIndex < bt.levelIndex)) bt = withPct[u];
+      }
+      return bt.levelIndex;
+    }
+    var best2 = active[0];
+    for (var v = 1; v < active.length; v++) {
+      if (cmpMinP(active[v], best2) < 0) best2 = active[v];
+    }
+    return best2.levelIndex;
+  }
+
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
     MS_PER_DAY: MS_PER_DAY,
@@ -263,6 +314,7 @@
     filterArithmeticRuns: filterArithmeticRuns,
     buildHeatmapCells: buildHeatmapCells,
     recommendLevelIndex: recommendLevelIndex,
+    recommendLevelIndexAccuracyBrush: recommendLevelIndexAccuracyBrush,
     percentileFromQuantileSummary: percentileFromQuantileSummary,
     personalWeightedByLevel: personalWeightedByLevel,
   };
