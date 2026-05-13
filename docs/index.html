@@ -1704,21 +1704,35 @@
     .stats-table thead th { position: sticky; top: 0; z-index: 2; }
     .stats-table td:first-child { text-align: left; }
     .stats-table tr.ranking-row-me td { background: rgba(25, 118, 210, 0.12); font-weight: 600; }
-    .stats-level-chart-wrap { margin-bottom: 16px; position: relative; }
+    .stats-level-chart-wrap {
+      margin-bottom: 16px;
+      position: relative;
+      width: 100%;
+      height: 220px;
+      border: 1px solid #eceff1;
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .stats-level-chart-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
     .stats-heatmap-grid-compact {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
+      gap: 4px;
       max-width: 100%;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .stats-heat-cell {
       cursor: pointer;
-      border-radius: 8px;
-      padding: 6px 4px;
-      min-height: 72px;
-      font-size: 11px;
-      line-height: 1.25;
+      border-radius: 6px;
+      padding: 3px 2px;
+      min-height: 48px;
+      font-size: 10px;
+      line-height: 1.2;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -1738,9 +1752,9 @@
       position: relative;
       z-index: 1;
     }
-    .stats-heat-l { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
-    .stats-heat-num { font-size: 11px; }
-    .stats-chart-title { margin: 10px 0 8px; font-size: 0.95rem; font-weight: 600; color: #37474f; }
+    .stats-heat-l { font-weight: 700; font-size: 10px; margin-bottom: 2px; }
+    .stats-heat-num { font-size: 10px; }
+    .stats-chart-title { margin: 6px 0 6px; font-size: 0.9rem; font-weight: 600; color: #37474f; }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .stats-level-chart-row label { white-space: nowrap; }
     .stats-level-chart-row select {
@@ -2529,7 +2543,7 @@
       <div id="stats-heatmap-host" style="display:none;"></div>
       <div id="stats-chart-block" style="display:none;">
         <h3 class="stats-chart-title" id="stats-chart-title"></h3>
-        <div class="stats-level-chart-wrap" id="stats-level-chart-wrap" style="height:260px;">
+        <div class="stats-level-chart-wrap" id="stats-level-chart-wrap">
           <canvas id="stats-level-canvas"></canvas>
         </div>
       </div>
@@ -4916,7 +4930,7 @@
         "ranking.combo": "連擊榜",
         "stats.subtitle": "點格切換下方曲線。",
         "stats.chartPrefix": "按日曲線（",
-        "stats.chartSuffix": " · 最近最多 14 個有練習日）",
+        "stats.chartSuffix": "）",
         "stats.level.select": "選擇難度：",
         "stats.th.level": "難度",
         "stats.th.attempts": "答題數",
@@ -4989,8 +5003,8 @@
         "ranking.streak": "Streak",
         "ranking.combo": "Combo",
         "stats.subtitle": "Tap a cell to change the chart below.",
-        "stats.chartPrefix": "Daily chart (",
-        "stats.chartSuffix": " · up to 14 recent practice days)",
+        "stats.chartPrefix": "Daily (",
+        "stats.chartSuffix": ")",
         "stats.level.select": "Level:",
         "stats.th.level": "Level",
         "stats.th.attempts": "Attempts",
@@ -7848,9 +7862,7 @@
       const h = document.getElementById("stats-chart-title");
       if (!h) return;
       const i = studentStatsState.statsLevelIndex;
-      const names = DIFFICULTY_MODULE && DIFFICULTY_MODULE.levels ? DIFFICULTY_MODULE.levels.map(function (x) { return x.name; }) : [];
-      const name = names[i] || "L" + (i + 1);
-      h.textContent = t("stats.chartPrefix") + name + t("stats.chartSuffix");
+      h.textContent = t("stats.chartPrefix") + "L" + (i + 1) + t("stats.chartSuffix");
     }
 
     function drawStudentStatsChart() {
@@ -7861,10 +7873,16 @@
       if (!ctx) return;
       const wrap = document.getElementById("stats-level-chart-wrap");
       const cssW = wrap ? wrap.clientWidth : 320;
-      const cssH = wrap ? wrap.clientHeight : 260;
-      canvas.width = Math.max(10, Math.floor(cssW * (window.devicePixelRatio || 1)));
-      canvas.height = Math.max(10, Math.floor(cssH * (window.devicePixelRatio || 1)));
-      ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+      const cssH = wrap ? wrap.clientHeight : 220;
+      const dpr = window.devicePixelRatio || 1;
+      const bufW = Math.max(10, Math.floor(cssW * dpr));
+      const bufH = Math.max(10, Math.floor(cssH * dpr));
+      canvas.width = bufW;
+      canvas.height = bufH;
+      canvas.style.width = cssW + "px";
+      canvas.style.height = cssH + "px";
+      canvas.style.display = "block";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       if (!model) {
         ctx.clearRect(0, 0, cssW, cssH);
         ctx.fillStyle = "#fff";

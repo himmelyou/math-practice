@@ -591,9 +591,7 @@
     var chartHeading = document.getElementById('jml-stats-chart-heading');
     if (chartHeading) {
       chartHeading.textContent =
-        '按日曲线（' +
-        (LEVEL_NAMES[state.statsLevelIndex] || 'L' + (state.statsLevelIndex + 1)) +
-        ' · 最近最多 14 个有练习日）';
+        '按日曲线（L' + (state.statsLevelIndex + 1) + '）';
     }
   }
 
@@ -605,9 +603,15 @@
     if (!ctx) return;
     var cssW = canvas.parentElement ? canvas.parentElement.clientWidth : 600;
     var cssH = canvas.parentElement ? canvas.parentElement.clientHeight : 220;
-    canvas.width = Math.max(10, Math.floor(cssW * (window.devicePixelRatio || 1)));
-    canvas.height = Math.max(10, Math.floor(cssH * (window.devicePixelRatio || 1)));
-    ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+    var dpr = window.devicePixelRatio || 1;
+    var bufW = Math.max(10, Math.floor(cssW * dpr));
+    var bufH = Math.max(10, Math.floor(cssH * dpr));
+    canvas.width = bufW;
+    canvas.height = bufH;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.style.display = 'block';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!model) {
       ctx.clearRect(0, 0, cssW, cssH);
       ctx.fillStyle = '#fff';
