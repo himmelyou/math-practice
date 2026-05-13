@@ -6543,7 +6543,6 @@
           newLevel = -1;
           const stClear = loadTrainingFlowState();
           stClear.forcedBrush = false;
-          stClear.blockedLevel = null;
           saveTrainingFlowState(stClear);
         } else {
           newLevel = currentLevelIndex + 1;
@@ -6553,7 +6552,6 @@
         tipText = "准确率低于通关线，继续在本级练习。";
         if (bumpPromotionFailStreak(levelThisRun)) {
           trainingSessionBrushMode = true;
-          tipText += " 今日已切至刷热图模式，该关今日不再出现。";
         }
       }
 
@@ -8210,21 +8208,18 @@
         promotionFailStreak: 0,
         streakFocusLevel: null,
         forcedBrush: false,
-        blockedLevel: null,
       };
     }
 
     function normalizeTrainingFlowState(o) {
       const d = defaultTrainingFlowState();
       if (!o || typeof o !== "object") return d;
-      const bl = o.blockedLevel;
       const sf = o.streakFocusLevel;
       return {
         dayKey: typeof o.dayKey === "string" ? o.dayKey : d.dayKey,
         promotionFailStreak: Number.isFinite(Number(o.promotionFailStreak)) ? Math.max(0, Math.floor(Number(o.promotionFailStreak))) : 0,
         streakFocusLevel: sf == null || sf === "" ? null : Math.min(15, Math.max(0, Math.floor(Number(sf)))),
         forcedBrush: !!o.forcedBrush,
-        blockedLevel: bl == null || bl === "" ? null : Math.min(15, Math.max(0, Math.floor(Number(bl)))),
       };
     }
 
@@ -8256,7 +8251,6 @@
         st.promotionFailStreak = 0;
         st.streakFocusLevel = null;
         st.forcedBrush = false;
-        st.blockedLevel = null;
         saveTrainingFlowState(st);
       }
     }
@@ -8286,7 +8280,6 @@
       let triggered = false;
       if (st.promotionFailStreak >= TRAINING_PROMOTION_FAILS_BEFORE_BRUSH) {
         st.forcedBrush = true;
-        st.blockedLevel = levelPlayed;
         triggered = true;
       }
       saveTrainingFlowState(st);
@@ -8346,8 +8339,6 @@
 
     async function pickHeatmapTrainingLevelAsync() {
       const saved = getLevelTrainingCurrentLevel();
-      const st = loadTrainingFlowState();
-      const blocked = typeof st.blockedLevel === "number" ? st.blockedLevel : null;
       const pool = [];
       if (saved === -1) {
         for (let i = 0; i < 16; i++) pool.push(i);
@@ -8355,21 +8346,63 @@
         for (let i = 0; i < saved; i++) pool.push(i);
       }
       if (pool.length === 0) pool.push(0);
-      let candidates = pool.filter(function (k) {
-        return blocked == null || k !== blocked || pool.length === 1;
-      });
-      if (candidates.length === 0) candidates = pool.slice();
 
       const runs = filterArithmeticRunsForTrainingHeatmap(await fetchRunsForTrainingHeatmap());
       const HM = window.JmlStatsHeatmap;
-      if (!HM || typeof HM.buildHeatmapCells !== "function") return candidates[0];
+      if (!HM || typeof HM.buildHeatmapCells !== "function") {
+        console.log("[JML 训练刷热图选关]", JSON.stringify({
+          at: new Date().toISOString(),
+          reason: "no_JmlStatsHeatmap_buildHeatmapCells",
+          saved,
+          forcedBrush: loadTrainingFlowState().forcedBrush,
+          pool,
+          runsCount: runs.length,
+          fallbackIndex: pool[0],
+          fallbackL: pool[0] + 1,
+        }, null, 2));
+        return pool[0];
+      }
       const heat = HM.buildHeatmapCells({
         runs: runs,
         cohort: null,
         minAttempts: 10,
         maxTimeSpentMs: 60 * 1000,
       });
-      return pickHeatmapLevelFromPool(heat, candidates);
+      const picked = pickHeatmapLevelFromPool(heat, pool);
+      try {
+        const poolSet = new Set(pool);
+        const subset = (heat.cells || []).filter(function (c) {
+          return poolSet.has(c.levelIndex);
+        });
+        const rec = typeof HM.recommendLevelIndex === "function"
+          ? HM.recommendLevelIndex({ cells: subset })
+          : null;
+        console.log("[JML 训练刷热图选关]", JSON.stringify({
+          at: new Date().toISOString(),
+          saved,
+          forcedBrush: loadTrainingFlowState().forcedBrush,
+          pool,
+          runsCount: runs.length,
+          heatMinAttempts: heat.minAttempts,
+          cellsInPool: subset.map(function (c) {
+            return {
+              L: c.levelIndex + 1,
+              idx: c.levelIndex,
+              n: c.n,
+              p: c.p == null ? null : Math.round(c.p * 1000) / 1000,
+              active: c.active,
+              timePct: c.timePct,
+            };
+          }),
+          recommendLevelIndex: rec,
+          recommendL: rec != null ? rec + 1 : null,
+          pickedLevelIndex: picked,
+          pickedL: picked + 1,
+        }, null, 2));
+      } catch (e) {
+        console.warn("[JML 训练刷热图选关] 日志输出失败", e);
+      }
+      return picked;
     }
 
     async function resolveTrainingEntryLevelAsync() {
@@ -8386,15 +8419,12 @@
       const sub = document.getElementById("game-subtitle");
       if (!sub) return;
       if (trainingSessionBrushMode) {
-        sub.textContent =
-          "刷热图：在晋级线以下已解锁等级中练最不熟练的关（" +
-          TRAINING_QUESTIONS +
-          " 题），本局不计晋级；全通关后长期为此模式。同日同一关连续 5 局未达通关线则当日切本模式且该关今日不再出现。";
+        sub.textContent = "加油！";
       } else {
         sub.textContent =
           "晋级：每局 " +
           TRAINING_QUESTIONS +
-          " 题；准确率不低于通关线则升级（第 16 级达标即全通关），否则本级保持、不降级、不限时。同日同一关连续 5 局未达通关线则当日切刷热图。";
+          " 题；准确率不低于通关线则升级（第 16 级达标即全通关），否则本级保持、不降级、不限时。";
       }
     }
 
