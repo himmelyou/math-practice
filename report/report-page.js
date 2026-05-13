@@ -430,7 +430,7 @@
   function buildHeatmapSectionHtml() {
     var HM = window.JmlStatsHeatmap;
     if (!HM || !HM.buildHeatmapCells) {
-      return '<p class="jml-stats-cohort-warn">热图脚本未加载（stats-heatmap-browser.js）</p>';
+      return '<p class="jml-stats-cohort-warn">热图脚本未加载（请确认已加载 docs/stats-heatmap-browser.js）</p>';
     }
     var cohort = state.cohort;
     var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
