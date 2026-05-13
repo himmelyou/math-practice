@@ -1,5 +1,5 @@
 /**
- * 与小程序端 stats 聚合一致（浏览器版）；与 report/stats-aggregate-browser.js 同步，供 docs 独立部署。
+ * 与小程序端 stats 聚合一致（浏览器版）；canonical 位于 docs/，report 与主站共用。
  */
 (function (global) {
   var LEVEL_COUNT = 16;

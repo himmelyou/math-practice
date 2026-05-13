@@ -1,5 +1,5 @@
 /**
- * 浏览器 Canvas 2D 画双轴折线图；与 report/stats-chart-browser.js 同步，供 docs 独立部署。
+ * 浏览器 Canvas 2D 画双轴折线图；canonical 位于 docs/，report 与主站共用。
  */
 (function (global) {
   function drawStatsDualAxisChart(ctx, cssWidth, cssHeight, payload) {
