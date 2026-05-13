@@ -1437,7 +1437,6 @@ app.get("/api/admin/user-list", (req, res) => {
 /** 报表难度热图：全体常模（仅 survival/level/training） */
 const COHORT_LEVEL_COUNT = 16;
 const COHORT_MIN_ATTEMPTS_PER_USER_LEVEL = 30;
-const COHORT_MIN_USERS_FOR_ACCURACY_REF = 5;
 /** 单题耗时上限：超过则该答对记录不纳入「速度」常模与个人 ln(t)，排除挂机/异常长暂停 */
 const COHORT_MAX_TIME_SPENT_MS = 60 * 1000;
 
@@ -1464,62 +1463,40 @@ function summarizeQuantiles(values) {
   };
 }
 
-/** 全量扫描 runs 计算难度常模（不含 builtAt / 缓存字段） */
+/** 全量扫描 runs 计算难度常模（不含 builtAt / 缓存字段）；仅全体答对 ln(耗时) 分位 */
 function computeLevelCohortResult() {
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const lnTimesByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
-  const accByUserByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
 
   const usernames = Object.keys(runsData.runs || {});
   usernames.forEach((username) => {
     const runs = runsData.runs[username] || [];
-    const byLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => ({
-      n: 0,
-      correct: 0,
-      lnTimes: [],
-    }));
     runs.forEach((r) => {
       const mode = normalizeRunMode(r.mode);
       if (mode !== "survival" && mode !== "level" && mode !== "training") return;
       if (!Array.isArray(r.attempts)) return;
       r.attempts.forEach((a) => {
         const idx = Math.max(0, Math.min(COHORT_LEVEL_COUNT - 1, Number(a.levelIndex) || 0));
-        byLevel[idx].n += 1;
-        if (a.correct) {
-          byLevel[idx].correct += 1;
-          const ms = Number(a.timeSpentMs);
-          if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
-            byLevel[idx].lnTimes.push(Math.log(ms));
-          }
+        if (!a.correct) return;
+        const ms = Number(a.timeSpentMs);
+        if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
+          lnTimesByLevel[idx].push(Math.log(ms));
         }
       });
     });
-    for (let k = 0; k < COHORT_LEVEL_COUNT; k++) {
-      const bl = byLevel[k];
-      bl.lnTimes.forEach((ln) => lnTimesByLevel[k].push(ln));
-      if (bl.n >= COHORT_MIN_ATTEMPTS_PER_USER_LEVEL) {
-        accByUserByLevel[k].push(bl.correct / bl.n);
-      }
-    }
   });
 
   const levels = [];
   for (let k = 0; k < COHORT_LEVEL_COUNT; k++) {
     const lnQ = summarizeQuantiles(lnTimesByLevel[k]);
-    const accList = accByUserByLevel[k];
-    const accQ = accList.length >= COHORT_MIN_USERS_FOR_ACCURACY_REF ? summarizeQuantiles(accList) : null;
     levels.push({
       levelIndex: k,
       cohortLnTimeCorrect: lnQ,
-      cohortUserAccuracy: accQ
-        ? { ...accQ, sufficient: true }
-        : { n: accList.length, sufficient: false },
     });
   }
   return {
     ok: true,
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
-    minUsersForAccuracyRef: COHORT_MIN_USERS_FOR_ACCURACY_REF,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
       "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入全体/个人速度侧统计（排除挂机、长时间切屏等异常偏慢）",

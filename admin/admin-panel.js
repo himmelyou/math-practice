@@ -410,9 +410,7 @@
         inp.setAttribute('data-k', k);
         return inp;
       }
-      td(numInput(Math.round((row.passAccuracy || 0) * 100), 'passAccuracy'));
       td(numInput(Math.round((row.upgradeAccuracy || 0) * 100), 'upgradeAccuracy'));
-      td(numInput(row.upgradeTimeLimit || 0, 'upgradeTimeLimit'));
       tbody.appendChild(tr);
     });
   }
@@ -423,9 +421,7 @@
       var src = arr[i] || {};
       return {
         desc: typeof src.desc === 'string' ? src.desc : (LEVEL_NAMES[i] || '').replace(/^第\s*\d+\s*级\s*·\s*/, ''),
-        passAccuracy: Number.isFinite(Number(src.passAccuracy)) ? Number(src.passAccuracy) : 0.8,
         upgradeAccuracy: Number.isFinite(Number(src.upgradeAccuracy)) ? Number(src.upgradeAccuracy) : 0.95,
-        upgradeTimeLimit: Number.isFinite(Number(src.upgradeTimeLimit)) ? Number(src.upgradeTimeLimit) : 300,
       };
     });
   }
@@ -454,9 +450,7 @@
         var k = inp.getAttribute('data-k');
         var v = inp.value;
         if (k === 'desc') out.desc = String(v || '').trim();
-        if (k === 'passAccuracy') out.passAccuracy = Math.max(0, Math.min(1, (Number(v) || 0) / 100));
         if (k === 'upgradeAccuracy') out.upgradeAccuracy = Math.max(0, Math.min(1, (Number(v) || 0) / 100));
-        if (k === 'upgradeTimeLimit') out.upgradeTimeLimit = Math.max(10, Math.floor(Number(v) || 0));
       });
       return out;
     });

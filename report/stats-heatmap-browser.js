@@ -1,5 +1,5 @@
 /**
- * 难度热图：个人 × 全体常模，百分位横向可比（供 report 调试；训练选关可复用）
+ * 难度热图：个人加权指标 × 全体速度常模（答对 ln(耗时) 分位）；供 report 调试等复用。
  *
  * 个人侧：每档「时间上最近」的最多 200 条 attempt；权重按 run.ts 与当前时间的「整天」年龄
  * 指数衰减，半衰期 14 天（λ = ln2 / 14）。同一局内多题共享同一 run.ts → 同一天，符合按天口径。
@@ -21,7 +21,7 @@
     });
   }
 
-  /** 分位点摘要 → 近似百分位排名 0–100（值越大排名越高：准确率越高、ln(t) 越大越慢） */
+  /** 分位点摘要 → 近似百分位排名 0–100（值越大排名越高：ln(t) 越大越慢） */
   function percentileFromQuantileSummary(value, q) {
     if (value == null || !q || !q.n) return null;
     var q10 = q.q10;
@@ -191,14 +191,15 @@
 
       var cohortRow = cohortLevels[k] || {};
       var lnQ = cohortRow.cohortLnTimeCorrect || null;
-      var accQ = cohortRow.cohortUserAccuracy && cohortRow.cohortUserAccuracy.sufficient ? cohortRow.cohortUserAccuracy : null;
 
-      var accPct = active && p != null && accQ ? percentileFromQuantileSummary(p, accQ) : null;
       var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
 
-      var accRefNote = '';
-      if (active && p != null && cohortRow.cohortUserAccuracy && !cohortRow.cohortUserAccuracy.sufficient) {
-        accRefNote = '准确率常模：用户数<' + (cohort.minUsersForAccuracyRef || 5);
+      var avgSecText = '-';
+      if (meanLn != null && Number.isFinite(meanLn)) {
+        var sec = Math.exp(meanLn);
+        if (sec > 0 && sec < 600 && Number.isFinite(sec)) {
+          avgSecText = String(Math.round(sec * 10) / 10) + ' 秒';
+        }
       }
 
       cells.push({
@@ -209,12 +210,11 @@
         pText: pText,
         meanLnCorrect: meanLn,
         medianLnCorrect: meanLn,
-        accPct: accPct,
         timePct: timePct,
-        accRefNote: accRefNote,
         nEff: b.nEff != null ? Math.round(b.nEff * 10) / 10 : null,
         ageDaysMin: b.minAgeDays,
         ageDaysMax: b.maxAgeDays,
+        avgSecText: avgSecText,
       });
     }
     return {
@@ -228,20 +228,27 @@
     };
   }
 
-  /** 准确率分位优先升序（越差越前），再按速度分位降序（越慢越前） */
+  /** 速度分位降序（越慢越前）；无速度分位时按加权准确率升序（越低越前） */
   function recommendLevelIndex(cellsResult) {
     var list = (cellsResult && cellsResult.cells) || [];
     var ranked = list
       .filter(function (c) {
-        return c.active && c.accPct != null;
+        return c.active;
       })
       .map(function (c) {
-        var tp = c.timePct != null ? c.timePct : 0;
-        return { k: c.levelIndex, accPct: c.accPct, timePct: tp };
+        return {
+          k: c.levelIndex,
+          timePct: c.timePct,
+          p: c.p != null ? c.p : 1,
+        };
       });
     ranked.sort(function (a, b) {
-      if (a.accPct !== b.accPct) return a.accPct - b.accPct;
-      return b.timePct - a.timePct;
+      var aHas = a.timePct != null;
+      var bHas = b.timePct != null;
+      if (aHas && bHas) return b.timePct - a.timePct;
+      if (aHas && !bHas) return -1;
+      if (!aHas && bHas) return 1;
+      return a.p - b.p;
     });
     return ranked.length ? ranked[0].k : null;
   }

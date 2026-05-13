@@ -2539,6 +2539,7 @@
   </div>
 
   <script src="prime-composite-logic.js"></script>
+  <script src="../report/stats-heatmap-browser.js"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -2555,9 +2556,7 @@
           <thead>
             <tr style="border-bottom:1px solid #e2e2e2;">
               <th>难度名称</th>
-              <th>及格准确率 %</th>
               <th>通关准确率 %</th>
-              <th>通关时限(秒)</th>
             </tr>
           </thead>
           <tbody id="admin-table-body"></tbody>
@@ -2593,13 +2592,7 @@
             <tr>
               <td style="text-align:left;font-weight:500">${lvl.name}</td>
               <td>
-                <input type="number" min="10" max="100" step="1" required style="width:56px" name="passAccuracy${i}" value="${Math.round((s.passAccuracy ?? DEFAULT_LEVEL_CONFIGS[i].passAccuracy)*100)}"/>
-              </td>
-              <td>
                 <input type="number" min="10" max="100" step="1" required style="width:56px" name="accuracy${i}" value="${Math.round((s.upgradeAccuracy ?? DEFAULT_LEVEL_CONFIGS[i].upgradeAccuracy)*100)}"/>
-              </td>
-              <td>
-                <input type="number" min="30" max="1200" required style="width:66px" name="timelimit${i}" value="${s.upgradeTimeLimit||DEFAULT_LEVEL_CONFIGS[i].upgradeTimeLimit}" />
               </td>
             </tr>
           `;
@@ -2621,10 +2614,8 @@
         const form = document.getElementById("admin-form");
         const newLevels = [];
         for (let i = 0; i < DIFFICULTY_MODULE.levels.length; i++) {
-          const passAccuracy = Number(form["passAccuracy"+i].value) / 100;
           const upgradeAccuracy = Number(form["accuracy"+i].value) / 100;
-          const upgradeTimeLimit = Number(form["timelimit"+i].value);
-          newLevels.push({passAccuracy, upgradeAccuracy, upgradeTimeLimit});
+          newLevels.push({ upgradeAccuracy });
         }
         const newSettings = { levels: newLevels };
         cachedGameSettings = newSettings;
@@ -2646,22 +2637,22 @@
     const ADMIN_SETTINGS_KEY = "adaptive_math_admin_settings_v1";
     let cachedGameSettings = null;
     const DEFAULT_LEVEL_CONFIGS = [
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L1
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L2
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L3
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 300 }, // L4
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L5
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 330 }, // L6
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L7
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L8
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L9
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L10
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L11
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 360 }, // L12
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L13
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 420 }, // L14
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L15
-      { passAccuracy: 0.8, upgradeAccuracy: 0.95, upgradeTimeLimit: 480 }, // L16
+      { upgradeAccuracy: 0.95 }, // L1
+      { upgradeAccuracy: 0.95 }, // L2
+      { upgradeAccuracy: 0.95 }, // L3
+      { upgradeAccuracy: 0.95 }, // L4
+      { upgradeAccuracy: 0.95 }, // L5
+      { upgradeAccuracy: 0.95 }, // L6
+      { upgradeAccuracy: 0.95 }, // L7
+      { upgradeAccuracy: 0.95 }, // L8
+      { upgradeAccuracy: 0.95 }, // L9
+      { upgradeAccuracy: 0.95 }, // L10
+      { upgradeAccuracy: 0.95 }, // L11
+      { upgradeAccuracy: 0.95 }, // L12
+      { upgradeAccuracy: 0.95 }, // L13
+      { upgradeAccuracy: 0.95 }, // L14
+      { upgradeAccuracy: 0.95 }, // L15
+      { upgradeAccuracy: 0.95 }, // L16
     ];
 
     // ===== 后台访问口令与登录状态（仅前端保护，防止普通学生误进）=====
@@ -2728,9 +2719,7 @@
       const def = DEFAULT_LEVEL_CONFIGS[idx] || DEFAULT_LEVEL_CONFIGS[0];
       if (!set.levels[idx]) return def;
       return {
-        passAccuracy: typeof set.levels[idx].passAccuracy==="number" ? set.levels[idx].passAccuracy : def.passAccuracy,
         upgradeAccuracy: typeof set.levels[idx].upgradeAccuracy==="number" ? set.levels[idx].upgradeAccuracy : def.upgradeAccuracy,
-        upgradeTimeLimit: set.levels[idx].upgradeTimeLimit || def.upgradeTimeLimit
       };
     }
 
@@ -3269,6 +3258,10 @@
     let wrongPracticeResults = [];
     let trainingQuestionIndex = 0;
     let trainingCorrectCount = 0;
+    /** 进入训练区或开局时刷新：全通关 / 当日强制刷热图 时为 true */
+    let trainingSessionBrushMode = false;
+    /** 本局训练开始时快照：结算是否走刷热图分支 */
+    let trainingRunBrushMode = false;
 
     // ========= 拆括号（选择题）模式状态 =========
     let expandLevel = 0; // 0-based
@@ -6008,10 +6001,10 @@
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
     }
 
-    function startTrainingGame() {
+    async function startTrainingGame() {
       if (survivalTimerId) clearInterval(survivalTimerId);
-      const saved = getLevelTrainingCurrentLevel();
-      currentLevelIndex = saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
+      currentLevelIndex = await resolveTrainingEntryLevelAsync();
+      trainingRunBrushMode = trainingSessionBrushMode;
       trainingQuestionIndex = 0;
       trainingCorrectCount = 0;
       runScore = 0;
@@ -6501,30 +6494,75 @@
       const correctCount = trainingCorrectCount;
       const accuracy = TRAINING_QUESTIONS > 0 ? correctCount / TRAINING_QUESTIONS : 0;
       const cfg = getLevelSetting(currentLevelIndex);
-      const passAccuracy = (cfg && typeof cfg.passAccuracy === "number") ? cfg.passAccuracy : 0.8;
       const upgradeAccuracy = (cfg && typeof cfg.upgradeAccuracy === "number") ? cfg.upgradeAccuracy : 0.95;
-      const upgradeTimeLimit = (cfg && cfg.upgradeTimeLimit) || 300;
-      const overtime = survivalTimeSec > upgradeTimeLimit;
+      const levelThisRun = currentLevelIndex;
 
+      if (trainingRunBrushMode) {
+        let tipText =
+          accuracy >= upgradeAccuracy
+            ? "练习完成。本局为刷热图，不产生晋级变化。"
+            : "准确率低于通关线。本局为刷热图，不产生晋级变化。";
+        appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
+        renderRecentRuns();
+        if (lockWrongbookIfNeeded()) return;
+
+        if (dom.gameOverPanel) {
+          setGameOverLayout(true);
+          dom.gameOverPanel.style.display = "block";
+          const titleEl = document.getElementById("game-over-title");
+          if (titleEl) titleEl.textContent = tipText;
+          const durationLabelEl = document.getElementById("game-over-duration-label");
+          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
+          const durationEl = document.getElementById("game-over-duration");
+          const scoreEl = document.getElementById("game-over-score");
+          const wrongEl = document.getElementById("game-over-wrong");
+          const maxLevelEl = document.getElementById("game-over-max-level");
+          const scoreLabelEl = document.getElementById("game-over-score-label");
+          const wrongLabelEl = document.getElementById("game-over-wrong-label");
+          if (durationLabelEl) durationLabelEl.textContent = "用时：";
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "准确率：";
+          if (scoreLabelEl) scoreLabelEl.textContent = "得分：";
+          if (wrongLabelEl) wrongLabelEl.textContent = "错题：";
+          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
+          if (scoreEl) scoreEl.textContent = String(runScore);
+          if (wrongEl) wrongEl.textContent = runWrongCount;
+          if (maxLevelEl) maxLevelEl.textContent = Math.round(accuracy * 100) + "%";
+        }
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        const inputRow = document.getElementById("answer-input-row");
+        if (inputRow) inputRow.style.display = "none";
+        const abandonRow = document.getElementById("abandon-row");
+        if (abandonRow) abandonRow.style.display = "none";
+        return;
+      }
+
+      // 训练晋级：准确率不低于该级配置的通关准确率则升级；否则保持本级（不降级、不计时）
       let newLevel = currentLevelIndex;
       let tipText = "";
-      if (accuracy >= upgradeAccuracy && !overtime) {
+      if (accuracy >= upgradeAccuracy) {
+        resetPromotionFailStreak();
         if (currentLevelIndex >= 15) {
           tipText = "恭喜通关";
           newLevel = -1;
+          const stClear = loadTrainingFlowState();
+          stClear.forcedBrush = false;
+          stClear.blockedLevel = null;
+          saveTrainingFlowState(stClear);
         } else {
           newLevel = currentLevelIndex + 1;
           tipText = "Level Up!";
         }
-      } else if (accuracy >= passAccuracy) {
-        tipText = "继续努力！";
       } else {
-        newLevel = Math.max(0, currentLevelIndex - 1);
-        tipText = "这个可能对你太难了，我们降低难度试试。";
+        tipText = "准确率低于通关线，继续在本级练习。";
+        if (bumpPromotionFailStreak(levelThisRun)) {
+          trainingSessionBrushMode = true;
+          tipText += " 今日已切至刷热图模式，该关今日不再出现。";
+        }
       }
 
       await saveLevelTrainingCurrentLevel(newLevel >= 0 ? newLevel : -1);
-      appendRun(survivalTimeSec, runScore, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice());
+      appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
       renderRecentRuns();
       if (lockWrongbookIfNeeded()) return;
 
@@ -7894,8 +7932,6 @@
       }
       // 进入模式时重置状态栏为新一局的初始值，避免显示上一局遗留数据
       if (gameMode === "training") {
-        const saved = getLevelTrainingCurrentLevel();
-        currentLevelIndex = saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
         runScore = 0;
         trainingQuestionIndex = 0;
         trainingCorrectCount = 0;
@@ -8161,6 +8197,211 @@
       if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
     }
 
+    const TRAINING_FLOW_LS_PREFIX = "jml_training_flow_v2:";
+    const TRAINING_PROMOTION_FAILS_BEFORE_BRUSH = 5;
+
+    function getLocalTrainingDayKey() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + day;
+    }
+
+    function defaultTrainingFlowState() {
+      return {
+        dayKey: getLocalTrainingDayKey(),
+        promotionFailStreak: 0,
+        streakFocusLevel: null,
+        forcedBrush: false,
+        blockedLevel: null,
+      };
+    }
+
+    function normalizeTrainingFlowState(o) {
+      const d = defaultTrainingFlowState();
+      if (!o || typeof o !== "object") return d;
+      const bl = o.blockedLevel;
+      const sf = o.streakFocusLevel;
+      return {
+        dayKey: typeof o.dayKey === "string" ? o.dayKey : d.dayKey,
+        promotionFailStreak: Number.isFinite(Number(o.promotionFailStreak)) ? Math.max(0, Math.floor(Number(o.promotionFailStreak))) : 0,
+        streakFocusLevel: sf == null || sf === "" ? null : Math.min(15, Math.max(0, Math.floor(Number(sf)))),
+        forcedBrush: !!o.forcedBrush,
+        blockedLevel: bl == null || bl === "" ? null : Math.min(15, Math.max(0, Math.floor(Number(bl)))),
+      };
+    }
+
+    function getTrainingFlowStorageKey() {
+      return TRAINING_FLOW_LS_PREFIX + (loadCurrentUsername() || "anon");
+    }
+
+    function loadTrainingFlowState() {
+      try {
+        const raw = localStorage.getItem(getTrainingFlowStorageKey());
+        if (!raw) return defaultTrainingFlowState();
+        return normalizeTrainingFlowState(JSON.parse(raw));
+      } catch (e) {
+        return defaultTrainingFlowState();
+      }
+    }
+
+    function saveTrainingFlowState(st) {
+      try {
+        localStorage.setItem(getTrainingFlowStorageKey(), JSON.stringify(st));
+      } catch (e) { /* ignore */ }
+    }
+
+    function refreshTrainingDayLocalState() {
+      const today = getLocalTrainingDayKey();
+      const st = loadTrainingFlowState();
+      if (st.dayKey !== today) {
+        st.dayKey = today;
+        st.promotionFailStreak = 0;
+        st.streakFocusLevel = null;
+        st.forcedBrush = false;
+        st.blockedLevel = null;
+        saveTrainingFlowState(st);
+      }
+    }
+
+    function computeTrainingBrushModeSync() {
+      if (getLevelTrainingCurrentLevel() === -1) return true;
+      const st = loadTrainingFlowState();
+      return !!st.forcedBrush;
+    }
+
+    function resetPromotionFailStreak() {
+      const st = loadTrainingFlowState();
+      st.promotionFailStreak = 0;
+      st.streakFocusLevel = null;
+      saveTrainingFlowState(st);
+    }
+
+    /** @returns {boolean} 是否刚触发当日刷热图 */
+    function bumpPromotionFailStreak(levelPlayed) {
+      const st = loadTrainingFlowState();
+      if (st.streakFocusLevel !== levelPlayed) {
+        st.promotionFailStreak = 1;
+        st.streakFocusLevel = levelPlayed;
+      } else {
+        st.promotionFailStreak = (st.promotionFailStreak || 0) + 1;
+      }
+      let triggered = false;
+      if (st.promotionFailStreak >= TRAINING_PROMOTION_FAILS_BEFORE_BRUSH) {
+        st.forcedBrush = true;
+        st.blockedLevel = levelPlayed;
+        triggered = true;
+      }
+      saveTrainingFlowState(st);
+      return triggered;
+    }
+
+    async function fetchRunsForTrainingHeatmap() {
+      const base = getApiBase();
+      const name = loadCurrentUsername();
+      if (!base || !name) return [];
+      try {
+        const res = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() });
+        const data = await res.json();
+        if (res.status === 401) {
+          handleAuthRequired();
+          return [];
+        }
+        return data.ok && Array.isArray(data.runs) ? data.runs : [];
+      } catch (e) {
+        console.warn("拉取 runs 失败（刷热图选关）", e);
+        return [];
+      }
+    }
+
+    function filterArithmeticRunsForTrainingHeatmap(runs) {
+      const HM = window.JmlStatsHeatmap;
+      if (HM && typeof HM.filterArithmeticRuns === "function") return HM.filterArithmeticRuns(runs);
+      return (runs || []).filter(function (r) {
+        const m = String(r && r.mode ? r.mode : "survival").toLowerCase();
+        return m === "survival" || m === "level" || m === "training";
+      });
+    }
+
+    function pickHeatmapLevelFromPool(heat, poolIndices) {
+      const poolSet = new Set(poolIndices);
+      const HM = window.JmlStatsHeatmap;
+      if (!heat || !Array.isArray(heat.cells) || poolIndices.length === 0) return poolIndices[0];
+      const subset = heat.cells.filter(function (c) {
+        return poolSet.has(c.levelIndex);
+      });
+      if (HM && typeof HM.recommendLevelIndex === "function") {
+        const rec = HM.recommendLevelIndex({ cells: subset });
+        if (rec != null && poolSet.has(rec)) return rec;
+      }
+      let bestK = null;
+      let bestP = 2;
+      subset.forEach(function (c) {
+        var p = c.p != null ? c.p : 1;
+        if (p < bestP) {
+          bestP = p;
+          bestK = c.levelIndex;
+        }
+      });
+      if (bestK != null) return bestK;
+      return Math.min.apply(null, poolIndices);
+    }
+
+    async function pickHeatmapTrainingLevelAsync() {
+      const saved = getLevelTrainingCurrentLevel();
+      const st = loadTrainingFlowState();
+      const blocked = typeof st.blockedLevel === "number" ? st.blockedLevel : null;
+      const pool = [];
+      if (saved === -1) {
+        for (let i = 0; i < 16; i++) pool.push(i);
+      } else {
+        for (let i = 0; i < saved; i++) pool.push(i);
+      }
+      if (pool.length === 0) pool.push(0);
+      let candidates = pool.filter(function (k) {
+        return blocked == null || k !== blocked || pool.length === 1;
+      });
+      if (candidates.length === 0) candidates = pool.slice();
+
+      const runs = filterArithmeticRunsForTrainingHeatmap(await fetchRunsForTrainingHeatmap());
+      const HM = window.JmlStatsHeatmap;
+      if (!HM || typeof HM.buildHeatmapCells !== "function") return candidates[0];
+      const heat = HM.buildHeatmapCells({
+        runs: runs,
+        cohort: null,
+        minAttempts: 8,
+        maxTimeSpentMs: 60 * 1000,
+      });
+      return pickHeatmapLevelFromPool(heat, candidates);
+    }
+
+    async function resolveTrainingEntryLevelAsync() {
+      refreshTrainingDayLocalState();
+      trainingSessionBrushMode = computeTrainingBrushModeSync();
+      if (trainingSessionBrushMode) {
+        return await pickHeatmapTrainingLevelAsync();
+      }
+      const saved = getLevelTrainingCurrentLevel();
+      return saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
+    }
+
+    function setTrainingPracticeSubtitle() {
+      const sub = document.getElementById("game-subtitle");
+      if (!sub) return;
+      if (trainingSessionBrushMode) {
+        sub.textContent =
+          "刷热图：在晋级线以下已解锁等级中练最不熟练的关（" +
+          TRAINING_QUESTIONS +
+          " 题），本局不计晋级；全通关后长期为此模式。同日同一关连续 5 局未达通关线则当日切本模式且该关今日不再出现。";
+      } else {
+        sub.textContent =
+          "晋级：每局 " +
+          TRAINING_QUESTIONS +
+          " 题；准确率不低于通关线则升级（第 16 级达标即全通关），否则本级保持、不降级、不限时。同日同一关连续 5 局未达通关线则当日切刷热图。";
+      }
+    }
+
     function getTrainingStartLevel() {
       const last = getLevelChallengeLastLevel();
       return Math.min(typeof last === "number" ? last : 0, 15);
@@ -8244,7 +8485,7 @@
       }
     }
 
-    function handleModePractice() {
+    async function handleModePractice() {
       if (isGuestMode) {
         alert("游客模式仅支持生存挑战。");
         return;
@@ -8258,9 +8499,9 @@
         showToast("训练模式：请先完成一局闯关模式");
         return;
       }
+      currentLevelIndex = await resolveTrainingEntryLevelAsync();
+      setTrainingPracticeSubtitle();
       gameMode = "training";
-      const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "训练模式：每局 " + TRAINING_QUESTIONS + " 题；达升级线且未超时升级，达及格线保持，否则降级。";
       showGameSection();
     }
 
@@ -8537,13 +8778,13 @@
         });
       }
       if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", function () {
-        if (gameMode === "training") startTrainingGame();
+        if (gameMode === "training") void startTrainingGame();
         else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
       });
       if (dom.playAgainBtn) dom.playAgainBtn.addEventListener("click", () => {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-        if (gameMode === "training") startTrainingGame();
+        if (gameMode === "training") void startTrainingGame();
         else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
       });

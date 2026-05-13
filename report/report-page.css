@@ -315,7 +315,7 @@
   cursor: pointer;
   border-radius: 10px;
   padding: 8px 6px;
-  min-height: 88px;
+  min-height: 102px;
   font-size: 11px;
   line-height: 1.35;
   box-sizing: border-box;
@@ -343,6 +343,17 @@
   font-weight: 700;
   font-size: 12px;
   margin-bottom: 4px;
+}
+
+.jml-heatmap-cell-metric {
+  font-size: 11px;
+  line-height: 1.35;
+  margin-bottom: 2px;
+}
+
+.jml-heatmap-metric-label {
+  color: #455a64;
+  font-weight: 600;
 }
 
 .jml-heatmap-cell-meta {

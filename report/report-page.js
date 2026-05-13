@@ -391,8 +391,8 @@
 
   function heatmapCellInlineStyle(c) {
     if (!c.active) return '';
-    var acc = c.accPct != null ? c.accPct : 50;
-    var hue = acc * 1.2;
+    var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
+    var hue = p * 120;
     var sat = 50 + (c.timePct != null ? Math.min(40, c.timePct * 0.4) : 0);
     var light = 52;
     var bw = 1 + (c.timePct != null ? (c.timePct / 100) * 4 : 0);
@@ -444,14 +444,11 @@
       escapeHtml(String(heat.personalWindowAttempts || 200)) +
       ' 题，按 <code>run.ts</code> 与「今天」相差的<strong>整天数</strong>做指数权重（半衰期 ' +
       escapeHtml(String(heat.personalHalfLifeDays || 14)) +
-      ' 天，λ=ln2/H）；加权准确率 + 加权 ln(答对题耗时，≤1min) 再与全体常模比百分位。每档加权窗口内题数 ≥ ' +
+      ' 天，λ=ln2/H）。格内<strong>准确率</strong>、<strong>答对均时</strong>均为加权值（均时由加权 ln(耗时) 还原为秒，仅含答对且单题≤1 分钟）。每档窗口内题数 ≥ ' +
       escapeHtml(String(heat.minAttempts)) +
-      ' 时激活着色。主色：准确率分位；边框粗：速度分位偏慢。' +
+      ' 时激活着色。主色：加权准确率（绿高红低）；边框粗：相对全体常模的<strong>速度分位</strong>偏慢。' +
       '<br /><strong>速度上限：</strong>' +
       escapeHtml(capNote) +
-      (cohort && cohort.minUsersForAccuracyRef != null
-        ? ' 准确率常模需每档至少 ' + escapeHtml(String(cohort.minUsersForAccuracyRef)) + ' 名「该档 ≥30 题」的学员。'
-        : '') +
       (cohort && cohort.builtAt
         ? '<br /><strong>常模快照：</strong>生成 ' +
           escapeHtml(formatDateTime(cohort.builtAt)) +
@@ -461,7 +458,7 @@
           (cohort.servedFromCache ? ' 本次<strong>读缓存</strong>。' : ' 本次<strong>已重算并写盘</strong>。')
         : '') +
       (recK != null
-        ? '<br /><strong>推荐下一练（调试用）：</strong>L' + (recK + 1) + '（准确率分位低优先，其次偏慢）。'
+        ? '<br /><strong>推荐下一练（调试用）：</strong>L' + (recK + 1) + '（速度分位偏慢优先；无常模速度时取加权准确率较低）。'
         : '') +
       '</div>';
 
@@ -470,8 +467,6 @@
         var label = 'L' + (c.levelIndex + 1);
         var cls = 'jml-heatmap-cell' + (c.active ? '' : ' inactive');
         var st = heatmapCellInlineStyle(c);
-        var accT =
-          c.accPct != null ? '准·分位 ' + Math.round(c.accPct) : c.active ? '准·分位 —' : '—';
         var timeT =
           c.timePct != null ? '速·分位 ' + Math.round(c.timePct) : c.active ? '速·分位 —' : '—';
         var nEffT =
@@ -480,7 +475,6 @@
           c.active && c.ageDaysMin != null && c.ageDaysMax != null
             ? '天龄 ' + escapeHtml(String(c.ageDaysMin)) + '–' + escapeHtml(String(c.ageDaysMax))
             : '';
-        var note = c.accRefNote ? '<div class="jml-heatmap-cell-meta">' + escapeHtml(c.accRefNote) + '</div>' : '';
         var selCls = c.levelIndex === state.statsLevelIndex ? ' jml-heatmap-cell-selected' : '';
         return (
           '<div class="' +
@@ -493,26 +487,22 @@
           ' role="button" tabindex="0"' +
           (st ? ' style="' + st + '"' : '') +
           ' title="' +
-          escapeHtml(label + ' n=' + c.n + ' ' + c.pText) +
+          escapeHtml(label + ' 准确率(加权) ' + c.pText + ' 答对均时(加权) ' + (c.avgSecText || '-')) +
           '">' +
           '<div class="jml-heatmap-cell-label">' +
           escapeHtml(label) +
           '</div>' +
-          '<div class="jml-heatmap-cell-meta">n=' +
-          escapeHtml(String(c.n)) +
-          '</div>' +
-          '<div class="jml-heatmap-cell-meta">' +
+          '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">准确率</span> ' +
           escapeHtml(c.pText) +
-          ' <span class="jml-heatmap-cell-sub">(加权)</span></div>' +
-          '<div class="jml-heatmap-cell-meta">' +
-          escapeHtml(accT) +
-          '</div>' +
+          ' <span class="jml-heatmap-cell-sub">加权</span></div>' +
+          '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">答对均时</span> ' +
+          escapeHtml(c.avgSecText != null ? c.avgSecText : '-') +
+          ' <span class="jml-heatmap-cell-sub">加权</span></div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(timeT) +
           '</div>' +
           (nEffT ? '<div class="jml-heatmap-cell-meta">' + nEffT + '</div>' : '') +
           (ageT ? '<div class="jml-heatmap-cell-meta">' + ageT + '</div>' : '') +
-          note +
           '</div>'
         );
       })
