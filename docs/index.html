@@ -6498,7 +6498,6 @@
       const levelThisRun = currentLevelIndex;
 
       if (trainingRunBrushMode) {
-        var tipText = "训练结束！";
         appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
         renderRecentRuns();
         if (lockWrongbookIfNeeded()) return;
@@ -6507,7 +6506,7 @@
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = tipText;
+          if (titleEl) titleEl.textContent = "训练结束！";
           const durationLabelEl = document.getElementById("game-over-duration-label");
           const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
           const durationEl = document.getElementById("game-over-duration");
