@@ -516,6 +516,11 @@
           '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">答对均时</span> ' +
           escapeHtml(c.avgSecText != null ? c.avgSecText : '-') +
           ' <span class="jml-heatmap-cell-sub">加权</span></div>' +
+          '<div class="jml-heatmap-cell-meta">窗口题数 n=' +
+          escapeHtml(String(c.n != null && Number.isFinite(c.n) ? c.n : 0)) +
+          '（激活≥' +
+          escapeHtml(String(heat.minAttempts != null ? heat.minAttempts : 10)) +
+          '）</div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(timeT) +
           '</div>' +

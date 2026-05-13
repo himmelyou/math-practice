@@ -10,7 +10,7 @@
     var yMaxSec = payload.yMaxSec;
     if (!dates || dates.length === 0) return;
 
-    var margin = { left: 44, right: 48, top: 28, bottom: 36 };
+    var margin = { left: 56, right: 56, top: 28, bottom: 36 };
     var plotW = Math.max(10, cssWidth - margin.left - margin.right);
     var plotH = Math.max(10, cssHeight - margin.top - margin.bottom);
     var left = margin.left;
@@ -19,6 +19,22 @@
     ctx.clearRect(0, 0, cssWidth, cssHeight);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    var axisTitle = '11px sans-serif';
+    ctx.font = axisTitle;
+    ctx.fillStyle = '#546e7a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.save();
+    ctx.translate(14, top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillText('错误率(%)', 0, 0);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(cssWidth - 14, top + plotH / 2);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText('平均每题(秒)', 0, 0);
+    ctx.restore();
 
     ctx.strokeStyle = 'rgba(0,0,0,0.06)';
     ctx.lineWidth = 1;

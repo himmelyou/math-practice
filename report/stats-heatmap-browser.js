@@ -167,7 +167,7 @@
     var minAttempts =
       Number(opts.minAttempts) ||
       (cohort && Number(cohort.minAttemptsForHeatmap)) ||
-      30;
+      10;
     var maxTimeMs =
       Number(opts.maxTimeSpentMs) ||
       (cohort && Number(cohort.timeSpentMsCap)) ||

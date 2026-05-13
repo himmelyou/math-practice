@@ -2539,7 +2539,7 @@
   </div>
 
   <script src="prime-composite-logic.js"></script>
-  <script src="../report/stats-heatmap-browser.js?v=5"></script>
+  <script src="../report/stats-heatmap-browser.js?v=6"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -8370,7 +8370,7 @@
       const heat = HM.buildHeatmapCells({
         runs: runs,
         cohort: null,
-        minAttempts: 8,
+        minAttempts: 10,
         maxTimeSpentMs: 60 * 1000,
       });
       return pickHeatmapLevelFromPool(heat, candidates);

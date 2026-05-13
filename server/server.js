@@ -1436,7 +1436,7 @@ app.get("/api/admin/user-list", (req, res) => {
 
 /** 报表难度热图：全体常模（仅 survival/level/training） */
 const COHORT_LEVEL_COUNT = 16;
-const COHORT_MIN_ATTEMPTS_PER_USER_LEVEL = 30;
+const COHORT_MIN_ATTEMPTS_PER_USER_LEVEL = 10;
 /** 单题耗时上限：超过则该答对记录不纳入「速度」常模与个人 ln(t)，排除挂机/异常长暂停 */
 const COHORT_MAX_TIME_SPENT_MS = 60 * 1000;
 
