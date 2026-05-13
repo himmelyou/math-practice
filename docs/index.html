@@ -6498,10 +6498,7 @@
       const levelThisRun = currentLevelIndex;
 
       if (trainingRunBrushMode) {
-        let tipText =
-          accuracy >= upgradeAccuracy
-            ? "练习完成。本局为刷热图，不产生晋级变化。"
-            : "准确率低于通关线。本局为刷热图，不产生晋级变化。";
+        var tipText = "训练结束！";
         appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
         renderRecentRuns();
         if (lockWrongbookIfNeeded()) return;
