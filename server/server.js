@@ -1431,6 +1431,101 @@ app.get("/api/admin/user-list", (req, res) => {
   res.json({ ok: true, users: list });
 });
 
+/** 报表难度热图：全体常模（仅 survival/level/training） */
+const COHORT_LEVEL_COUNT = 16;
+const COHORT_MIN_ATTEMPTS_PER_USER_LEVEL = 30;
+const COHORT_MIN_USERS_FOR_ACCURACY_REF = 5;
+/** 单题耗时上限：超过则该答对记录不纳入「速度」常模与个人 ln(t)，排除挂机/异常长暂停 */
+const COHORT_MAX_TIME_SPENT_MS = 60 * 1000;
+
+function quantileSorted(sortedAsc, p) {
+  if (!sortedAsc.length) return null;
+  const idx = (p / 100) * (sortedAsc.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sortedAsc[lo];
+  return sortedAsc[lo] * (hi - idx) + sortedAsc[hi] * (idx - lo);
+}
+
+function summarizeQuantiles(values) {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const arr = values.filter((x) => Number.isFinite(x)).slice().sort((a, b) => a - b);
+  if (!arr.length) return null;
+  return {
+    n: arr.length,
+    q10: quantileSorted(arr, 10),
+    q25: quantileSorted(arr, 25),
+    q50: quantileSorted(arr, 50),
+    q75: quantileSorted(arr, 75),
+    q90: quantileSorted(arr, 90),
+  };
+}
+
+app.get("/api/admin/stats/level-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const lnTimesByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
+  const accByUserByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
+
+  const usernames = Object.keys(runsData.runs || {});
+  usernames.forEach((username) => {
+    const runs = runsData.runs[username] || [];
+    const byLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => ({
+      n: 0,
+      correct: 0,
+      lnTimes: [],
+    }));
+    runs.forEach((r) => {
+      const mode = normalizeRunMode(r.mode);
+      if (mode !== "survival" && mode !== "level" && mode !== "training") return;
+      if (!Array.isArray(r.attempts)) return;
+      r.attempts.forEach((a) => {
+        const idx = Math.max(0, Math.min(COHORT_LEVEL_COUNT - 1, Number(a.levelIndex) || 0));
+        byLevel[idx].n += 1;
+        if (a.correct) {
+          byLevel[idx].correct += 1;
+          const ms = Number(a.timeSpentMs);
+          if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
+            byLevel[idx].lnTimes.push(Math.log(ms));
+          }
+        }
+      });
+    });
+    for (let k = 0; k < COHORT_LEVEL_COUNT; k++) {
+      const bl = byLevel[k];
+      bl.lnTimes.forEach((ln) => lnTimesByLevel[k].push(ln));
+      if (bl.n >= COHORT_MIN_ATTEMPTS_PER_USER_LEVEL) {
+        accByUserByLevel[k].push(bl.correct / bl.n);
+      }
+    }
+  });
+
+  const levels = [];
+  for (let k = 0; k < COHORT_LEVEL_COUNT; k++) {
+    const lnQ = summarizeQuantiles(lnTimesByLevel[k]);
+    const accList = accByUserByLevel[k];
+    const accQ = accList.length >= COHORT_MIN_USERS_FOR_ACCURACY_REF ? summarizeQuantiles(accList) : null;
+    levels.push({
+      levelIndex: k,
+      cohortLnTimeCorrect: lnQ,
+      cohortUserAccuracy: accQ
+        ? { ...accQ, sufficient: true }
+        : { n: accList.length, sufficient: false },
+    });
+  }
+  res.json({
+    ok: true,
+    minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    minUsersForAccuracyRef: COHORT_MIN_USERS_FOR_ACCURACY_REF,
+    timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
+    timeSpentMsCapNote:
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入全体/个人速度侧统计（排除挂机、长时间切屏等异常偏慢）",
+    levels,
+  });
+});
+
 // ========== 管理员：备份全部数据 ==========
 app.get("/api/admin/backup", (req, res) => {
   if (!checkAdminPin(req)) {

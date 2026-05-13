@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    (function () {
+      var p = location.pathname;
+      if (p.endsWith('/')) return;
+      var segs = p.split('/').filter(Boolean);
+      var last = segs[segs.length - 1];
+      if (last === 'admin' || last === 'report') {
+        location.replace(p + '/index.html' + location.search + location.hash);
+      }
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>学员数据 · Jarvis Math Lab</title>
+  <link rel="stylesheet" href="../shared/admin-shell.css" />
+  <link rel="stylesheet" href="report-page.css" />
+</head>
+<body>
+  <div id="report-gate-root"></div>
+
+  <div id="report-app" class="jml-shell" hidden>
+    <div class="jml-shell-inner jml-admin-wide">
+      <div class="jml-admin-toolbar">
+        <a class="jml-toolbar-link" href="../admin/index.html">后台管理</a>
+        <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
+      </div>
+
+      <h1>学员数据</h1>
+      <p class="muted">选择学员后查看挑战记录、错题本与数据分析。门禁通过后，会用同一口令作为请求头 <code>X-Admin-Pin</code> 调用 <code>/api/admin/*</code>。</p>
+
+      <div id="jml-api-warning" class="jml-banner-warn" hidden>
+        <strong>未配置 API 地址。</strong> 请确认已加载 <code>docs/config.js</code>，并且它能设置 <code>window.API_BASE_URL</code>（或 <code>window.__JML_API_BASE__</code>）。
+      </div>
+
+      <div id="jml-report-load-error" class="jml-report-error" style="display:none;"></div>
+
+      <div class="jml-report-user-row">
+        <label for="jml-report-user-filter">筛选</label>
+        <input type="search" id="jml-report-user-filter" class="jml-report-user-filter" placeholder="输入用户名筛选…" autocomplete="off" />
+        <label for="jml-report-user-select">学员</label>
+        <select id="jml-report-user-select" class="jml-report-user-select" aria-label="选择学员">
+          <option value="">加载中…</option>
+        </select>
+      </div>
+      <p class="jml-report-hint">挑战记录按时间降序；数据分析含四则难度热图（全体常模 + 调试 JSON）与按日曲线。</p>
+
+      <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
+
+      <div class="jml-tabs" role="tablist">
+        <button type="button" class="jml-tab active" data-tab="runs" role="tab">挑战记录</button>
+        <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
+        <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
+      </div>
+
+      <div id="panel-runs" class="jml-tab-panel" data-panel="runs" role="tabpanel">
+        <div id="jml-report-runs-body"></div>
+      </div>
+      <div id="panel-wrong" class="jml-tab-panel hidden" data-panel="wrong" role="tabpanel">
+        <div id="jml-report-wrong-body"></div>
+      </div>
+      <div id="panel-stats" class="jml-tab-panel hidden" data-panel="stats" role="tabpanel">
+        <div id="jml-report-stats-body"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../docs/config.js?v=1"></script>
+  <script>
+    (function () {
+      if (!window.__JML_API_BASE__ && window.API_BASE_URL) {
+        window.__JML_API_BASE__ = window.API_BASE_URL;
+      }
+    })();
+  </script>
+  <script src="../shared/admin-auth.js?v=1"></script>
+  <script src="stats-aggregate-browser.js?v=2"></script>
+  <script src="stats-heatmap-browser.js?v=2"></script>
+  <script src="stats-chart-browser.js?v=2"></script>
+  <script src="report-page.js?v=2"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      AdminAuth.mount({
+        gateId: 'report-gate-root',
+        appId: 'report-app',
+        title: '学员数据',
+        blurb: '此页面用于查看学员挑战记录、错题与数据分析。请输入访问口令。',
+        onUnlocked: function () {
+          if (typeof JmlReportPage !== 'undefined') {
+            JmlReportPage.init();
+          }
+        },
+      });
+    });
+  </script>
+</body>
+</html>
+

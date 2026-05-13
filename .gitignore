@@ -3,29 +3,8 @@ server/.DS_Store
 server/data/**
 !server/data/.gitkeep
 
-# ========== 公开仓库范围：仅 GitHub Pages（/docs）+ Render（/server）==========
-# 其余仅本地保留，勿提交。
-
-# 根目录聚合页（本地打开用；线上主站为 Pages 的 /docs）
-admin.html
-report.html
-
-# 本地文档（规格、说明等一律不公开）
-/*.md
-server/*.md
-pictures/**/*.md
-
-# 本地一键启动脚本
-/*.bat
-
-# 本地静态服务 / 管理端 / 报表（非 Pages 主站、非 Node 后端 API）
-local-admin-server.js
-admin/
-report/
-shared/
-
-# 默认头像素材（可选；后端无此目录仍可运行，头像以服务端数据为准）
-pictures/
+# 说明：report/、admin/、shared/、根目录说明文档等已纳入版本库，便于协作与 Cursor 索引。
+# 运行时数据与密钥仍见下方忽略项。
 
 # ——— 依赖与构建 ———
 node_modules/

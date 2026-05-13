@@ -7737,7 +7737,24 @@
       if (statsChartInstance) { statsChartInstance.destroy(); statsChartInstance = null; }
     }
 
+    /** 与 server `normalizeRunMode` 一致，用于筛「按难度」统计/图表的 runs */
+    function normalizeRunModeForStats(mode) {
+      if (mode === "level") return "level";
+      if (mode === "training") return "training";
+      if (mode === "primeComposite") return "primeComposite";
+      if (mode === "expandBrackets") return "expandBrackets";
+      return "survival";
+    }
+    const STATS_LEVEL_AGG_MODES = new Set(["survival", "level", "training"]);
+    function filterRunsForStatsLevelAggregation(runs) {
+      if (!Array.isArray(runs)) return [];
+      return runs.filter(function (r) {
+        return r && STATS_LEVEL_AGG_MODES.has(normalizeRunModeForStats(r.mode));
+      });
+    }
+
     function renderStatsLevel(runs) {
+      runs = filterRunsForStatsLevelAggregation(runs);
       const byLevel = Array.from({ length: 16 }, () => ({ total: 0, correct: 0, totalTimeMs: 0 }));
       (runs || []).forEach(r => {
         if (!Array.isArray(r.attempts)) return;
