@@ -440,13 +440,25 @@
 
     var legend =
       '<div class="jml-heatmap-legend">' +
-      '<strong>图例：</strong>仅统计 <code>survival</code> / <code>level</code> / <code>training</code>；每档答题数 ≥ ' +
+      '<strong>图例：</strong>仅统计 <code>survival</code> / <code>level</code> / <code>training</code>。个人：每档取时间上最近的 ' +
+      escapeHtml(String(heat.personalWindowAttempts || 200)) +
+      ' 题，按 <code>run.ts</code> 与「今天」相差的<strong>整天数</strong>做指数权重（半衰期 ' +
+      escapeHtml(String(heat.personalHalfLifeDays || 14)) +
+      ' 天，λ=ln2/H）；加权准确率 + 加权 ln(答对题耗时，≤1min) 再与全体常模比百分位。每档加权窗口内题数 ≥ ' +
       escapeHtml(String(heat.minAttempts)) +
-      ' 时激活着色。主色：准确率相对全体（绿=好于多数人）；边框越粗表示答对题耗时相对全体越慢。' +
+      ' 时激活着色。主色：准确率分位；边框粗：速度分位偏慢。' +
       '<br /><strong>速度上限：</strong>' +
       escapeHtml(capNote) +
       (cohort && cohort.minUsersForAccuracyRef != null
         ? ' 准确率常模需每档至少 ' + escapeHtml(String(cohort.minUsersForAccuracyRef)) + ' 名「该档 ≥30 题」的学员。'
+        : '') +
+      (cohort && cohort.builtAt
+        ? '<br /><strong>常模快照：</strong>生成 ' +
+          escapeHtml(formatDateTime(cohort.builtAt)) +
+          '，过期 ' +
+          escapeHtml(formatDateTime(cohort.expiresAt)) +
+          '（默认 TTL 24h，环境变量 <code>COHORT_STATS_TTL_MS</code> 可改）。' +
+          (cohort.servedFromCache ? ' 本次<strong>读缓存</strong>。' : ' 本次<strong>已重算并写盘</strong>。')
         : '') +
       (recK != null
         ? '<br /><strong>推荐下一练（调试用）：</strong>L' + (recK + 1) + '（准确率分位低优先，其次偏慢）。'
@@ -462,11 +474,23 @@
           c.accPct != null ? '准·分位 ' + Math.round(c.accPct) : c.active ? '准·分位 —' : '—';
         var timeT =
           c.timePct != null ? '速·分位 ' + Math.round(c.timePct) : c.active ? '速·分位 —' : '—';
+        var nEffT =
+          c.nEff != null && c.active ? 'n_eff≈' + escapeHtml(String(c.nEff)) : '';
+        var ageT =
+          c.active && c.ageDaysMin != null && c.ageDaysMax != null
+            ? '天龄 ' + escapeHtml(String(c.ageDaysMin)) + '–' + escapeHtml(String(c.ageDaysMax))
+            : '';
         var note = c.accRefNote ? '<div class="jml-heatmap-cell-meta">' + escapeHtml(c.accRefNote) + '</div>' : '';
+        var selCls = c.levelIndex === state.statsLevelIndex ? ' jml-heatmap-cell-selected' : '';
         return (
           '<div class="' +
           cls +
+          selCls +
           '"' +
+          ' data-level-index="' +
+          c.levelIndex +
+          '"' +
+          ' role="button" tabindex="0"' +
           (st ? ' style="' + st + '"' : '') +
           ' title="' +
           escapeHtml(label + ' n=' + c.n + ' ' + c.pText) +
@@ -479,13 +503,15 @@
           '</div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(c.pText) +
-          '</div>' +
+          ' <span class="jml-heatmap-cell-sub">(加权)</span></div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(accT) +
           '</div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(timeT) +
           '</div>' +
+          (nEffT ? '<div class="jml-heatmap-cell-meta">' + nEffT + '</div>' : '') +
+          (ageT ? '<div class="jml-heatmap-cell-meta">' + ageT + '</div>' : '') +
           note +
           '</div>'
         );
@@ -518,7 +544,7 @@
       cohortWarn +
       '<div class="jml-heatmap-section">' +
       legend +
-      '<div class="jml-heatmap-grid">' +
+      '<div class="jml-heatmap-grid" id="jml-heatmap-grid">' +
       cellsHtml +
       '</div>' +
       debugBlock +
@@ -540,30 +566,21 @@
       return;
     }
     var Agg = window.JmlStatsAggregate;
-    var options = LEVEL_NAMES.map(function (n, i) {
-      var sel = i === state.statsLevelIndex ? ' selected' : '';
-      return '<option value="' + i + '"' + sel + '>' + escapeHtml(n) + '</option>';
-    }).join('');
 
     var heatmapBlock = buildHeatmapSectionHtml();
 
     wrap.innerHTML =
-      '<p class="jml-stats-intro">本页统计与热图<strong>仅</strong>聚合生存 / 闯关 / 训练三种模式的 <code>runs.attempts</code>（与后续训练选关口径一致）。下方折线图仍按所选难度展示按日错误率与均耗时。</p>' +
+      '<p class="jml-stats-intro">本页统计与热图<strong>仅</strong>聚合生存 / 闯关 / 训练三种模式的 <code>runs.attempts</code>。热图个人侧为「每档最近 200 题 + 按天龄指数权重（半衰期 14 天）」。点击下方某一难度格，折线图展示该难度「最近最多 14 个有答题的日历日」（中间无练习日不插值填充）。</p>' +
       heatmapBlock +
-      '<h3 class="jml-report-h3">按日曲线（所选难度）</h3>' +
-      '<div class="jml-stats-level-row"><label for="jml-stats-level-select">选择难度</label>' +
-      '<select id="jml-stats-level-select" class="jml-stats-level-select">' +
-      options +
-      '</select></div>' +
+      '<h3 class="jml-report-h3" id="jml-stats-chart-heading"></h3>' +
       '<div class="jml-stats-chart-wrap"><canvas id="jml-stats-canvas"></canvas></div>';
 
-    var sel = document.getElementById('jml-stats-level-select');
-    if (sel) {
-      sel.addEventListener('change', function () {
-        state.statsLevelIndex = Math.max(0, Math.min(15, Number(sel.value) || 0));
-        state.chartModel = Agg.buildChartSeries(agg.byDay, state.statsLevelIndex);
-        drawStatsChart();
-      });
+    var chartHeading = document.getElementById('jml-stats-chart-heading');
+    if (chartHeading) {
+      chartHeading.textContent =
+        '按日曲线（' +
+        (LEVEL_NAMES[state.statsLevelIndex] || 'L' + (state.statsLevelIndex + 1)) +
+        ' · 最近最多 14 个有练习日）';
     }
   }
 
@@ -618,6 +635,58 @@
       sel.addEventListener('change', function () {
         state.selectedUsername = sel.value || '';
         loadStudentData();
+      });
+    }
+    var statsBody = document.getElementById('jml-report-stats-body');
+    if (statsBody) {
+      statsBody.addEventListener('click', function (ev) {
+        var cell = ev.target.closest('.jml-heatmap-cell');
+        if (!cell || !statsBody.contains(cell)) return;
+        var AggInner = window.JmlStatsAggregate;
+        if (!AggInner || !state.agg || !state.selectedUsername) return;
+        var idx = parseInt(cell.getAttribute('data-level-index'), 10);
+        if (!Number.isFinite(idx) || idx < 0 || idx > 15) return;
+        state.statsLevelIndex = idx;
+        state.chartModel = AggInner.buildChartSeries(state.agg.byDay, state.statsLevelIndex);
+        statsBody.querySelectorAll('.jml-heatmap-cell').forEach(function (el) {
+          var i = parseInt(el.getAttribute('data-level-index'), 10);
+          el.classList.toggle('jml-heatmap-cell-selected', i === state.statsLevelIndex);
+        });
+        var h3 = statsBody.querySelector('#jml-stats-chart-heading');
+        if (h3) {
+          h3.textContent =
+            '按日曲线（' +
+            (LEVEL_NAMES[state.statsLevelIndex] || 'L' + (state.statsLevelIndex + 1)) +
+            ' · 最近最多 14 个有练习日）';
+        }
+        requestAnimationFrame(drawStatsChart);
+      });
+    }
+    var cohortRebuild = document.getElementById('jml-cohort-rebuild-btn');
+    if (cohortRebuild) {
+      cohortRebuild.addEventListener('click', function () {
+        if (cohortRebuild.disabled) return;
+        cohortRebuild.disabled = true;
+        var prevLabel = cohortRebuild.textContent;
+        cohortRebuild.textContent = '刷新中…';
+        apiFetch('/api/admin/stats/level-cohort/rebuild', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+          .then(function (d) {
+            state.cohort = d && d.ok ? d : null;
+            state.cohortError = d && d.ok ? '' : '常模重建返回异常';
+            if (state.selectedUsername) renderStatsPanel();
+          })
+          .catch(function (e) {
+            state.cohortError = e.message || String(e);
+            if (state.selectedUsername) renderStatsPanel();
+          })
+          .finally(function () {
+            cohortRebuild.disabled = false;
+            cohortRebuild.textContent = prevLabel;
+          });
       });
     }
   }

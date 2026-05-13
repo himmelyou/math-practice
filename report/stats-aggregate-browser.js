@@ -3,23 +3,11 @@
  */
 (function (global) {
   var LEVEL_COUNT = 16;
+  /** 折线图：该难度下「有答题」的最近多少个日历日（无则向前不填充） */
+  var CHART_PRACTICE_DAYS = 14;
 
   function emptyLevelAgg() {
     return { total: 0, correct: 0, totalTimeMs: 0 };
-  }
-
-  function padDate(y, m, day) {
-    return y + '-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-  }
-
-  function enumerateDates(firstStr, lastStr) {
-    var allDates = [];
-    var first = new Date(firstStr.replace(/-/g, '/'));
-    var last = new Date(lastStr.replace(/-/g, '/'));
-    for (var d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
-      allDates.push(padDate(d.getFullYear(), d.getMonth() + 1, d.getDate()));
-    }
-    return allDates;
   }
 
   function filterArithmeticRuns(runs) {
@@ -69,21 +57,27 @@
   }
 
   function buildChartSeries(byDay, levelIndex) {
-    var datesRaw = Object.keys(byDay).sort();
-    if (datesRaw.length === 0) return null;
+    if (!byDay || typeof byDay !== 'object') return null;
+    var li = Math.max(0, Math.min(LEVEL_COUNT - 1, Number(levelIndex) || 0));
+    var dates = Object.keys(byDay)
+      .filter(function (d) {
+        var L = byDay[d] && byDay[d][li];
+        return L && (L.total || 0) > 0;
+      })
+      .sort();
+    if (dates.length === 0) return null;
+    if (dates.length > CHART_PRACTICE_DAYS) {
+      dates = dates.slice(dates.length - CHART_PRACTICE_DAYS);
+    }
 
-    var allDates = enumerateDates(datesRaw[0], datesRaw[datesRaw.length - 1]);
-
-    var lastErrorRate = null;
-    var lastAvgSec = null;
-    var series = allDates.map(function (d) {
-      var L = byDay[d] ? byDay[d][levelIndex] : null;
+    var series = dates.map(function (d) {
+      var L = byDay[d][li];
       var total = L ? L.total || 0 : 0;
-      if (total > 0) {
-        lastErrorRate = Math.round((1 - L.correct / total) * 100);
-        lastAvgSec = Math.round(((L.totalTimeMs / total) / 1000) * 10) / 10;
-      }
-      return { errorRate: lastErrorRate, avgSec: lastAvgSec };
+      if (total <= 0) return { errorRate: null, avgSec: null };
+      return {
+        errorRate: Math.round((1 - L.correct / total) * 100),
+        avgSec: Math.round(((L.totalTimeMs / total) / 1000) * 10) / 10,
+      };
     });
 
     var errRatesNumeric = series
@@ -105,10 +99,11 @@
     var yMaxSec = Math.max(5, secNumeric.length ? Math.max.apply(null, secNumeric) * 1.1 : 20);
 
     return {
-      dates: allDates,
+      dates: dates,
       series: series,
       yMaxErr: yMaxErr,
       yMaxSec: Math.ceil(yMaxSec),
+      practiceDayCount: dates.length,
     };
   }
 
@@ -134,6 +129,7 @@
 
   global.JmlStatsAggregate = {
     LEVEL_COUNT: LEVEL_COUNT,
+    CHART_PRACTICE_DAYS: CHART_PRACTICE_DAYS,
     filterArithmeticRuns: filterArithmeticRuns,
     aggregateFromRuns: aggregateFromRuns,
     buildChartSeries: buildChartSeries,

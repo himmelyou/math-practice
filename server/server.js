@@ -35,6 +35,9 @@ const USERS_FILE = path.join(DATA_DIR, "users.json");
 const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const I18N_FILE = path.join(DATA_DIR, "i18n.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
+const COHORT_LEVEL_STATS_FILE = path.join(DATA_DIR, "cohort-level-stats.json");
+/** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
+const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
 const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.json");
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
@@ -1461,10 +1464,8 @@ function summarizeQuantiles(values) {
   };
 }
 
-app.get("/api/admin/stats/level-cohort", (req, res) => {
-  if (!checkAdminPin(req)) {
-    return res.status(403).json({ ok: false, error: "需要管理员口令" });
-  }
+/** 全量扫描 runs 计算难度常模（不含 builtAt / 缓存字段） */
+function computeLevelCohortResult() {
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const lnTimesByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
   const accByUserByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
@@ -1515,7 +1516,7 @@ app.get("/api/admin/stats/level-cohort", (req, res) => {
         : { n: accList.length, sufficient: false },
     });
   }
-  res.json({
+  return {
     ok: true,
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     minUsersForAccuracyRef: COHORT_MIN_USERS_FOR_ACCURACY_REF,
@@ -1523,6 +1524,66 @@ app.get("/api/admin/stats/level-cohort", (req, res) => {
     timeSpentMsCapNote:
       "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入全体/个人速度侧统计（排除挂机、长时间切屏等异常偏慢）",
     levels,
+  };
+}
+
+function readCohortLevelStatsCache() {
+  const raw = readJson(COHORT_LEVEL_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortLevelStatsCache(builtAt, result) {
+  writeJson(COHORT_LEVEL_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/admin/stats/level-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortLevelStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computeLevelCohortResult();
+  const builtAt = now;
+  writeCohortLevelStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+  });
+});
+
+app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const result = computeLevelCohortResult();
+  const builtAt = Date.now();
+  writeCohortLevelStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+    rebuilt: true,
   });
 });
 
@@ -1558,6 +1619,11 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
     if (body.runs) {
       const r = body.runs;
       writeJson(RUNS_FILE, (r.runs && typeof r.runs === "object") ? r : { runs: typeof r === "object" ? r : {} });
+      try {
+        if (fs.existsSync(COHORT_LEVEL_STATS_FILE)) fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
+      } catch (e2) {
+        /* 忽略：常模快照删除失败不影响恢复 */
+      }
     }
     if (body.settings) {
       const s = body.settings;
