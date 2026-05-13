@@ -392,17 +392,35 @@
   function heatmapCellInlineStyle(c) {
     if (!c.active) return '';
     var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
-    var hue = p * 120;
-    var sat = 50 + (c.timePct != null ? Math.min(40, c.timePct * 0.4) : 0);
-    var light = 52;
-    var bw = 1 + (c.timePct != null ? (c.timePct / 100) * 4 : 0);
+    var tp = c.timePct;
+    var t = tp != null && Number.isFinite(tp) ? Math.max(0, Math.min(1, tp / 100)) : 0.5;
+
+    var hue;
+    var sat;
+    var light;
+
+    if (p < 0.95) {
+      if (p < 0.9) {
+        hue = 18 + (38 - 18) * (p / 0.9);
+      } else {
+        hue = 38 + (88 - 38) * ((p - 0.9) / 0.05);
+      }
+      sat = Math.min(95, 55 + 25 * p);
+      light = Math.max(36, 58 - 12 * p);
+    } else {
+      hue = 108 + 8 * (1 - t);
+      sat = Math.max(48, Math.min(92, 72 - 18 * t));
+      light = Math.max(34, Math.min(62, 38 + 22 * t));
+    }
+
+    var bw = 1 + (tp != null ? (tp / 100) * 4 : 0);
     return (
       'background:hsl(' +
       Math.round(hue) +
       ',' +
       Math.round(sat) +
       '%,' +
-      light +
+      Math.round(light) +
       '%);border:' +
       bw.toFixed(1) +
       'px solid #37474f'
@@ -446,7 +464,7 @@
       escapeHtml(String(heat.personalHalfLifeDays || 14)) +
       ' 天，λ=ln2/H）。格内<strong>准确率</strong>、<strong>答对均时</strong>均为加权值（均时由加权 ln(耗时) 还原为秒，仅含答对且单题≤1 分钟）。每档窗口内题数 ≥ ' +
       escapeHtml(String(heat.minAttempts)) +
-      ' 时激活着色。主色：加权准确率（绿高红低）；边框粗：相对全体常模的<strong>速度分位</strong>偏慢。' +
+      ' 时激活着色。主色：<strong>准确率 &lt;95%</strong> 时由加权准确率定色相（约 90% 橙黄交界、95% 黄绿交界）；<strong>≥95%</strong> 时进入绿色带，<strong>深浅主要由速度分位</strong>（快偏深绿、慢偏浅绿；无常模速度时深浅取中位）。边框粗：速度分位偏慢。' +
       '<br /><strong>速度上限：</strong>' +
       escapeHtml(capNote) +
       (cohort && cohort.builtAt

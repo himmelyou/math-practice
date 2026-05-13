@@ -196,9 +196,11 @@
 
       var avgSecText = '-';
       if (meanLn != null && Number.isFinite(meanLn)) {
-        var sec = Math.exp(meanLn);
-        if (sec > 0 && sec < 600 && Number.isFinite(sec)) {
-          avgSecText = String(Math.round(sec * 10) / 10) + ' 秒';
+        // meanLn 为加权 ln(timeSpentMs)，ms 为毫秒；exp 得几何平均耗时（毫秒），再换「秒」展示
+        var geoMeanMs = Math.exp(meanLn);
+        var secDisplay = geoMeanMs / 1000;
+        if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
+          avgSecText = String(Math.round(secDisplay * 10) / 10) + ' 秒';
         }
       }
 
