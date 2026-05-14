@@ -5851,6 +5851,41 @@
       updateHomeAvatarPlaceholder();
     }
 
+    /** 闯关模式：正向计时、无倒计时条变红 */
+    function updateLevelStatusUI() {
+      const label2 = document.getElementById("status-label-2");
+      const label3 = document.getElementById("status-label-3");
+      const label4 = document.getElementById("status-label-4");
+      const label5 = document.getElementById("status-label-5");
+      if (label2) label2.textContent = "连续答对：";
+      if (label3) label3.textContent = "本局得分：";
+      if (label4) label4.textContent = "最高等级：";
+      if (label5) label5.textContent = "错题数量：";
+      updateStatusModeLabel();
+      const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
+      const m = Math.floor(elapsed / 60);
+      const s = elapsed % 60;
+      const timeStr = m + ":" + String(s).padStart(2, "0");
+      if (dom.timerChip && dom.timerChip.firstChild) dom.timerChip.firstChild.textContent = "用时 ";
+      if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
+      if (dom.timerValue) dom.timerValue.textContent = timeStr;
+      if (dom.timerChip) dom.timerChip.classList.remove("low");
+      const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
+      if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
+      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + LEVEL_CHALLENGE_CORRECT_PER_LEVEL;
+      if (dom.runScore) dom.runScore.textContent = runScore;
+      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (Math.max(maxLevelThisRun, currentLevelIndex) + 1);
+      if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
+      if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
+      updateHomeAvatarPlaceholder();
+      if (dom.timerChip) dom.timerChip.style.display = "";
+    }
+
+    function levelTick() {
+      if (!isPlaying || gameOver || gameMode !== "level") return;
+      updateLevelStatusUI();
+    }
+
     function getDisplayName() {
       if (isGuestMode) return "游客";
       const u = getCurrentUser();
@@ -5974,13 +6009,7 @@
         }
       }
       if (survivalTimerId) clearInterval(survivalTimerId);
-      const lastLevel = getLevelChallengeLastLevel();
-      if (lastLevel >= 15) {
-        currentLevelIndex = getRecentSurvivalPeakLevelForLevelMode();
-      } else {
-        currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
-      }
-      survivalTimeLeft = SURVIVAL_INITIAL_SEC;
+      currentLevelIndex = 0;
       runScore = 0;
       consecutiveCorrect = 0;
       runWrongCount = 0;
@@ -5989,7 +6018,7 @@
       gameOver = false;
       isPlaying = true;
       if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
-      maxLevelThisRun = currentLevelIndex;
+      maxLevelThisRun = 0;
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
@@ -6004,23 +6033,23 @@
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
-      updateSurvivalStatusUI();
+      updateLevelStatusUI();
       updateGlobalBackButtonState();
       initSoftKeyboardIfNeeded();
       setSoftKeyboardVisible(true);
-      survivalTimerId = setInterval(survivalTick, 1000);
+      survivalTimerId = setInterval(levelTick, 1000);
       showNextSurvivalQuestion();
     }
 
     function survivalTick() {
       if (!isPlaying || gameOver) return;
+      if (gameMode === "level") return;
       survivalTimeLeft -= 1;
       updateSurvivalStatusUI();
       if (survivalTimeLeft <= 0) {
         clearInterval(survivalTimerId);
         survivalTimerId = null;
-        if (gameMode === "level") endLevelGame(false);
-        else endSurvivalGame();
+        endSurvivalGame();
       }
     }
 
@@ -6422,7 +6451,6 @@
       const isCorrect = correct;
 
       if (isCorrect) {
-        survivalTimeLeft += 2;
         const points = 5;
         runScore += points;
         consecutiveCorrect += 1;
@@ -6436,27 +6464,31 @@
               "<span class='feedback-title'>答对！</span> 恭喜通关全部 16 级！",
               "correct"
             );
-            updateSurvivalStatusUI();
+            updateLevelStatusUI();
             setTimeout(function () { endLevelGame(true); }, 600);
             return;
           }
         }
         maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
         setFeedback(
-          "<span class='feedback-title'>答对！</span> +2 秒，+" + points + " 分",
+          "<span class='feedback-title'>答对！</span> +" + points + " 分",
           "correct"
         );
       } else {
         runWrongCount += 1;
         consecutiveCorrect = 0;
-        if (currentLevelIndex > 0) currentLevelIndex -= 1;
+        // 答错结束：本题必须写入错题本（放弃结局见 endLevelGame abandoned，不调用 recordWrongAnswer）
         recordWrongAnswer(question.text, question.answer, userAnswer);
         setFeedback(
           "<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>",
           "incorrect"
         );
+        updateLevelStatusUI();
+        if (dom.submitBtn) dom.submitBtn.disabled = true;
+        setTimeout(function () { endLevelGame(false); }, 600);
+        return;
       }
-      updateSurvivalStatusUI();
+      updateLevelStatusUI();
       showNextSurvivalQuestion();
     }
 
@@ -6655,7 +6687,14 @@
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
+      const persistIdx = Math.min(15, Math.max(0, Math.max(maxLevelThisRun, currentLevelIndex)));
       if (abandoned) {
+        // 放弃：按进度结算 runs，不写错题本（全程不调用 recordWrongAnswer）
+        saveLevelChallengeLastLevel(persistIdx);
+        appendRun(survivalTimeSec, runScore, persistIdx, 0, "level", currentRunAttempts.slice(), false, false);
+        renderRecentRuns();
+        updateTrainingButtonLabel();
+        if (lockWrongbookIfNeeded()) return;
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -6674,9 +6713,9 @@
           if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
           if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = "0";
-          if (wrongEl) wrongEl.textContent = "—";
-          if (maxLevelEl) maxLevelEl.textContent = "—";
+          if (scoreEl) scoreEl.textContent = String(runScore);
+          if (wrongEl) wrongEl.textContent = "0";
+          if (maxLevelEl) maxLevelEl.textContent = "第 " + (persistIdx + 1) + " 级";
         }
         if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -6684,12 +6723,9 @@
         if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
-        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "level", currentRunAttempts.slice(), false, true);
-        renderRecentRuns();
-        updateTrainingButtonLabel();
         return;
       }
-      const endLevel = completed ? 15 : currentLevelIndex;
+      const endLevel = completed ? 15 : persistIdx;
       saveLevelChallengeLastLevel(endLevel);
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
       renderRecentRuns();
@@ -6699,7 +6735,7 @@
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
         const levelNum = endLevel + 1;
-        if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "恭喜你达到第 " + levelNum + " 级";
+        if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "本局最高：第 " + levelNum + " 级";
         const durationLabelEl = document.getElementById("game-over-duration-label");
         const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
@@ -8090,12 +8126,18 @@
         if (subtitle) subtitle.style.display = "";
         updateTrainingStatusUI();
       } else if (gameMode === "level") {
-        const lastLevel = getLevelChallengeLastLevel();
-        currentLevelIndex = lastLevel > 0 ? Math.min(lastLevel - 1, 15) : 0;
+        currentLevelIndex = 0;
+        maxLevelThisRun = 0;
         runScore = 0;
         consecutiveCorrect = 0;
-        survivalTimeLeft = SURVIVAL_INITIAL_SEC;
-        updateSurvivalStatusUI();
+        runWrongCount = 0;
+        gameStartTime = 0;
+        if (dom.timerChip) dom.timerChip.style.display = "";
+        const statusGrid = document.getElementById("status-grid");
+        if (statusGrid) statusGrid.style.display = "";
+        const subtitle = document.getElementById("game-subtitle");
+        if (subtitle) subtitle.style.display = "";
+        updateLevelStatusUI();
       } else {
         currentLevelIndex = 0;
         runScore = 0;
@@ -8318,19 +8360,6 @@
       if (!u) return 0;
       ensureUserProgressDefault(u);
       return u.levelChallengeLastLevel || 0;
-    }
-
-    function getRecentSurvivalPeakLevelForLevelMode() {
-      const u = getCurrentUser();
-      if (!u) return 0;
-      ensureUserProgressDefault(u);
-      const runs = Array.isArray(u.recentSurvivalRuns) ? u.recentSurvivalRuns : [];
-      let peak = 0;
-      for (let i = 0; i < runs.length; i++) {
-        const idx = Number(runs[i] && runs[i].maxLevel);
-        if (Number.isFinite(idx)) peak = Math.max(peak, idx);
-      }
-      return Math.min(Math.max(peak, 0), 15);
     }
 
     function saveLevelChallengeLastLevel(lastLevel) {
@@ -8664,7 +8693,7 @@
       }
       gameMode = "level";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "闯关挑战：每关 10 题，连续答对升级、错 1 题降级，1 分钟倒计时，答对 +2 秒。";
+      if (sub) sub.textContent = "闯关挑战：每局从 L1 开始，正向计时、不限时；连续答对 10 题升级，答错一局结束（答错的该题记入错题本）；放弃按当前进度结算并记入闯关记录，不写错题本。";
       showGameSection();
     }
 
