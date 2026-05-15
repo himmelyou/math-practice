@@ -136,7 +136,7 @@
         '<div id="jml-gate-err" class="jml-gate-err" style="display:none;"></div>' +
         '<button id="jml-gate-submit" type="submit">进入</button>' +
         '</form>' +
-        '<div class="jml-gate-hint">提示：口令由后端保存（默认 2026，可在管理页里修改），这里会用它去请求 /api/admin/settings 做校验。</div>' +
+        '<div class="jml-gate-hint">提示：口令由服务端配置（环境变量 <code>ADMIN_PIN</code> 或数据目录中的 <code>admin-pin.json</code>）。请输入当前生效的口令；校验通过后会请求 <code>/api/admin/settings</code>。</div>' +
         '</div></div>';
 
       var form = gateEl.querySelector('#jml-gate-form');

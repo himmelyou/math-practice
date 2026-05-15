@@ -2629,7 +2629,7 @@
       document.getElementById("admin-form").addEventListener("submit", function(e) {
         e.preventDefault();
         saveAdminSettings();
-        document.getElementById("admin-save-tip").textContent = "已保存！";
+        document.getElementById("admin-save-tip").textContent = t("dev.adminSettingsSaved");
         setTimeout(()=>{document.getElementById("admin-save-tip").textContent="";},1300);
       });
 
@@ -4830,7 +4830,9 @@
       if (dom.expandGoWrong) dom.expandGoWrong.textContent = String(expandWrongCount);
       if (dom.expandGoResultLabel) dom.expandGoResultLabel.textContent = t("expand.end.result");
       if (dom.expandGoResult) {
-        dom.expandGoResult.textContent = expandWrongCount === 0 ? `升级到 L${nextLevel + 1}` : (expandWrongCount >= 2 ? `降级到 L${nextLevel + 1}` : `保持 L${nextLevel + 1}`);
+        dom.expandGoResult.textContent = expandWrongCount === 0
+          ? tf("expand.result.upTo", { n: nextLevel + 1 })
+          : (expandWrongCount >= 2 ? tf("expand.result.downTo", { n: nextLevel + 1 }) : tf("expand.result.stayAt", { n: nextLevel + 1 }));
       }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
       syncExpandLevelTexts();
@@ -4910,6 +4912,15 @@
         "login.register.back": "返回登入",
         "login.hint": "登入/註冊需連網。可遊客試玩（僅本機保存，無需連網）。",
         "login.version": "版本",
+        "login.error.needCredentials": "請輸入使用者名稱和密碼。",
+        "login.error.needNet": "登入需連網，請連接網路後重試。",
+        "login.error.loginFailed": "登入失敗，請檢查網路或聯絡老師。",
+        "login.error.fillBoth": "請填寫使用者名稱和密碼。",
+        "login.error.usernameRule": "使用者名稱 2～20 字元，僅支援字母、數字、底線、中文。",
+        "login.error.passwordMin": "密碼至少 6 位。",
+        "login.error.passwordMismatch": "兩次輸入的密碼不一致。",
+        "login.error.registerNeedNet": "註冊需連網，請連接網路後重試。",
+        "login.error.registerFailed": "註冊失敗，請重試。",
         "home.group.arith": "四則運算",
         "home.group.special": "專項練習",
         "home.group.numberSense": "數感練習",
@@ -4961,6 +4972,9 @@
         "expand.end.level": "等級：",
         "expand.end.wrong": "錯題：",
         "expand.end.result": "結果：",
+        "expand.result.upTo": "升級到 L{n}",
+        "expand.result.downTo": "降級到 L{n}",
+        "expand.result.stayAt": "保持 L{n}",
         "expand.choice.cannotRemoveBrackets": "此類情況無法去除括號",
         "expand.level.L1": "一層括號、整數加減去括號（括號外為「+」或「−」，括號內兩項）。",
         "expand.level.L2": "乘除去括號；括號與數字 k 之間僅「×」或「÷」，括號內兩數可為 +、−、×、÷。",
@@ -4976,6 +4990,7 @@
         "home.btn.changePassword": "修改密碼",
         "home.btn.logout": "登出",
         "game.subtitle.survival": "生存挑戰：L1 起步，答對 +2 秒 +5 分；5 連對升級，答錯降級。",
+        "game.subtitle.level": "闖關挑戰：每局從 L1 開始，正向計時、不限時；連續答對 10 題升級，答錯一局結束。",
         "game.status.currentMode": "當前模式：",
         "game.status.scoreThisRun": "本局得分：",
         "game.status.maxLevel": "最高等級：",
@@ -5103,15 +5118,26 @@
         "avatar.pageTitle": "選擇頭像",
         "avatar.pageSubtitle": "點擊頭像更換；未解鎖頭像會顯示所需積分。",
         "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
+        "stats.scriptNotLoaded": "統計腳本未載入。",
+        "stats.needServer": "需連接伺服器才能查看數據統計，請設定 API 後重試。",
+        "stats.loadRetry": "載入失敗，請稍後重試。",
         "modal.password.title": "修改密碼",
         "modal.password.currentPh": "目前密碼",
         "modal.password.newPh": "新密碼（至少6位）",
         "modal.password.confirmPh": "確認新密碼",
+        "modal.password.needCurrent": "請輸入目前密碼。",
+        "modal.password.newMin6": "新密碼至少 6 位。",
+        "modal.password.mismatchNew": "兩次輸入的新密碼不一致。",
+        "modal.password.needNet": "修改密碼需連網，請連接網路後重試。",
+        "modal.password.changeFail": "修改失敗，請重試。",
         "modal.cancel": "取消",
         "modal.ok": "確定",
         "modal.nickname.title": "修改暱稱",
         "modal.nickname.hint": "暱稱將顯示在首頁和排行榜，未設置時顯示「新人」。",
         "modal.nickname.placeholder": "請輸入暱稱",
+        "modal.nickname.maxLen": "暱稱最多 20 個字元。",
+        "modal.nickname.needNet": "修改暱稱需連網，請連接網路後重試。",
+        "modal.nickname.saveFail": "儲存失敗，請稍後重試。",
         "display.guest": "遊客",
         "display.rookie": "新人",
         "mode.running.wrongPractice": "錯題本練習",
@@ -5120,6 +5146,7 @@
         "error.relogin": "請重新登入",
         "error.noServer": "未配置伺服器",
         "trial.limitMsg": "試用只限三次，繼續使用請聯絡管理員添加帳號。",
+        "dev.adminSettingsSaved": "已儲存！",
         "game.feedback.titleHtml": "<span class='feedback-title'>提示：</span>",
         "game.feedback.needAnswer": "請先輸入答案。",
         "game.feedback.invalidNumber": "請輸入有效數字。",
@@ -5145,6 +5172,7 @@
         "toast.survivalNeedLevel9": "生存挑戰：需闖關模式達到 9 級解鎖",
         "toast.trainingNeedLevelOnce": "訓練模式：請先完成一局闖關模式",
         "toast.guestNoAvatar": "遊客模式暫不支持頭像",
+        "toast.guestSurvivalOnly": "遊客模式僅支援生存挑戰。",
         "api.loadAvatarsFail": "載入頭像失敗",
       },
       en: {
@@ -5163,6 +5191,15 @@
         "login.register.back": "Back to Sign In",
         "login.hint": "Login/Register requires internet. Guest demo is local-only and does not require internet.",
         "login.version": "Version",
+        "login.error.needCredentials": "Enter username and password.",
+        "login.error.needNet": "Sign-in requires internet. Connect and try again.",
+        "login.error.loginFailed": "Sign-in failed. Check your network or contact support.",
+        "login.error.fillBoth": "Enter username and password.",
+        "login.error.usernameRule": "Username must be 2–20 characters (letters, numbers, underscore, Chinese).",
+        "login.error.passwordMin": "Password must be at least 6 characters.",
+        "login.error.passwordMismatch": "The two passwords do not match.",
+        "login.error.registerNeedNet": "Registration requires internet. Connect and try again.",
+        "login.error.registerFailed": "Registration failed. Try again.",
         "home.group.arith": "Arithmetic",
         "home.group.special": "Special Practice",
         "home.group.numberSense": "Number Sense",
@@ -5214,6 +5251,9 @@
         "expand.end.level": "Level:",
         "expand.end.wrong": "Wrong:",
         "expand.end.result": "Result:",
+        "expand.result.upTo": "Up to L{n}",
+        "expand.result.downTo": "Down to L{n}",
+        "expand.result.stayAt": "Stay at L{n}",
         "expand.choice.cannotRemoveBrackets": "This type cannot remove brackets.",
         "expand.level.L1": "One layer of parentheses; integers only (+/− outside; two terms inside).",
         "expand.level.L2": "×/÷ outside parentheses only; inner pair uses +, −, ×, or ÷.",
@@ -5229,6 +5269,7 @@
         "home.btn.changePassword": "Change Password",
         "home.btn.logout": "Sign Out",
         "game.subtitle.survival": "Survival: start at L1; +2s +5pts per correct; level up every 5 in a row; wrong answers level down.",
+        "game.subtitle.level": "Level challenge: each run starts at L1, count-up timer, no time limit; 10 correct in a row to level up; one wrong answer ends the run.",
         "game.status.currentMode": "Mode:",
         "game.status.scoreThisRun": "Score:",
         "game.status.maxLevel": "Highest level:",
@@ -5346,15 +5387,26 @@
         "avatar.pageTitle": "Choose avatar",
         "avatar.pageSubtitle": "Tap to change; locked avatars show required points.",
         "stats.levelEmpty": "No per-question stats yet. Play more runs.",
+        "stats.scriptNotLoaded": "Stats scripts failed to load.",
+        "stats.needServer": "Statistics require a server connection. Configure API and try again.",
+        "stats.loadRetry": "Load failed. Please try again later.",
         "modal.password.title": "Change password",
         "modal.password.currentPh": "Current password",
         "modal.password.newPh": "New password (6+ chars)",
         "modal.password.confirmPh": "Confirm new password",
+        "modal.password.needCurrent": "Enter your current password.",
+        "modal.password.newMin6": "New password must be at least 6 characters.",
+        "modal.password.mismatchNew": "The two new passwords do not match.",
+        "modal.password.needNet": "Changing password requires internet. Connect and try again.",
+        "modal.password.changeFail": "Change failed. Try again.",
         "modal.cancel": "Cancel",
         "modal.ok": "OK",
         "modal.nickname.title": "Edit nickname",
         "modal.nickname.hint": "Shown on home and leaderboards. Default is “Rookie”.",
         "modal.nickname.placeholder": "Nickname",
+        "modal.nickname.maxLen": "Nickname must be at most 20 characters.",
+        "modal.nickname.needNet": "Updating nickname requires internet. Connect and try again.",
+        "modal.nickname.saveFail": "Save failed. Try again later.",
         "display.guest": "Guest",
         "display.rookie": "Rookie",
         "mode.running.wrongPractice": "Wrongbook practice",
@@ -5363,6 +5415,7 @@
         "error.relogin": "Please sign in again",
         "error.noServer": "Server not configured",
         "trial.limitMsg": "Demo limit reached (3). Contact admin for an account.",
+        "dev.adminSettingsSaved": "Saved.",
         "game.feedback.titleHtml": "<span class='feedback-title'>Note:</span>",
         "game.feedback.needAnswer": "Enter an answer first.",
         "game.feedback.invalidNumber": "Enter a valid number.",
@@ -5398,6 +5451,7 @@
         "toast.survivalNeedLevel9": "Survival unlocks at level 9 in Level mode.",
         "toast.trainingNeedLevelOnce": "Training: finish one Level run first.",
         "toast.guestNoAvatar": "Avatars are not available in guest mode.",
+        "toast.guestSurvivalOnly": "Guest mode only supports Survival.",
         "api.loadAvatarsFail": "Failed to load avatars",
       },
     };
@@ -8485,7 +8539,7 @@
         heatHost.style.display = "none";
         chartBlock.style.display = "none";
         empty.style.display = "block";
-        empty.textContent = "统计脚本未加载。";
+        empty.textContent = t("stats.scriptNotLoaded");
         return;
       }
       const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
@@ -8502,7 +8556,7 @@
         chartBlock.style.display = "none";
         chartWrap.style.display = "none";
         empty.style.display = "block";
-        empty.textContent = "暂无按题记录的难度数据，多玩几局后查看。";
+        empty.textContent = t("stats.levelEmpty");
         return;
       }
       empty.style.display = "none";
@@ -8541,7 +8595,7 @@
       if (!base) {
         if (empty) {
           empty.style.display = "block";
-          empty.textContent = "需要连接服务器才能查看数据统计，请配置 API 后重试。";
+          empty.textContent = t("stats.needServer");
         }
         if (heatHost) heatHost.style.display = "none";
         if (chartBlock) chartBlock.style.display = "none";
@@ -8560,7 +8614,7 @@
         console.warn("加载数据统计失败", e);
         if (empty) {
           empty.style.display = "block";
-          empty.textContent = "加载失败，请稍后重试。";
+          empty.textContent = t("stats.loadRetry");
         }
         if (heatHost) heatHost.style.display = "none";
         if (chartBlock) chartBlock.style.display = "none";
@@ -8809,7 +8863,7 @@
       }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。";
+      if (sub) sub.textContent = t("game.subtitle.survival");
       showGameSection();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
@@ -8819,7 +8873,7 @@
       if (isGuestMode) {
         gameMode = "survival";
         const sub = document.getElementById("game-subtitle");
-        if (sub) sub.textContent = "生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。";
+        if (sub) sub.textContent = t("game.subtitle.survival");
         showGameSection();
         return;
       }
@@ -8839,21 +8893,21 @@
       }
       gameMode = "survival";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。";
+      if (sub) sub.textContent = t("game.subtitle.survival");
       showGameSection();
     }
 
     function updateSurvivalButtonLabel() {
       const btn = document.getElementById("mode-survival");
       if (!btn) return;
-      btn.textContent = "生存挑战";
+      btn.textContent = t("home.mode.survival");
       btn.classList.toggle("mode-btn-locked", isSurvivalLocked());
     }
 
     function updateRankingButtonLabel() {
       const btn = document.getElementById("mode-ranking");
       if (!btn) return;
-      btn.textContent = "排行榜";
+      btn.textContent = t("home.mode.ranking");
       btn.classList.remove("mode-btn-locked");
     }
 
@@ -9186,7 +9240,7 @@
 
     function handleModeLevel() {
       if (isGuestMode) {
-        alert("游客模式仅支持生存挑战。");
+        showToast(t("toast.guestSurvivalOnly"));
         return;
       }
       if (isWrongbookLocked()) {
@@ -9196,7 +9250,7 @@
       }
       gameMode = "level";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "闯关挑战：每局从 L1 开始，正向计时、不限时；连续答对 10 题升级，答错一局结束。";
+      if (sub) sub.textContent = t("game.subtitle.level");
       showGameSection();
     }
 
@@ -9212,17 +9266,17 @@
       const btn = document.getElementById("mode-practice");
       if (!btn) return;
       if (isTrainingLocked()) {
-        btn.textContent = "训练模式";
+        btn.textContent = t("home.mode.training");
         btn.classList.add("mode-btn-locked");
       } else {
-        btn.textContent = "训练模式";
+        btn.textContent = t("home.mode.training");
         btn.classList.remove("mode-btn-locked");
       }
     }
 
     async function handleModePractice() {
       if (isGuestMode) {
-        alert("游客模式仅支持生存挑战。");
+        showToast(t("toast.guestSurvivalOnly"));
         return;
       }
       if (isWrongbookLocked()) {
@@ -9249,7 +9303,7 @@
 
     function handleModeWrongbook() {
       if (isGuestMode) {
-        alert("游客模式仅支持生存挑战。");
+        showToast(t("toast.guestSurvivalOnly"));
         return;
       }
       showWrongbookView();
@@ -9264,17 +9318,17 @@
       const password = passwordInput.value || "";
 
       if (!username || !password) {
-        errorEl.textContent = "请输入用户名和密码。";
+        errorEl.textContent = t("login.error.needCredentials");
         return;
       }
       if (!getApiBase()) {
-        errorEl.textContent = "登录需要联网，请连接网络后重试。";
+        errorEl.textContent = t("login.error.needNet");
         return;
       }
 
       const data = await apiLogin(username, password);
       if (!data || !data.ok) {
-        errorEl.textContent = data && data.error ? data.error : "登录失败，请检查网络或联系老师。";
+        errorEl.textContent = data && data.error ? data.error : t("login.error.loginFailed");
         return;
       }
       cachedUser = data.user;
@@ -9308,29 +9362,29 @@
       const confirm = confirmInput.value || "";
 
       if (!username || !password) {
-        errorEl.textContent = "请填写用户名和密码。";
+        errorEl.textContent = t("login.error.fillBoth");
         return;
       }
       if (!isValidUsernameLocal(username)) {
-        errorEl.textContent = "用户名 2-20 位，仅支持字母、数字、下划线、中文。";
+        errorEl.textContent = t("login.error.usernameRule");
         return;
       }
       if (password.length < 6) {
-        errorEl.textContent = "密码至少 6 位。";
+        errorEl.textContent = t("login.error.passwordMin");
         return;
       }
       if (password !== confirm) {
-        errorEl.textContent = "两次输入的密码不一致。";
+        errorEl.textContent = t("login.error.passwordMismatch");
         return;
       }
       if (!getApiBase()) {
-        errorEl.textContent = "注册需要联网，请连接网络后重试。";
+        errorEl.textContent = t("login.error.registerNeedNet");
         return;
       }
 
       const data = await apiRegister(username, password);
       if (!data || !data.ok) {
-        errorEl.textContent = data && data.error ? data.error : "注册失败，请重试。";
+        errorEl.textContent = data && data.error ? data.error : t("login.error.registerFailed");
         return;
       }
       cachedUser = data.user || { username, totalScore: 0, bestSurvivalSec: 0, bestScore: 0 };
@@ -9358,7 +9412,7 @@
       const guest = getGuestSurvivalData();
       if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
         const errorEl = document.getElementById("login-error");
-        if (errorEl) errorEl.textContent = "试用只限三次，继续使用请联系管理员添加账号。";
+        if (errorEl) errorEl.textContent = t("trial.limitMsg");
         return;
       }
       isGuestMode = true;
@@ -9407,25 +9461,25 @@
       const confirmPwd = document.getElementById("change-pwd-confirm").value || "";
       const errEl = document.getElementById("change-password-modal-error");
       if (!current) {
-        if (errEl) errEl.textContent = "请输入当前密码。";
+        if (errEl) errEl.textContent = t("modal.password.needCurrent");
         return;
       }
       if (newPwd.length < 6) {
-        if (errEl) errEl.textContent = "新密码至少 6 位。";
+        if (errEl) errEl.textContent = t("modal.password.newMin6");
         return;
       }
       if (newPwd !== confirmPwd) {
-        if (errEl) errEl.textContent = "两次输入的新密码不一致。";
+        if (errEl) errEl.textContent = t("modal.password.mismatchNew");
         return;
       }
       if (errEl) errEl.textContent = "";
       if (!getApiBase()) {
-        if (errEl) errEl.textContent = "修改密码需要联网，请连接网络后重试。";
+        if (errEl) errEl.textContent = t("modal.password.needNet");
         return;
       }
       const data = await apiChangePassword(name, current, newPwd);
       if (!data || !data.ok) {
-        if (errEl) errEl.textContent = (data && data.error) ? data.error : "修改失败，请重试。";
+        if (errEl) errEl.textContent = (data && data.error) ? data.error : t("modal.password.changeFail");
         return;
       }
       hideChangePasswordModal();
@@ -9457,11 +9511,11 @@
       const errEl = document.getElementById("change-nickname-modal-error");
       if (errEl) errEl.textContent = "";
       if (value.length > 20) {
-        if (errEl) errEl.textContent = "昵称最多 20 个字符。";
+        if (errEl) errEl.textContent = t("modal.nickname.maxLen");
         return;
       }
       if (!getApiBase()) {
-        if (errEl) errEl.textContent = "修改昵称需要联网，请连接网络后重试。";
+        if (errEl) errEl.textContent = t("modal.nickname.needNet");
         return;
       }
       try {
@@ -9471,7 +9525,7 @@
         if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
         hideNicknameModal();
       } catch (e) {
-        if (errEl) errEl.textContent = "保存失败，请稍后重试。";
+        if (errEl) errEl.textContent = t("modal.nickname.saveFail");
       }
     }
 

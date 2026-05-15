@@ -13,7 +13,7 @@ npm start
 ## 部署（Railway / Render 等）
 
 1. 将 `server` 目录部署到 Railway 或 Render
-2. 设置环境变量 `ADMIN_PIN`（可选，默认 2026）
+2. 设置环境变量 `ADMIN_PIN`（或确保数据目录中 `admin-pin.json` 含有效 `pin`；均未配置则管理接口无法通过校验）
 3. 获取部署后的 API 地址，例如 `https://xxx.railway.app`
 4. 在 `docs/config.js` 中修改：
    ```javascript
