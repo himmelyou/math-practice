@@ -33,7 +33,7 @@
       <p class="muted">账号与练习数据以服务端为准。管理页门禁通过后，会用同一口令作为请求头 <code>X-Admin-Pin</code> 调用 <code>/api/admin/*</code>。</p>
 
       <div id="jml-api-warning" class="jml-banner-warn" hidden>
-        <strong>未配置 API 地址。</strong> 请确认已加载 <code>docs/config.js</code>，并且它能设置 <code>window.API_BASE_URL</code>（或 <code>window.__JML_API_BASE__</code>）。
+        <strong>未配置 API 地址。</strong> 请确认已加载 <code>config.js</code>（与主站同目录），并且它能设置 <code>window.API_BASE_URL</code>（或 <code>window.__JML_API_BASE__</code>）。
       </div>
 
       <div id="jml-status" class="jml-status" role="status"></div>
@@ -165,7 +165,7 @@
     </div>
   </div>
 
-  <script src="../docs/config.js?v=1"></script>
+  <script src="../config.js?v=1"></script>
   <script>
     (function () {
       if (!window.__JML_API_BASE__ && window.API_BASE_URL) {

@@ -15,7 +15,7 @@ npm start
 1. 将 `server` 目录部署到 Railway 或 Render
 2. 设置环境变量 `ADMIN_PIN`（可选，默认 2026）
 3. 获取部署后的 API 地址，例如 `https://xxx.railway.app`
-4. 在项目根目录的 `config.js` 中修改：
+4. 在 `docs/config.js` 中修改：
    ```javascript
    window.API_BASE_URL = "https://你的API地址";
    ```

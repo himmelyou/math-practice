@@ -217,7 +217,35 @@ function getAdminPin() {
   return "";
 }
 
-function defaultI18nPayload() {
+/** 与前端 docs/index.html 内 I18N_FALLBACK 同步；优先从该文件解析，避免维护两套键表。 */
+function readI18nFallbackFromClientHtml() {
+  try {
+    const htmlPath = path.join(__dirname, "..", "docs", "index.html");
+    if (!fs.existsSync(htmlPath)) return null;
+    const html = fs.readFileSync(htmlPath, "utf8");
+    const m = html.match(
+      /const I18N_FALLBACK = (\{[\s\S]*\})\s*;\s*\r?\n\s*let currentLang =/
+    );
+    if (!m) return null;
+    const parsed = Function('"use strict"; return (' + m[1] + ");")();
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !parsed.zhHant ||
+      !parsed.en ||
+      typeof parsed.zhHant !== "object" ||
+      typeof parsed.en !== "object"
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** 仅当仓库内无 docs/index.html 时使用（例如只部署 server 目录）。 */
+function legacyDefaultI18nPayload() {
   return {
     zhHant: {
       "lang.label": "語言",
@@ -366,6 +394,10 @@ function defaultI18nPayload() {
   };
 }
 
+function defaultI18nPayload() {
+  return readI18nFallbackFromClientHtml() || legacyDefaultI18nPayload();
+}
+
 function normalizeI18nPayload(input) {
   const base = defaultI18nPayload();
   const out = { zhHant: { ...base.zhHant }, en: { ...base.en } };
@@ -401,26 +433,27 @@ app.use(cookieParser());
 app.use(express.json());
 app.use("/avatar-assets", express.static(AVATAR_ASSET_DIR));
 
-// 管理端 / 报表静态页：仅当运行目录旁存在对应文件夹时才挂载（全仓部署时同域可打开 /admin/）。
-// 若只部署 server 目录到 Render，此处不会挂载；请在本机用 local-admin-server 打开 /admin/ 并连线上 API。
+// 管理端 / 报表静态页：位于 docs/ 下，与主站一并部署到静态根目录时可同域访问 /admin/、/report/。
+// 若只部署 server 目录到 Render，此处不会挂载；本地可用 local-admin-server（以 docs 为根）打开。
 const REPO_ROOT = path.join(__dirname, "..");
-if (fs.existsSync(path.join(REPO_ROOT, "admin"))) {
+const DOCS_DIR = path.join(REPO_ROOT, "docs");
+if (fs.existsSync(path.join(DOCS_DIR, "admin"))) {
   app.use(
     "/admin",
-    express.static(path.join(REPO_ROOT, "admin"), { index: "index.html" })
+    express.static(path.join(DOCS_DIR, "admin"), { index: "index.html" })
   );
 }
-if (fs.existsSync(path.join(REPO_ROOT, "report"))) {
+if (fs.existsSync(path.join(DOCS_DIR, "report"))) {
   app.use(
     "/report",
-    express.static(path.join(REPO_ROOT, "report"), { index: "index.html" })
+    express.static(path.join(DOCS_DIR, "report"), { index: "index.html" })
   );
 }
-if (fs.existsSync(path.join(REPO_ROOT, "shared"))) {
-  app.use("/shared", express.static(path.join(REPO_ROOT, "shared")));
+if (fs.existsSync(path.join(DOCS_DIR, "shared"))) {
+  app.use("/shared", express.static(path.join(DOCS_DIR, "shared")));
 }
-if (fs.existsSync(path.join(REPO_ROOT, "docs"))) {
-  app.use("/docs", express.static(path.join(REPO_ROOT, "docs")));
+if (fs.existsSync(DOCS_DIR)) {
+  app.use("/docs", express.static(DOCS_DIR));
 }
 
 function clampUnlockScore(v) {

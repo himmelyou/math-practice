@@ -1,4 +1,4 @@
-// 简单本地静态服务器，用于打开 admin/、report/ 等静态页
+// 简单本地静态服务器：以 docs/ 为站点根，打开 admin、report、主站等（与线上 Render 静态站结构一致）
 // 使用方法：
 //   node local-admin-server.js
 // 浏览器打开 http://localhost:8090/admin/index.html
@@ -9,7 +9,7 @@ const path = require("path");
 const url = require("url");
 
 const PORT = Number(process.env.ADMIN_PORT) || 8090;
-const ROOT_DIR = __dirname;
+const ROOT_DIR = path.join(__dirname, "docs");
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",

@@ -72,7 +72,7 @@
   async function verifyPinWithServer(pin) {
     var base = getApiBase();
     if (!base) {
-      throw new Error('未配置 API 地址（请检查 docs/config.js）');
+      throw new Error('未配置 API 地址（请检查 config.js）');
     }
     var res = await fetch(base + '/api/admin/settings', {
       method: 'GET',

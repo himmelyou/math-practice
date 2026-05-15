@@ -36,7 +36,7 @@ start "JML WEB (LAN 8081 docs)" cmd /k call npx http-server . -a 0.0.0.0 -p %WEB
 timeout /t 2 /nobreak >nul
 start "" "http://localhost:%WEB_PORT%/docs/?jml_api=render"
 timeout /t 2 /nobreak >nul
-start "" "http://localhost:%WEB_PORT%/admin/index.html?jml_api=render"
+start "" "http://localhost:%WEB_PORT%/docs/admin/index.html?jml_api=render"
 
 popd
 endlocal

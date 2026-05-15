@@ -371,7 +371,7 @@
       box-shadow: none;
     }
     .mode-btn-soon::after {
-      content: "未开放";
+      content: var(--jml-soon-badge, "未開放");
       position: absolute;
       top: 10px;
       right: 10px;
@@ -2173,7 +2173,7 @@
 
       <div class="status-grid" id="status-grid">
         <div class="status-item status-item-full" id="status-row-mode">
-          <span class="status-label">当前模式：</span>
+          <span class="status-label" id="status-label-current-mode">当前模式：</span>
           <span class="status-value" id="current-mode-name">生存挑战</span>
         </div>
         <div class="status-item" id="status-row-3">
@@ -2197,11 +2197,11 @@
     <main class="card" id="game-card">
       <div class="question-header">
         <div class="question-label">
-          <span class="status-label">当前难度：</span>
+          <span class="status-label" id="status-label-difficulty">当前难度：</span>
           <span class="status-value" id="current-level-name">-</span>
         </div>
         <div class="timer-chip" id="timer-chip">
-          剩余 <span id="timer-value">1:00</span>
+          <span id="timer-chip-prefix">剩余 </span><span id="timer-value">1:00</span>
         </div>
       </div>
 
@@ -2247,12 +2247,12 @@
           <table class="recent-table">
             <thead>
               <tr>
-                <th>日期时间</th>
-                <th>用时</th>
-                <th>得分</th>
-                <th>错题</th>
+                <th id="recent-th-dt">日期时间</th>
+                <th id="recent-th-time">用时</th>
+                <th id="recent-th-score">得分</th>
+                <th id="recent-th-wrong">错题</th>
                 <th id="recent-col-level">最高难度</th>
-                <th>通关</th>
+                <th id="recent-th-cleared">通关</th>
               </tr>
             </thead>
             <tbody id="recent-history-body"></tbody>
@@ -2317,7 +2317,7 @@
             <select class="expand-level-select" id="expand-level-select" style="display:none;" aria-label="选择拆括号难度"></select>
           </div>
           <div class="timer-chip" id="expand-timer-chip">
-            用时 <span id="expand-timer-value">0:00</span>
+            <span id="expand-timer-prefix">用时 </span><span id="expand-timer-value">0:00</span>
           </div>
         </div>
 
@@ -2415,9 +2415,9 @@
           <div class="panel-hint" id="ranking-panel-hint">总积分榜 · 加载中…</div>
 
           <div class="gate-card" id="ranking-survival-gate" style="display:none;">
-            <p class="gate-title">生存榜</p>
-            <p class="gate-text">该榜单仅对已通关生存挑战的用户开放。</p>
-            <p class="gate-text">你尚未在生存模式中通关。请先完成一局生存挑战并通关后，再来查看本榜。</p>
+            <p class="gate-title" id="ranking-gate-title">生存榜</p>
+            <p class="gate-text" id="ranking-gate-body-1">该榜单仅对已通关生存挑战的用户开放。</p>
+            <p class="gate-text" id="ranking-gate-body-2">你尚未在生存模式中通关。请先完成一局生存挑战并通关后，再来查看本榜。</p>
           </div>
 
           <div class="ranking-table-scroll" id="ranking-table-scroll">
@@ -2473,7 +2473,7 @@
               <span class="status-label" id="prime-header-hint">请判断是质数还是合数</span>
             </div>
             <div class="timer-chip" id="prime-timer-chip">
-              用时 <span id="prime-elapsed">0:00</span>
+              <span id="prime-timer-prefix">用时 </span><span id="prime-elapsed">0:00</span>
             </div>
           </div>
           <div class="question-text prime-question-num" id="prime-current-n">—</div>
@@ -2490,15 +2490,15 @@
 
       <div id="prime-panel-finished" class="prime-panel-finished" style="display:none;">
         <div class="game-over-panel" id="prime-finished-panel-inner">
-          <h2 class="game-over-title">本局结束</h2>
-          <p class="game-over-line">答对：<strong id="prime-finish-correct">0</strong></p>
-          <p class="game-over-line">答错：<strong id="prime-finish-wrong">0</strong></p>
-          <p class="game-over-line">用时：<strong id="prime-finish-time">0:00</strong></p>
-          <p class="game-over-line">本局得分：<strong id="prime-finish-session">0</strong></p>
+          <h2 class="game-over-title" id="prime-finish-title">本局结束</h2>
+          <p class="game-over-line"><span id="prime-lbl-correct">答对：</span><strong id="prime-finish-correct">0</strong></p>
+          <p class="game-over-line"><span id="prime-lbl-wrong">答错：</span><strong id="prime-finish-wrong">0</strong></p>
+          <p class="game-over-line"><span id="prime-lbl-time">用时：</span><strong id="prime-finish-time">0:00</strong></p>
+          <p class="game-over-line"><span id="prime-lbl-session">本局得分：</span><strong id="prime-finish-session">0</strong></p>
           <p id="prime-finished-sync-ok" class="game-over-line" style="display:none;color:var(--success);">总积分已同步更新。</p>
           <p id="prime-finished-sync-fail" class="game-over-line" style="display:none;color:var(--danger);">积分同步失败，请检查网络后重试。</p>
           <p id="prime-finished-sync-local" class="game-over-line" style="display:none;color:var(--muted);">未连接服务器，总积分仅在本地累加。</p>
-          <p class="panel-hint" style="margin:14px 0 6px;text-align:left;">错题回顾</p>
+          <p id="prime-wrong-review-hint" class="panel-hint" style="margin:14px 0 6px;text-align:left;">错题回顾</p>
           <div id="prime-finish-wrong-list" class="prime-wrong-list"></div>
           <div class="game-over-buttons">
             <button type="button" class="btn-primary" id="prime-composite-again-btn">再来一局</button>
@@ -2514,12 +2514,12 @@
           <table class="recent-table">
             <thead>
               <tr>
-                <th>日期时间</th>
-                <th>用时</th>
-                <th>得分</th>
-                <th>错题</th>
-                <th>最高难度</th>
-                <th>通关</th>
+                <th id="prime-th-dt">日期时间</th>
+                <th id="prime-th-time">用时</th>
+                <th id="prime-th-score">得分</th>
+                <th id="prime-th-wrong">错题</th>
+                <th id="prime-th-level">最高难度</th>
+                <th id="prime-th-cleared">通关</th>
               </tr>
             </thead>
             <tbody id="prime-recent-history-body"></tbody>
@@ -3263,7 +3263,9 @@
     // ========= 错题本累积锁定规则（最新错题 + 复习解锁） =========
     const WRONGBOOK_THRESHOLD = 20; // 达到/超过则锁定除错题本外的正常模式
     const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条“错题”，超过后不再写入最新条目
-    const WRONGBOOK_LOCK_MSG = "错题已累积超过20条，在继续新的训练前请先进错题本进行错题复习。";
+    function getWrongbookLockMessage() {
+      return t("wrongbook.lockMsg");
+    }
 
     function isWrongbookLocked() {
       if (isGuestMode) return false;
@@ -3285,7 +3287,7 @@
 
     function lockWrongbookIfNeeded() {
       if (!isWrongbookLocked()) return false;
-      alert(WRONGBOOK_LOCK_MSG);
+      alert(getWrongbookLockMessage());
       showWrongbookViewFast();
       return true;
     }
@@ -3344,6 +3346,7 @@
       dom.currentModeName = document.getElementById("current-mode-name");
 
       dom.timerChip = document.getElementById("timer-chip");
+      dom.timerChipPrefix = document.getElementById("timer-chip-prefix");
       dom.timerValue = document.getElementById("timer-value");
       dom.questionText = document.getElementById("question-text");
       dom.questionSubtext = document.getElementById("question-subtext");
@@ -3478,11 +3481,11 @@
     }
 
     function getModeTitle() {
-      if (gameMode === "level") return "闯关模式";
-      if (gameMode === "training") return "训练模式";
-      if (gameMode === "wrong") return "错题本练习";
-      if (gameMode === "expandBrackets") return "拆括号";
-      return "生存挑战";
+      if (gameMode === "level") return t("home.mode.level");
+      if (gameMode === "training") return t("home.mode.training");
+      if (gameMode === "wrong") return t("mode.running.wrongPractice");
+      if (gameMode === "expandBrackets") return t("mode.running.expandBrackets");
+      return t("home.mode.survival");
     }
 
     function updateTopTitleForCurrentView(isHome) {
@@ -3520,7 +3523,7 @@
       const globalBackBtn = document.getElementById("global-back-home-btn");
       if (!globalBackBtn) return;
       const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow();
-      globalBackBtn.textContent = inProgress ? "放弃本局" : "返回首页";
+      globalBackBtn.textContent = inProgress ? t("game.btn.abandon") : t("home.btn.backHome");
     }
 
     function globalBackToHome() {
@@ -4964,6 +4967,185 @@
         "expand.level.L3": "兩個括號並排（段間為「+」或「−」）；可含 a、b、x、y 與整數，只展開不計算。",
         "expand.level.L4": "一層括號前係數 k，或雙係數兩段括號（±k1(…)±k2(…)）；分配與段間變號。",
         "expand.level.L5": "單項×括號、(…)÷A、兩括號相乘三型（約 1∶1∶2）；可出現 xy 項。",
+        "home.mode.devTag": "（開發中）",
+        "home.mode.soonBadge": "未開放",
+        "home.avatar.title": "頭像（佔位）",
+        "home.avatar.placeholderLetter": "頭",
+        "home.score.prefix": "總積分：",
+        "home.btn.backHome": "返回首頁",
+        "home.btn.changePassword": "修改密碼",
+        "home.btn.logout": "登出",
+        "game.subtitle.survival": "生存挑戰：L1 起步，答對 +2 秒 +5 分；5 連對升級，答錯降級。",
+        "game.status.currentMode": "當前模式：",
+        "game.status.scoreThisRun": "本局得分：",
+        "game.status.maxLevel": "最高等級：",
+        "game.status.streak": "連續答對：",
+        "game.status.wrongCount": "錯題數量：",
+        "game.status.currentDifficulty": "當前難度：",
+        "game.status.correctCount": "正確數量：",
+        "game.status.runDifficulty": "本局難度：",
+        "game.status.progress": "進度：",
+        "game.status.expandWrong": "錯題：",
+        "game.status.expandLevel": "當前等級：",
+        "game.status.correctInRun": "答對數量：",
+        "game.timer.remainingPrefix": "剩餘 ",
+        "game.timer.elapsedPrefix": "用時 ",
+        "game.answer.placeholder": "點擊下方鍵盤",
+        "game.btn.startGame": "開始遊戲",
+        "game.btn.startChallenge": "開始挑戰",
+        "game.btn.abandon": "放棄本局",
+        "game.btn.playAgain": "再玩一局",
+        "game.over.survivalDuration": "本局存活：",
+        "game.over.score": "本局得分：",
+        "game.over.wrong": "本局錯題：",
+        "game.over.maxLevelReached": "到達最高難度：",
+        "game.over.durationLabel": "用時：",
+        "game.over.maxLevelLabel": "最高等級：",
+        "game.over.labelRunScore": "本局得分：",
+        "game.over.labelRunWrong": "本局錯題：",
+        "game.over.labelAccuracy": "準確率：",
+        "game.over.labelScore": "得分：",
+        "game.over.labelWrong": "錯題：",
+        "game.over.abandonedTitle": "已放棄本局",
+        "game.training.questionProgress": "第 {n} 題 / {total}",
+        "game.celebrate.allClearedTitle": "恭喜通關",
+        "game.over.trainingBrushDoneTitle": "訓練結束！",
+        "game.training.promoteLevelUp": "升級！",
+        "game.training.promoteStayHint": "準確率低於通關線，繼續在本級練習。",
+        "game.display.levelOrdinal": "第 {n} 級",
+        "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
+        "game.display.percent": "{pct}%",
+        "game.training.subtitle.encourage": "加油！",
+        "game.training.subtitle.promotionRules": "晉級：每局 {n} 題；準確率不低於通關線則升級（第 {maxLevel} 級達標即全通關），否則本級保持、不降級、不限時。",
+        "game.over.titleGeneric": "遊戲結束",
+        "recent.title.survivalLast10": "最近十次生存挑戰",
+        "recent.title.levelLast10": "最近十次闖關挑戰",
+        "recent.title.trainingLast10": "最近十次訓練模式",
+        "recent.th.datetime": "日期時間",
+        "recent.th.time": "用時",
+        "recent.th.score": "得分",
+        "recent.th.wrong": "錯題",
+        "recent.th.maxLevel": "最高難度",
+        "recent.th.difficulty": "難度",
+        "recent.th.cleared": "通關",
+        "recent.empty": "當前還沒有練習記錄。",
+        "recent.clearedYes": "是",
+        "recent.clearedNo": "否",
+        "softkbd.aria": "數字鍵盤",
+        "softkbd.delete": "刪除",
+        "softkbd.confirm": "確認",
+        "wrongbook.empty": "暫無錯題記錄。",
+        "wrongbook.lockMsg": "錯題已累積超過20條，在繼續新的訓練前請先進錯題本進行錯題複習。",
+        "ranking.selectAria": "選擇榜單",
+        "ranking.tablistAria": "排行榜 Tab",
+        "ranking.hint.score.loading": "總積分榜 · 載入中…",
+        "ranking.hint.score.needNet": "總積分榜 · 需要連接伺服器",
+        "ranking.hint.score.desc": "總積分榜 · 按總積分從高到低（展示前 50 名）",
+        "ranking.hint.score.fail": "總積分榜 · 載入失敗，請稍後重試",
+        "ranking.hint.survival.loading": "生存榜 · 載入中…",
+        "ranking.hint.survival.needNet": "生存榜 · 需要連接伺服器",
+        "ranking.hint.survival.desc": "生存榜 · 通關用時越短越好，同用時錯題更少優先（展示前 50 名）",
+        "ranking.hint.survival.fail": "生存榜 · 載入失敗，請稍後重試",
+        "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
+        "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
+        "ranking.hint.prime.desc": "質數達人榜 · 質數合數 50 題全對的最短用時（展示前 50 名）",
+        "ranking.hint.prime.fail": "質數達人榜 · 載入失敗，請稍後重試",
+        "ranking.hint.streak.loading": "耐力榜 · 載入中…",
+        "ranking.hint.streak.needNet": "耐力榜 · 需要連接伺服器",
+        "ranking.hint.streak.desc": "耐力榜 · 展示最長連續挑戰天數與當前連續挑戰天數（前 50 名）",
+        "ranking.hint.streak.fail": "耐力榜 · 載入失敗，請稍後重試",
+        "ranking.hint.combo.loading": "連擊榜 · 載入中…",
+        "ranking.hint.combo.needNet": "連擊榜 · 需要連接伺服器",
+        "ranking.hint.combo.desc": "連擊榜 · 展示最高連對與當前連對（前 50 名）",
+        "ranking.hint.combo.fail": "連擊榜 · 載入失敗，請稍後重試",
+        "ranking.hint.tabLoading.score": "總積分榜 · 載入中…",
+        "ranking.hint.tabLoading.survival": "生存榜 · 載入中…",
+        "ranking.hint.tabLoading.prime": "質數達人榜 · 載入中…",
+        "ranking.hint.tabLoading.streak": "耐力榜 · 載入中…",
+        "ranking.hint.tabLoading.combo": "連擊榜 · 載入中…",
+        "ranking.gate.survivalTitle": "生存榜",
+        "ranking.gate.survivalBody1": "該榜單僅對已通關生存挑戰的用戶開放。",
+        "ranking.gate.survivalBody2": "你尚未在生存模式中通關。請先完成一局生存挑戰並通關後，再來查看本榜。",
+        "ranking.gate.survivalHint": "生存榜 · 僅對已通關生存挑戰的用戶開放",
+        "ranking.empty": "暫無排行數據。",
+        "ranking.comingSoon": "敬請期待",
+        "ranking.th.rank": "排名",
+        "ranking.th.challenger": "挑戰者",
+        "ranking.th.totalScore": "總積分",
+        "ranking.th.time": "用時",
+        "ranking.th.wrong": "錯題",
+        "ranking.th.date": "日期",
+        "ranking.th.streakBest": "最長連續",
+        "ranking.th.streakCurrent": "當前連續",
+        "ranking.th.comboBest": "最高連對",
+        "ranking.th.comboCurrent": "當前連對",
+        "ranking.demo.userA": "示例用戶A",
+        "ranking.demo.userB": "示例用戶B",
+        "ranking.demo.meTag": "我的記錄（佔位）",
+        "expand.ui.modeValue": "拆括號",
+        "expand.go.abandoned": "已放棄",
+        "expand.levelSelectAria": "選擇拆括號難度",
+        "prime.intro": "判斷 2～99 中的數是質數還是合數；每題 5 分，共 50 題，正向計時。",
+        "prime.startPractice": "開始練習",
+        "prime.wrongReview": "錯題回顧",
+        "prime.finishTitle": "本局結束",
+        "prime.finishCorrect": "答對：",
+        "prime.finishWrong": "答錯：",
+        "prime.finishTime": "用時：",
+        "prime.finishScore": "本局得分：",
+        "prime.syncOk": "總積分已同步更新。",
+        "prime.syncFail": "積分同步失敗，請檢查網路後重試。",
+        "prime.syncLocal": "未連接伺服器，總積分僅在本機累加。",
+        "prime.recentTitle": "最近十次質數合數",
+        "prime.btn.prime": "質數",
+        "prime.btn.composite": "合數",
+        "prime.header.hint": "請判斷是質數還是合數",
+        "avatar.pageTitle": "選擇頭像",
+        "avatar.pageSubtitle": "點擊頭像更換；未解鎖頭像會顯示所需積分。",
+        "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
+        "modal.password.title": "修改密碼",
+        "modal.password.currentPh": "目前密碼",
+        "modal.password.newPh": "新密碼（至少6位）",
+        "modal.password.confirmPh": "確認新密碼",
+        "modal.cancel": "取消",
+        "modal.ok": "確定",
+        "modal.nickname.title": "修改暱稱",
+        "modal.nickname.hint": "暱稱將顯示在首頁和排行榜，未設置時顯示「新人」。",
+        "modal.nickname.placeholder": "請輸入暱稱",
+        "display.guest": "遊客",
+        "display.rookie": "新人",
+        "mode.running.wrongPractice": "錯題本練習",
+        "mode.running.expandBrackets": "拆括號",
+        "error.loadFailed": "載入失敗",
+        "error.relogin": "請重新登入",
+        "error.noServer": "未配置伺服器",
+        "trial.limitMsg": "試用只限三次，繼續使用請聯絡管理員添加帳號。",
+        "game.feedback.titleHtml": "<span class='feedback-title'>提示：</span>",
+        "game.feedback.needAnswer": "請先輸入答案。",
+        "game.feedback.invalidNumber": "請輸入有效數字。",
+        "game.feedback.correctHtml": "<span class='feedback-title'>答對！</span>",
+        "game.feedback.incorrectPrefixHtml": "<span class='feedback-title'>答錯了。</span> ",
+        "game.feedback.correctAnswerLabel": "正確答案：",
+        "game.feedback.correctSurvival": "<span class='feedback-title'>答對！</span> +5 分",
+        "game.feedback.allCleared16": "<span class='feedback-title'>答對！</span> 恭喜通關全部 16 級！",
+        "game.feedback.survivalPlus": "<span class='feedback-title'>答對！</span> +2 秒，+{pts} 分",
+        "game.feedback.levelPlus": "<span class='feedback-title'>答對！</span> +{pts} 分",
+        "wrongPractice.resultSummary": "批改結果：答對 {correct} / {total} 題",
+        "wrongPractice.qLabel": "題目：",
+        "wrongPractice.studentAnswer": "學員答案：",
+        "wrongPractice.markLabel": "對錯：",
+        "wrongPractice.correctAnswer": "正確答案：",
+        "wrongPractice.okBtn": "確定",
+        "toast.primeNeedLogin": "請登入後使用質數合數專項",
+        "toast.primeBankLoadFail": "題庫未載入，請重新整理頁面重試",
+        "toast.primeGenFail": "出題失敗，請重試",
+        "toast.avatarUnlockNeed": "需 {need} 分解鎖",
+        "toast.avatarChanged": "已更換頭像",
+        "toast.avatarChangeFail": "更換失敗",
+        "toast.survivalNeedLevel9": "生存挑戰：需闖關模式達到 9 級解鎖",
+        "toast.trainingNeedLevelOnce": "訓練模式：請先完成一局闖關模式",
+        "toast.guestNoAvatar": "遊客模式暫不支持頭像",
+        "api.loadAvatarsFail": "載入頭像失敗",
       },
       en: {
         "lang.label": "Language",
@@ -5038,6 +5220,185 @@
         "expand.level.L3": "Two groups side by side (+/− between); a, b, x, y and integers; expand only.",
         "expand.level.L4": "Coefficient k before one group, or k1/k2 on two groups; distribute and sign rules.",
         "expand.level.L5": "Three types: A×(…), (…)÷A, (…)×(…); about 1:1:2; xy terms allowed.",
+        "home.mode.devTag": "(Dev)",
+        "home.mode.soonBadge": "Soon",
+        "home.avatar.title": "Avatar (placeholder)",
+        "home.avatar.placeholderLetter": "Me",
+        "home.score.prefix": "Score: ",
+        "home.btn.backHome": "Home",
+        "home.btn.changePassword": "Change Password",
+        "home.btn.logout": "Sign Out",
+        "game.subtitle.survival": "Survival: start at L1; +2s +5pts per correct; level up every 5 in a row; wrong answers level down.",
+        "game.status.currentMode": "Mode:",
+        "game.status.scoreThisRun": "Score:",
+        "game.status.maxLevel": "Highest level:",
+        "game.status.streak": "Streak:",
+        "game.status.wrongCount": "Wrong:",
+        "game.status.currentDifficulty": "Difficulty:",
+        "game.status.correctCount": "Correct:",
+        "game.status.runDifficulty": "Run difficulty:",
+        "game.status.progress": "Progress:",
+        "game.status.expandWrong": "Wrong:",
+        "game.status.expandLevel": "Level:",
+        "game.status.correctInRun": "Correct count:",
+        "game.timer.remainingPrefix": "Left ",
+        "game.timer.elapsedPrefix": "Time ",
+        "game.answer.placeholder": "Tap the keypad below",
+        "game.btn.startGame": "Start",
+        "game.btn.startChallenge": "Start Challenge",
+        "game.btn.abandon": "Abandon Run",
+        "game.btn.playAgain": "Play Again",
+        "game.over.survivalDuration": "Survived:",
+        "game.over.score": "Score:",
+        "game.over.wrong": "Wrong:",
+        "game.over.maxLevelReached": "Max difficulty:",
+        "game.over.durationLabel": "Time:",
+        "game.over.maxLevelLabel": "Highest level:",
+        "game.over.labelRunScore": "Run score:",
+        "game.over.labelRunWrong": "Run wrong:",
+        "game.over.labelAccuracy": "Accuracy:",
+        "game.over.labelScore": "Score:",
+        "game.over.labelWrong": "Wrong:",
+        "game.over.abandonedTitle": "Run abandoned",
+        "game.over.titleGeneric": "Game Over",
+        "recent.title.survivalLast10": "Last 10 Survival",
+        "recent.title.levelLast10": "Last 10 Level",
+        "recent.title.trainingLast10": "Last 10 Training",
+        "recent.th.datetime": "Date/Time",
+        "recent.th.time": "Time",
+        "recent.th.score": "Score",
+        "recent.th.wrong": "Wrong",
+        "recent.th.maxLevel": "Max level",
+        "recent.th.difficulty": "Difficulty",
+        "recent.th.cleared": "Cleared",
+        "recent.empty": "No practice history yet.",
+        "recent.clearedYes": "Yes",
+        "recent.clearedNo": "No",
+        "softkbd.aria": "Numeric keypad",
+        "softkbd.delete": "Delete",
+        "softkbd.confirm": "OK",
+        "wrongbook.empty": "No wrong questions yet.",
+        "wrongbook.lockMsg": "You have 20+ wrong questions. Open the wrongbook and review before continuing.",
+        "ranking.selectAria": "Select leaderboard",
+        "ranking.tablistAria": "Leaderboard tabs",
+        "ranking.hint.score.loading": "Total score · Loading…",
+        "ranking.hint.score.needNet": "Total score · Server required",
+        "ranking.hint.score.desc": "Total score · Top 50 by points",
+        "ranking.hint.score.fail": "Total score · Load failed, try again",
+        "ranking.hint.survival.loading": "Survival · Loading…",
+        "ranking.hint.survival.needNet": "Survival · Server required",
+        "ranking.hint.survival.desc": "Survival · Faster clear time wins; fewer wrongs tie-break (top 50)",
+        "ranking.hint.survival.fail": "Survival · Load failed, try again",
+        "ranking.hint.prime.loading": "Prime master · Loading…",
+        "ranking.hint.prime.needNet": "Prime master · Server required",
+        "ranking.hint.prime.desc": "Prime master · Fastest perfect 50-question run (top 50)",
+        "ranking.hint.prime.fail": "Prime master · Load failed, try again",
+        "ranking.hint.streak.loading": "Streak · Loading…",
+        "ranking.hint.streak.needNet": "Streak · Server required",
+        "ranking.hint.streak.desc": "Streak · Longest and current daily streak (top 50)",
+        "ranking.hint.streak.fail": "Streak · Load failed, try again",
+        "ranking.hint.combo.loading": "Combo · Loading…",
+        "ranking.hint.combo.needNet": "Combo · Server required",
+        "ranking.hint.combo.desc": "Combo · Best and current combo (top 50)",
+        "ranking.hint.combo.fail": "Combo · Load failed, try again",
+        "ranking.hint.tabLoading.score": "Total score · Loading…",
+        "ranking.hint.tabLoading.survival": "Survival · Loading…",
+        "ranking.hint.tabLoading.prime": "Prime master · Loading…",
+        "ranking.hint.tabLoading.streak": "Streak · Loading…",
+        "ranking.hint.tabLoading.combo": "Combo · Loading…",
+        "ranking.gate.survivalTitle": "Survival",
+        "ranking.gate.survivalBody1": "This board is only for users who have cleared survival at least once.",
+        "ranking.gate.survivalBody2": "You have not cleared survival yet. Finish one cleared survival run, then come back.",
+        "ranking.gate.survivalHint": "Survival · Only for users who cleared survival",
+        "ranking.empty": "No ranking data.",
+        "ranking.comingSoon": "Coming soon",
+        "ranking.th.rank": "Rank",
+        "ranking.th.challenger": "Player",
+        "ranking.th.totalScore": "Points",
+        "ranking.th.time": "Time",
+        "ranking.th.wrong": "Wrong",
+        "ranking.th.date": "Date",
+        "ranking.th.streakBest": "Best streak",
+        "ranking.th.streakCurrent": "Current",
+        "ranking.th.comboBest": "Best combo",
+        "ranking.th.comboCurrent": "Current combo",
+        "ranking.demo.userA": "Demo A",
+        "ranking.demo.userB": "Demo B",
+        "ranking.demo.meTag": "My row (demo)",
+        "expand.ui.modeValue": "Expand brackets",
+        "expand.go.abandoned": "Abandoned",
+        "expand.levelSelectAria": "Expand brackets level",
+        "prime.intro": "Decide prime or composite for 2–99; 5 points each, 50 questions, count-up timer.",
+        "prime.startPractice": "Start",
+        "prime.wrongReview": "Wrong review",
+        "prime.finishTitle": "Run complete",
+        "prime.finishCorrect": "Correct:",
+        "prime.finishWrong": "Wrong:",
+        "prime.finishTime": "Time:",
+        "prime.finishScore": "Score:",
+        "prime.syncOk": "Total score synced.",
+        "prime.syncFail": "Sync failed. Check network and retry.",
+        "prime.syncLocal": "Offline: points added locally only.",
+        "prime.recentTitle": "Last 10 Prime/Composite",
+        "prime.btn.prime": "Prime",
+        "prime.btn.composite": "Composite",
+        "prime.header.hint": "Is it prime or composite?",
+        "avatar.pageTitle": "Choose avatar",
+        "avatar.pageSubtitle": "Tap to change; locked avatars show required points.",
+        "stats.levelEmpty": "No per-question stats yet. Play more runs.",
+        "modal.password.title": "Change password",
+        "modal.password.currentPh": "Current password",
+        "modal.password.newPh": "New password (6+ chars)",
+        "modal.password.confirmPh": "Confirm new password",
+        "modal.cancel": "Cancel",
+        "modal.ok": "OK",
+        "modal.nickname.title": "Edit nickname",
+        "modal.nickname.hint": "Shown on home and leaderboards. Default is “Rookie”.",
+        "modal.nickname.placeholder": "Nickname",
+        "display.guest": "Guest",
+        "display.rookie": "Rookie",
+        "mode.running.wrongPractice": "Wrongbook practice",
+        "mode.running.expandBrackets": "Expand brackets",
+        "error.loadFailed": "Load failed",
+        "error.relogin": "Please sign in again",
+        "error.noServer": "Server not configured",
+        "trial.limitMsg": "Demo limit reached (3). Contact admin for an account.",
+        "game.feedback.titleHtml": "<span class='feedback-title'>Note:</span>",
+        "game.feedback.needAnswer": "Enter an answer first.",
+        "game.feedback.invalidNumber": "Enter a valid number.",
+        "game.feedback.correctHtml": "<span class='feedback-title'>Correct!</span>",
+        "game.feedback.incorrectPrefixHtml": "<span class='feedback-title'>Incorrect.</span> ",
+        "game.feedback.correctAnswerLabel": "Correct answer:",
+        "game.feedback.correctSurvival": "<span class='feedback-title'>Correct!</span> +5 pts",
+        "game.feedback.allCleared16": "<span class='feedback-title'>Correct!</span> Cleared all 16 levels!",
+        "game.feedback.survivalPlus": "<span class='feedback-title'>Correct!</span> +2s, +{pts} pts",
+        "game.feedback.levelPlus": "<span class='feedback-title'>Correct!</span> +{pts} pts",
+        "game.training.questionProgress": "Q {n} / {total}",
+        "game.celebrate.allClearedTitle": "Cleared!",
+        "game.over.trainingBrushDoneTitle": "Training complete!",
+        "game.training.promoteLevelUp": "Level up!",
+        "game.training.promoteStayHint": "Accuracy is below the promotion line. Keep practicing at this level.",
+        "game.display.levelOrdinal": "Level {n}",
+        "game.over.levelRunBestTitle": "Best this run: level {n}",
+        "game.display.percent": "{pct}%",
+        "game.training.subtitle.encourage": "Keep going!",
+        "game.training.subtitle.promotionRules": "Promotion: {n} questions per run; meet the clear accuracy to level up (reaching level {maxLevel} clears all), otherwise stay at this level—no demotion, no time limit.",
+        "wrongPractice.resultSummary": "Results: {correct} / {total} correct",
+        "wrongPractice.qLabel": "Question:",
+        "wrongPractice.studentAnswer": "Your answer:",
+        "wrongPractice.markLabel": "Mark:",
+        "wrongPractice.correctAnswer": "Correct:",
+        "wrongPractice.okBtn": "OK",
+        "toast.primeNeedLogin": "Sign in to use Prime/Composite.",
+        "toast.primeBankLoadFail": "Question bank not loaded. Refresh and try again.",
+        "toast.primeGenFail": "Failed to generate question. Retry.",
+        "toast.avatarUnlockNeed": "Unlock at {need} pts",
+        "toast.avatarChanged": "Avatar updated",
+        "toast.avatarChangeFail": "Update failed",
+        "toast.survivalNeedLevel9": "Survival unlocks at level 9 in Level mode.",
+        "toast.trainingNeedLevelOnce": "Training: finish one Level run first.",
+        "toast.guestNoAvatar": "Avatars are not available in guest mode.",
+        "api.loadAvatarsFail": "Failed to load avatars",
       },
     };
     let currentLang = "zhHant";
@@ -5075,6 +5436,159 @@
       const fallback = (i18nRuntime.zhHant && i18nRuntime.zhHant[k]) || "";
       if (fallback) return fallback;
       return k;
+    }
+
+    function tf(key, params) {
+      let s = t(key);
+      if (!params) return s;
+      return String(s).replace(/\{(\w+)\}/g, (_, name) => (params[name] != null ? String(params[name]) : ""));
+    }
+
+    function applyI18nGlobalChrome() {
+      try {
+        document.documentElement.style.setProperty("--jml-soon-badge", JSON.stringify(t("home.mode.soonBadge")));
+      } catch (e) {}
+      const byId = (id) => document.getElementById(id);
+      const setT = (id, key) => {
+        const el = byId(id);
+        if (el) el.textContent = t(key);
+      };
+      setT("status-label-current-mode", "game.status.currentMode");
+      setT("status-label-difficulty", "game.status.currentDifficulty");
+      const sub = byId("game-subtitle");
+      if (sub) {
+        if (gameMode === "training") setTrainingPracticeSubtitle();
+        else sub.textContent = t("game.subtitle.survival");
+      }
+      const ai = byId("answer-input");
+      if (ai) ai.placeholder = t("game.answer.placeholder");
+      setT("start-game-btn", "game.btn.startGame");
+      setT("abandon-game-btn", "game.btn.abandon");
+      setT("play-again-btn", "game.btn.playAgain");
+      setT("game-over-duration-label", "game.over.survivalDuration");
+      setT("game-over-score-label", "game.over.score");
+      setT("game-over-wrong-label", "game.over.wrong");
+      setT("game-over-max-level-label", "game.over.maxLevelReached");
+      setT("recent-th-dt", "recent.th.datetime");
+      setT("recent-th-time", "recent.th.time");
+      setT("recent-th-score", "recent.th.score");
+      setT("recent-th-wrong", "recent.th.wrong");
+      setT("recent-col-level", "recent.th.maxLevel");
+      setT("recent-th-cleared", "recent.th.cleared");
+      setT("recent-history-empty", "recent.empty");
+      const sk = byId("soft-kbd");
+      if (sk) sk.setAttribute("aria-label", t("softkbd.aria"));
+      const skBack = document.querySelector('.soft-kbd-key[data-key="back"]');
+      if (skBack) skBack.textContent = t("softkbd.delete");
+      const skEnter = document.querySelector('.soft-kbd-enter[data-key="enter"]');
+      if (skEnter) skEnter.textContent = t("softkbd.confirm");
+      setT("wrongbook-empty", "wrongbook.empty");
+      const rSel = byId("ranking-mode-select");
+      if (rSel) rSel.setAttribute("aria-label", t("ranking.selectAria"));
+      const rTabs = document.querySelector(".ranking-tabs");
+      if (rTabs) rTabs.setAttribute("aria-label", t("ranking.tablistAria"));
+      setT("ranking-gate-title", "ranking.gate.survivalTitle");
+      setT("ranking-gate-body-1", "ranking.gate.survivalBody1");
+      setT("ranking-gate-body-2", "ranking.gate.survivalBody2");
+      setT("ranking-empty-v2", "ranking.empty");
+      setT("ranking-coming-soon", "ranking.comingSoon");
+      const tcp = byId("timer-chip-prefix");
+      if (tcp) tcp.textContent = t("game.timer.remainingPrefix");
+      const etp = byId("expand-timer-prefix");
+      if (etp) etp.textContent = t("game.timer.elapsedPrefix");
+      const ptp = byId("prime-timer-prefix");
+      if (ptp) ptp.textContent = t("game.timer.elapsedPrefix");
+      const expGrid = byId("expand-status-grid");
+      if (expGrid) {
+        const items = expGrid.querySelectorAll(".status-item");
+        const keys = ["game.status.currentMode", "game.status.progress", "game.status.scoreThisRun", "game.status.expandLevel", "game.status.expandWrong"];
+        items.forEach((item, i) => {
+          const lab = item.querySelector(".status-label");
+          if (lab && keys[i]) lab.textContent = t(keys[i]);
+          const val = item.querySelector(".status-value");
+          if (val && i === 0) val.textContent = t("expand.ui.modeValue");
+        });
+      }
+      const expDiffLab = byId("expand-current-level-name") && byId("expand-current-level-name").previousElementSibling;
+      if (expDiffLab && expDiffLab.classList && expDiffLab.classList.contains("status-label")) {
+        expDiffLab.textContent = t("game.status.currentDifficulty");
+      }
+      const els = byId("expand-level-select");
+      if (els) els.setAttribute("aria-label", t("expand.levelSelectAria"));
+      setT("expand-go-duration-label", "expand.end.time");
+      setT("expand-go-score-label", "expand.end.level");
+      setT("expand-go-wrong-label", "expand.end.wrong");
+      setT("expand-go-result-label", "expand.end.result");
+      setT("expand-game-over-title", "game.over.titleGeneric");
+      setT("expand-history-empty", "recent.empty");
+      const pGrid = byId("prime-status-grid");
+      if (pGrid) {
+        const pItems = pGrid.querySelectorAll(".status-item");
+        const pKeys = ["game.status.currentMode", "game.status.scoreThisRun", "game.status.progress", "game.status.correctInRun", "game.status.wrongCount"];
+        pItems.forEach((item, i) => {
+          const lab = item.querySelector(".status-label");
+          if (lab && pKeys[i]) lab.textContent = t(pKeys[i]);
+          const val = item.querySelector(".status-value");
+          if (val && i === 0) val.textContent = t("home.mode.primeComposite");
+        });
+      }
+      const intro = document.querySelector(".prime-intro-text");
+      if (intro) intro.textContent = t("prime.intro");
+      setT("prime-composite-start-btn", "prime.startPractice");
+      setT("prime-header-hint", "prime.header.hint");
+      setT("prime-btn-prime", "prime.btn.prime");
+      setT("prime-btn-composite", "prime.btn.composite");
+      setT("prime-abandon-btn", "game.btn.abandon");
+      setT("prime-finish-title", "prime.finishTitle");
+      setT("prime-lbl-correct", "prime.finishCorrect");
+      setT("prime-lbl-wrong", "prime.finishWrong");
+      setT("prime-lbl-time", "prime.finishTime");
+      setT("prime-lbl-session", "prime.finishScore");
+      setT("prime-finished-sync-ok", "prime.syncOk");
+      setT("prime-finished-sync-fail", "prime.syncFail");
+      setT("prime-finished-sync-local", "prime.syncLocal");
+      setT("prime-wrong-review-hint", "prime.wrongReview");
+      setT("prime-composite-again-btn", "game.btn.playAgain");
+      setT("prime-th-dt", "recent.th.datetime");
+      setT("prime-th-time", "recent.th.time");
+      setT("prime-th-score", "recent.th.score");
+      setT("prime-th-wrong", "recent.th.wrong");
+      setT("prime-th-level", "recent.th.maxLevel");
+      setT("prime-th-cleared", "recent.th.cleared");
+      setT("prime-recent-history-empty", "recent.empty");
+      const avH = document.querySelector("#avatar-picker-section .ranking-title");
+      if (avH) avH.textContent = t("avatar.pageTitle");
+      if (byId("avatar-picker-section")) {
+        const sub = document.querySelector("#avatar-picker-section .ranking-subtitle");
+        if (sub) sub.textContent = t("avatar.pageSubtitle");
+      }
+      setT("stats-level-empty", "stats.levelEmpty");
+      const cpTitle = document.querySelector("#change-password-modal-overlay h3");
+      if (cpTitle) cpTitle.textContent = t("modal.password.title");
+      const cpCur = byId("change-pwd-current");
+      if (cpCur) cpCur.placeholder = t("modal.password.currentPh");
+      const cpNew = byId("change-pwd-new");
+      if (cpNew) cpNew.placeholder = t("modal.password.newPh");
+      const cpCf = byId("change-pwd-confirm");
+      if (cpCf) cpCf.placeholder = t("modal.password.confirmPh");
+      setT("change-password-cancel-btn", "modal.cancel");
+      setT("change-password-submit-btn", "modal.ok");
+      const nnTitle = document.querySelector("#change-nickname-modal-overlay h3");
+      if (nnTitle) nnTitle.textContent = t("modal.nickname.title");
+      const nnHint = document.querySelector("#change-nickname-modal-overlay .stats-subtitle");
+      if (nnHint) nnHint.textContent = t("modal.nickname.hint");
+      const nnIn = byId("change-nickname-input");
+      if (nnIn) nnIn.placeholder = t("modal.nickname.placeholder");
+      setT("change-nickname-cancel-btn", "modal.cancel");
+      setT("change-nickname-submit-btn", "modal.ok");
+      const avBtn = byId("home-avatar-btn");
+      if (avBtn) avBtn.setAttribute("title", t("home.avatar.title"));
+      const nickBtn = byId("change-nickname-btn");
+      if (nickBtn) nickBtn.setAttribute("title", t("modal.nickname.title"));
+      setT("global-back-home-btn", "home.btn.backHome");
+      setT("change-password-btn", "home.btn.changePassword");
+      setT("logout-btn", "home.btn.logout");
+      updateGlobalBackButtonState();
     }
 
     async function loadI18nFromServer() {
@@ -5124,11 +5638,11 @@
       if (backToLoginBtn) backToLoginBtn.textContent = t("login.register.back");
       if (loginHint) loginHint.textContent = t("login.hint");
       if (zhBtn) {
-        zhBtn.textContent = "繁體中文";
+        zhBtn.textContent = t("lang.zhHant");
         zhBtn.classList.toggle("active", currentLang === "zhHant");
       }
       if (enBtn) {
-        enBtn.textContent = "English";
+        enBtn.textContent = t("lang.en");
         enBtn.classList.toggle("active", currentLang === "en");
       }
       const verFromText = (raw) => {
@@ -5144,6 +5658,7 @@
         const ver = verFromText(loginVersion ? loginVersion.textContent : appHomeVersion.textContent);
         appHomeVersion.textContent = `${t("login.version")} ${ver}`;
       }
+      applyI18nGlobalChrome();
     }
 
     function setTextById(id, key) {
@@ -5164,7 +5679,7 @@
         modeExpandBtn.textContent = t("home.mode.expandBrackets");
         const devTag = document.createElement("span");
         devTag.className = "mode-dev-tag";
-        devTag.textContent = "(开发中)";
+        devTag.textContent = t("home.mode.devTag");
         modeExpandBtn.appendChild(document.createTextNode(" "));
         modeExpandBtn.appendChild(devTag);
       }
@@ -5209,6 +5724,7 @@
       setTextById("expand-th-level", "expand.th.level");
       const statsSec = document.getElementById("stats-section");
       if (statsSec && statsSec.classList.contains("visible")) updateStudentStatsChartTitle();
+      applyI18nGlobalChrome();
     }
 
     function getAuthToken() {
@@ -5286,14 +5802,14 @@
 
     async function apiChangePassword(username, currentPassword, newPassword) {
       const base = getApiBase();
-      if (!base) return { ok: false, error: "未配置服务器" };
+      if (!base) return { ok: false, error: t("error.noServer") };
       const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ currentPassword, newPassword }),
         credentials: "include"
       });
-      if (res.status === 401) { handleAuthRequired(); return { ok: false, error: "请重新登录" }; }
+      if (res.status === 401) { handleAuthRequired(); return { ok: false, error: t("error.relogin") }; }
       return await res.json();
     }
 
@@ -5588,9 +6104,13 @@
     function renderRecentRunsTable(runs) {
       if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
       const titleEl = document.getElementById("recent-title");
-      if (titleEl) titleEl.textContent = gameMode === "level" ? "最近十次闯关挑战" : (gameMode === "training" ? "最近十次训练模式" : "最近十次生存挑战");
+      if (titleEl) {
+        titleEl.textContent = gameMode === "level"
+          ? t("recent.title.levelLast10")
+          : (gameMode === "training" ? t("recent.title.trainingLast10") : t("recent.title.survivalLast10"));
+      }
       const levelColEl = document.getElementById("recent-col-level");
-      if (levelColEl) levelColEl.textContent = gameMode === "training" ? "难度" : "最高难度";
+      if (levelColEl) levelColEl.textContent = gameMode === "training" ? t("recent.th.difficulty") : t("recent.th.maxLevel");
       const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
       if (list.length === 0) {
         dom.recentHistoryBody.innerHTML = "";
@@ -5604,9 +6124,9 @@
         const levelIdx = Number(r.maxLevel);
         const levelName = Number.isFinite(levelIdx) && levelIdx >= 0 ? ("L" + (levelIdx + 1)) : "-";
         const clearedStr = gameMode === "survival"
-          ? (r.survivalCleared ? "是" : "否")
+          ? (r.survivalCleared ? t("recent.clearedYes") : t("recent.clearedNo"))
           : gameMode === "level"
-            ? ((Number(r.maxLevel) >= 15) ? "是" : "否")
+            ? ((Number(r.maxLevel) >= 15) ? t("recent.clearedYes") : t("recent.clearedNo"))
             : "-";
         const dateStr = formatDateTime(r.ts);
         return `<tr>
@@ -5626,7 +6146,7 @@
       const empty = document.getElementById("prime-recent-history-empty");
       const titleEl = document.getElementById("prime-recent-title");
       if (!body || !empty) return;
-      if (titleEl) titleEl.textContent = "最近十次质数合数";
+      if (titleEl) titleEl.textContent = t("prime.recentTitle");
       const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
       if (list.length === 0) {
         body.innerHTML = "";
@@ -5713,7 +6233,7 @@
         if (dom.expandGoWrongLabel) dom.expandGoWrongLabel.textContent = t("expand.end.wrong");
         if (dom.expandGoWrong) dom.expandGoWrong.textContent = String(expandWrongCount);
         if (dom.expandGoResultLabel) dom.expandGoResultLabel.textContent = t("expand.end.result");
-        if (dom.expandGoResult) dom.expandGoResult.textContent = "已放弃";
+        if (dom.expandGoResult) dom.expandGoResult.textContent = t("expand.go.abandoned");
         if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
         updateGlobalBackButtonState();
         renderExpandBracketsRecentRuns();
@@ -5826,15 +6346,15 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = "连续答对：";
-      if (label3) label3.textContent = "本局得分：";
-      if (label4) label4.textContent = "最高等级：";
-      if (label5) label5.textContent = "错题数量：";
+      if (label2) label2.textContent = t("game.status.streak");
+      if (label3) label3.textContent = t("game.status.scoreThisRun");
+      if (label4) label4.textContent = t("game.status.maxLevel");
+      if (label5) label5.textContent = t("game.status.wrongCount");
       updateStatusModeLabel();
       const m = Math.floor(survivalTimeLeft / 60);
       const s = survivalTimeLeft % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
-      if (dom.timerChip && dom.timerChip.firstChild) dom.timerChip.firstChild.textContent = "剩余 ";
+      if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.remainingPrefix");
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) {
@@ -5857,16 +6377,16 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = "连续答对：";
-      if (label3) label3.textContent = "本局得分：";
-      if (label4) label4.textContent = "最高等级：";
-      if (label5) label5.textContent = "错题数量：";
+      if (label2) label2.textContent = t("game.status.streak");
+      if (label3) label3.textContent = t("game.status.scoreThisRun");
+      if (label4) label4.textContent = t("game.status.maxLevel");
+      if (label5) label5.textContent = t("game.status.wrongCount");
       updateStatusModeLabel();
       const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
       const m = Math.floor(elapsed / 60);
       const s = elapsed % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
-      if (dom.timerChip && dom.timerChip.firstChild) dom.timerChip.firstChild.textContent = "用时 ";
+      if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.elapsedPrefix");
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
@@ -5887,11 +6407,11 @@
     }
 
     function getDisplayName() {
-      if (isGuestMode) return "游客";
+      if (isGuestMode) return t("display.guest");
       const u = getCurrentUser();
-      if (!u) return "新人";
+      if (!u) return t("display.rookie");
       const n = (u.nickname || "").trim();
-      return n || "新人";
+      return n || t("display.rookie");
     }
 
     function setFeedback(message, type) {
@@ -5912,10 +6432,10 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = "正确数量：";
-      if (label3) label3.textContent = "本局得分：";
-      if (label4) label4.textContent = "本局难度：";
-      if (label5) label5.textContent = "错题数量：";
+      if (label2) label2.textContent = t("game.status.correctCount");
+      if (label3) label3.textContent = t("game.status.scoreThisRun");
+      if (label4) label4.textContent = t("game.status.runDifficulty");
+      if (label5) label5.textContent = t("game.status.wrongCount");
       updateStatusModeLabel();
 
       const total = wrongPracticeQueue.length || 0;
@@ -5962,7 +6482,7 @@
       if (isGuestMode) {
         const guest = getGuestSurvivalData();
         if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
-          setBatchSummary("试用只限三次，继续使用请联系管理员添加账号。");
+          setBatchSummary(t("trial.limitMsg"));
           return;
         }
       }
@@ -6004,7 +6524,7 @@
       if (isGuestMode) {
         const guest = getGuestSurvivalData();
         if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
-          setBatchSummary("试用只限三次，继续使用请联系管理员添加账号。");
+          setBatchSummary(t("trial.limitMsg"));
           return;
         }
       }
@@ -6063,7 +6583,7 @@
       const m = Math.floor(elapsed / 60);
       const s = elapsed % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
-      if (dom.timerChip && dom.timerChip.firstChild) dom.timerChip.firstChild.textContent = "用时 ";
+      if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.elapsedPrefix");
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
       const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
@@ -6072,10 +6592,10 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = "正确数量：";
-      if (label3) label3.textContent = "本局得分：";
-      if (label4) label4.textContent = "本局难度：";
-      if (label5) label5.textContent = "错题数量：";
+      if (label2) label2.textContent = t("game.status.correctCount");
+      if (label3) label3.textContent = t("game.status.scoreThisRun");
+      if (label4) label4.textContent = t("game.status.runDifficulty");
+      if (label5) label5.textContent = t("game.status.wrongCount");
       updateStatusModeLabel();
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = trainingCorrectCount + " / " + TRAINING_QUESTIONS;
       if (dom.runScore) dom.runScore.textContent = runScore;
@@ -6117,7 +6637,7 @@
       survivalTimerId = setInterval(trainingTick, 1000);
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
-      if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
+      if (dom.questionSubtext) dom.questionSubtext.textContent = tf("game.training.questionProgress", { n: trainingQuestionIndex + 1, total: TRAINING_QUESTIONS });
     }
 
     function showNextSurvivalQuestion() {
@@ -6146,7 +6666,7 @@
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = "已放弃本局";
+          if (titleEl) titleEl.textContent = t("game.over.abandonedTitle");
           const durationLabelEl = document.getElementById("game-over-duration-label");
           const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
           const durationEl = document.getElementById("game-over-duration");
@@ -6155,10 +6675,10 @@
           const maxLevelEl = document.getElementById("game-over-max-level");
           const scoreLabelEl = document.getElementById("game-over-score-label");
           const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = "用时：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
-          if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
-          if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
+          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.maxLevelLabel");
+          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
+          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = "0";
           if (wrongEl) wrongEl.textContent = "—";
@@ -6185,7 +6705,7 @@
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
-        if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "Game Over";
+        if (titleEl) titleEl.textContent = completed ? t("game.celebrate.allClearedTitle") : t("game.over.titleGeneric");
         const durationLabelEl = document.getElementById("game-over-duration-label");
         const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
@@ -6195,10 +6715,10 @@
         const wrongLabelEl = document.getElementById("game-over-wrong-label");
         const bestTimeEl = document.getElementById("game-over-best-time");
         const bestScoreEl = document.getElementById("game-over-best-score");
-        if (durationLabelEl) durationLabelEl.textContent = "用时：";
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
-        if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
-        if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
+        if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.maxLevelLabel");
+        if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
+        if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
@@ -6234,12 +6754,12 @@
         if (!isPlaying || gameOver || !currentQuestion) return;
         const value = dom.answerInput.value.trim();
         if (value === "") {
-          setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
+          setFeedback(t("game.feedback.titleHtml") + t("game.feedback.needAnswer"), null);
           return;
         }
         const userAnswer = Number(value);
         if (!Number.isFinite(userAnswer)) {
-          setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
+          setFeedback(t("game.feedback.titleHtml") + t("game.feedback.invalidNumber"), null);
           return;
         }
         dom.answerInput.value = "";
@@ -6251,12 +6771,12 @@
       // 使用自定义键盘输入，不再依赖系统软键盘焦点
       const value = dom.answerInput.value.trim();
       if (value === "") {
-        setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
+        setFeedback(t("game.feedback.titleHtml") + t("game.feedback.needAnswer"), null);
         return;
       }
       const userAnswer = Number(value);
       if (!Number.isFinite(userAnswer)) {
-        setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
+        setFeedback(t("game.feedback.titleHtml") + t("game.feedback.invalidNumber"), null);
         return;
       }
       dom.answerInput.value = "";
@@ -6269,12 +6789,12 @@
       if (wrongPracticeIndex >= wrongPracticeQueue.length) return;
       const value = dom.answerInput.value.trim();
       if (value === "") {
-        setFeedback("<span class='feedback-title'>提示：</span>请先输入答案。", null);
+        setFeedback(t("game.feedback.titleHtml") + t("game.feedback.needAnswer"), null);
         return;
       }
       const userAnswer = Number(value);
       if (!Number.isFinite(userAnswer)) {
-        setFeedback("<span class='feedback-title'>提示：</span>请输入有效数字。", null);
+        setFeedback(t("game.feedback.titleHtml") + t("game.feedback.invalidNumber"), null);
         return;
       }
       dom.answerInput.value = "";
@@ -6324,10 +6844,10 @@
       const correct = userAnswer === q.answer;
       wrongPracticeResults.push({ text: q.text, answer: q.answer, studentAnswer: userAnswer, correct });
       if (correct) {
-        setFeedback("<span class='feedback-title'>答对！</span>", "correct");
+        setFeedback(t("game.feedback.correctHtml"), "correct");
       } else {
         runWrongCount += 1;
-        setFeedback("<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + q.answer + "</strong>", "incorrect");
+        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + q.answer + "</strong>", "incorrect");
       }
       wrongPracticeIndex++;
       updateWrongPracticeStatusUI();
@@ -6350,16 +6870,16 @@
       const total = wrongPracticeResults.length;
       const isPerfectAllCorrect = total > 0 && correctCount === total;
       let html = "<div style='text-align:left;max-height:50vh;overflow:auto;padding:0 4px;'>";
-      html += "<p style='font-weight:600;margin-bottom:12px;'>批改结果：答对 " + correctCount + " / " + total + " 题</p>";
+      html += "<p style='font-weight:600;margin-bottom:12px;'>" + escapeHtml(tf("wrongPractice.resultSummary", { correct: correctCount, total })) + "</p>";
       wrongPracticeResults.forEach((r) => {
         const mark = r.correct ? "✓" : "✗";
         const markColor = r.correct ? "#2e7d32" : "#d32f2f";
         html += "<div style='padding:8px 0;border-bottom:1px solid #eee;'>";
-        html += "<div><strong>题目：</strong>" + escapeHtml(r.text) + "</div>";
-        html += "<div style='margin-top:4px;font-size:0.9em;'>学员答案：<span style='color:" + (r.correct ? "#2e7d32" : "#d32f2f") + "'>" + escapeHtml(String(r.studentAnswer)) + "</span> · 对错：<span style='color:" + markColor + "'>" + mark + "</span> · 正确答案：" + escapeHtml(String(r.answer)) + "</div>";
+        html += "<div><strong>" + escapeHtml(t("wrongPractice.qLabel")) + "</strong>" + escapeHtml(r.text) + "</div>";
+        html += "<div style='margin-top:4px;font-size:0.9em;'>" + escapeHtml(t("wrongPractice.studentAnswer")) + "<span style='color:" + (r.correct ? "#2e7d32" : "#d32f2f") + "'>" + escapeHtml(String(r.studentAnswer)) + "</span> · " + escapeHtml(t("wrongPractice.markLabel")) + "<span style='color:" + markColor + "'>" + mark + "</span> · " + escapeHtml(t("wrongPractice.correctAnswer")) + escapeHtml(String(r.answer)) + "</div>";
         html += "</div>";
       });
-      html += "</div><button id='wrong-result-ok' style='margin-top:12px;padding:10px 24px;cursor:pointer;border-radius:8px;border:none;background:#1976d2;color:#fff;font-size:1rem;'>确定</button>";
+      html += "</div><button id='wrong-result-ok' style='margin-top:12px;padding:10px 24px;cursor:pointer;border-radius:8px;border:none;background:#1976d2;color:#fff;font-size:1rem;'>" + escapeHtml(t("wrongPractice.okBtn")) + "</button>";
       const overlay = document.createElement("div");
       overlay.id = "wrong-result-overlay";
       overlay.style.cssText = "position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:2000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;";
@@ -6414,29 +6934,20 @@
             consecutiveCorrect = 0;
           } else {
             maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
-            setFeedback(
-              "<span class='feedback-title'>答对！</span> 恭喜通关全部 16 级！",
-              "correct"
-            );
+            setFeedback(t("game.feedback.allCleared16"), "correct");
             updateSurvivalStatusUI();
             setTimeout(function () { endSurvivalGame(true); }, 600);
             return;
           }
         }
         maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
-        setFeedback(
-          "<span class='feedback-title'>答对！</span> +2 秒，+" + points + " 分",
-          "correct"
-        );
+        setFeedback(tf("game.feedback.survivalPlus", { pts: points }), "correct");
       } else {
         runWrongCount += 1;
         consecutiveCorrect = 0;
         if (currentLevelIndex > 0) currentLevelIndex -= 1;
         recordWrongAnswer(question.text, question.answer, userAnswer);
-        setFeedback(
-          "<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>",
-          "incorrect"
-        );
+        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
       }
       updateSurvivalStatusUI();
       showNextSurvivalQuestion();
@@ -6460,30 +6971,20 @@
             consecutiveCorrect = 0;
           } else {
             maxLevelThisRun = 15;
-            setFeedback(
-              "<span class='feedback-title'>答对！</span> 恭喜通关全部 16 级！",
-              "correct"
-            );
+            setFeedback(t("game.feedback.allCleared16"), "correct");
             updateLevelStatusUI();
             setTimeout(function () { endLevelGame(true); }, 600);
             return;
           }
         }
         maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
-        setFeedback(
-          "<span class='feedback-title'>答对！</span> +" + points + " 分",
-          "correct"
-        );
+        setFeedback(tf("game.feedback.levelPlus", { pts: points }), "correct");
       } else {
         runWrongCount += 1;
         consecutiveCorrect = 0;
         // 答错结束：本题必须写入错题本（放弃结局见 endLevelGame abandoned，不调用 recordWrongAnswer）
         recordWrongAnswer(question.text, question.answer, userAnswer);
-        setFeedback(
-          "<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>",
-          "incorrect"
-        );
-        updateLevelStatusUI();
+        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
         if (dom.submitBtn) dom.submitBtn.disabled = true;
         setTimeout(function () { endLevelGame(false); }, 600);
         return;
@@ -6503,11 +7004,11 @@
       if (isCorrect) {
         runScore += 5;
         trainingCorrectCount += 1;
-        setFeedback("<span class='feedback-title'>答对！</span> +5 分", "correct");
+        setFeedback(t("game.feedback.correctSurvival"), "correct");
       } else {
         runWrongCount += 1;
         recordWrongAnswer(question.text, question.answer, userAnswer);
-        setFeedback("<span class='feedback-title'>答错了。</span> 正确答案：<strong>" + question.answer + "</strong>", "incorrect");
+        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
       }
 
       trainingQuestionIndex += 1;
@@ -6521,7 +7022,7 @@
 
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
-      if (dom.questionSubtext) dom.questionSubtext.textContent = "第 " + (trainingQuestionIndex + 1) + " 题 / " + TRAINING_QUESTIONS;
+      if (dom.questionSubtext) dom.questionSubtext.textContent = tf("game.training.questionProgress", { n: trainingQuestionIndex + 1, total: TRAINING_QUESTIONS });
       if (dom.submitBtn) dom.submitBtn.disabled = false;
     }
 
@@ -6547,7 +7048,7 @@
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = "已放弃本局";
+          if (titleEl) titleEl.textContent = t("game.over.abandonedTitle");
           const durationLabelEl = document.getElementById("game-over-duration-label");
           const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
           const durationEl = document.getElementById("game-over-duration");
@@ -6556,10 +7057,10 @@
           const maxLevelEl = document.getElementById("game-over-max-level");
           const scoreLabelEl = document.getElementById("game-over-score-label");
           const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = "用时：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "准确率：";
-          if (scoreLabelEl) scoreLabelEl.textContent = "得分：";
-          if (wrongLabelEl) wrongLabelEl.textContent = "错题：";
+          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.labelAccuracy");
+          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
+          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = "0";
           if (wrongEl) wrongEl.textContent = "—";
@@ -6591,7 +7092,7 @@
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = "训练结束！";
+          if (titleEl) titleEl.textContent = t("game.over.trainingBrushDoneTitle");
           const durationLabelEl = document.getElementById("game-over-duration-label");
           const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
           const durationEl = document.getElementById("game-over-duration");
@@ -6600,14 +7101,14 @@
           const maxLevelEl = document.getElementById("game-over-max-level");
           const scoreLabelEl = document.getElementById("game-over-score-label");
           const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = "用时：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "准确率：";
-          if (scoreLabelEl) scoreLabelEl.textContent = "得分：";
-          if (wrongLabelEl) wrongLabelEl.textContent = "错题：";
+          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.labelAccuracy");
+          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
+          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = String(runScore);
           if (wrongEl) wrongEl.textContent = runWrongCount;
-          if (maxLevelEl) maxLevelEl.textContent = Math.round(accuracy * 100) + "%";
+          if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
         }
         if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -6624,17 +7125,17 @@
       if (accuracy >= upgradeAccuracy) {
         resetPromotionFailStreak();
         if (currentLevelIndex >= 15) {
-          tipText = "恭喜通关";
+          tipText = t("game.celebrate.allClearedTitle");
           newLevel = -1;
           const stClear = loadTrainingFlowState();
           stClear.forcedBrush = false;
           saveTrainingFlowState(stClear);
         } else {
           newLevel = currentLevelIndex + 1;
-          tipText = "Level Up!";
+          tipText = t("game.training.promoteLevelUp");
         }
       } else {
-        tipText = "准确率低于通关线，继续在本级练习。";
+        tipText = t("game.training.promoteStayHint");
         if (bumpPromotionFailStreak(levelThisRun)) {
           trainingSessionBrushMode = true;
         }
@@ -6658,14 +7159,14 @@
         const maxLevelEl = document.getElementById("game-over-max-level");
         const scoreLabelEl = document.getElementById("game-over-score-label");
         const wrongLabelEl = document.getElementById("game-over-wrong-label");
-        if (durationLabelEl) durationLabelEl.textContent = "用时：";
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "准确率：";
-        if (scoreLabelEl) scoreLabelEl.textContent = "得分：";
-        if (wrongLabelEl) wrongLabelEl.textContent = "错题：";
+        if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.labelAccuracy");
+        if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
+        if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = String(runScore);
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = Math.round(accuracy * 100) + "%";
+        if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
       }
       if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -6700,7 +7201,7 @@
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = "已放弃本局";
+          if (titleEl) titleEl.textContent = t("game.over.abandonedTitle");
           const durationLabelEl = document.getElementById("game-over-duration-label");
           const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
           const durationEl = document.getElementById("game-over-duration");
@@ -6709,14 +7210,14 @@
           const maxLevelEl = document.getElementById("game-over-max-level");
           const scoreLabelEl = document.getElementById("game-over-score-label");
           const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = "用时：";
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
-          if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
-          if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
+          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.maxLevelLabel");
+          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
+          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = String(runScore);
           if (wrongEl) wrongEl.textContent = "0";
-          if (maxLevelEl) maxLevelEl.textContent = "第 " + (persistIdx + 1) + " 级";
+          if (maxLevelEl) maxLevelEl.textContent = tf("game.display.levelOrdinal", { n: persistIdx + 1 });
         }
         if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -6736,7 +7237,7 @@
         dom.gameOverPanel.style.display = "block";
         const titleEl = document.getElementById("game-over-title");
         const levelNum = endLevel + 1;
-        if (titleEl) titleEl.textContent = completed ? "恭喜通关" : "本局最高：第 " + levelNum + " 级";
+        if (titleEl) titleEl.textContent = completed ? t("game.celebrate.allClearedTitle") : tf("game.over.levelRunBestTitle", { n: levelNum });
         const durationLabelEl = document.getElementById("game-over-duration-label");
         const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
@@ -6746,15 +7247,15 @@
         const wrongLabelEl = document.getElementById("game-over-wrong-label");
         const bestTimeEl = document.getElementById("game-over-best-time");
         const bestScoreEl = document.getElementById("game-over-best-score");
-        if (durationLabelEl) durationLabelEl.textContent = "用时：";
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = "最高等级：";
-        if (scoreLabelEl) scoreLabelEl.textContent = "本局得分：";
-        if (wrongLabelEl) wrongLabelEl.textContent = "本局错题：";
+        if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+        if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.maxLevelLabel");
+        if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
+        if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
         if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = "第 " + (endLevel + 1) + " 级";
+        if (maxLevelEl) maxLevelEl.textContent = tf("game.display.levelOrdinal", { n: endLevel + 1 });
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
@@ -6791,7 +7292,7 @@
       }
       const score = (user.totalScore != null && typeof user.totalScore === "number") ? user.totalScore : 0;
       inlineEl.style.display = "block";
-      inlineEl.textContent = "总积分：" + score;
+      inlineEl.textContent = t("home.score.prefix") + score;
     }
 
     let toastTimerId = null;
@@ -6898,11 +7399,11 @@
 
     function showPrimeCompositePlaceholder() {
       if (isGuestMode) {
-        showToast("请登录后使用质数合数专项");
+        showToast(t("toast.primeNeedLogin"));
         return;
       }
       if (isWrongbookLocked()) {
-        alert(WRONGBOOK_LOCK_MSG);
+        alert(getWrongbookLockMessage());
         showWrongbookViewFast();
         return;
       }
@@ -7090,14 +7591,14 @@
     function primeCompositeStart() {
       const JML = window.JMLPrimeComposite;
       if (!JML) {
-        showToast("题库未加载，请刷新页面重试");
+        showToast(t("toast.primeBankLoadFail"));
         return;
       }
       try {
         primeCompositeQuestions = JML.buildRoundQuestions();
       } catch (e) {
         console.warn(e);
-        showToast("出题失败，请重试");
+        showToast(t("toast.primeGenFail"));
         return;
       }
       primeCompositeIndex = 0;
@@ -7205,6 +7706,7 @@
     }
 
     let rankingUiInited = false;
+    let lastRankingTab = "score";
     function initRankingUiSkeletonIfNeeded() {
       if (rankingUiInited) return;
       rankingUiInited = true;
@@ -7225,20 +7727,26 @@
       });
     }
 
+    function getAvatarPlaceholderLetter(displayName) {
+      const s = String(displayName || "").trim();
+      if (!s) return t("home.avatar.placeholderLetter").slice(0, 1).toUpperCase();
+      return s.slice(0, 1).toUpperCase();
+    }
+
     function buildRankingTheadHtml(tab) {
       if (tab === "score") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">总积分</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.totalScore")) + "</th></tr>";
       }
       if (tab === "survival") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-wrong\">错题</th><th class=\"r-col r-col-date\">日期</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
       }
       if (tab === "primePerfect") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-time\">用时</th><th class=\"r-col r-col-date\">日期</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
       }
       if (tab === "streak") {
-        return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最长连续</th><th class=\"r-col r-col-score\">当前连续</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.streakBest")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.streakCurrent")) + "</th></tr>";
       }
-      return "<tr><th class=\"r-col r-col-rank\">排名</th><th class=\"r-col r-col-user\">挑战者</th><th class=\"r-col r-col-score\">最高连对</th><th class=\"r-col r-col-score\">当前连对</th></tr>";
+      return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.comboBest")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.comboCurrent")) + "</th></tr>";
     }
 
     function buildRankingPlaceholderRowsHtml() {
@@ -7248,11 +7756,11 @@
         const tagHtml = tag ? ("<span class='tag'>" + escapeHtml(tag) + "</span>") : "";
         return "<tr><td class=\"r-col r-col-rank\">" + rank + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\"><span class=\"user-cell\"><span class=\"avatar sm avatar-placeholder\">" + escapeHtml(avatarLetter) + "</span><span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + tagHtml + "</span></span></td><td class=\"r-col r-col-score\">-</td></tr>";
       };
-      return row(1, "示例用户A", "") + row(2, "示例用户B", "") + row("-", displayName || "新人", "我的记录（占位）");
+      return row(1, t("ranking.demo.userA"), "") + row(2, t("ranking.demo.userB"), "") + row("-", displayName || t("display.rookie"), t("ranking.demo.meTag"));
     }
 
     function buildRankingScoreRowHtml(entry, isMe) {
-      const name = entry.displayName || "新人";
+      const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const scoreStr = escapeHtml(String(entry.totalScore != null ? entry.totalScore : 0));
@@ -7268,7 +7776,7 @@
     }
 
     function buildRankingStreakRowHtml(entry, isMe) {
-      const name = entry.displayName || "新人";
+      const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const bestStr = escapeHtml(String(entry.streakBest != null ? entry.streakBest : 0));
@@ -7285,7 +7793,7 @@
     }
 
     function buildRankingComboRowHtml(entry, isMe) {
-      const name = entry.displayName || "新人";
+      const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const bestStr = escapeHtml(String(entry.comboBest != null ? entry.comboBest : 0));
@@ -7306,12 +7814,12 @@
       const empty = document.getElementById("ranking-empty-v2");
       const hint = document.getElementById("ranking-panel-hint");
       if (!tbody || !empty) return;
-      if (hint) hint.textContent = "总积分榜 · 加载中…";
+      if (hint) hint.textContent = t("ranking.hint.score.loading");
       const base = getApiBase();
       if (!base) {
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "总积分榜 · 需要连接服务器";
+        if (hint) hint.textContent = t("ranking.hint.score.needNet");
         return;
       }
       const me = loadCurrentUsername();
@@ -7320,7 +7828,7 @@
         const res = await fetch(base + "/api/score-ranking" + q, { credentials: "include" });
         const data = await res.json();
         if (!data || data.ok !== true || !Array.isArray(data.list)) {
-          throw new Error((data && data.error) || "加载失败");
+          throw new Error((data && data.error) || t("error.loadFailed"));
         }
         const list = data.list;
         const rows = [];
@@ -7338,17 +7846,17 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "总积分榜 · 按总积分从高到低（展示前 50 名）";
+        if (hint) hint.textContent = t("ranking.hint.score.desc");
       } catch (e) {
         console.warn("加载总积分榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "总积分榜 · 加载失败，请稍后重试";
+        if (hint) hint.textContent = t("ranking.hint.score.fail");
       }
     }
 
     function buildRankingSurvivalRowHtml(entry, isMe) {
-      const name = entry.displayName || "新人";
+      const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
@@ -7371,12 +7879,12 @@
       const hint = document.getElementById("ranking-panel-hint");
       if (!tbody || !empty) return;
       if (!userHasClearedSurvival(cachedUser)) return;
-      if (hint) hint.textContent = "生存榜 · 加载中…";
+      if (hint) hint.textContent = t("ranking.hint.survival.loading");
       const base = getApiBase();
       if (!base) {
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "生存榜 · 需要连接服务器";
+        if (hint) hint.textContent = t("ranking.hint.survival.needNet");
         return;
       }
       const me = loadCurrentUsername();
@@ -7385,7 +7893,7 @@
         const res = await fetch(base + "/api/survival-ranking" + q, { credentials: "include" });
         const data = await res.json();
         if (!data || data.ok !== true || !Array.isArray(data.list)) {
-          throw new Error((data && data.error) || "加载失败");
+          throw new Error((data && data.error) || t("error.loadFailed"));
         }
         const list = data.list;
         const rows = [];
@@ -7403,17 +7911,17 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "生存榜 · 通关用时越短越好，同用时错题更少优先（展示前 50 名）";
+        if (hint) hint.textContent = t("ranking.hint.survival.desc");
       } catch (e) {
         console.warn("加载生存榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "生存榜 · 加载失败，请稍后重试";
+        if (hint) hint.textContent = t("ranking.hint.survival.fail");
       }
     }
 
     function buildRankingPrimePerfectRowHtml(entry, isMe) {
-      const name = entry.displayName || "新人";
+      const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
@@ -7434,12 +7942,12 @@
       const empty = document.getElementById("ranking-empty-v2");
       const hint = document.getElementById("ranking-panel-hint");
       if (!tbody || !empty) return;
-      if (hint) hint.textContent = "质数达人榜 · 加载中…";
+      if (hint) hint.textContent = t("ranking.hint.prime.loading");
       const base = getApiBase();
       if (!base) {
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "质数达人榜 · 需要连接服务器";
+        if (hint) hint.textContent = t("ranking.hint.prime.needNet");
         return;
       }
       const me = loadCurrentUsername();
@@ -7448,7 +7956,7 @@
         const res = await fetch(base + "/api/prime-perfect-ranking" + q, { credentials: "include" });
         const data = await res.json();
         if (!data || data.ok !== true || !Array.isArray(data.list)) {
-          throw new Error((data && data.error) || "加载失败");
+          throw new Error((data && data.error) || t("error.loadFailed"));
         }
         const list = data.list;
         const rows = [];
@@ -7466,12 +7974,12 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "质数达人榜 · 质数合数 50 题全对的最短用时（展示前 50 名）";
+        if (hint) hint.textContent = t("ranking.hint.prime.desc");
       } catch (e) {
         console.warn("加载质数达人榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "质数达人榜 · 加载失败，请稍后重试";
+        if (hint) hint.textContent = t("ranking.hint.prime.fail");
       }
     }
 
@@ -7480,12 +7988,12 @@
       const empty = document.getElementById("ranking-empty-v2");
       const hint = document.getElementById("ranking-panel-hint");
       if (!tbody || !empty) return;
-      if (hint) hint.textContent = "耐力榜 · 加载中…";
+      if (hint) hint.textContent = t("ranking.hint.streak.loading");
       const base = getApiBase();
       if (!base) {
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "耐力榜 · 需要连接服务器";
+        if (hint) hint.textContent = t("ranking.hint.streak.needNet");
         return;
       }
       const me = loadCurrentUsername();
@@ -7494,7 +8002,7 @@
         const res = await fetch(base + "/api/streak-ranking" + q, { credentials: "include" });
         const data = await res.json();
         if (!data || data.ok !== true || !Array.isArray(data.list)) {
-          throw new Error((data && data.error) || "加载失败");
+          throw new Error((data && data.error) || t("error.loadFailed"));
         }
         const list = data.list;
         const rows = [];
@@ -7512,12 +8020,12 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "耐力榜 · 展示最长连续挑战天数与当前连续挑战天数（前 50 名）";
+        if (hint) hint.textContent = t("ranking.hint.streak.desc");
       } catch (e) {
         console.warn("加载耐力榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "耐力榜 · 加载失败，请稍后重试";
+        if (hint) hint.textContent = t("ranking.hint.streak.fail");
       }
     }
 
@@ -7526,12 +8034,12 @@
       const empty = document.getElementById("ranking-empty-v2");
       const hint = document.getElementById("ranking-panel-hint");
       if (!tbody || !empty) return;
-      if (hint) hint.textContent = "连击榜 · 加载中…";
+      if (hint) hint.textContent = t("ranking.hint.combo.loading");
       const base = getApiBase();
       if (!base) {
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "连击榜 · 需要连接服务器";
+        if (hint) hint.textContent = t("ranking.hint.combo.needNet");
         return;
       }
       const me = loadCurrentUsername();
@@ -7540,7 +8048,7 @@
         const res = await fetch(base + "/api/combo-ranking" + q, { credentials: "include" });
         const data = await res.json();
         if (!data || data.ok !== true || !Array.isArray(data.list)) {
-          throw new Error((data && data.error) || "加载失败");
+          throw new Error((data && data.error) || t("error.loadFailed"));
         }
         const list = data.list;
         const rows = [];
@@ -7558,17 +8066,18 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = "连击榜 · 展示最高连对与当前连对（前 50 名）";
+        if (hint) hint.textContent = t("ranking.hint.combo.desc");
       } catch (e) {
         console.warn("加载连击榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
-        if (hint) hint.textContent = "连击榜 · 加载失败，请稍后重试";
+        if (hint) hint.textContent = t("ranking.hint.combo.fail");
       }
     }
 
     function setRankingActiveTab(tab) {
       const next = (tab === "score" || tab === "survival" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
+      lastRankingTab = next;
       const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
       tabs.forEach((b) => b.classList.toggle("active", b.getAttribute("data-tab") === next));
       const sel = document.getElementById("ranking-mode-select");
@@ -7594,11 +8103,11 @@
 
       if (hint) {
         hint.textContent =
-          next === "score" ? "总积分榜 · 加载中…"
-          : next === "survival" ? "生存榜 · 加载中…"
-          : next === "primePerfect" ? "质数达人榜 · 加载中…"
-          : next === "streak" ? "耐力榜 · 加载中…"
-          : "连击榜 · 加载中…";
+          next === "score" ? t("ranking.hint.tabLoading.score")
+          : next === "survival" ? t("ranking.hint.tabLoading.survival")
+          : next === "primePerfect" ? t("ranking.hint.tabLoading.prime")
+          : next === "streak" ? t("ranking.hint.tabLoading.streak")
+          : t("ranking.hint.tabLoading.combo");
       }
 
       if (next === "score") {
@@ -7612,7 +8121,7 @@
         if (!cleared) {
           if (tbody) tbody.innerHTML = "";
           if (empty) empty.style.display = "none";
-          if (hint) hint.textContent = "生存榜 · 仅对已通关生存挑战的用户开放";
+          if (hint) hint.textContent = t("ranking.gate.survivalHint");
           return;
         }
         void loadSurvivalRankingIntoTable();
@@ -7640,12 +8149,6 @@
       }
     }
 
-    function getAvatarPlaceholderLetter(displayName) {
-      const s = String(displayName || "").trim();
-      if (!s) return "头";
-      return s.slice(0, 1).toUpperCase();
-    }
-
     function updateHomeAvatarPlaceholder() {
       const el = document.getElementById("home-avatar-placeholder");
       if (!el) return;
@@ -7658,7 +8161,7 @@
       const base = getApiBase();
       const res = await fetch(base + "/api/avatars");
       const data = await res.json();
-      if (!data || data.ok !== true) throw new Error((data && data.error) || "加载头像失败");
+      if (!data || data.ok !== true) throw new Error((data && data.error) || t("api.loadAvatarsFail"));
       return Array.isArray(data.avatars) ? data.avatars : [];
     }
 
@@ -7779,7 +8282,7 @@
         }
         bubble.addEventListener("click", async () => {
           if (locked) {
-            showToast(`需 ${need} 分解锁`);
+            showToast(tf("toast.avatarUnlockNeed", { need: need }));
             return;
           }
           const name = loadCurrentUsername();
@@ -7791,9 +8294,9 @@
             await ensureAvatarCatalogLoaded(true);
             updateHomeAvatar();
             renderAvatarPicker();
-            showToast("已更换头像");
+            showToast(t("toast.avatarChanged"));
           } catch (e) {
-            showToast((e && e.message) || "更换失败");
+            showToast((e && e.message) || t("toast.avatarChangeFail"));
           }
         });
         const nm = document.createElement("div");
@@ -8097,8 +8600,10 @@
         if (dom.timerChip) {
           dom.timerChip.style.display = "";
           if (!document.getElementById("timer-value")) {
-            dom.timerChip.innerHTML = `剩余 <span id="timer-value">1:00</span>`;
+            dom.timerChip.innerHTML = '<span id="timer-chip-prefix"></span><span id="timer-value">1:00</span>';
+            dom.timerChipPrefix = document.getElementById("timer-chip-prefix");
             dom.timerValue = document.getElementById("timer-value");
+            if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.remainingPrefix");
           }
         }
         if (dom.questionSubtext) dom.questionSubtext.textContent = "";
@@ -8151,7 +8656,7 @@
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
       if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-      if (dom.startGameBtn) dom.startGameBtn.textContent = "开始挑战";
+      if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
       const inputRow = document.getElementById("answer-input-row");
       if (inputRow) inputRow.style.display = "none";
@@ -8215,7 +8720,7 @@
       if (dom.expandPanel) dom.expandPanel.style.display = "block";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
       if (dom.expandStartRow) dom.expandStartRow.style.display = "";
-      if (dom.expandStartBtn) dom.expandStartBtn.textContent = "开始挑战";
+      if (dom.expandStartBtn) dom.expandStartBtn.textContent = t("game.btn.startChallenge");
       if (dom.expandChoices) dom.expandChoices.style.display = "none";
       setExpandHistoryVisible(true);
       renderExpandBracketsRecentRuns();
@@ -8319,12 +8824,12 @@
         return;
       }
       if (isWrongbookLocked()) {
-        alert(WRONGBOOK_LOCK_MSG);
+        alert(getWrongbookLockMessage());
         showWrongbookViewFast();
         return;
       }
       if (isSurvivalLocked()) {
-        showToast("生存挑战：需闯关模式达到 9 级解锁");
+        showToast(t("toast.survivalNeedLevel9"));
         return;
       }
       const u = getCurrentUser();
@@ -8626,12 +9131,9 @@
       const sub = document.getElementById("game-subtitle");
       if (!sub) return;
       if (trainingSessionBrushMode) {
-        sub.textContent = "加油！";
+        sub.textContent = t("game.training.subtitle.encourage");
       } else {
-        sub.textContent =
-          "晋级：每局 " +
-          TRAINING_QUESTIONS +
-          " 题；准确率不低于通关线则升级（第 16 级达标即全通关），否则本级保持、不降级、不限时。";
+        sub.textContent = tf("game.training.subtitle.promotionRules", { n: TRAINING_QUESTIONS, maxLevel: 16 });
       }
     }
 
@@ -8688,7 +9190,7 @@
         return;
       }
       if (isWrongbookLocked()) {
-        alert(WRONGBOOK_LOCK_MSG);
+        alert(getWrongbookLockMessage());
         showWrongbookViewFast();
         return;
       }
@@ -8724,12 +9226,12 @@
         return;
       }
       if (isWrongbookLocked()) {
-        alert(WRONGBOOK_LOCK_MSG);
+        alert(getWrongbookLockMessage());
         showWrongbookViewFast();
         return;
       }
       if (isTrainingLocked()) {
-        showToast("训练模式：请先完成一局闯关模式");
+        showToast(t("toast.trainingNeedLevelOnce"));
         return;
       }
       currentLevelIndex = await resolveTrainingEntryLevelAsync();
@@ -9070,7 +9572,7 @@
       const homeAvatarBtn = document.getElementById("home-avatar-btn");
       if (homeAvatarBtn) homeAvatarBtn.addEventListener("click", async () => {
         if (isGuestMode) {
-          showToast("游客模式暂不支持头像");
+          showToast(t("toast.guestNoAvatar"));
           return;
         }
         await ensureAvatarCatalogLoaded();
@@ -9127,11 +9629,15 @@
         saveLang("zhHant");
         applyI18nToLoginView();
         applyI18nToMainView();
+        const rThead = document.getElementById("ranking-thead-v2");
+        if (rThead) rThead.innerHTML = buildRankingTheadHtml(lastRankingTab);
       });
       if (langBtnEn) langBtnEn.addEventListener("click", function () {
         saveLang("en");
         applyI18nToLoginView();
         applyI18nToMainView();
+        const rThead = document.getElementById("ranking-thead-v2");
+        if (rThead) rThead.innerHTML = buildRankingTheadHtml(lastRankingTab);
       });
       const guestBtn = document.getElementById("guest-btn");
       if (guestBtn) guestBtn.addEventListener("click", handleGuestEnter);
