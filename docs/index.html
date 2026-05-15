@@ -6682,6 +6682,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      updateGlobalBackButtonState();
       setTrainingSummaryLayout(true);
       setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.disabled = true;
@@ -8693,7 +8694,7 @@
       }
       gameMode = "level";
       const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = "闯关挑战：每局从 L1 开始，正向计时、不限时；连续答对 10 题升级，答错一局结束；放弃按当前进度结算并记入闯关记录。";
+      if (sub) sub.textContent = "闯关挑战：每局从 L1 开始，正向计时、不限时；连续答对 10 题升级，答错一局结束。";
       showGameSection();
     }
 
