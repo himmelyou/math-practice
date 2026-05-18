@@ -3263,6 +3263,7 @@
     // ========= 错题本累积锁定规则（最新错题 + 复习解锁） =========
     const WRONGBOOK_THRESHOLD = 20; // 达到/超过则锁定除错题本外的正常模式
     const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条“错题”，超过后不再写入最新条目
+    const EXPAND_WRONG_MAX_STORE = 20; // 拆括号错题（仅管理端 report），超出则丢弃最旧
     function getWrongbookLockMessage() {
       return t("wrongbook.lockMsg");
     }
@@ -4721,6 +4722,11 @@
       }
       expandWrongCount += 1;
       if (dom.expandWrongText) dom.expandWrongText.textContent = String(expandWrongCount);
+      const promptText =
+        expandCurrent.prompt != null
+          ? String(expandCurrent.prompt)
+          : (dom.expandQuestionText ? String(dom.expandQuestionText.textContent || "") : "");
+      recordExpandBracketsWrongAnswer(promptText, canonical, pickedNorm);
       showExpandExplain(selectedIdx);
       lockExpandChoices(true);
     }
@@ -6139,6 +6145,7 @@
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
+      if (!Array.isArray(user.expandBracketsWrongAnswers)) user.expandBracketsWrongAnswers = [];
     }
 
     function loadState() {
@@ -6209,6 +6216,37 @@
         await apiPutUser(username, { wrongAnswers: u.wrongAnswers });
       } catch (e) {
         console.warn("同步错题到服务器失败", e);
+      }
+    }
+
+    function recordExpandBracketsWrongAnswer(prompt, correctAnswer, studentAnswer) {
+      if (isGuestMode || gameMode !== "expandBrackets") return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      const entry = {
+        ts: Date.now(),
+        levelIndex: expandLevel,
+        prompt: String(prompt || ""),
+        correctAnswer: String(correctAnswer || ""),
+        studentAnswer: String(studentAnswer || ""),
+      };
+      apiAppendExpandBracketsWrongAnswer(name, entry);
+    }
+
+    async function apiAppendExpandBracketsWrongAnswer(username, entry) {
+      const base = getApiBase();
+      if (!base) return;
+      try {
+        const u = cachedUser || {};
+        if (!Array.isArray(u.expandBracketsWrongAnswers)) u.expandBracketsWrongAnswers = [];
+        u.expandBracketsWrongAnswers.unshift(entry);
+        if (u.expandBracketsWrongAnswers.length > EXPAND_WRONG_MAX_STORE) {
+          u.expandBracketsWrongAnswers = u.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE);
+        }
+        cachedUser = u;
+        await apiPutUser(username, { expandBracketsWrongAnswers: u.expandBracketsWrongAnswers });
+      } catch (e) {
+        console.warn("同步拆括号错题到服务器失败", e);
       }
     }
 

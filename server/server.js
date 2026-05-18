@@ -707,6 +707,7 @@ app.post("/api/register", async (req, res) => {
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
     wrongAnswers: [],
+    expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
     createdBy: "self",
   };
@@ -798,7 +799,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
     if (k === "avatarId") {
@@ -1282,7 +1283,10 @@ app.post("/api/admin/users", async (req, res) => {
     comboBest: 0,
     levelChallengeLastLevel: 0,
     levelTrainingCurrentLevel: -1,
+    levelExpandBracketsCurrentLevel: 0,
+    recentExpandBracketsRuns: [],
     wrongAnswers: [],
+    expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
   });
   writeJson(USERS_FILE, data);

@@ -180,6 +180,7 @@
     state.chartModel = null;
     renderRunsTable();
     renderWrongBook();
+    renderExpandWrongBook();
     renderStatsPanel();
   }
 
@@ -258,6 +259,7 @@
 
         renderRunsTable();
         renderWrongBook();
+        renderExpandWrongBook();
         renderStatsPanel();
         if (activeTabId() === 'stats') {
           requestAnimationFrame(drawStatsChart);
@@ -378,6 +380,59 @@
             escapeHtml(wrongAnsText) +
             '</span>；正确：<span style="color:#2e7d32;font-weight:600;">' +
             escapeHtml(rightAnsText) +
+            '</span></div>' +
+            '<div class="meta">' +
+            escapeHtml(meta) +
+            '</div>' +
+            '</li>'
+          );
+        })
+        .join('') +
+      '</ul>';
+  }
+
+  function renderExpandWrongBook() {
+    var wrap = document.getElementById('jml-report-expand-wrong-body');
+    if (!wrap) return;
+    if (!state.selectedUsername) {
+      wrap.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
+      return;
+    }
+    var user = state.userDetail || {};
+    var wrongs = Array.isArray(user.expandBracketsWrongAnswers) ? user.expandBracketsWrongAnswers.slice() : [];
+    if (!wrongs.length) {
+      wrap.innerHTML = '<div class="jml-report-empty">暂无拆括号错题</div>';
+      return;
+    }
+    wrongs.sort(function (a, b) {
+      return (b.ts || 0) - (a.ts || 0);
+    });
+    wrap.innerHTML =
+      '<div class="jml-report-summary">拆括号错题本共 ' +
+      escapeHtml(String(wrongs.length)) +
+      ' 条（每人最多保留 20 条，新错题顶替最旧）</' + 'div>' +
+      '<ul class="jml-wrong-list">' +
+      wrongs
+        .slice(0, 20)
+        .map(function (w) {
+          var prompt = w.prompt || w.question || w.text || '';
+          var studentAns = w.studentAnswer != null ? String(w.studentAnswer) : '';
+          var rightAns = w.correctAnswer != null ? String(w.correctAnswer) : '';
+          var meta =
+            formatDateTime(w.ts) +
+            (w.levelIndex != null && Number.isFinite(Number(w.levelIndex))
+              ? ' · L' + (Number(w.levelIndex) + 1)
+              : '');
+          return (
+            '<li class="jml-wrong-item">' +
+            '<div class="expr">' +
+            escapeHtml(prompt || '（无题干）') +
+            '</div>' +
+            '<' + 'div' + '>学员选项：<span style="color:#c62828;font-weight:600;">' +
+            escapeHtml(studentAns || '（空）') +
+            '</span></div>' +
+            '<div>正确选项：<span style="color:#2e7d32;font-weight:600;">' +
+            escapeHtml(rightAns || '（空）') +
             '</span></div>' +
             '<div class="meta">' +
             escapeHtml(meta) +

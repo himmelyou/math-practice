@@ -54,6 +54,7 @@
       <div class="jml-tabs" role="tablist">
         <button type="button" class="jml-tab active" data-tab="runs" role="tab">挑战记录</button>
         <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
+        <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
         <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
       </div>
 
@@ -62,6 +63,9 @@
       </div>
       <div id="panel-wrong" class="jml-tab-panel hidden" data-panel="wrong" role="tabpanel">
         <div id="jml-report-wrong-body"></div>
+      </div>
+      <div id="panel-expand-wrong" class="jml-tab-panel hidden" data-panel="expand-wrong" role="tabpanel">
+        <div id="jml-report-expand-wrong-body"></div>
       </div>
       <div id="panel-stats" class="jml-tab-panel hidden" data-panel="stats" role="tabpanel">
         <div id="jml-report-stats-body"></div>
@@ -81,7 +85,7 @@
   <script src="../stats-aggregate-browser.js?v=1"></script>
   <script src="../stats-heatmap-browser.js?v=9"></script>
   <script src="../stats-chart-browser.js?v=1"></script>
-  <script src="report-page.js?v=9"></script>
+  <script src="report-page.js?v=10"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({
@@ -99,4 +103,3 @@
   </script>
 </body>
 </html>
-
