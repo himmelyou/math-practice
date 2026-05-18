@@ -4835,10 +4835,67 @@
           : (expandWrongCount >= 2 ? tf("expand.result.downTo", { n: nextLevel + 1 }) : tf("expand.result.stayAt", { n: nextLevel + 1 }));
       }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
+      if (cachedUser) cachedUser.levelExpandBracketsCurrentLevel = nextLevel;
+      renderExpandLevelSelect();
       syncExpandLevelTexts();
       setExpandHistoryVisible(true);
       renderExpandBracketsRecentRuns();
       gameOver = true;
+      updateGlobalBackButtonState();
+    }
+
+    /** 拆括号开局前：难度选择 + 开始按钮（与刚进入模式时一致） */
+    function showExpandBracketsPrestart(opts) {
+      opts = opts || {};
+      const keepLevel = opts.keepLevel === true;
+      if (!keepLevel) {
+        expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), 4);
+      } else {
+        expandLevel = Math.min(Math.max(expandLevel, 0), 4);
+      }
+      isPlaying = false;
+      gameOver = false;
+      expandQuestionIndex = 0;
+      expandWrongCount = 0;
+      expandScore = 0;
+      expandAttempts = [];
+      expandLocked = false;
+      expandPendingNext = false;
+      expandCurrent = null;
+      expandStartTs = 0;
+      stopExpandTimer();
+      hideExpandExplain();
+
+      if (dom.expandTimerValue) dom.expandTimerValue.textContent = "0:00";
+      renderExpandLevelSelect();
+      if (dom.expandLevelSelect) dom.expandLevelSelect.disabled = false;
+      setExpandLevelPickerVisible(true);
+      if (dom.expandProgressText) dom.expandProgressText.textContent = "0 / 20";
+      if (dom.expandScoreText) dom.expandScoreText.textContent = "0";
+      if (dom.expandWrongText) dom.expandWrongText.textContent = "0";
+
+      if (dom.expandQuestionText) {
+        const sub = document.getElementById("game-subtitle");
+        const hint = sub ? String(sub.textContent || "").trim() : "";
+        dom.expandQuestionText.textContent = hint || t("expand.subtitle");
+        dom.expandQuestionText.classList.add("rule-hint");
+        dom.expandQuestionText.style.display = "";
+      }
+      if (dom.expandQuestionSubtext) {
+        const lk = `expand.level.L${expandLevel + 1}`;
+        dom.expandQuestionSubtext.textContent = t(lk) || "";
+        dom.expandQuestionSubtext.style.display = dom.expandQuestionSubtext.textContent ? "" : "none";
+      }
+      if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "none";
+      setExpandGameCardGameOver(false);
+      if (dom.expandPanel) dom.expandPanel.style.display = "block";
+      if (dom.expandExplain) dom.expandExplain.style.display = "none";
+      if (dom.expandStartRow) dom.expandStartRow.style.display = "";
+      if (dom.expandStartBtn) dom.expandStartBtn.textContent = t("game.btn.startChallenge");
+      if (dom.expandChoices) dom.expandChoices.style.display = "none";
+      if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "none";
+      setExpandHistoryVisible(true);
+      renderExpandBracketsRecentRuns();
       updateGlobalBackButtonState();
     }
 
@@ -8737,50 +8794,9 @@
         dom.expandSection.classList.add("visible");
       }
 
-      expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), 4);
-      expandQuestionIndex = 0;
-      expandWrongCount = 0;
-      expandScore = 0;
-      expandAttempts = [];
-      expandLocked = false;
-      expandPendingNext = false;
-      expandCurrent = null;
-      expandStartTs = 0;
-      stopExpandTimer();
-
-      if (dom.expandTimerValue) dom.expandTimerValue.textContent = "0:00";
-      renderExpandLevelSelect();
-      if (dom.expandLevelSelect) dom.expandLevelSelect.disabled = false;
-      setExpandLevelPickerVisible(true);
-      if (dom.expandProgressText) dom.expandProgressText.textContent = "0 / 20";
-      if (dom.expandScoreText) dom.expandScoreText.textContent = "0";
-      syncExpandLevelTexts();
-      if (dom.expandWrongText) dom.expandWrongText.textContent = "0";
-
-      if (dom.expandQuestionText) {
-        const sub = document.getElementById("game-subtitle");
-        const hint = sub ? String(sub.textContent || "").trim() : "";
-        dom.expandQuestionText.textContent = hint || t("expand.subtitle");
-        dom.expandQuestionText.classList.add("rule-hint");
-        dom.expandQuestionText.style.display = "";
-      }
-      if (dom.expandQuestionSubtext) {
-        const lk = `expand.level.L${expandLevel + 1}`;
-        dom.expandQuestionSubtext.textContent = t(lk) || "";
-        dom.expandQuestionSubtext.style.display = dom.expandQuestionSubtext.textContent ? "" : "none";
-      }
-      if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "none";
-      setExpandGameCardGameOver(false);
-      if (dom.expandPanel) dom.expandPanel.style.display = "block";
-      if (dom.expandExplain) dom.expandExplain.style.display = "none";
-      if (dom.expandStartRow) dom.expandStartRow.style.display = "";
-      if (dom.expandStartBtn) dom.expandStartBtn.textContent = t("game.btn.startChallenge");
-      if (dom.expandChoices) dom.expandChoices.style.display = "none";
-      setExpandHistoryVisible(true);
-      renderExpandBracketsRecentRuns();
+      showExpandBracketsPrestart({ keepLevel: false });
       updateTopTitleForCurrentView(false);
       updateStatusModeLabel();
-      updateGlobalBackButtonState();
     }
 
     function getWrongAnswers() {
@@ -9578,8 +9594,7 @@
         else startSurvivalGame();
       });
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.addEventListener("click", () => {
-        if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "none";
-        startExpandBracketsGame();
+        showExpandBracketsPrestart({ keepLevel: true });
       });
       if (dom.expandLevelSelect) {
         dom.expandLevelSelect.addEventListener("change", () => {
