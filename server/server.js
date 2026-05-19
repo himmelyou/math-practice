@@ -704,6 +704,7 @@ app.post("/api/register", async (req, res) => {
     comboCurrent: 0,
     comboBest: 0,
     levelChallengeLastLevel: 0,
+    levelChallengeBestLevel: 0,
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
     wrongAnswers: [],
@@ -799,7 +800,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
     if (k === "avatarId") {
@@ -808,7 +809,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
       u.avatarId = vr.value;
       return;
     }
-    if (k === "totalScore" || k === "bestSurvivalSec" || k === "bestScore") {
+    if (k === "totalScore" || k === "bestSurvivalSec" || k === "bestScore" || k === "levelChallengeBestLevel") {
       const cur = typeof u[k] === "number" ? u[k] : 0;
       const inc = updates[k];
       if (typeof inc === "number") u[k] = Math.max(cur, inc);
@@ -1282,6 +1283,7 @@ app.post("/api/admin/users", async (req, res) => {
     comboCurrent: 0,
     comboBest: 0,
     levelChallengeLastLevel: 0,
+    levelChallengeBestLevel: 0,
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
     recentExpandBracketsRuns: [],

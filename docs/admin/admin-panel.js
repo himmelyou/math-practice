@@ -22,6 +22,29 @@
     '第 16 级 · 带括号的四则运算',
   ];
 
+  var LEVEL_DESC_ZH = LEVEL_NAMES.map(function (n) {
+    return String(n || '').replace(/^第\s*\d+\s*级\s*·\s*/, '').trim();
+  });
+
+  var LEVEL_DESC_EN = [
+    'Single-digit addition intro',
+    'Single-digit addition with carrying',
+    'Single-digit mixed addition and subtraction',
+    'Two-digit addition and subtraction basics',
+    'Two-digit plus one-digit or tens',
+    'Two-digit minus one-digit or tens',
+    'Two-digit plus two-digit (with carrying)',
+    'Two-digit minus two-digit (with borrowing)',
+    'Two-digit mixed addition and subtraction',
+    'Multiplication table basics',
+    'Two-digit divided by one-digit (exact)',
+    'Two-digit plus two-digit (sum over 100)',
+    'Two-digit times one-digit',
+    'Inverse of two-digit times one-digit',
+    'Four operations without parentheses',
+    'Four operations with parentheses',
+  ];
+
   var state = {
     users: [],
     sortKey: 'totalScore',
@@ -397,11 +420,16 @@
         tr.appendChild(cell);
       }
       td('L' + (i + 1));
-      var desc = document.createElement('input');
-      desc.type = 'text';
-      desc.value = row.desc || '';
-      desc.setAttribute('data-k', 'desc');
-      td(desc);
+      function descInput(val, k) {
+        var inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = val != null ? String(val) : '';
+        inp.setAttribute('data-k', k);
+        inp.style.width = '100%';
+        return inp;
+      }
+      td(descInput(row.descZhHant, 'descZhHant'));
+      td(descInput(row.descEn, 'descEn'));
 
       function numInput(val, k) {
         var inp = document.createElement('input');
@@ -419,8 +447,18 @@
     var arr = Array.isArray(levels) ? levels : [];
     return Array.from({ length: 16 }, function (_, i) {
       var src = arr[i] || {};
+      var legacyDesc = typeof src.desc === 'string' ? src.desc.trim() : '';
+      var descZh =
+        typeof src.descZhHant === 'string' && src.descZhHant.trim()
+          ? src.descZhHant.trim()
+          : legacyDesc || LEVEL_DESC_ZH[i] || '';
+      var descEn =
+        typeof src.descEn === 'string' && src.descEn.trim()
+          ? src.descEn.trim()
+          : LEVEL_DESC_EN[i] || '';
       return {
-        desc: typeof src.desc === 'string' ? src.desc : (LEVEL_NAMES[i] || '').replace(/^第\s*\d+\s*级\s*·\s*/, ''),
+        descZhHant: descZh,
+        descEn: descEn,
         upgradeAccuracy: Number.isFinite(Number(src.upgradeAccuracy)) ? Number(src.upgradeAccuracy) : 0.95,
       };
     });
@@ -449,7 +487,8 @@
       inputs.forEach(function (inp) {
         var k = inp.getAttribute('data-k');
         var v = inp.value;
-        if (k === 'desc') out.desc = String(v || '').trim();
+        if (k === 'descZhHant') out.descZhHant = String(v || '').trim();
+        if (k === 'descEn') out.descEn = String(v || '').trim();
         if (k === 'upgradeAccuracy') out.upgradeAccuracy = Math.max(0, Math.min(1, (Number(v) || 0) / 100));
       });
       return out;

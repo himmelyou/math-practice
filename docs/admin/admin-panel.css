@@ -318,8 +318,9 @@
   font-weight: 500;
 }
 
-.jml-level-table .jml-col-desc {
-  min-width: 180px;
+.jml-level-table .jml-col-desc,
+.jml-level-table .jml-col-desc-en {
+  min-width: 140px;
 }
 
 .jml-level-table input[type='text'] {

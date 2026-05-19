@@ -2775,6 +2775,72 @@
       };
     }
 
+    function getDefaultLevelDescZh(idx) {
+      const level = DIFFICULTY_MODULE.levels[idx];
+      if (!level || !level.name) return "";
+      return String(level.name).replace(/^第\s*\d+\s*级\s*·\s*/, "").trim();
+    }
+
+    const DEFAULT_LEVEL_DESC_EN = [
+      "Single-digit addition intro",
+      "Single-digit addition with carrying",
+      "Single-digit mixed addition and subtraction",
+      "Two-digit addition and subtraction basics",
+      "Two-digit plus one-digit or tens",
+      "Two-digit minus one-digit or tens",
+      "Two-digit plus two-digit (with carrying)",
+      "Two-digit minus two-digit (with borrowing)",
+      "Two-digit mixed addition and subtraction",
+      "Multiplication table basics",
+      "Two-digit divided by one-digit (exact)",
+      "Two-digit plus two-digit (sum over 100)",
+      "Two-digit times one-digit",
+      "Inverse of two-digit times one-digit",
+      "Four operations without parentheses",
+      "Four operations with parentheses",
+    ];
+
+    function getLevelDescText(idx) {
+      const set = loadCustomSettings();
+      const row = set.levels && set.levels[idx] ? set.levels[idx] : null;
+      const isEn = currentLang === "en";
+      if (row) {
+        if (isEn) {
+          const en = typeof row.descEn === "string" ? row.descEn.trim() : "";
+          if (en) return en;
+        } else {
+          const zh =
+            typeof row.descZhHant === "string"
+              ? row.descZhHant.trim()
+              : typeof row.desc === "string"
+                ? row.desc.trim()
+                : "";
+          if (zh) return zh;
+        }
+        if (!isEn) {
+          const legacy = typeof row.desc === "string" ? row.desc.trim() : "";
+          if (legacy) return legacy;
+        }
+      }
+      return isEn ? (DEFAULT_LEVEL_DESC_EN[idx] || "") : getDefaultLevelDescZh(idx);
+    }
+
+    function getLevelDisplayName(idx) {
+      const n = Number(idx);
+      if (!Number.isFinite(n) || n < 0) return "-";
+      const levelNum = Math.floor(n) + 1;
+      const desc = getLevelDescText(n);
+      if (currentLang === "en") {
+        return desc ? "Level " + levelNum + " · " + desc : "Level " + levelNum;
+      }
+      return desc ? "第 " + levelNum + " 级 · " + desc : "第 " + levelNum + " 级";
+    }
+
+    function refreshLevelDisplayNames() {
+      const name = getLevelDisplayName(currentLevelIndex);
+      if (dom.currentLevelName) dom.currentLevelName.textContent = name || "-";
+    }
+
     // ===== 难度模块定义 =====
     const DIFFICULTY_MODULE = {
       levels: [
@@ -5057,6 +5123,7 @@
         "game.status.currentMode": "當前模式：",
         "game.status.scoreThisRun": "本局得分：",
         "game.status.maxLevel": "最高等級：",
+        "game.status.levelChallengeBest": "歷史最高：",
         "game.status.streak": "連續答對：",
         "game.status.wrongCount": "錯題數量：",
         "game.status.currentDifficulty": "當前難度：",
@@ -5336,6 +5403,7 @@
         "game.status.currentMode": "Mode:",
         "game.status.scoreThisRun": "Score:",
         "game.status.maxLevel": "Highest level:",
+        "game.status.levelChallengeBest": "Best ever:",
         "game.status.streak": "Streak:",
         "game.status.wrongCount": "Wrong:",
         "game.status.currentDifficulty": "Difficulty:",
@@ -5841,6 +5909,7 @@
       setTextById("expand-th-level", "expand.th.level");
       const statsSec = document.getElementById("stats-section");
       if (statsSec && statsSec.classList.contains("visible")) updateStudentStatsChartTitle();
+      refreshLevelDisplayNames();
       applyI18nGlobalChrome();
     }
 
@@ -6062,7 +6131,7 @@
     function getGuestSurvivalData() {
       try {
         const raw = localStorage.getItem(GUEST_STORAGE_KEY);
-        if (!raw)         return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0 };
+        if (!raw)         return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0, levelChallengeBestLevel: 0 };
         const data = JSON.parse(raw);
         return {
           bestSurvivalSec: typeof data.bestSurvivalSec === "number" ? data.bestSurvivalSec : 0,
@@ -6070,10 +6139,11 @@
           recentSurvivalRuns: Array.isArray(data.recentSurvivalRuns) ? data.recentSurvivalRuns : [],
           recentLevelRuns: Array.isArray(data.recentLevelRuns) ? data.recentLevelRuns : [],
           guestPlayCount: typeof data.guestPlayCount === "number" ? data.guestPlayCount : 0,
-          levelChallengeLastLevel: typeof data.levelChallengeLastLevel === "number" ? data.levelChallengeLastLevel : 0
+          levelChallengeLastLevel: typeof data.levelChallengeLastLevel === "number" ? data.levelChallengeLastLevel : 0,
+          levelChallengeBestLevel: typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0
         };
       } catch (e) {
-        return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0 };
+        return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0, levelChallengeBestLevel: 0 };
       }
     }
 
@@ -6142,6 +6212,7 @@
       if (typeof user.comboCurrent !== "number") user.comboCurrent = 0;
       if (typeof user.comboBest !== "number") user.comboBest = 0;
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
+      if (typeof user.levelChallengeBestLevel !== "number") user.levelChallengeBestLevel = 0;
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
@@ -6509,8 +6580,7 @@
       if (dom.timerChip) {
         dom.timerChip.classList.toggle("low", survivalTimeLeft <= 10);
       }
-      const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
-      if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       const correctPerLevel = gameMode === "level" ? LEVEL_CHALLENGE_CORRECT_PER_LEVEL : SURVIVAL_CORRECT_PER_LEVEL;
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
       if (dom.runScore) dom.runScore.textContent = runScore;
@@ -6528,7 +6598,7 @@
       const label5 = document.getElementById("status-label-5");
       if (label2) label2.textContent = t("game.status.streak");
       if (label3) label3.textContent = t("game.status.scoreThisRun");
-      if (label4) label4.textContent = t("game.status.maxLevel");
+      if (label4) label4.textContent = t("game.status.levelChallengeBest");
       if (label5) label5.textContent = t("game.status.wrongCount");
       updateStatusModeLabel();
       const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
@@ -6539,11 +6609,10 @@
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
-      const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
-      if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + LEVEL_CHALLENGE_CORRECT_PER_LEVEL;
       if (dom.runScore) dom.runScore.textContent = runScore;
-      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (Math.max(maxLevelThisRun, currentLevelIndex) + 1);
+      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (getLevelChallengeBestLevel() + 1);
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
       if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
       updateHomeAvatarPlaceholder();
@@ -6735,8 +6804,7 @@
       if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.elapsedPrefix");
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
-      const level = DIFFICULTY_MODULE.levels[currentLevelIndex];
-      if (dom.currentLevelName) dom.currentLevelName.textContent = level ? level.name : "-";
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -6872,8 +6940,7 @@
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        const level = DIFFICULTY_MODULE.levels[maxLevelThisRun];
-        if (maxLevelEl) maxLevelEl.textContent = level ? level.name : "-";
+        if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(maxLevelThisRun);
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
@@ -7342,6 +7409,7 @@
       if (abandoned) {
         // 放弃：按进度结算 runs，不写错题本（全程不调用 recordWrongAnswer）
         saveLevelChallengeLastLevel(persistIdx);
+        saveLevelChallengeBestLevel(persistIdx);
         appendRun(survivalTimeSec, runScore, persistIdx, 0, "level", currentRunAttempts.slice(), false, false);
         renderRecentRuns();
         updateTrainingButtonLabel();
@@ -7366,7 +7434,7 @@
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = String(runScore);
           if (wrongEl) wrongEl.textContent = "0";
-          if (maxLevelEl) maxLevelEl.textContent = tf("game.display.levelOrdinal", { n: persistIdx + 1 });
+          if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(persistIdx);
         }
         if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -7374,12 +7442,15 @@
         if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
+        updateLevelStatusUI();
         return;
       }
       const endLevel = completed ? 15 : persistIdx;
       saveLevelChallengeLastLevel(endLevel);
+      saveLevelChallengeBestLevel(endLevel);
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
       renderRecentRuns();
+      updateLevelStatusUI();
       if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
@@ -7404,7 +7475,7 @@
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = tf("game.display.levelOrdinal", { n: endLevel + 1 });
+        if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(endLevel);
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
@@ -8985,6 +9056,37 @@
       if (!name) return;
       apiPutUser(name, { levelChallengeLastLevel: lastLevel });
       if (cachedUser) cachedUser.levelChallengeLastLevel = lastLevel;
+    }
+
+    function getLevelChallengeBestLevel() {
+      if (isGuestMode) {
+        const g = getGuestSurvivalData();
+        return typeof g.levelChallengeBestLevel === "number" ? g.levelChallengeBestLevel : 0;
+      }
+      const u = getCurrentUser();
+      if (!u) return 0;
+      ensureUserProgressDefault(u);
+      return typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0;
+    }
+
+    function saveLevelChallengeBestLevel(reachedLevel) {
+      const idx = Math.min(15, Math.max(0, reachedLevel));
+      const cur = getLevelChallengeBestLevel();
+      if (idx <= cur) return;
+      if (isGuestMode) {
+        const data = getGuestSurvivalData();
+        data.levelChallengeBestLevel = idx;
+        try {
+          localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
+        } catch (e) {
+          console.warn("写入游客闯关历史最高失败。", e);
+        }
+        return;
+      }
+      const name = loadCurrentUsername();
+      if (!name) return;
+      apiPutUser(name, { levelChallengeBestLevel: idx });
+      if (cachedUser) cachedUser.levelChallengeBestLevel = idx;
     }
 
     const TRAINING_FLOW_LS_PREFIX = "jml_training_flow_v2:";
