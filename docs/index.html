@@ -7226,7 +7226,7 @@
 
       if (trainingQuestionIndex >= TRAINING_QUESTIONS) {
         if (dom.submitBtn) dom.submitBtn.disabled = true;
-        setTimeout(function () { endTrainingGame(false); }, 600);
+        void endTrainingGame(false);
         return;
       }
 
