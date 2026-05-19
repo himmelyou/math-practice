@@ -92,7 +92,7 @@
     if (n < 60) return n + 's';
     var m = Math.floor(n / 60);
     var s = n % 60;
-    return s === 0 ? m + 'min' : m + 'min ' + s + 's';
+    return s === 0 ? m + 'm' : m + 'm ' + s + 's';
   }
 
   function formatDateTime(ts) {
@@ -494,7 +494,7 @@
       cohort && cohort.timeSpentMsCapNote
         ? cohort.timeSpentMsCapNote
         : '答对题单题耗时超过 ' +
-          (capMs >= 60000 ? Math.round(capMs / 60000) + ' min' : Math.round(capMs / 1000) + ' s') +
+          (capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's') +
           ' 的记录不纳入个人/全体速度侧统计（排除挂机、长时间切屏等异常偏慢）。';
 
     var heat = HM.buildHeatmapCells({

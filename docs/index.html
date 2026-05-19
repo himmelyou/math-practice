@@ -4980,7 +4980,7 @@
       if (sec < 60) return sec + "s";
       const m = Math.floor(sec / 60);
       const s = sec % 60;
-      return s === 0 ? m + "min" : m + "min " + s + "s";
+      return s === 0 ? m + "m" : m + "m " + s + "s";
     }
 
     /** 与训练/闯关正向计时器一致：分:秒（如 0:05、1:23） */
@@ -6225,15 +6225,13 @@
       ensureUserProgressDefault(user);
     }
 
-    /** 用时展示：全语言统一英文单位（s / min） */
+    /** 用时展示：全语言统一 m / s（如 46s、1m 30s） */
     function formatSurvivalTime(sec) {
       return formatSeconds(sec);
     }
 
     function formatCompactRunTime(sec) {
-      sec = Math.max(0, Math.round(sec));
-      if (sec < 60) return sec + "s";
-      return formatGameElapsedClock(sec);
+      return formatSeconds(sec);
     }
 
     function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared, comboOnly) {
