@@ -291,6 +291,7 @@
 
 .jml-level-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 0.86rem;
   table-layout: fixed;
@@ -312,7 +313,6 @@
 }
 
 .jml-level-table .jml-col-rank {
-  width: 88px;
   white-space: nowrap;
   color: #64748b;
   font-weight: 500;
@@ -320,7 +320,7 @@
 
 .jml-level-table .jml-col-desc,
 .jml-level-table .jml-col-desc-en {
-  min-width: 140px;
+  white-space: normal;
 }
 
 .jml-level-table input[type='text'] {
@@ -343,20 +343,20 @@
   text-align: center;
 }
 
-/* 列宽：保证输入框间距一致 */
+/* 四列：等级 | 繁中说明 | 英文说明 | 通关准确率 */
 .jml-level-table th:nth-child(1),
 .jml-level-table td:nth-child(1) {
-  width: 84px;
+  width: 72px;
 }
+.jml-level-table th:nth-child(2),
+.jml-level-table td:nth-child(2),
 .jml-level-table th:nth-child(3),
-.jml-level-table td:nth-child(3),
+.jml-level-table td:nth-child(3) {
+  width: calc((100% - 72px - 112px) / 2);
+}
 .jml-level-table th:nth-child(4),
 .jml-level-table td:nth-child(4) {
-  width: 120px;
-}
-.jml-level-table th:nth-child(5),
-.jml-level-table td:nth-child(5) {
-  width: 140px;
+  width: 112px;
 }
 
 .jml-avatar-table {
