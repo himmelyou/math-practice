@@ -200,7 +200,7 @@
         var geoMeanMs = Math.exp(meanLn);
         var secDisplay = geoMeanMs / 1000;
         if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
-          avgSecText = String(Math.round(secDisplay * 10) / 10) + ' 秒';
+          avgSecText = String(Math.round(secDisplay * 10) / 10) + 's';
         }
       }
 

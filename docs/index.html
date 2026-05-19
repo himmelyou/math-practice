@@ -5078,7 +5078,7 @@
         "stats.th.level": "難度",
         "stats.th.attempts": "答題數",
         "stats.th.errorRate": "錯誤率",
-        "stats.th.avgTime": "平均每題用時(秒)",
+        "stats.th.avgTime": "平均每題用時(s)",
         "wrongbook.title": "錯題本",
         "wrongbook.subtitle": "以下是最新錯題，可自行複習。",
         "wrongbook.practice": "錯題練習",
@@ -6225,19 +6225,15 @@
       ensureUserProgressDefault(user);
     }
 
+    /** 用时展示：全语言统一英文单位（s / min） */
     function formatSurvivalTime(sec) {
-      sec = Math.max(0, Math.round(sec));
-      if (sec < 60) return sec + " 秒";
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      return s === 0 ? m + " 分" : m + " 分 " + s + " 秒";
+      return formatSeconds(sec);
     }
 
     function formatCompactRunTime(sec) {
       sec = Math.max(0, Math.round(sec));
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      return m + "'" + String(s).padStart(2, "0") + "''";
+      if (sec < 60) return sec + "s";
+      return formatGameElapsedClock(sec);
     }
 
     function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared, comboOnly) {

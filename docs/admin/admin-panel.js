@@ -991,6 +991,20 @@
     }
   }
 
+  function renderAdminVersion() {
+    var el = document.getElementById('jml-admin-version');
+    if (!el) return;
+    var ver =
+      typeof window.JML_APP_VERSION === 'string' && window.JML_APP_VERSION
+        ? window.JML_APP_VERSION
+        : 'v?';
+    var build =
+      typeof window.JML_BUILD_ID === 'string' && window.JML_BUILD_ID
+        ? window.JML_BUILD_ID
+        : '';
+    el.textContent = '管理端 ' + ver + (build ? ' · ' + build : '');
+  }
+
   function bindEvents() {
     document.querySelectorAll('.jml-tab').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1074,6 +1088,7 @@
 
   window.JmlAdminPanel = {
     init: function () {
+      renderAdminVersion();
       showApiWarning();
       bindEvents();
       // 默认加载账号列表

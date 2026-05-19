@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="admin-panel.css" />
 </head>
 <body>
+  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">—</p>
   <div id="admin-gate-root"></div>
 
   <div id="admin-app" class="jml-shell" hidden>
@@ -166,6 +167,16 @@
     </div>
   </div>
 
+  <script src="../shared/app-version.js?v=1"></script>
+  <script>
+    (function () {
+      var el = document.getElementById("jml-admin-version");
+      if (!el) return;
+      var ver = window.JML_APP_VERSION || "v?";
+      var build = window.JML_BUILD_ID || "";
+      el.textContent = "管理端 " + ver + (build ? " · " + build : "");
+    })();
+  </script>
   <script src="../config.js?v=1"></script>
   <script>
     (function () {
@@ -175,7 +186,7 @@
     })();
   </script>
   <script src="../shared/admin-auth.js?v=1"></script>
-  <script src="admin-panel.js?v=1"></script>
+  <script src="admin-panel.js?v=2"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({
