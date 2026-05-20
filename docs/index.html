@@ -468,11 +468,11 @@
       pointer-events: none;
     }
 
-    /* ===== 排行榜：左侧 Tab + 右侧内容（先占位） ===== */
+    /* ===== 排行榜：标题行下拉切换 + 表格 ===== */
     .ranking-header { margin: 8px 0 10px; }
     .ranking-title { margin: 0; font-size: 1.1rem; color: #263238; }
     .ranking-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .ranking-mode-select { display: none; }
+    .ranking-mode-select { display: block; flex: 0 0 auto; }
     .ranking-mode-select select {
       border: 1px solid rgba(25, 118, 210, 0.18);
       border-radius: 12px;
@@ -481,37 +481,15 @@
       font-size: 0.86rem;
       color: #0d47a1;
       background: linear-gradient(135deg, #e3f2fd, #f5f9ff);
-      max-width: 52vw;
+      max-width: min(52vw, 220px);
     }
     .ranking-subtitle { margin: 6px 0 0; font-size: 0.86rem; color: var(--muted); }
     .ranking-main-row {
       display: flex;
-      gap: 10px;
+      flex-direction: column;
+      gap: 0;
       flex: 1;
       min-height: 0;
-    }
-    .ranking-tabs {
-      width: 112px;
-      flex: 0 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .ranking-tab {
-      border: 1px solid rgba(25, 118, 210, 0.18);
-      background: #fff;
-      color: #375a6a;
-      border-radius: 12px;
-      padding: 10px 10px;
-      font-weight: 700;
-      font-size: 0.86rem;
-      cursor: pointer;
-      text-align: left;
-    }
-    .ranking-tab.active {
-      border-color: rgba(25, 118, 210, 0.45);
-      background: linear-gradient(135deg, #e3f2fd, #f5f9ff);
-      color: #0d47a1;
     }
     .ranking-panel {
       flex: 1;
@@ -534,12 +512,6 @@
       overscroll-behavior: contain;
     }
 
-    /* 手机端：用下拉替代左侧 Tab，把宽度还给表格 */
-    @media (max-width: 520px) {
-      .ranking-main-row { flex-direction: column; }
-      .ranking-tabs { display: none; }
-      .ranking-mode-select { display: block; }
-    }
     .panel-hint { margin: 0 0 10px; font-size: 0.82rem; color: var(--muted); }
     .panel-empty { margin: 12px 0 0; font-size: 0.9rem; color: var(--muted); text-align: center; padding: 16px; }
     .gate-card {
@@ -604,19 +576,27 @@
     }
     .ranking-table-v2 .r-col-time {
       width: 88px;
+      min-width: 4.8em;
       text-align: right;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     .ranking-table-v2 .r-col-wrong {
       width: 52px;
       text-align: center;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     .ranking-table-v2 .r-col-date {
       width: 132px;
       text-align: center;
       font-size: 0.8rem;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .ranking-table-v2 .r-col-rank,
+    .ranking-table-v2 .r-col-score {
+      white-space: nowrap;
     }
     /* 总积分榜：用户列左对齐（头像与昵称更规整） */
     .ranking-table-v2.ranking-mode-score .r-col-user {
@@ -699,6 +679,7 @@
     }
     .ranking-table-v2.ranking-mode-survival .r-col-time {
       width: 88px;
+      min-width: 4.8em;
       text-align: left;
     }
 
@@ -715,7 +696,8 @@
       }
 
       .ranking-table-v2.ranking-mode-survival .r-col-time {
-        width: 60px;
+        width: 72px;
+        min-width: 4.8em;
       }
 
       .ranking-table-v2.ranking-mode-survival .r-col-wrong {
@@ -812,7 +794,13 @@
     .ranking-table-v2 .r-col-user .user-meta .name {
       max-width: 100%;
     }
-    .ranking-row-me td { background: rgba(25, 118, 210, 0.12); font-weight: 700; }
+    .ranking-row-me td {
+      background: rgba(25, 118, 210, 0.12);
+      font-weight: inherit;
+    }
+    .ranking-row-me .user-meta .name {
+      font-weight: 700;
+    }
     .user-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
     .user-meta { display: flex; flex-direction: column; min-width: 0; }
     .user-meta .name { font-weight: 700; color: #263238; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2462,13 +2450,6 @@
         </div>
       </div>
       <div class="ranking-main-row">
-        <div class="ranking-tabs" role="tablist" aria-label="排行榜 Tab">
-          <button class="ranking-tab active" type="button" data-tab="score" id="ranking-tab-score">总积分榜</button>
-          <button class="ranking-tab" type="button" data-tab="survival" id="ranking-tab-survival">生存榜</button>
-          <button class="ranking-tab" type="button" data-tab="primePerfect" id="ranking-tab-prime-perfect">质数达人</button>
-          <button class="ranking-tab" type="button" data-tab="streak" id="ranking-tab-streak">耐力榜</button>
-          <button class="ranking-tab" type="button" data-tab="combo" id="ranking-tab-combo">连击榜</button>
-        </div>
         <div class="ranking-panel" id="ranking-panel">
           <div class="panel-hint" id="ranking-panel-hint">总积分榜 · 加载中…</div>
 
@@ -5736,8 +5717,6 @@
       setT("wrongbook-empty", "wrongbook.empty");
       const rSel = byId("ranking-mode-select");
       if (rSel) rSel.setAttribute("aria-label", t("ranking.selectAria"));
-      const rTabs = document.querySelector(".ranking-tabs");
-      if (rTabs) rTabs.setAttribute("aria-label", t("ranking.tablistAria"));
       setT("ranking-gate-title", "ranking.gate.survivalTitle");
       setT("ranking-gate-body-1", "ranking.gate.survivalBody1");
       setT("ranking-gate-body-2", "ranking.gate.survivalBody2");
@@ -5942,11 +5921,6 @@
       setTextById("mode-ranking", "home.mode.ranking");
       setTextById("mode-achievement-wall", "home.mode.achievementWall");
 
-      setTextById("ranking-tab-score", "ranking.score");
-      setTextById("ranking-tab-survival", "ranking.survival");
-      setTextById("ranking-tab-prime-perfect", "ranking.primePerfect");
-      setTextById("ranking-tab-streak", "ranking.streak");
-      setTextById("ranking-tab-combo", "ranking.combo");
       setTextById("ranking-title-main", "ranking.title");
       const rankingSelect = document.getElementById("ranking-mode-select");
       if (rankingSelect && rankingSelect.options && rankingSelect.options.length >= 5) {
@@ -8067,14 +8041,6 @@
           setRankingActiveTab(tab);
         });
       }
-      const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
-      tabs.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const tab = btn.getAttribute("data-tab");
-          if (!tab) return;
-          setRankingActiveTab(tab);
-        });
-      });
     }
 
     function getAvatarPlaceholderLetter(displayName) {
@@ -8428,8 +8394,6 @@
     function setRankingActiveTab(tab) {
       const next = (tab === "score" || tab === "survival" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
       lastRankingTab = next;
-      const tabs = Array.from(document.querySelectorAll(".ranking-tab"));
-      tabs.forEach((b) => b.classList.toggle("active", b.getAttribute("data-tab") === next));
       const sel = document.getElementById("ranking-mode-select");
       if (sel && sel.value !== next) sel.value = next;
 
