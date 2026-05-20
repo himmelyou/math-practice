@@ -6851,6 +6851,69 @@
       if (dom.questionSubtext) dom.questionSubtext.textContent = tf("game.training.questionProgress", { n: trainingQuestionIndex + 1, total: TRAINING_QUESTIONS });
     }
 
+    /** 训练模式：结算后回到开局前（规则 + 当前难度 + 开始按钮），与首次进入一致 */
+    async function showTrainingPrestart() {
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      isPlaying = false;
+      gameOver = false;
+      trainingQuestionIndex = 0;
+      trainingCorrectCount = 0;
+      runScore = 0;
+      runWrongCount = 0;
+      currentRunAttempts = [];
+      gameStartTime = 0;
+      currentQuestion = null;
+      setTrainingSummaryLayout(false);
+      setGameOverLayout(false);
+      setFeedback("", null);
+      setBatchSummary("");
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      setSoftKeyboardVisible(false);
+      if (dom.submitBtn) dom.submitBtn.style.display = "none";
+      const inputRow = document.getElementById("answer-input-row");
+      if (inputRow) inputRow.style.display = "none";
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
+      dom.answerInput.disabled = true;
+      dom.answerInput.value = "";
+
+      currentLevelIndex = await resolveTrainingEntryLevelAsync();
+      setTrainingPracticeSubtitle();
+
+      if (dom.timerChip) dom.timerChip.style.display = "";
+      const statusGrid = document.getElementById("status-grid");
+      if (statusGrid) statusGrid.style.display = "";
+      const subtitle = document.getElementById("game-subtitle");
+      if (subtitle) subtitle.style.display = "";
+
+      if (dom.questionText) {
+        const sub = document.getElementById("game-subtitle");
+        const hint = sub ? String(sub.textContent || "").trim() : "";
+        dom.questionText.textContent = hint || "";
+        dom.questionText.classList.toggle("rule-hint", !!hint);
+        dom.questionText.classList.remove("question-refresh-hidden");
+        dom.questionText.style.display = "";
+      }
+      if (dom.questionSubtext) {
+        dom.questionSubtext.textContent = "";
+        dom.questionSubtext.style.display = "none";
+      }
+
+      updateTrainingStatusUI();
+      renderRecentRuns();
+
+      if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
+      if (dom.startGameBtn) {
+        dom.startGameBtn.style.display = "";
+        dom.startGameBtn.textContent = t("game.btn.startChallenge");
+      }
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      updateGlobalBackButtonState();
+    }
+
     function showNextSurvivalQuestion() {
       if (!isPlaying || gameOver) return;
       currentQuestion = generateBaseQuestionExcludingPrev();
@@ -9723,7 +9786,7 @@
       });
       if (dom.playAgainBtn) dom.playAgainBtn.addEventListener("click", () => {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-        if (gameMode === "training") void startTrainingGame();
+        if (gameMode === "training") void showTrainingPrestart();
         else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
       });
