@@ -185,7 +185,7 @@
     for (var k = 0; k < LEVEL_COUNT; k++) {
       var b = by[k];
       var p = b.weightedP;
-      var pText = p != null ? Math.round(p * 100) + '%' : '-';
+      var pText = p != null ? (Math.round(p * 1000) / 10).toFixed(1) + '%' : '-';
       var meanLn = b.meanLnCorrect;
       var active = b.n >= minAttempts;
 
