@@ -1434,7 +1434,7 @@ app.get("/api/admin/records/:username", (req, res) => {
   const { username } = req.params;
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const runs = (runsData.runs[username] || [])
-    .map(r => ({ ...r, mode: r.mode === "level" ? "level" : (r.mode === "training" ? "training" : (r.mode === "primeComposite" ? "primeComposite" : "survival")) }))
+    .map((r) => ({ ...r, mode: normalizeRunMode(r.mode) }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
 });
