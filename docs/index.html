@@ -1919,7 +1919,7 @@
       #game-card { height: clamp(140px, 28vh, 180px); }
     }
 
-    @media (min-width: 768px) {
+    @media (min-width: 768px) and (orientation: portrait) {
       .app {
         padding: 20px 24px;
       }
@@ -1930,6 +1930,64 @@
 
       .app-title {
         font-size: 1.7rem;
+      }
+    }
+
+    /* 平板横屏：中间窄栏模拟竖屏手机，两侧 body 背景留白（不含手机横屏） */
+    @media (orientation: landscape) and (min-width: 768px) {
+      .app {
+        flex: 1;
+        max-width: 430px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 10px 16px 12px;
+        background: var(--card-bg);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .app-title {
+        font-size: 1.15rem;
+      }
+
+      .card {
+        padding: 18px 16px 14px;
+      }
+
+      .status-grid {
+        margin-top: 6px;
+        padding: 8px 10px;
+        gap: 6px 10px;
+      }
+
+      .game-section.visible {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+
+      #game-card {
+        height: clamp(130px, 28vh, 168px);
+        overflow: hidden;
+      }
+
+      .soft-kbd-card {
+        padding: 4px 8px 4px;
+      }
+
+      .soft-kbd-grid {
+        gap: 5px;
+      }
+
+      .soft-kbd-key,
+      .soft-kbd-enter {
+        height: 40px;
+        min-height: 40px;
+      }
+
+      .prime-composite-page #prime-game-card.card,
+      .prime-composite-page .prime-idle-card.card,
+      #prime-panel-finished #prime-finished-panel-inner.game-over-panel {
+        height: clamp(130px, 28vh, 168px);
       }
     }
 
