@@ -2589,7 +2589,7 @@
   </div>
 
   <script src="prime-composite-logic.js"></script>
-  <script src="stats-heatmap-browser.js?v=9"></script>
+  <script src="stats-heatmap-browser.js?v=10"></script>
   <script src="stats-aggregate-browser.js?v=1"></script>
   <script src="stats-chart-browser.js?v=1"></script>
   <script>
@@ -9283,30 +9283,14 @@
     }
 
     function pickHeatmapLevelFromPool(heat, poolIndices) {
-      const poolSet = new Set(poolIndices);
       const HM = window.JmlStatsHeatmap;
-      if (!heat || !Array.isArray(heat.cells) || poolIndices.length === 0) return poolIndices[0];
-      const subset = heat.cells.filter(function (c) {
-        return poolSet.has(c.levelIndex);
-      });
-      if (HM && typeof HM.recommendLevelIndexAccuracyBrush === "function") {
-        const recBrush = HM.recommendLevelIndexAccuracyBrush({ cells: subset });
-        if (recBrush != null && poolSet.has(recBrush)) return recBrush;
+      if (!heat || !Array.isArray(heat.cells) || poolIndices.length === 0) {
+        return poolIndices.length ? poolIndices[0] : 0;
       }
-      if (HM && typeof HM.recommendLevelIndex === "function") {
-        const rec = HM.recommendLevelIndex({ cells: subset });
-        if (rec != null && poolSet.has(rec)) return rec;
+      if (HM && typeof HM.recommendTrainingBrushLevel === "function") {
+        const rec = HM.recommendTrainingBrushLevel(heat, poolIndices);
+        if (rec != null && rec >= 0) return rec;
       }
-      let bestK = null;
-      let bestP = 2;
-      subset.forEach(function (c) {
-        var p = c.p != null ? c.p : 1;
-        if (p < bestP) {
-          bestP = p;
-          bestK = c.levelIndex;
-        }
-      });
-      if (bestK != null) return bestK;
       return Math.min.apply(null, poolIndices);
     }
 
@@ -9352,8 +9336,8 @@
         const subset = (heat.cells || []).filter(function (c) {
           return poolSet.has(c.levelIndex);
         });
-        const recBrush = typeof HM.recommendLevelIndexAccuracyBrush === "function"
-          ? HM.recommendLevelIndexAccuracyBrush({ cells: subset })
+        const recBrush = typeof HM.recommendTrainingBrushLevel === "function"
+          ? HM.recommendTrainingBrushLevel(heat, pool)
           : null;
         console.log("[JML 训练刷热图选关]", JSON.stringify({
           at: new Date().toISOString(),
@@ -9373,7 +9357,7 @@
               timePct: c.timePct,
             };
           }),
-          recommendAccuracyBrush: recBrush,
+          recommendTrainingBrushLevel: recBrush,
           recommendBrushL: recBrush != null ? recBrush + 1 : null,
           pickedLevelIndex: picked,
           pickedL: picked + 1,

@@ -255,38 +255,53 @@
     return ranked.length ? ranked[0].k : null;
   }
 
+  var TRAINING_BRUSH_PASS_ACCURACY = 0.95;
+
+  function cmpMinWeightedP(a, b) {
+    var pa = a.p != null ? a.p : 1;
+    var pb = b.p != null ? b.p : 1;
+    if (pa !== pb) return pa - pb;
+    return a.levelIndex - b.levelIndex;
+  }
+
   /**
-   * 训练刷热图选关：存在任一 active 且 p < 0.95 时取加权 p 最小；否则取 timePct 最大（相对常模最慢）。
-   * p 并列取较小 levelIndex；timePct 并列取较小 levelIndex。
+   * 训练刷热图 / report 推荐下一练（统一入口）。
+   * poolIndices：候选 levelIndex；省略或空则 L1–L16 全部。
+   * 1) 在候选且 active 且加权准确率 < 95% 的档中取 p 最低；
+   * 2) 若均已 ≥95%，在候选 active 中取全体常模速度分位最高（最慢）；
+   * 3) 仍无速度分位则取候选 active 中 p 最低。
    */
-  function recommendLevelIndexAccuracyBrush(cellsResult) {
+  function recommendTrainingBrushLevel(cellsResult, poolIndices) {
+    var passLine = TRAINING_BRUSH_PASS_ACCURACY;
+    var pool = poolIndices;
+    if (!pool || !pool.length) {
+      pool = [];
+      for (var pi = 0; pi < LEVEL_COUNT; pi++) pool.push(pi);
+    }
+    var poolSet = {};
+    for (var i = 0; i < pool.length; i++) poolSet[pool[i]] = true;
+
     var list = (cellsResult && cellsResult.cells) || [];
     var active = [];
-    for (var i = 0; i < list.length; i++) {
-      if (list[i].active) active.push(list[i]);
+    for (var j = 0; j < list.length; j++) {
+      var c = list[j];
+      if (c.active && poolSet[c.levelIndex]) active.push(c);
     }
     if (!active.length) return null;
-    var anyBelow95 = false;
-    for (var j = 0; j < active.length; j++) {
-      var pj = active[j].p;
-      if (pj != null && pj < 0.95) {
-        anyBelow95 = true;
-        break;
+
+    var belowPass = [];
+    for (var b = 0; b < active.length; b++) {
+      var p = active[b].p;
+      if (p != null && p < passLine) belowPass.push(active[b]);
+    }
+    if (belowPass.length) {
+      var bestBelow = belowPass[0];
+      for (var k = 1; k < belowPass.length; k++) {
+        if (cmpMinWeightedP(belowPass[k], bestBelow) < 0) bestBelow = belowPass[k];
       }
+      return bestBelow.levelIndex;
     }
-    function cmpMinP(a, b) {
-      var pa = a.p != null ? a.p : 1;
-      var pb = b.p != null ? b.p : 1;
-      if (pa !== pb) return pa - pb;
-      return a.levelIndex - b.levelIndex;
-    }
-    if (anyBelow95) {
-      var best = active[0];
-      for (var k = 1; k < active.length; k++) {
-        if (cmpMinP(active[k], best) < 0) best = active[k];
-      }
-      return best.levelIndex;
-    }
+
     var withPct = [];
     for (var t = 0; t < active.length; t++) {
       if (active[t].timePct != null) withPct.push(active[t]);
@@ -299,11 +314,17 @@
       }
       return bt.levelIndex;
     }
-    var best2 = active[0];
+
+    var bestP = active[0];
     for (var v = 1; v < active.length; v++) {
-      if (cmpMinP(active[v], best2) < 0) best2 = active[v];
+      if (cmpMinWeightedP(active[v], bestP) < 0) bestP = active[v];
     }
-    return best2.levelIndex;
+    return bestP.levelIndex;
+  }
+
+  /** @deprecated 请用 recommendTrainingBrushLevel */
+  function recommendLevelIndexAccuracyBrush(cellsResult) {
+    return recommendTrainingBrushLevel(cellsResult, null);
   }
 
   global.JmlStatsHeatmap = {
@@ -315,6 +336,8 @@
     buildHeatmapCells: buildHeatmapCells,
     recommendLevelIndex: recommendLevelIndex,
     recommendLevelIndexAccuracyBrush: recommendLevelIndexAccuracyBrush,
+    recommendTrainingBrushLevel: recommendTrainingBrushLevel,
+    TRAINING_BRUSH_PASS_ACCURACY: TRAINING_BRUSH_PASS_ACCURACY,
     percentileFromQuantileSummary: percentileFromQuantileSummary,
     personalWeightedByLevel: personalWeightedByLevel,
   };

@@ -502,7 +502,11 @@
       cohort: cohort,
       maxTimeSpentMs: capMs,
     });
-    var recK = HM.recommendLevelIndex ? HM.recommendLevelIndex(heat) : null;
+    var reportPool = [];
+    for (var pi = 0; pi < (HM.LEVEL_COUNT || 16); pi++) reportPool.push(pi);
+    var recK = HM.recommendTrainingBrushLevel
+      ? HM.recommendTrainingBrushLevel(heat, reportPool)
+      : null;
 
     var cohortWarn = '';
     if (state.cohortError) {
@@ -532,7 +536,9 @@
           (cohort.servedFromCache ? ' 本次<strong>读缓存</strong>。' : ' 本次<strong>已重算并写盘</strong>。')
         : '') +
       (recK != null
-        ? '<br /><strong>推荐下一练（调试用）：</strong>L' + (recK + 1) + '（速度分位偏慢优先；无常模速度时取加权准确率较低）。'
+        ? '<br /><strong>推荐下一练（与训练刷热图同一逻辑）：</strong>L' +
+          (recK + 1) +
+          '（有档 &lt;95% 加权准确率时取最低；否则取速分位最慢）。'
         : '') +
       '</div>';
 
@@ -590,7 +596,7 @@
     var debugPayload = {
       cohortResponse: cohort,
       heatmapBuild: heat,
-      recommendLevelIndex: recK,
+      recommendTrainingBrushLevel: recK,
       runsCount: state.runs.length,
       arithmeticRunsCount: HM.filterArithmeticRuns(state.runs).length,
     };
