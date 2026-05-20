@@ -264,12 +264,188 @@
     return a.levelIndex - b.levelIndex;
   }
 
+  var TRAINING_DAY_PASS_ACCURACY = 0.95;
+  var TRAINING_FLOW_STORAGE_PREFIX = 'jml_training_flow_v3:';
+  var TRAINING_FAILS_BEFORE_BRUSH = 3;
+
+  function getCell(cellsResult, levelIndex) {
+    var list = (cellsResult && cellsResult.cells) || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].levelIndex === levelIndex) return list[i];
+    }
+    return { levelIndex: levelIndex, active: false, n: 0, p: null, timePct: null };
+  }
+
+  function isWeightedBelowPass(cell) {
+    return !!(cell && cell.active && cell.p != null && cell.p < TRAINING_DAY_PASS_ACCURACY);
+  }
+
+  function isNewLevelCell(cell) {
+    return !!(cell && !cell.active);
+  }
+
+  function findFirstBelowPassFrom(cellsResult, startIdx) {
+    for (var i = Math.max(0, startIdx); i < LEVEL_COUNT; i++) {
+      var c = getCell(cellsResult, i);
+      if (isWeightedBelowPass(c)) return i;
+    }
+    return null;
+  }
+
+  function findFirstNewLevelFrom(cellsResult, startIdx) {
+    for (var i = Math.max(0, startIdx); i < LEVEL_COUNT; i++) {
+      var c = getCell(cellsResult, i);
+      if (isNewLevelCell(c)) return i;
+    }
+    return null;
+  }
+
+  /** 刷热图：active 且加权 p≥95% 中取速度分位最差（最慢） */
+  function recommendTrainingBrushSlowAmongPass(cellsResult) {
+    var list = (cellsResult && cellsResult.cells) || [];
+    var candidates = [];
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (c.active && c.p != null && c.p >= TRAINING_DAY_PASS_ACCURACY) candidates.push(c);
+    }
+    if (!candidates.length) return null;
+    var withPct = [];
+    for (var t = 0; t < candidates.length; t++) {
+      if (candidates[t].timePct != null) withPct.push(candidates[t]);
+    }
+    if (withPct.length) {
+      var bt = withPct[0];
+      for (var u = 1; u < withPct.length; u++) {
+        var du = withPct[u].timePct - bt.timePct;
+        if (du > 0 || (du === 0 && withPct[u].levelIndex < bt.levelIndex)) bt = withPct[u];
+      }
+      return bt.levelIndex;
+    }
+    var best = candidates[0];
+    for (var v = 1; v < candidates.length; v++) {
+      if (cmpMinWeightedP(candidates[v], best) < 0) best = candidates[v];
+    }
+    return best.levelIndex;
+  }
+
+  function dailyScanFrom(cellsResult, startIdx) {
+    var below = findFirstBelowPassFrom(cellsResult, startIdx);
+    if (below != null) {
+      return { mode: 'daily', levelIndex: below, reason: 'scan_below', enterBrush: false };
+    }
+    var neu = findFirstNewLevelFrom(cellsResult, startIdx);
+    if (neu != null) {
+      return { mode: 'daily', levelIndex: neu, reason: 'open_new', enterBrush: false };
+    }
+    return { mode: 'brush', levelIndex: null, reason: 'daily_clear', enterBrush: true };
+  }
+
+  /** 同一关当日失败 3 次后：从 k+1 找 <95%；遇 n<10 空洞则截断进刷热图，不可开新关、不可跳过 */
+  function dailyAfterThreeFails(cellsResult, k) {
+    for (var i = k + 1; i < LEVEL_COUNT; i++) {
+      var c = getCell(cellsResult, i);
+      if (isNewLevelCell(c)) {
+        return { mode: 'brush', levelIndex: null, reason: 'gap_block_at_L' + (i + 1), enterBrush: true };
+      }
+      if (isWeightedBelowPass(c)) {
+        return { mode: 'daily', levelIndex: i, reason: 'after_fail_below', enterBrush: false };
+      }
+    }
+    return { mode: 'brush', levelIndex: null, reason: 'no_more_below', enterBrush: true };
+  }
+
+  function normalizeTrainingDayState(o, todayKey) {
+    var d = { dayKey: todayKey, brushMode: false, lastRun: null };
+    if (!o || typeof o !== 'object') return d;
+    if (o.dayKey !== todayKey) return d;
+    var lr = o.lastRun;
+    var lastRun = null;
+    if (lr && typeof lr === 'object') {
+      var li = Math.min(15, Math.max(0, Math.floor(Number(lr.levelIndex))));
+      lastRun = {
+        levelIndex: li,
+        passed: !!lr.passed,
+        failCount: Math.min(
+          TRAINING_FAILS_BEFORE_BRUSH,
+          Math.max(0, Math.floor(Number(lr.failCount) || 0))
+        ),
+      };
+    }
+    return {
+      dayKey: todayKey,
+      brushMode: !!(o.brushMode || o.forcedBrush),
+      lastRun: lastRun,
+    };
+  }
+
   /**
-   * 训练刷热图 / report 推荐下一练（统一入口）。
-   * poolIndices：候选 levelIndex；省略或空则 L1–L16 全部。
-   * 1) 在候选且 active 且加权准确率 < 95% 的档中取 p 最低；
-   * 2) 若均已 ≥95%，在候选 active 中取全体常模速度分位最高（最慢）；
-   * 3) 仍无速度分位则取候选 active 中 p 最低。
+   * 训练 / Report 统一：根据热图 + 当日状态计算下一局关卡。
+   * dayState: { dayKey, brushMode, lastRun|null }
+   * lastRun: { levelIndex, passed, failCount } — 仅闯关阶段；刷热图不写 failCount 语义
+   */
+  function computeTrainingNextLevel(cellsResult, dayState, todayKey) {
+    var today = todayKey || '';
+    var st = normalizeTrainingDayState(dayState, today);
+    if (st.brushMode) {
+      var brushK = recommendTrainingBrushSlowAmongPass(cellsResult);
+      return {
+        mode: 'brush',
+        levelIndex: brushK != null ? brushK : 0,
+        reason: 'brush_pick',
+        enterBrush: false,
+        brushMode: true,
+      };
+    }
+    var lr = st.lastRun;
+    var daily;
+    if (!lr) {
+      daily = dailyScanFrom(cellsResult, 0);
+    } else if (lr.passed) {
+      daily = dailyScanFrom(cellsResult, lr.levelIndex + 1);
+    } else if (lr.failCount >= TRAINING_FAILS_BEFORE_BRUSH) {
+      daily = dailyAfterThreeFails(cellsResult, lr.levelIndex);
+    } else {
+      return {
+        mode: 'daily',
+        levelIndex: lr.levelIndex,
+        reason: 'retry_same',
+        enterBrush: false,
+        brushMode: false,
+      };
+    }
+    if (daily.enterBrush) {
+      var bk = recommendTrainingBrushSlowAmongPass(cellsResult);
+      return {
+        mode: 'brush',
+        levelIndex: bk != null ? bk : 0,
+        reason: daily.reason,
+        enterBrush: true,
+        brushMode: true,
+      };
+    }
+    return {
+      mode: 'daily',
+      levelIndex: daily.levelIndex,
+      reason: daily.reason,
+      enterBrush: false,
+      brushMode: false,
+    };
+  }
+
+  function trainingNextLevelReasonText(result) {
+    if (!result) return '';
+    if (result.mode === 'brush') {
+      return '刷热图：加权≥95% 且速度分位最慢';
+    }
+    if (result.reason === 'scan_below') return '当日闯关：第一个加权准确率<95%';
+    if (result.reason === 'open_new') return '当日闯关：开新关（题数<10）';
+    if (result.reason === 'retry_same') return '当日闯关：本关继续（未达单局95%）';
+    if (result.reason === 'after_fail_below') return '当日闯关：三败后下一弱关';
+    return '当日闯关';
+  }
+
+  /**
+   * @deprecated 旧刷热图规则；请用 computeTrainingNextLevel / recommendTrainingBrushSlowAmongPass
    */
   function recommendTrainingBrushLevel(cellsResult, poolIndices) {
     var passLine = TRAINING_BRUSH_PASS_ACCURACY;
@@ -327,8 +503,16 @@
     return recommendTrainingBrushLevel(cellsResult, null);
   }
 
+  /** 刷热图 / report 推荐用的全档位候选（L1–L16） */
+  function fullLevelPoolIndices() {
+    var pool = [];
+    for (var pi = 0; pi < LEVEL_COUNT; pi++) pool.push(pi);
+    return pool;
+  }
+
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
+    fullLevelPoolIndices: fullLevelPoolIndices,
     MS_PER_DAY: MS_PER_DAY,
     PERSONAL_WINDOW_ATTEMPTS: PERSONAL_WINDOW_ATTEMPTS,
     PERSONAL_HALF_LIFE_DAYS: PERSONAL_HALF_LIFE_DAYS,
@@ -337,7 +521,14 @@
     recommendLevelIndex: recommendLevelIndex,
     recommendLevelIndexAccuracyBrush: recommendLevelIndexAccuracyBrush,
     recommendTrainingBrushLevel: recommendTrainingBrushLevel,
+    recommendTrainingBrushSlowAmongPass: recommendTrainingBrushSlowAmongPass,
+    computeTrainingNextLevel: computeTrainingNextLevel,
+    normalizeTrainingDayState: normalizeTrainingDayState,
+    trainingNextLevelReasonText: trainingNextLevelReasonText,
     TRAINING_BRUSH_PASS_ACCURACY: TRAINING_BRUSH_PASS_ACCURACY,
+    TRAINING_DAY_PASS_ACCURACY: TRAINING_DAY_PASS_ACCURACY,
+    TRAINING_FLOW_STORAGE_PREFIX: TRAINING_FLOW_STORAGE_PREFIX,
+    TRAINING_FAILS_BEFORE_BRUSH: TRAINING_FAILS_BEFORE_BRUSH,
     percentileFromQuantileSummary: percentileFromQuantileSummary,
     personalWeightedByLevel: personalWeightedByLevel,
   };

@@ -2589,7 +2589,7 @@
   </div>
 
   <script src="prime-composite-logic.js"></script>
-  <script src="stats-heatmap-browser.js?v=10"></script>
+  <script src="stats-heatmap-browser.js?v=12"></script>
   <script src="stats-aggregate-browser.js?v=1"></script>
   <script src="stats-chart-browser.js?v=1"></script>
   <script>
@@ -5157,6 +5157,10 @@
         "game.over.trainingBrushDoneTitle": "訓練結束！",
         "game.training.promoteLevelUp": "升級！",
         "game.training.promoteStayHint": "準確率低於通關線，繼續在本級練習。",
+        "game.training.dailyRunPass": "本局達標！下次將從下一關掃描。",
+        "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
+        "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
+        "game.training.subtitle.dailyRules": "當日闖關：從 L1 找加權<95% 的關；單局 {n} 題≥95% 則推進，否則同關再練（3 敗換關或進刷熱圖）；無弱關則開新關（題數<10）。",
         "game.display.levelOrdinal": "第 {n} 級",
         "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
         "game.display.percent": "{pct}%",
@@ -5562,6 +5566,10 @@
         "game.over.trainingBrushDoneTitle": "Training complete!",
         "game.training.promoteLevelUp": "Level up!",
         "game.training.promoteStayHint": "Accuracy is below the promotion line. Keep practicing at this level.",
+        "game.training.dailyRunPass": "Run cleared! Next time we scan from the next level.",
+        "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
+        "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
+        "game.training.subtitle.dailyRules": "Daily climb: find first level with weighted accuracy <95%; pass a {n}-question run at ≥95% to advance; 3 fails → switch or brush; open new level if none (n<10).",
         "game.display.levelOrdinal": "Level {n}",
         "game.over.levelRunBestTitle": "Best this run: level {n}",
         "game.display.percent": "{pct}%",
@@ -6816,7 +6824,7 @@
 
     async function startTrainingGame() {
       if (survivalTimerId) clearInterval(survivalTimerId);
-      currentLevelIndex = await resolveTrainingEntryLevelAsync();
+      // 档位已在「开始前」画面（进训练 / 再玩一局）算好，此处不重算
       trainingRunBrushMode = trainingSessionBrushMode;
       trainingQuestionIndex = 0;
       trainingCorrectCount = 0;
@@ -7352,12 +7360,11 @@
 
       const correctCount = trainingCorrectCount;
       const accuracy = TRAINING_QUESTIONS > 0 ? correctCount / TRAINING_QUESTIONS : 0;
-      const cfg = getLevelSetting(currentLevelIndex);
-      const upgradeAccuracy = (cfg && typeof cfg.upgradeAccuracy === "number") ? cfg.upgradeAccuracy : 0.95;
       const levelThisRun = currentLevelIndex;
 
       if (trainingRunBrushMode) {
-        appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
+        recordTrainingLastRun(levelThisRun, accuracy >= 0.95, 0);
+        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
         renderRecentRuns();
         if (lockWrongbookIfNeeded()) return;
 
@@ -7392,30 +7399,38 @@
         return;
       }
 
-      // 训练晋级：准确率不低于该级配置的通关准确率则升级；否则保持本级（不降级、不计时）
-      let newLevel = currentLevelIndex;
-      let tipText = "";
-      if (accuracy >= upgradeAccuracy) {
-        resetPromotionFailStreak();
-        if (currentLevelIndex >= 15) {
-          tipText = t("game.celebrate.allClearedTitle");
-          newLevel = -1;
-          const stClear = loadTrainingFlowState();
-          stClear.forcedBrush = false;
-          saveTrainingFlowState(stClear);
+      const runPass = accuracy >= 0.95;
+      const stBefore = loadTrainingFlowState();
+      let failCount = 0;
+      if (!runPass) {
+        if (
+          stBefore.lastRun &&
+          stBefore.lastRun.levelIndex === levelThisRun &&
+          stBefore.lastRun.passed === false
+        ) {
+          failCount = Math.min(3, (stBefore.lastRun.failCount || 0) + 1);
         } else {
-          newLevel = currentLevelIndex + 1;
-          tipText = t("game.training.promoteLevelUp");
-        }
-      } else {
-        tipText = t("game.training.promoteStayHint");
-        if (bumpPromotionFailStreak(levelThisRun)) {
-          trainingSessionBrushMode = true;
+          failCount = 1;
         }
       }
+      recordTrainingLastRun(levelThisRun, runPass, failCount);
+      let tipText = "";
+      if (runPass) {
+        tipText = t("game.training.dailyRunPass");
+      } else if (failCount >= 3) {
+        tipText = t("game.training.dailyRunEnterBrush");
+      } else {
+        tipText = tf("game.training.dailyRunFail", {
+          n: failCount,
+          left: Math.max(0, 3 - failCount),
+        });
+      }
 
-      await saveLevelTrainingCurrentLevel(newLevel >= 0 ? newLevel : -1);
-      appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
+      await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
+      const brushSync = await syncTrainingBrushModeAfterDailyRun();
+      if (brushSync && brushSync.enterBrush) {
+        trainingSessionBrushMode = true;
+      }
       renderRecentRuns();
       if (lockWrongbookIfNeeded()) return;
 
@@ -9146,8 +9161,10 @@
       if (cachedUser) cachedUser.levelChallengeBestLevel = idx;
     }
 
-    const TRAINING_FLOW_LS_PREFIX = "jml_training_flow_v2:";
-    const TRAINING_PROMOTION_FAILS_BEFORE_BRUSH = 5;
+    function getTrainingFlowLsPrefix() {
+      const HM = window.JmlStatsHeatmap;
+      return (HM && HM.TRAINING_FLOW_STORAGE_PREFIX) || "jml_training_flow_v3:";
+    }
 
     function getLocalTrainingDayKey() {
       const now = new Date();
@@ -9160,26 +9177,28 @@
     function defaultTrainingFlowState() {
       return {
         dayKey: getLocalTrainingDayKey(),
-        promotionFailStreak: 0,
-        streakFocusLevel: null,
-        forcedBrush: false,
+        brushMode: false,
+        lastRun: null,
       };
     }
 
     function normalizeTrainingFlowState(o) {
+      const HM = window.JmlStatsHeatmap;
+      const today = getLocalTrainingDayKey();
+      if (HM && typeof HM.normalizeTrainingDayState === "function") {
+        return HM.normalizeTrainingDayState(o, today);
+      }
       const d = defaultTrainingFlowState();
-      if (!o || typeof o !== "object") return d;
-      const sf = o.streakFocusLevel;
+      if (!o || typeof o !== "object" || o.dayKey !== today) return d;
       return {
-        dayKey: typeof o.dayKey === "string" ? o.dayKey : d.dayKey,
-        promotionFailStreak: Number.isFinite(Number(o.promotionFailStreak)) ? Math.max(0, Math.floor(Number(o.promotionFailStreak))) : 0,
-        streakFocusLevel: sf == null || sf === "" ? null : Math.min(15, Math.max(0, Math.floor(Number(sf)))),
-        forcedBrush: !!o.forcedBrush,
+        dayKey: today,
+        brushMode: !!(o.brushMode || o.forcedBrush),
+        lastRun: o.lastRun && typeof o.lastRun === "object" ? o.lastRun : null,
       };
     }
 
     function getTrainingFlowStorageKey() {
-      return TRAINING_FLOW_LS_PREFIX + (loadCurrentUsername() || "anon");
+      return getTrainingFlowLsPrefix() + (loadCurrentUsername() || "anon");
     }
 
     function loadTrainingFlowState() {
@@ -9202,43 +9221,42 @@
       const today = getLocalTrainingDayKey();
       const st = loadTrainingFlowState();
       if (st.dayKey !== today) {
-        st.dayKey = today;
-        st.promotionFailStreak = 0;
-        st.streakFocusLevel = null;
-        st.forcedBrush = false;
-        saveTrainingFlowState(st);
+        saveTrainingFlowState(defaultTrainingFlowState());
       }
     }
 
-    function computeTrainingBrushModeSync() {
-      if (getLevelTrainingCurrentLevel() === -1) return true;
-      const st = loadTrainingFlowState();
-      return !!st.forcedBrush;
+    function applyTrainingNextLevelResult(st, result) {
+      st.dayKey = getLocalTrainingDayKey();
+      if (result && result.enterBrush) {
+        st.brushMode = true;
+        st.lastRun = null;
+      }
+      return st;
     }
 
-    function resetPromotionFailStreak() {
+    function recordTrainingLastRun(levelIndex, passed, failCount) {
       const st = loadTrainingFlowState();
-      st.promotionFailStreak = 0;
-      st.streakFocusLevel = null;
+      st.dayKey = getLocalTrainingDayKey();
+      st.lastRun = {
+        levelIndex: Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0))),
+        passed: !!passed,
+        failCount: Math.max(0, Math.floor(Number(failCount) || 0)),
+      };
       saveTrainingFlowState(st);
     }
 
-    /** @returns {boolean} 是否刚触发当日刷热图 */
-    function bumpPromotionFailStreak(levelPlayed) {
-      const st = loadTrainingFlowState();
-      if (st.streakFocusLevel !== levelPlayed) {
-        st.promotionFailStreak = 1;
-        st.streakFocusLevel = levelPlayed;
-      } else {
-        st.promotionFailStreak = (st.promotionFailStreak || 0) + 1;
-      }
-      let triggered = false;
-      if (st.promotionFailStreak >= TRAINING_PROMOTION_FAILS_BEFORE_BRUSH) {
-        st.forcedBrush = true;
-        triggered = true;
-      }
-      saveTrainingFlowState(st);
-      return triggered;
+    /** 闯关局结束后：用热图判断是否应进入刷热图，并写入 brushMode（与开始前 compute 规则一致） */
+    async function syncTrainingBrushModeAfterDailyRun() {
+      const HM = window.JmlStatsHeatmap;
+      if (!HM || typeof HM.computeTrainingNextLevel !== "function") return null;
+      const { heat } = await buildTrainingHeatmapAsync();
+      if (!heat) return null;
+      const today = getLocalTrainingDayKey();
+      let st = loadTrainingFlowState();
+      const result = HM.computeTrainingNextLevel(heat, st, today);
+      st = applyTrainingNextLevelResult(st, result);
+      if (result.enterBrush) saveTrainingFlowState(st);
+      return result;
     }
 
     async function fetchRunsForTrainingHeatmap() {
@@ -9282,100 +9300,73 @@
       }
     }
 
-    function pickHeatmapLevelFromPool(heat, poolIndices) {
-      const HM = window.JmlStatsHeatmap;
-      if (!heat || !Array.isArray(heat.cells) || poolIndices.length === 0) {
-        return poolIndices.length ? poolIndices[0] : 0;
-      }
-      if (HM && typeof HM.recommendTrainingBrushLevel === "function") {
-        const rec = HM.recommendTrainingBrushLevel(heat, poolIndices);
-        if (rec != null && rec >= 0) return rec;
-      }
-      return Math.min.apply(null, poolIndices);
-    }
-
-    async function pickHeatmapTrainingLevelAsync() {
-      const saved = getLevelTrainingCurrentLevel();
-      const pool = [];
-      if (saved === -1) {
-        for (let i = 0; i < 16; i++) pool.push(i);
-      } else {
-        for (let i = 0; i < saved; i++) pool.push(i);
-      }
-      if (pool.length === 0) pool.push(0);
-
+    async function buildTrainingHeatmapAsync() {
       const [cohort, runsRaw] = await Promise.all([
         fetchPublicLevelCohortForTraining(),
         fetchRunsForTrainingHeatmap(),
       ]);
       const runs = filterArithmeticRunsForTrainingHeatmap(runsRaw);
       const HM = window.JmlStatsHeatmap;
+      const capMs =
+        cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
       if (!HM || typeof HM.buildHeatmapCells !== "function") {
-        console.log("[JML 训练刷热图选关]", JSON.stringify({
-          at: new Date().toISOString(),
-          reason: "no_JmlStatsHeatmap_buildHeatmapCells",
-          saved,
-          forcedBrush: loadTrainingFlowState().forcedBrush,
-          pool,
-          runsCount: runs.length,
-          cohortOk: !!(cohort && cohort.ok),
-          fallbackIndex: pool[0],
-          fallbackL: pool[0] + 1,
-        }, null, 2));
-        return pool[0];
+        return { heat: null, runs, cohort, capMs };
       }
       const heat = HM.buildHeatmapCells({
         runs: runs,
         cohort: cohort && cohort.ok ? cohort : null,
-        minAttempts: 10,
-        maxTimeSpentMs: 60 * 1000,
+        maxTimeSpentMs: capMs,
       });
-      const picked = pickHeatmapLevelFromPool(heat, pool);
+      return { heat, runs, cohort, capMs };
+    }
+
+    function computeTrainingEntryFromHeat(heat) {
+      const HM = window.JmlStatsHeatmap;
+      const today = getLocalTrainingDayKey();
+      let st = loadTrainingFlowState();
+      if (!HM || typeof HM.computeTrainingNextLevel !== "function" || !heat) {
+        const fb = st.brushMode ? 0 : 0;
+        console.log("[JML 训练选关]", JSON.stringify({ reason: "no_heat_or_compute", brushMode: st.brushMode, fallbackL: fb + 1 }, null, 2));
+        return { levelIndex: fb, brushMode: !!st.brushMode };
+      }
+      const result = HM.computeTrainingNextLevel(heat, st, today);
+      st = applyTrainingNextLevelResult(st, result);
+      if (result.enterBrush) saveTrainingFlowState(st);
+      trainingSessionBrushMode = !!(result.brushMode || result.mode === "brush");
       try {
-        const poolSet = new Set(pool);
-        const subset = (heat.cells || []).filter(function (c) {
-          return poolSet.has(c.levelIndex);
-        });
-        const recBrush = typeof HM.recommendTrainingBrushLevel === "function"
-          ? HM.recommendTrainingBrushLevel(heat, pool)
-          : null;
-        console.log("[JML 训练刷热图选关]", JSON.stringify({
+        const reasonText =
+          typeof HM.trainingNextLevelReasonText === "function"
+            ? HM.trainingNextLevelReasonText(result)
+            : result.reason;
+        console.log("[JML 训练选关]", JSON.stringify({
           at: new Date().toISOString(),
-          saved,
-          forcedBrush: loadTrainingFlowState().forcedBrush,
-          pool,
-          runsCount: runs.length,
-          cohortLoaded: heat.cohortLoaded,
-          heatMinAttempts: heat.minAttempts,
-          cellsInPool: subset.map(function (c) {
+          dayKey: today,
+          brushMode: trainingSessionBrushMode,
+          lastRun: st.lastRun,
+          result: result,
+          reasonText: reasonText,
+          pickedL: result.levelIndex + 1,
+          cells: (heat.cells || []).map(function (c) {
             return {
               L: c.levelIndex + 1,
-              idx: c.levelIndex,
               n: c.n,
               p: c.p == null ? null : Math.round(c.p * 1000) / 1000,
               active: c.active,
               timePct: c.timePct,
             };
           }),
-          recommendTrainingBrushLevel: recBrush,
-          recommendBrushL: recBrush != null ? recBrush + 1 : null,
-          pickedLevelIndex: picked,
-          pickedL: picked + 1,
         }, null, 2));
       } catch (e) {
-        console.warn("[JML 训练刷热图选关] 日志输出失败", e);
+        console.warn("[JML 训练选关] 日志失败", e);
       }
-      return picked;
+      return { levelIndex: result.levelIndex, brushMode: trainingSessionBrushMode };
     }
 
     async function resolveTrainingEntryLevelAsync() {
       refreshTrainingDayLocalState();
-      trainingSessionBrushMode = computeTrainingBrushModeSync();
-      if (trainingSessionBrushMode) {
-        return await pickHeatmapTrainingLevelAsync();
-      }
-      const saved = getLevelTrainingCurrentLevel();
-      return saved >= 0 ? Math.min(saved, 15) : getTrainingStartLevel();
+      const { heat } = await buildTrainingHeatmapAsync();
+      const entry = computeTrainingEntryFromHeat(heat);
+      return entry.levelIndex;
     }
 
     function setTrainingPracticeSubtitle() {
@@ -9384,7 +9375,7 @@
       if (trainingSessionBrushMode) {
         sub.textContent = t("game.training.subtitle.encourage");
       } else {
-        sub.textContent = tf("game.training.subtitle.promotionRules", { n: TRAINING_QUESTIONS, maxLevel: 16 });
+        sub.textContent = tf("game.training.subtitle.dailyRules", { n: TRAINING_QUESTIONS });
       }
     }
 

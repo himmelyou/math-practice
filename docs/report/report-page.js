@@ -502,11 +502,32 @@
       cohort: cohort,
       maxTimeSpentMs: capMs,
     });
-    var reportPool = [];
-    for (var pi = 0; pi < (HM.LEVEL_COUNT || 16); pi++) reportPool.push(pi);
-    var recK = HM.recommendTrainingBrushLevel
-      ? HM.recommendTrainingBrushLevel(heat, reportPool)
+    var todayKey = (function () {
+      var now = new Date();
+      var y = now.getFullYear();
+      var m = String(now.getMonth() + 1).padStart(2, '0');
+      var day = String(now.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    })();
+    var dayState = null;
+    try {
+      var lsPrefix =
+        HM.TRAINING_FLOW_STORAGE_PREFIX || 'jml_training_flow_v3:';
+      var uname = state.selectedUsername || '';
+      var raw = localStorage.getItem(lsPrefix + (uname || 'anon'));
+      if (raw) dayState = JSON.parse(raw);
+    } catch (e) {
+      dayState = null;
+    }
+    var trainingNext = HM.computeTrainingNextLevel
+      ? HM.computeTrainingNextLevel(heat, dayState, todayKey)
       : null;
+    var recK = trainingNext != null ? trainingNext.levelIndex : null;
+    var recMode = trainingNext ? trainingNext.mode : '';
+    var recReason =
+      trainingNext && HM.trainingNextLevelReasonText
+        ? HM.trainingNextLevelReasonText(trainingNext)
+        : '';
 
     var cohortWarn = '';
     if (state.cohortError) {
@@ -536,9 +557,17 @@
           (cohort.servedFromCache ? ' 本次<strong>读缓存</strong>。' : ' 本次<strong>已重算并写盘</strong>。')
         : '') +
       (recK != null
-        ? '<br /><strong>推荐下一练（与训练刷热图同一逻辑）：</strong>L' +
+        ? '<br /><strong>推荐下一练（与训练同一逻辑）：</strong>L' +
           (recK + 1) +
-          '（有档 &lt;95% 加权准确率时取最低；否则取速分位最慢）。'
+          '（' +
+          escapeHtml(recMode === 'brush' ? '刷热图' : '当日闯关') +
+          ' · ' +
+          escapeHtml(recReason || trainingNext.reason || '') +
+          '；状态 brushMode=' +
+          escapeHtml(
+            String(!!(trainingNext.brushMode || (dayState && dayState.brushMode)))
+          ) +
+          '；<span class="jml-heatmap-cell-sub">刷新本页或重选学员后与训练对齐。放弃局不改变当日状态。</span>）。'
         : '') +
       '</div>';
 
@@ -596,6 +625,8 @@
     var debugPayload = {
       cohortResponse: cohort,
       heatmapBuild: heat,
+      trainingDayState: dayState,
+      trainingNextLevel: trainingNext,
       recommendTrainingBrushLevel: recK,
       runsCount: state.runs.length,
       arithmeticRunsCount: HM.filterArithmeticRuns(state.runs).length,
