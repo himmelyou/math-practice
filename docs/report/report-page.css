@@ -283,6 +283,15 @@
   height: 100%;
 }
 
+.jml-cohort-chart-wrap {
+  height: 200px;
+  max-width: 720px;
+}
+
+.jml-report-h3 + .jml-cohort-chart-wrap {
+  margin-top: 4px;
+}
+
 .jml-stats-cohort-warn {
   background: #fff8e1;
   border: 1px solid #ffe082;

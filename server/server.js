@@ -1478,6 +1478,29 @@ const COHORT_LEVEL_COUNT = 16;
 const COHORT_MIN_ATTEMPTS_PER_USER_LEVEL = 10;
 /** 单题耗时上限：超过则该答对记录不纳入「速度」常模与个人 ln(t)，排除挂机/异常长暂停 */
 const COHORT_MAX_TIME_SPENT_MS = 60 * 1000;
+/** 全体答对耗时直方图 bin 数（report 验证分位用） */
+const COHORT_HISTOGRAM_BIN_COUNT = 24;
+
+function buildLnHistogram(values, binCount) {
+  const n = Array.isArray(values) ? values.length : 0;
+  const bins = Math.max(4, Math.min(48, Number(binCount) || COHORT_HISTOGRAM_BIN_COUNT));
+  if (n === 0) return null;
+  const arr = values.filter((x) => Number.isFinite(x)).slice().sort((a, b) => a - b);
+  if (!arr.length) return null;
+  const min = arr[0];
+  const max = arr[arr.length - 1];
+  const width = max > min ? (max - min) / bins : 1e-6;
+  const counts = Array(bins).fill(0);
+  arr.forEach((v) => {
+    let idx = Math.floor((v - min) / width);
+    if (idx >= bins) idx = bins - 1;
+    if (idx < 0) idx = 0;
+    counts[idx] += 1;
+  });
+  const edgesLn = [];
+  for (let i = 0; i <= bins; i += 1) edgesLn.push(min + i * width);
+  return { n: arr.length, binCount: bins, edgesLn, counts };
+}
 
 function quantileSorted(sortedAsc, p) {
   if (!sortedAsc.length) return null;
@@ -1531,6 +1554,7 @@ function computeLevelCohortResult() {
     levels.push({
       levelIndex: k,
       cohortLnTimeCorrect: lnQ,
+      cohortLnTimeHistogram: buildLnHistogram(lnTimesByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
     });
   }
   return {

@@ -38,6 +38,7 @@
     loadError: '',
     cohort: null,
     cohortError: '',
+    heat: null,
   };
 
   function apiBase() {
@@ -120,8 +121,15 @@
       p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
     });
     if (id === 'stats') {
-      requestAnimationFrame(drawStatsChart);
+      redrawAllStatsCharts();
     }
+  }
+
+  function redrawAllStatsCharts() {
+    requestAnimationFrame(function () {
+      drawStatsChart();
+      drawCohortDistributionCharts();
+    });
   }
 
   function getFilterInput() {
@@ -179,6 +187,7 @@
     state.userDetail = null;
     state.agg = null;
     state.chartModel = null;
+    state.heat = null;
     renderRunsTable();
     renderWrongBook();
     renderExpandWrongBook();
@@ -199,7 +208,6 @@
       .then(function () {
         if (activeTabId() === 'stats' && state.selectedUsername) {
           renderStatsPanel();
-          requestAnimationFrame(drawStatsChart);
         }
       });
   }
@@ -263,7 +271,7 @@
         renderExpandWrongBook();
         renderStatsPanel();
         if (activeTabId() === 'stats') {
-          requestAnimationFrame(drawStatsChart);
+          redrawAllStatsCharts();
         }
       })
       .catch(function (e) {
@@ -502,6 +510,7 @@
       cohort: cohort,
       maxTimeSpentMs: capMs,
     });
+    state.heat = heat;
     var todayKey = (function () {
       var now = new Date();
       var y = now.getFullYear();
@@ -676,15 +685,118 @@
     var heatmapBlock = buildHeatmapSectionHtml();
 
     wrap.innerHTML =
-      '<p class="jml-stats-intro">本页统计与热图<strong>仅</strong>聚合生存 / 闯关 / 训练三种模式的 <code>runs.attempts</code>。热图个人侧为「每档最近 200 题 + 按天龄指数权重（半衰期 14 天）」。点击下方某一难度格，折线图展示该难度「最近最多 14 个有答题的日历日」（中间无练习日不插值填充）。</p>' +
+      '<p class="jml-stats-intro">本页统计与热图<strong>仅</strong>聚合生存 / 闯关 / 训练三种模式的 <code>runs.attempts</code>。热图个人侧为「每档最近 200 题 + 按天龄指数权重（半衰期 14 天）」。点击下方某一难度格：上方为按日曲线；下方两张为<strong>全体答对单题耗时</strong>常模（分位箱线图 vs 直方图，红虚线为该学员加权均时）。直方图需先点工具栏「刷新全体常模」重算后才有数据。</p>' +
       heatmapBlock +
       '<h3 class="jml-report-h3" id="jml-stats-chart-heading"></h3>' +
-      '<div class="jml-stats-chart-wrap"><canvas id="jml-stats-canvas"></canvas></div>';
+      '<div class="jml-stats-chart-wrap"><canvas id="jml-stats-canvas"></canvas></div>' +
+      '<h3 class="jml-report-h3" id="jml-cohort-box-heading"></h3>' +
+      '<div class="jml-stats-chart-wrap jml-cohort-chart-wrap"><canvas id="jml-cohort-box-canvas"></canvas></div>' +
+      '<h3 class="jml-report-h3" id="jml-cohort-hist-heading"></h3>' +
+      '<div class="jml-stats-chart-wrap jml-cohort-chart-wrap"><canvas id="jml-cohort-hist-canvas"></canvas></div>';
 
+    updateStatsChartHeadings();
+    redrawAllStatsCharts();
+  }
+
+  function getHeatCellForLevel(levelIndex) {
+    var heat = state.heat;
+    if (!heat || !Array.isArray(heat.cells)) return null;
+    for (var i = 0; i < heat.cells.length; i += 1) {
+      if (heat.cells[i].levelIndex === levelIndex) return heat.cells[i];
+    }
+    return null;
+  }
+
+  function getCohortRowForLevel(levelIndex) {
+    var cohort = state.cohort;
+    if (!cohort || !Array.isArray(cohort.levels)) return null;
+    for (var i = 0; i < cohort.levels.length; i += 1) {
+      if (cohort.levels[i].levelIndex === levelIndex) return cohort.levels[i];
+    }
+    return cohort.levels[levelIndex] || null;
+  }
+
+  function updateStatsChartHeadings() {
+    var li = state.statsLevelIndex;
+    var name = LEVEL_NAMES[li] || 'L' + (li + 1);
     var chartHeading = document.getElementById('jml-stats-chart-heading');
     if (chartHeading) {
-      chartHeading.textContent =
-        '按日曲线（L' + (state.statsLevelIndex + 1) + '）';
+      chartHeading.textContent = '按日曲线（' + name + ' · 最近最多 14 个有练习日）';
+    }
+    var boxH = document.getElementById('jml-cohort-box-heading');
+    if (boxH) {
+      boxH.textContent = '全体答对耗时 · 分位箱线图（' + name + '）';
+    }
+    var histH = document.getElementById('jml-cohort-hist-heading');
+    if (histH) {
+      histH.textContent = '全体答对耗时 · 直方图（' + name + '）';
+    }
+  }
+
+  function drawCohortDistributionCharts() {
+    var Chart = window.JmlStatsChart;
+    var HM = window.JmlStatsHeatmap;
+    if (!Chart) return;
+    var li = state.statsLevelIndex;
+    var row = getCohortRowForLevel(li);
+    var cell = getHeatCellForLevel(li);
+    var lnQ = row && row.cohortLnTimeCorrect ? row.cohortLnTimeCorrect : null;
+    var hist = row && row.cohortLnTimeHistogram ? row.cohortLnTimeHistogram : null;
+    var studentSec = null;
+    var studentPct = cell ? cell.timePct : null;
+    if (cell && cell.meanLnCorrect != null && Number.isFinite(cell.meanLnCorrect)) {
+      studentSec = Chart.lnToSec ? Chart.lnToSec(cell.meanLnCorrect) : Math.exp(cell.meanLnCorrect) / 1000;
+    }
+    if (
+      studentPct == null &&
+      HM &&
+      typeof HM.percentileFromQuantileSummary === 'function' &&
+      cell &&
+      cell.meanLnCorrect != null &&
+      lnQ
+    ) {
+      studentPct = HM.percentileFromQuantileSummary(cell.meanLnCorrect, lnQ);
+    }
+
+    var boxCanvas = document.getElementById('jml-cohort-box-canvas');
+    if (boxCanvas && Chart.drawCohortQuantileBoxChart) {
+      var bctx = boxCanvas.getContext('2d');
+      if (bctx) {
+        var bw = boxCanvas.parentElement ? boxCanvas.parentElement.clientWidth : 600;
+        var bh = boxCanvas.parentElement ? boxCanvas.parentElement.clientHeight : 200;
+        var bdpr = window.devicePixelRatio || 1;
+        boxCanvas.width = Math.max(10, Math.floor(bw * bdpr));
+        boxCanvas.height = Math.max(10, Math.floor(bh * bdpr));
+        boxCanvas.style.width = bw + 'px';
+        boxCanvas.style.height = bh + 'px';
+        bctx.setTransform(bdpr, 0, 0, bdpr, 0, 0);
+        Chart.drawCohortQuantileBoxChart(bctx, bw, bh, {
+          quantiles: lnQ,
+          studentSec: studentSec,
+          studentPct: studentPct,
+          sampleN: lnQ ? lnQ.n : null,
+        });
+      }
+    }
+
+    var histCanvas = document.getElementById('jml-cohort-hist-canvas');
+    if (histCanvas && Chart.drawCohortHistogramChart) {
+      var hctx = histCanvas.getContext('2d');
+      if (hctx) {
+        var hw = histCanvas.parentElement ? histCanvas.parentElement.clientWidth : 600;
+        var hh = histCanvas.parentElement ? histCanvas.parentElement.clientHeight : 200;
+        var hdpr = window.devicePixelRatio || 1;
+        histCanvas.width = Math.max(10, Math.floor(hw * hdpr));
+        histCanvas.height = Math.max(10, Math.floor(hh * hdpr));
+        histCanvas.style.width = hw + 'px';
+        histCanvas.style.height = hh + 'px';
+        hctx.setTransform(hdpr, 0, 0, hdpr, 0, 0);
+        Chart.drawCohortHistogramChart(hctx, hw, hh, {
+          histogram: hist,
+          studentSec: studentSec,
+          studentPct: studentPct,
+        });
+      }
     }
   }
 
@@ -762,16 +874,14 @@
           var i = parseInt(el.getAttribute('data-level-index'), 10);
           el.classList.toggle('jml-heatmap-cell-selected', i === state.statsLevelIndex);
         });
-        var h3 = statsBody.querySelector('#jml-stats-chart-heading');
-        if (h3) {
-          h3.textContent =
-            '按日曲线（' +
-            (LEVEL_NAMES[state.statsLevelIndex] || 'L' + (state.statsLevelIndex + 1)) +
-            ' · 最近最多 14 个有练习日）';
-        }
-        requestAnimationFrame(drawStatsChart);
+        updateStatsChartHeadings();
+        redrawAllStatsCharts();
       });
     }
+    window.addEventListener('resize', function () {
+      if (activeTabId() !== 'stats') return;
+      redrawAllStatsCharts();
+    });
     var cohortRebuild = document.getElementById('jml-cohort-rebuild-btn');
     if (cohortRebuild) {
       cohortRebuild.addEventListener('click', function () {

@@ -149,7 +149,284 @@
     ctx.fillText('平均每题(秒)', lx, ly);
   }
 
+  function lnToSec(ln) {
+    if (ln == null || !Number.isFinite(ln)) return null;
+    var ms = Math.exp(ln);
+    return ms > 0 && Number.isFinite(ms) ? ms / 1000 : null;
+  }
+
+  function formatSecShort(sec) {
+    if (sec == null || !Number.isFinite(sec)) return '—';
+    if (sec >= 10) return String(Math.round(sec * 10) / 10);
+    return String(Math.round(sec * 100) / 100);
+  }
+
+  /**
+   * 图1：全体答对耗时五数概括（ln 分位 → 秒）+ 学员加权均时竖线
+   */
+  function drawCohortQuantileBoxChart(ctx, cssWidth, cssHeight, payload) {
+    var q = payload.quantiles;
+    var studentSec = payload.studentSec;
+    var studentPct = payload.studentPct;
+    var sampleN = payload.sampleN;
+    if (!q || !q.n) {
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('该等级暂无全体常模样本', cssWidth / 2, cssHeight / 2);
+      return;
+    }
+    var margin = { left: 52, right: 16, top: 36, bottom: 40 };
+    var plotW = Math.max(40, cssWidth - margin.left - margin.right);
+    var plotH = Math.max(30, cssHeight - margin.top - margin.bottom);
+    var left = margin.left;
+    var top = margin.top;
+
+    var q10 = lnToSec(q.q10);
+    var q25 = lnToSec(q.q25);
+    var q50 = lnToSec(q.q50);
+    var q75 = lnToSec(q.q75);
+    var q90 = lnToSec(q.q90);
+    var vals = [q10, q25, q50, q75, q90].filter(function (x) {
+      return x != null && Number.isFinite(x);
+    });
+    if (studentSec != null && Number.isFinite(studentSec)) vals.push(studentSec);
+    var xMin = Math.min.apply(null, vals);
+    var xMax = Math.max.apply(null, vals);
+    var pad = Math.max(0.15, (xMax - xMin) * 0.08);
+    xMin = Math.max(0, xMin - pad);
+    xMax = xMax + pad;
+    if (xMax <= xMin) xMax = xMin + 1;
+
+    function xAt(sec) {
+      return left + ((sec - xMin) / (xMax - xMin)) * plotW;
+    }
+    var midY = top + plotH * 0.52;
+
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 1;
+    var gridN = 5;
+    for (var g = 0; g <= gridN; g += 1) {
+      var gx = left + (plotW * g) / gridN;
+      ctx.beginPath();
+      ctx.moveTo(gx, top);
+      ctx.lineTo(gx, top + plotH);
+      ctx.stroke();
+      var tick = xMin + ((xMax - xMin) * g) / gridN;
+      ctx.fillStyle = '#78909c';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(formatSecShort(tick) + 's', gx, top + plotH + 6);
+    }
+
+    if (q10 != null && q90 != null) {
+      ctx.strokeStyle = '#78909c';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(xAt(q10), midY);
+      ctx.lineTo(xAt(q90), midY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xAt(q10), midY - 14);
+      ctx.lineTo(xAt(q10), midY + 14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(xAt(q90), midY - 14);
+      ctx.lineTo(xAt(q90), midY + 14);
+      ctx.stroke();
+    }
+    if (q25 != null && q75 != null) {
+      var bx = xAt(q25);
+      var bw = Math.max(4, xAt(q75) - bx);
+      ctx.fillStyle = 'rgba(25, 118, 210, 0.22)';
+      ctx.fillRect(bx, midY - 18, bw, 36);
+      ctx.strokeStyle = '#1976d2';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, midY - 18, bw, 36);
+    }
+    if (q50 != null) {
+      ctx.strokeStyle = '#1565c0';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(xAt(q50), midY - 20);
+      ctx.lineTo(xAt(q50), midY + 20);
+      ctx.stroke();
+    }
+
+    if (studentSec != null && Number.isFinite(studentSec)) {
+      ctx.strokeStyle = '#c62828';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(xAt(studentSec), top);
+      ctx.lineTo(xAt(studentSec), top + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.font = '11px sans-serif';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#1976d2';
+    ctx.fillRect(left, 8, 12, 3);
+    ctx.fillStyle = '#37474f';
+    ctx.fillText('箱体 P25–P75 · 中线 P50 · 须 P10–P90', left + 16, 6);
+    if (studentSec != null) {
+      ctx.fillStyle = '#c62828';
+      ctx.fillRect(left + 220, 8, 12, 3);
+      ctx.fillStyle = '#37474f';
+      var leg2 =
+        '学员加权均时 ' +
+        formatSecShort(studentSec) +
+        's' +
+        (studentPct != null ? ' · 速分位≈' + Math.round(studentPct) : '');
+      ctx.fillText(leg2, left + 236, 6);
+    }
+    ctx.fillStyle = '#607d8b';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('常模样本（答对题）n=' + (sampleN != null ? sampleN : q.n), left, top + plotH + 22);
+  }
+
+  /**
+   * 图2：全体答对耗时直方图（常模 bin）+ 学员均时竖线
+   */
+  function drawCohortHistogramChart(ctx, cssWidth, cssHeight, payload) {
+    var hist = payload.histogram;
+    var studentSec = payload.studentSec;
+    var studentPct = payload.studentPct;
+    if (!hist || !hist.counts || !hist.counts.length || !hist.edgesLn) {
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('暂无直方图数据（请点「刷新全体常模」重算）', cssWidth / 2, cssHeight / 2);
+      return;
+    }
+    var counts = hist.counts;
+    var edgesLn = hist.edgesLn;
+    var nBins = counts.length;
+    var margin = { left: 48, right: 16, top: 32, bottom: 44 };
+    var plotW = Math.max(40, cssWidth - margin.left - margin.right);
+    var plotH = Math.max(30, cssHeight - margin.top - margin.bottom);
+    var left = margin.left;
+    var top = margin.top;
+
+    var maxCount = 1;
+    for (var i = 0; i < nBins; i += 1) {
+      if (counts[i] > maxCount) maxCount = counts[i];
+    }
+
+    var xMin = lnToSec(edgesLn[0]);
+    var xMax = lnToSec(edgesLn[edgesLn.length - 1]);
+    if (xMin == null || xMax == null) return;
+    if (xMax <= xMin) xMax = xMin + 0.5;
+
+    function xAt(sec) {
+      return left + ((sec - xMin) / (xMax - xMin)) * plotW;
+    }
+
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    for (var g = 0; g <= 4; g += 1) {
+      var gy = top + (plotH * g) / 4;
+      ctx.beginPath();
+      ctx.moveTo(left, gy);
+      ctx.lineTo(left + plotW, gy);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(46, 125, 50, 0.55)';
+    ctx.strokeStyle = '#2e7d32';
+    ctx.lineWidth = 1;
+    for (var b = 0; b < nBins; b += 1) {
+      var lo = lnToSec(edgesLn[b]);
+      var hi = lnToSec(edgesLn[b + 1]);
+      if (lo == null || hi == null) continue;
+      var x0 = xAt(lo);
+      var x1 = xAt(hi);
+      var barW = Math.max(1, x1 - x0 - 1);
+      var barH = (counts[b] / maxCount) * plotH;
+      var y0 = top + plotH - barH;
+      ctx.fillRect(x0, y0, barW, barH);
+      ctx.strokeRect(x0, y0, barW, barH);
+    }
+
+    if (studentSec != null && Number.isFinite(studentSec) && studentSec >= xMin && studentSec <= xMax) {
+      ctx.strokeStyle = '#c62828';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(xAt(studentSec), top);
+      ctx.lineTo(xAt(studentSec), top + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.fillStyle = '#546e7a';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    var tickStep = Math.max(1, Math.floor(nBins / 6));
+    for (var t = 0; t < nBins; t += tickStep) {
+      var cx = (xAt(lnToSec(edgesLn[t])) + xAt(lnToSec(edgesLn[t + 1]))) / 2;
+      ctx.fillText(formatSecShort(lnToSec(edgesLn[t])) + 's', cx, top + plotH + 6);
+    }
+
+    ctx.save();
+    ctx.translate(12, top + plotH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#607d8b';
+    ctx.font = '11px sans-serif';
+    ctx.fillText('答对题次数', 0, 0);
+    ctx.restore();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#37474f';
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#2e7d32';
+    ctx.fillRect(left, 8, 12, 10);
+    ctx.fillStyle = '#37474f';
+    ctx.fillText('全体答对单题耗时（直方图）', left + 16, 6);
+    if (studentSec != null) {
+      ctx.fillStyle = '#c62828';
+      ctx.fillRect(left + 200, 12, 12, 3);
+      ctx.fillStyle = '#37474f';
+      ctx.fillText(
+        '学员 ' +
+          formatSecShort(studentSec) +
+          's' +
+          (studentPct != null ? ' · 分位≈' + Math.round(studentPct) : ''),
+        left + 216,
+        6
+      );
+    }
+    ctx.fillStyle = '#607d8b';
+    ctx.font = '10px sans-serif';
+    ctx.fillText('样本 n=' + (hist.n != null ? hist.n : '—') + ' · ' + nBins + ' 档', left, top + plotH + 22);
+  }
+
   global.JmlStatsChart = {
     drawStatsDualAxisChart: drawStatsDualAxisChart,
+    drawCohortQuantileBoxChart: drawCohortQuantileBoxChart,
+    drawCohortHistogramChart: drawCohortHistogramChart,
+    lnToSec: lnToSec,
   };
 })(typeof window !== 'undefined' ? window : this);
