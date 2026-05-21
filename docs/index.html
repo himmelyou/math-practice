@@ -532,7 +532,7 @@
     .ranking-table-v2 th,
     .ranking-table-v2 td {
       border-bottom: 1px solid #e8ecf4;
-      padding: 10px 8px;
+      padding: 8px 5px;
       vertical-align: middle;
       line-height: 1.35;
     }
@@ -551,245 +551,112 @@
       top: 0;
       z-index: 2;
     }
-    /* 列对齐与宽度（三榜共用 class） */
+    /* 列对齐与宽度（全站统一手机紧凑档） */
     .ranking-table-v2 .r-col-rank {
-      width: 52px;
-      max-width: 56px;
+      width: 40px;
+      max-width: 40px;
       text-align: center;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     .ranking-table-v2 .r-col-spacer {
-      width: 30px;
-      min-width: 30px;
-      max-width: 30px;
+      width: 24px;
+      min-width: 24px;
+      max-width: 24px;
       padding: 0 !important;
     }
     .ranking-table-v2 .r-col-user {
+      width: auto;
       text-align: left;
       min-width: 0;
       overflow: hidden;
     }
+    .ranking-table-v2 .r-col-user .user-cell {
+      justify-content: flex-start;
+      width: 100%;
+    }
     .ranking-table-v2 .r-col-score {
-      width: 76px;
-      text-align: right;
+      width: 74px;
+      text-align: center;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     .ranking-table-v2 .r-col-time {
-      width: 88px;
+      width: 72px;
       min-width: 4.8em;
-      text-align: right;
+      text-align: center;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
     .ranking-table-v2 .r-col-wrong {
-      width: 52px;
+      width: 40px;
       text-align: center;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
     .ranking-table-v2 .r-col-date {
-      width: 132px;
+      width: 86px;
       text-align: center;
-      font-size: 0.8rem;
+      font-size: 0.76rem;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
-    .ranking-table-v2 .r-col-rank,
-    .ranking-table-v2 .r-col-score {
-      white-space: nowrap;
-    }
-    /* 总积分榜：用户列左对齐（头像与昵称更规整） */
     .ranking-table-v2.ranking-mode-score .r-col-user {
       width: auto;
       text-align: left;
     }
-    .ranking-table-v2.ranking-mode-score .r-col-user .user-cell {
-      justify-content: flex-start;
-      width: 100%;
-    }
     .ranking-table-v2.ranking-mode-score td.r-col-user {
-      padding-left: 14px;
+      padding-left: 6px;
     }
     .ranking-table-v2.ranking-mode-score .r-col-score,
     .ranking-table-v2.ranking-mode-score td.r-col-score {
       text-align: center;
     }
-    /* 耐力榜：两列天数宽度一致，整体更均衡 */
-    .ranking-table-v2.ranking-mode-streak .r-col-user {
-      width: auto;
-      text-align: left;
-    }
-    .ranking-table-v2.ranking-mode-streak .r-col-user .user-cell {
-      justify-content: flex-start;
-      width: 100%;
-    }
-    .ranking-table-v2.ranking-mode-streak .r-col-score,
-    .ranking-table-v2.ranking-mode-streak td.r-col-score {
-      width: 82px;
-      text-align: center;
-    }
+    .ranking-table-v2.ranking-mode-streak .r-col-user,
     .ranking-table-v2.ranking-mode-combo .r-col-user {
       width: auto;
       text-align: left;
     }
-    .ranking-table-v2.ranking-mode-combo .r-col-user .user-cell {
-      justify-content: flex-start;
-      width: 100%;
-    }
-    .ranking-table-v2.ranking-mode-combo .r-col-score,
-    .ranking-table-v2.ranking-mode-combo td.r-col-score {
-      width: 82px;
-      text-align: center;
-    }
-    @media (max-width: 520px) {
-      .ranking-table-v2.ranking-mode-streak th,
-      .ranking-table-v2.ranking-mode-streak td {
-        padding: 8px 5px;
-      }
-      .ranking-table-v2.ranking-mode-streak .r-col-rank {
-        width: 40px;
-        max-width: 40px;
-      }
-      .ranking-table-v2.ranking-mode-streak .r-col-score,
-      .ranking-table-v2.ranking-mode-streak td.r-col-score {
-        width: 74px;
-      }
-      .ranking-table-v2.ranking-mode-combo th,
-      .ranking-table-v2.ranking-mode-combo td {
-        padding: 8px 5px;
-      }
-      .ranking-table-v2.ranking-mode-combo .r-col-rank {
-        width: 40px;
-        max-width: 40px;
-      }
-      .ranking-table-v2.ranking-mode-combo .r-col-score,
-      .ranking-table-v2.ranking-mode-combo td.r-col-score {
-        width: 74px;
-      }
-    }
-    /* 生存榜：收窄用户列并居中，通关用时左对齐，拉近两列间距 */
-    .ranking-table-v2.ranking-mode-survival .r-col-user {
-      width: 38%;
-      max-width: 220px;
-      text-align: center;
-    }
-    .ranking-table-v2.ranking-mode-survival .r-col-user .user-cell {
-      justify-content: center;
-      width: 100%;
-    }
     .ranking-table-v2.ranking-mode-survival .r-col-time {
-      width: 88px;
+      width: 72px;
       min-width: 4.8em;
-      text-align: left;
     }
-
-    /* 手机端生存榜：列更紧凑，优先让“用户”可见 */
-    @media (max-width: 520px) {
-      .ranking-table-v2.ranking-mode-survival th,
-      .ranking-table-v2.ranking-mode-survival td {
-        padding: 8px 5px;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .r-col-rank {
-        width: 40px;
-        max-width: 40px;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .r-col-time {
-        width: 72px;
-        min-width: 4.8em;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .r-col-wrong {
-        width: 40px;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .r-col-date {
-        width: 86px;
-        font-size: 0.76rem;
-        white-space: nowrap;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .r-col-user {
-        width: auto;
-        max-width: none;
-        text-align: left;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .r-col-user .user-cell {
-        justify-content: flex-start;
-      }
-
-      .ranking-table-v2.ranking-mode-survival .user-meta .name {
-        max-width: 100%;
-      }
+    .ranking-table-v2.ranking-mode-survival .r-col-wrong {
+      width: 40px;
     }
-    /* 质数达人榜：用户列与总榜/生存榜一致（标题与内容居中）；完成用时左对齐 */
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
-      width: 38%;
-      max-width: 220px;
-      text-align: center;
+    .ranking-table-v2.ranking-mode-survival .r-col-date {
+      width: 86px;
+      font-size: 0.76rem;
     }
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
-      justify-content: center;
-      width: 100%;
+    .ranking-table-v2.ranking-mode-survival .user-meta .name {
+      max-width: 100%;
+    }
+    .ranking-table-v2.ranking-mode-primePerfect th,
+    .ranking-table-v2.ranking-mode-primePerfect td {
+      padding: 8px 4px;
     }
     .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
+      width: 86px;
+      min-width: 4.8em;
+    }
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-date {
+      width: 96px;
+      font-size: 0.76rem;
+    }
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
+      width: auto;
+      max-width: 130px;
       text-align: left;
     }
-    /* 用时数据居中：避免表头与数据错位（不改变表头居中覆盖规则） */
-    .ranking-table-v2 td.r-col-time {
-      text-align: center;
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
+      gap: 6px;
     }
-    .ranking-table-v2.ranking-mode-survival td.r-col-time,
-    .ranking-table-v2.ranking-mode-primePerfect td.r-col-time {
-      text-align: center;
+    .ranking-table-v2.ranking-mode-primePerfect .avatar.sm {
+      width: 24px;
+      height: 24px;
     }
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-date { width: 140px; }
-
-    /* 手机端质数达人榜：列更紧凑，优先让“用户”可见 */
-    @media (max-width: 520px) {
-      .ranking-table-v2.ranking-mode-primePerfect th,
-      .ranking-table-v2.ranking-mode-primePerfect td {
-        padding: 8px 4px;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .r-col-rank {
-        width: 40px;
-        max-width: 40px;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
-        width: 86px;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .r-col-date {
-        width: 96px;
-        font-size: 0.76rem;
-        white-space: nowrap;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
-        width: auto;
-        max-width: 130px;
-        text-align: left;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
-        justify-content: flex-start;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .user-meta .name {
-        max-width: 100%;
-      }
-
-      .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
-        gap: 6px;
-      }
-      .ranking-table-v2.ranking-mode-primePerfect .avatar.sm {
-        width: 24px;
-        height: 24px;
-      }
+    .ranking-table-v2.ranking-mode-primePerfect .user-meta .name {
+      max-width: 100%;
     }
     .ranking-table-v2 .r-col-user .user-meta .name {
       max-width: 100%;
@@ -803,7 +670,7 @@
     }
     .user-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
     .user-meta { display: flex; flex-direction: column; min-width: 0; }
-    .user-meta .name { font-weight: 700; color: #263238; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-meta .name { font-weight: 700; color: #263238; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .user-meta .tag { font-size: 0.78rem; color: #1976d2; font-weight: 700; }
 
     .user-name {
