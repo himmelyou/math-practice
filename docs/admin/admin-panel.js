@@ -47,7 +47,7 @@
 
   var state = {
     users: [],
-    sortKey: 'totalScore',
+    sortKey: 'lastGameTs',
     sortDir: -1,
     levels: null,
     avatars: [],
