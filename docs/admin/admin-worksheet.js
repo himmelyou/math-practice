@@ -73,11 +73,9 @@
       '<h1 class="jml-ws-title">' +
       escapeHtml(title) +
       '</h1>' +
-      '<p class="jml-ws-meta">' +
-      '<span>姓名：<span class="jml-ws-name-line">' +
+      '<p class="jml-ws-meta">姓名：<span class="jml-ws-name-line">' +
       nameHtml +
-      '</span></span>' +
-      '</p>' +
+      '</span></p>' +
       '</header>' +
       '<div class="jml-ws-grid">' +
       '<ol class="jml-ws-col" start="1">' +
