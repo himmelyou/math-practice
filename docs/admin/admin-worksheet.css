@@ -173,6 +173,11 @@
   break-inside: avoid;
 }
 
+.jml-ws-qline {
+  flex: 0 0 auto;
+  line-height: 1.25;
+}
+
 .jml-ws-num {
   font-weight: 700;
   font-size: 10pt;
@@ -181,8 +186,13 @@
 .jml-ws-prompt {
   font-size: 11.5pt;
   font-weight: 600;
-  line-height: 1.2;
   letter-spacing: 0.02em;
+}
+
+.jml-ws-qline .jml-ws-num,
+.jml-ws-qline .jml-ws-prompt,
+.jml-ws-qline .jml-ws-ans {
+  display: inline;
 }
 
 .jml-ws-workspace {
@@ -215,10 +225,7 @@
 }
 
 .jml-ws-ans {
-  display: block;
-  margin-top: 0.5mm;
   font-size: 9.5pt;
-  line-height: 1.2;
   color: #334155;
 }
 

@@ -39,6 +39,7 @@
       var n = startIndex + i;
       html +=
         '<li class="jml-ws-item">' +
+        '<div class="jml-ws-qline">' +
         '<span class="jml-ws-num">' +
         n +
         '.</span> ' +
@@ -46,8 +47,10 @@
         escapeHtml(q.prompt) +
         '</span>';
       if (showAnswers) {
-        html += '<span class="jml-ws-ans">= ' + escapeHtml(q.answer) + '</span>';
-      } else {
+        html += '<span class="jml-ws-ans"> = ' + escapeHtml(q.answer) + '</span>';
+      }
+      html += '</div>';
+      if (!showAnswers) {
         html += '<span class="jml-ws-workspace" aria-hidden="true"></span>';
       }
       html += '</li>';

@@ -276,7 +276,7 @@
         const leftP = layout === 2;
         prompt = leftP ? `(${inner}) ÷ ${k}` : `${k} ÷ (${inner})`;
         if (!leftP) {
-          correctText = t("expand.choice.cannotRemoveBrackets") || "此类情况无法去除括号";
+          correctText = "此类情况无法去除括号";
           const w2 = innerOp === "+" ? `${k} ÷ ${B}` : `- ${k} ÷ ${B}`;
           wrongPool = [
             { text: ebJoinSum([`${k} ÷ ${A}`, `${k} ÷ ${B}`]), explain: "对于 `k ÷ (A ± B)` 时，对括号内强行分配所有项。", causeNo: 8 },
