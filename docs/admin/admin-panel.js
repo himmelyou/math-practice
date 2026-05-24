@@ -1014,6 +1014,7 @@
         if (id === 'levels') loadLevels();
         if (id === 'avatars') loadAvatars();
         if (id === 'i18n') loadI18n();
+        if (id === 'worksheet' && typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
       });
     });
 
@@ -1091,6 +1092,7 @@
       renderAdminVersion();
       showApiWarning();
       bindEvents();
+      if (typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
       // 默认加载账号列表
       loadUsers();
     },

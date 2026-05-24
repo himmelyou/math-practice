@@ -1,0 +1,242 @@
+/* 出题打印：屏幕控件 + A4 打印预览 */
+.jml-worksheet-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 18px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.jml-worksheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.86rem;
+  color: #475569;
+}
+
+.jml-worksheet-field label {
+  font-weight: 600;
+}
+
+.jml-worksheet-field select,
+.jml-worksheet-field input[type="text"],
+.jml-worksheet-field input[type="number"] {
+  min-width: 140px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.jml-worksheet-field input[type="number"] {
+  width: 72px;
+  min-width: 72px;
+}
+
+.jml-worksheet-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: #475569;
+  padding-bottom: 8px;
+}
+
+.jml-worksheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.jml-worksheet-hint {
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.jml-worksheet-preview-wrap {
+  overflow: auto;
+  padding: 12px;
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+.jml-worksheet-preview-empty {
+  text-align: center;
+  color: #64748b;
+  padding: 32px 16px;
+  font-size: 0.9rem;
+}
+
+/* —— 可打印页（屏幕上也按 A4 比例预览）—— */
+.jml-ws-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 16px;
+  padding: 14mm 12mm 12mm;
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  page-break-after: always;
+}
+
+.jml-ws-page:last-child {
+  margin-bottom: 0;
+  page-break-after: auto;
+}
+
+.jml-ws-head {
+  margin-bottom: 10mm;
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 4mm;
+}
+
+.jml-ws-title {
+  margin: 0 0 6px;
+  font-size: 16pt;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.jml-ws-meta {
+  margin: 0;
+  font-size: 12pt;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8mm 16mm;
+}
+
+.jml-ws-name-line {
+  display: inline-block;
+  min-width: 52mm;
+  border-bottom: 1px solid #334155;
+  vertical-align: bottom;
+  line-height: 1.3;
+  min-height: 1.3em;
+}
+
+.jml-ws-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 10mm;
+  align-content: start;
+}
+
+.jml-ws-col {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jml-ws-item {
+  min-height: 22mm;
+  margin: 0 0 2mm;
+  padding: 2mm 0 0;
+  box-sizing: border-box;
+  break-inside: avoid;
+}
+
+.jml-ws-num {
+  font-weight: 700;
+  font-size: 11pt;
+}
+
+.jml-ws-prompt {
+  font-size: 13pt;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.jml-ws-workspace {
+  display: block;
+  min-height: 14mm;
+  margin-top: 2mm;
+}
+
+/* 答案页 */
+.jml-ws-page.jml-ws-answers .jml-ws-title::after {
+  content: "（答案）";
+  font-weight: 700;
+  font-size: 12pt;
+  margin-left: 0.35em;
+}
+
+.jml-ws-page.jml-ws-answers .jml-ws-item {
+  min-height: 12mm;
+}
+
+.jml-ws-page.jml-ws-answers .jml-ws-prompt {
+  font-size: 10.5pt;
+  font-weight: 500;
+}
+
+.jml-ws-page.jml-ws-answers .jml-ws-workspace {
+  display: none;
+}
+
+.jml-ws-ans {
+  display: block;
+  margin-top: 1mm;
+  font-size: 10.5pt;
+  color: #334155;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 10mm;
+  }
+
+  body.jml-worksheet-printing .jml-admin-version-bar,
+  body.jml-worksheet-printing .jml-admin-toolbar,
+  body.jml-worksheet-printing .jml-shell-inner > h1,
+  body.jml-worksheet-printing .jml-shell-inner > p.muted,
+  body.jml-worksheet-printing .jml-banner-warn,
+  body.jml-worksheet-printing .jml-status,
+  body.jml-worksheet-printing .jml-tabs,
+  body.jml-worksheet-printing .jml-tab-panel:not(#panel-worksheet),
+  body.jml-worksheet-printing .jml-worksheet-controls,
+  body.jml-worksheet-printing .jml-worksheet-hint,
+  body.jml-worksheet-printing #jml-modal-overlay {
+    display: none !important;
+  }
+
+  body.jml-worksheet-printing .jml-shell-inner {
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body.jml-worksheet-printing #panel-worksheet {
+    display: block !important;
+  }
+
+  body.jml-worksheet-printing .jml-worksheet-preview-wrap {
+    padding: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  body.jml-worksheet-printing .jml-ws-page {
+    width: auto;
+    min-height: auto;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    page-break-after: always;
+  }
+
+  body.jml-worksheet-printing .jml-worksheet-preview-empty {
+    display: none !important;
+  }
+}
