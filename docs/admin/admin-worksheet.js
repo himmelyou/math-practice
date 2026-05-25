@@ -172,9 +172,9 @@
     var labels = (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [
       'L1 · 一层括号（整数）',
       'L2 · 乘除去括号',
-      'L3 · 两段括号',
-      'L4 · 系数×括号',
-      'L5 · 综合',
+      'L3 · 分配并算积',
+      'L4 · 分配并算积（进阶）',
+      'L5 · 两括号相乘',
     ];
     sel.innerHTML = '';
     labels.forEach(function (label, idx) {

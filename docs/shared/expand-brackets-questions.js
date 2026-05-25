@@ -924,13 +924,19 @@
       return Math.random() < L4_NEG_CHANCE ? -1 : 1;
     }
 
-    function l4PickA() {
+    function l4PickA(allowLeadingNegative) {
       const isX = Math.random() < 0.5;
       return {
         kind: isX ? "x" : "n",
         mag: randomInt(L4_NUM_MIN, L4_NUM_MAX),
-        sign: l4MaybeNegSign(),
+        sign: allowLeadingNegative && Math.random() < L4_NEG_CHANCE ? -1 : 1,
       };
+    }
+
+    /** 题面右侧的 A 不用前缀负号，负号只由段间 ± 表达 */
+    function l4FmtAForPrompt(A, aLeft) {
+      if (aLeft) return l4FmtTerm(A);
+      return A.kind === "n" ? String(A.mag) : l4FmtX(A.mag);
     }
 
     function l4PickB() {
@@ -967,7 +973,7 @@
     function l4BuildPrompt(params) {
       const bracket = l4BracketPart(params.B, params.term1, params.term2, params.innerPlus);
       const outer = params.outerPlus ? "+" : "-";
-      const aStr = l4FmtTerm(params.A);
+      const aStr = l4FmtAForPrompt(params.A, params.aLeft);
       return params.aLeft ? `${aStr} ${outer} ${bracket}` : `${bracket} ${outer} ${aStr}`;
     }
 
@@ -1168,15 +1174,16 @@
         const questionType = l4PickQuestionType();
         const { outerPlus, innerPlus } = l4TypeFlags(questionType);
         const inner = l4PickInnerPair();
+        const aLeft = Math.random() < L4_LAYOUT_A_LEFT;
         const params = {
           questionType,
-          A: l4PickA(),
+          aLeft,
+          A: l4PickA(aLeft),
           B: l4PickB(),
           term1: inner.term1,
           term2: inner.term2,
           innerPlus,
           outerPlus,
-          aLeft: Math.random() < L4_LAYOUT_A_LEFT,
         };
         const prompt = l4BuildPrompt(params);
         const correctText = l4AnswerText(params);
@@ -1219,254 +1226,216 @@
       };
     }
 
+    /** L5 两括号相乘（与《拆括号等级说明.md》L5 正文一致） */
+    const L5_WRONG_PER_QUESTION = 3;
+
+    function l5PickBracketPair() {
+      let innerN = randomInt(L4_NUM_MIN, L4_NUM_MAX);
+      let xCoeff = randomInt(L4_NUM_MIN, L4_NUM_MAX);
+      while (xCoeff === innerN) xCoeff = randomInt(L4_NUM_MIN, L4_NUM_MAX);
+      const constFirst = Math.random() < 0.5;
+      const term1 = constFirst
+        ? { kind: "n", mag: innerN, sign: l4MaybeNegSign() }
+        : { kind: "x", mag: xCoeff, sign: l4MaybeNegSign() };
+      const term2 = constFirst
+        ? { kind: "x", mag: xCoeff, sign: 1 }
+        : { kind: "n", mag: innerN, sign: 1 };
+      return { term1, term2 };
+    }
+
+    function l5BracketInner(term1, term2, innerPlus) {
+      const op = innerPlus ? "+" : "-";
+      return `${l4FmtTerm(term1)} ${op} ${l4FmtTerm(term2)}`;
+    }
+
+    function l5SignedPair(term1, term2, innerPlus) {
+      return [
+        { kind: term1.kind, mag: term1.mag, sign: term1.sign },
+        { kind: term2.kind, mag: term2.mag, sign: innerPlus ? 1 : -1 },
+      ];
+    }
+
+    function l5MulTerm(a, b) {
+      const sign = a.sign * b.sign;
+      const mag = a.mag * b.mag;
+      if (a.kind === "n" && b.kind === "n") {
+        return { kind: "n", mag, sign };
+      }
+      if (a.kind === "x" && b.kind === "x") {
+        return { kind: "x2", mag, sign };
+      }
+      return { kind: "x", mag, sign };
+    }
+
+    function l5FoilTerms(p1, p2, q1, q2) {
+      return [l5MulTerm(p1, q1), l5MulTerm(p1, q2), l5MulTerm(p2, q1), l5MulTerm(p2, q2)];
+    }
+
+    function l5JoinTerms(terms) {
+      return ebJoinSum(terms.map(l4FmtTerm));
+    }
+
+    function l5BuildPrompt(left, right, opAB, opCD) {
+      const L = l5BracketInner(left.term1, left.term2, opAB);
+      const R = l5BracketInner(right.term1, right.term2, opCD);
+      return `(${L})(${R})`;
+    }
+
+    function l5AnswerText(left, right, opAB, opCD, foilOpts) {
+      const [p1, p2] = l5SignedPair(left.term1, left.term2, opAB);
+      const [q1, q2] = l5SignedPair(right.term1, right.term2, opCD);
+      const o = foilOpts || {};
+      let terms = l5FoilTerms(p1, p2, q1, q2);
+      if (o.wrongIndex != null && o.wrongMag != null) {
+        const i = o.wrongIndex;
+        const t = terms[i];
+        terms = terms.slice();
+        terms[i] = { kind: t.kind, mag: o.wrongMag, sign: t.sign };
+      }
+      return l5JoinTerms(terms);
+    }
+
+    function l5WrongPool(params) {
+      const { left, right, opAB, opCD } = params;
+      const [p1, p2] = l5SignedPair(left.term1, left.term2, opAB);
+      const [q1, q2] = l5SignedPair(right.term1, right.term2, opCD);
+      const order = l5FoilTerms(p1, p2, q1, q2);
+      const p1n = l4NegTerm(p1);
+      const p2n = l4NegTerm(p2);
+      const q1n = l4NegTerm(q1);
+      const q2n = l4NegTerm(q2);
+      const wrongIdx = randomInt(0, 3);
+      const wrongMag = l4AltMag(order[wrongIdx].mag, 1);
+
+      return [
+        {
+          text: l5JoinTerms([order[0], order[1]]),
+          explain: "漏乘左括第二项（只展开 A 与 C、D 的积）。",
+          causeNo: 1,
+        },
+        {
+          text: l5JoinTerms([order[0], order[2]]),
+          explain: "漏乘右括第二项（只展开 A、B 与 C 的积）。",
+          causeNo: 2,
+        },
+        {
+          text: l5JoinTerms(order.slice(0, 3)),
+          explain: "漏掉 AC / AD / BC / BD 中某一项。",
+          causeNo: 3,
+        },
+        {
+          text: l5JoinTerms([
+            l5MulTerm(p1n, q1),
+            l5MulTerm(p1n, q2),
+            order[2],
+            order[3],
+          ]),
+          explain: "左括内某项符号在分配时弄错。",
+          causeNo: 4,
+        },
+        {
+          text: l5JoinTerms([
+            order[0],
+            order[1],
+            l5MulTerm(p2n, q1),
+            l5MulTerm(p2n, q2),
+          ]),
+          explain: "左括内某项符号在分配时弄错。",
+          causeNo: 4,
+        },
+        {
+          text: l5JoinTerms([
+            l5MulTerm(p1n, q1n),
+            l5MulTerm(p1n, q2n),
+            l5MulTerm(p2n, q1n),
+            l5MulTerm(p2n, q2n),
+          ]),
+          explain: "左括内两项符号在分配时整体弄反。",
+          causeNo: 5,
+        },
+        {
+          text: l5JoinTerms([
+            l5MulTerm(p1, q1n),
+            l5MulTerm(p1, q2n),
+            order[2],
+            order[3],
+          ]),
+          explain: "右括内某项符号在分配时弄错。",
+          causeNo: 6,
+        },
+        {
+          text: l5JoinTerms([
+            order[0],
+            order[1],
+            l5MulTerm(p2, q1n),
+            l5MulTerm(p2, q2n),
+          ]),
+          explain: "右括内某项符号在分配时弄错。",
+          causeNo: 6,
+        },
+        {
+          text: l5JoinTerms([l5MulTerm(p1, q1n), l5MulTerm(p1, q2n), l5MulTerm(p2, q1n), l5MulTerm(p2, q2n)]),
+          explain: "右括内两项符号在分配时整体弄反。",
+          causeNo: 7,
+        },
+        {
+          text: l5JoinTerms([order[0], order[3]]),
+          explain: "漏掉交叉项（只做了 AC 和 BD）。",
+          causeNo: 8,
+        },
+        {
+          text: l5AnswerText(left, right, opAB, opCD, {
+            wrongIndex: wrongIdx,
+            wrongMag,
+          }),
+          explain: "四项乘积中某一项算错。",
+          causeNo: 9,
+        },
+      ];
+    }
+
     function buildExpandQuestion_L5() {
-      function dedupeExpandWrongPool(correctText, wrongPool) {
-        const seen = new Set([correctText]);
-        const deduped = [];
-        for (let i = 0; i < wrongPool.length; i += 1) {
-          const w = wrongPool[i];
-          if (!w || !w.text || seen.has(w.text)) continue;
-          seen.add(w.text);
-          deduped.push(w);
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const left = l5PickBracketPair();
+        const right = l5PickBracketPair();
+        const opAB = Math.random() < 0.5;
+        const opCD = Math.random() < 0.5;
+        const params = { left, right, opAB, opCD };
+        const prompt = l5BuildPrompt(left, right, opAB, opCD);
+        const correctText = l5AnswerText(left, right, opAB, opCD);
+        const wrongPool = ebPickWrongPoolEntries(
+          ebDedupeWrongPool(correctText, l5WrongPool(params)),
+          L5_WRONG_PER_QUESTION
+        );
+        if (wrongPool.length >= L5_WRONG_PER_QUESTION) {
+          return {
+            expandKind: "L5",
+            prompt,
+            correctText,
+            wrongPool,
+            presetWrong: [],
+          };
         }
-        return deduped;
       }
-
-      /** L5a：题面最左「±A」乘入括号时，把展开项整体变号（分配律下的外符号） */
-      function ebL5aApplyOuter(outer, frag) {
-        if (outer === 1) return frag;
-        if (!frag) return frag;
-        if (frag.charAt(0) === "-") return frag.slice(1);
-        return "-" + frag;
-      }
-
-      const r = Math.random() * 4;
-      const t = r < 1 ? 1 : r < 2 ? 2 : 3;
-      if (t === 1) {
-        const A = ebPickAtom();
-        const B = ebPickAtom();
-        const C = ebPickAtom();
-        const innerOp = Math.random() < 0.5 ? "+" : "-";
-        const outerS = Math.random() < 0.5 ? 1 : -1;
-        const prompt = ebTermSignedAtom(outerS, A) + " × " + ebBracketPrompt(1, B, innerOp, C);
-        const seg = ebSegPair(1, B, innerOp, C);
-        const parts = seg.map(([s, at]) => ebL5aApplyOuter(outerS, ebAtomTimesSignedTerm(A, s, at)));
-        const correctText = ebJoinSum(parts);
-        const innerSum = ebJoinSum([ebTermSignedAtom(seg[0][0], seg[0][1]), ebTermSignedAtom(seg[1][0], seg[1][1])]);
-        const wrongPool = [
-          {
-            text: ebJoinSum(seg.map(([s, at]) => ebAtomTimesSignedTerm(A, s, at))),
-            explain: "对于 `± A × (± B ± C)`，`± A` 分配时将 `A` 前的 `±` 符号遗忘。",
-            causeNo: 1,
-          },
-          {
-            text: parts[0],
-            explain: "对于 `± A × (± B ± C)`，`± A` 只乘括号内第一项。",
-            causeNo: 2,
-          },
-          {
-            text: parts[1],
-            explain: "对于 `± A × (± B ± C)`，`± A` 只乘括号内第二项。",
-            causeNo: 3,
-          },
-          {
-            text: ebJoinSum([
-              ebL5aApplyOuter(outerS, ebAtomTimesSignedTerm(A, -seg[0][0], seg[0][1])),
-              parts[1],
-            ]),
-            explain: "对于 `± A × (± B ± C)`，分配时将 `B` 或 `C` 的符号弄错。",
-            causeNo: 4,
-          },
-          {
-            text: ebJoinSum([
-              parts[0],
-              ebL5aApplyOuter(outerS, ebAtomTimesSignedTerm(A, -seg[1][0], seg[1][1])),
-            ]),
-            explain: "对于 `± A × (± B ± C)`，分配时将 `B` 或 `C` 的符号弄错。",
-            causeNo: 4,
-          },
-          {
-            text: innerSum,
-            explain: "对于 `± A × (± B ± C)`，遗忘 `± A`，直接显示结果为 `± B ± C`。",
-            causeNo: 5,
-          },
-          {
-            text: ebJoinSum([parts[0], ebTermSignedAtom(outerS, A), ebTermSignedAtom(seg[1][0], seg[1][1])]),
-            explain:
-              "对于 `± A × (± B ± C)`，分配时运算符号错误，例如 `± A × (± B) ± A + (± C)` 或者 `± A + (± B) ± A × (± C)`。",
-            causeNo: 6,
-          },
-        ];
-        return {
-          expandKind: "L5a",
-          prompt,
-          correctText,
-          wrongPool: dedupeExpandWrongPool(correctText, wrongPool),
-          presetWrong: [],
-        };
-      }
-      if (t === 2) {
-        const B = ebPickAtom();
-        const C = ebPickAtom();
-        const A = ebPickAtom();
-        const innerOp = Math.random() < 0.5 ? "+" : "-";
-        const prompt = ebBracketPrompt(1, B, innerOp, C) + " ÷ " + ebFmtAtom(A);
-        const seg = ebSegPair(1, B, innerOp, C);
-        const divA = " ÷ " + ebFmtAtom(A);
-        const parts = seg.map(([s, at]) => ebTermSignedAtom(s, at) + divA);
-        const correctText = ebJoinSum(parts);
-        const wrongPool = [
-          {
-            text: ebJoinSum([parts[0], ebTermSignedAtom(seg[1][0], seg[1][1])]),
-            explain: "对于 `(± B ± C) ÷ A`，只除括号内第一项，第二项未除。",
-            causeNo: 7,
-          },
-          {
-            text: ebJoinSum([ebTermSignedAtom(seg[0][0], seg[0][1]), parts[1]]),
-            explain: "对于 `(± B ± C) ÷ A`，只除括号内第二项，第一项未除。",
-            causeNo: 8,
-          },
-          {
-            text: ebJoinSum([
-              ebTermSignedAtom(seg[1][0], seg[0][1]) + divA,
-              ebTermSignedAtom(seg[0][0], seg[1][1]) + divA,
-            ]),
-            explain: "对于 `(± B ± C) ÷ A`，除法分配时将括号内第一项 `B` 前符号与第二项 `C` 前符号两者弄混。",
-            causeNo: 9,
-          },
-          {
-            text: ebJoinSum([ebTermSignedAtom(-seg[0][0], seg[0][1]) + divA, parts[1]]),
-            explain: "对于 `(± B ± C) ÷ A`，除法分配时将括号内第一项 `B` 前符号或第二项 `C` 前符号看错。",
-            causeNo: 10,
-          },
-          {
-            text: ebJoinSum([parts[0], ebTermSignedAtom(-seg[1][0], seg[1][1]) + divA]),
-            explain: "对于 `(± B ± C) ÷ A`，除法分配时将括号内第一项 `B` 前符号或第二项 `C` 前符号看错。",
-            causeNo: 10,
-          },
-        ];
-        return {
-          expandKind: "L5b",
-          prompt,
-          correctText,
-          wrongPool: dedupeExpandWrongPool(correctText, wrongPool),
-          presetWrong: [],
-        };
-      }
-      const A = ebPickAtom();
-      const B = ebPickAtom();
-      const C = ebPickAtom();
-      const D = ebPickAtom();
-      const sA = Math.random() < 0.5 ? 1 : -1;
-      const opAB = Math.random() < 0.5 ? "+" : "-";
-      const sC = Math.random() < 0.5 ? 1 : -1;
-      const opCD = Math.random() < 0.5 ? "+" : "-";
-      const prompt = ebBracketPrompt(sA, A, opAB, B) + " × " + ebBracketPrompt(sC, C, opCD, D);
-      const seg1 = ebSegPair(sA, A, opAB, B);
-      const seg2 = ebSegPair(sC, C, opCD, D);
-      const p1 = seg1[0];
-      const p2 = seg1[1];
-      const q1 = seg2[0];
-      const q2 = seg2[1];
-      const order = [
-        ebProductPair(p1, q1),
-        ebProductPair(p1, q2),
-        ebProductPair(p2, q1),
-        ebProductPair(p2, q2),
-      ];
-      const correctText = ebJoinSum(order);
-      const p1n = ebNegPair(p1);
-      const p2n = ebNegPair(p2);
-      const q1n = ebNegPair(q1);
-      const q2n = ebNegPair(q2);
-      const wrongPool = [
-        {
-          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p1, q2)]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，乘法分配时漏乘第一个或第二个括号中某项。",
-          causeNo: 11,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p2, q1)]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，乘法分配时漏乘第一个或第二个括号中某项。",
-          causeNo: 11,
-        },
-        {
-          text: ebJoinSum([order[0], order[1], order[3]]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，乘法分配时漏乘某一括号中某项。",
-          causeNo: 12,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1n, q1), ebProductPair(p1n, q2), ebProductPair(p2, q1), ebProductPair(p2, q2)]),
-          explain:
-            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第一个括号内某项符号（即 `A` 与 `B` 前的符号在分配时某一个被改变）。",
-          causeNo: 13,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p1, q2), ebProductPair(p2n, q1), ebProductPair(p2n, q2)]),
-          explain:
-            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第一个括号内某项符号（即 `A` 与 `B` 前的符号在分配时某一个被改变）。",
-          causeNo: 13,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1n, q1), ebProductPair(p1n, q2), ebProductPair(p2n, q1), ebProductPair(p2n, q2)]),
-          explain:
-            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第一个括号内整体符号（即 `A` 与 `B` 前的符号在分配时均被改变）。",
-          causeNo: 14,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1, q1n), ebProductPair(p1, q2), ebProductPair(p2, q1n), ebProductPair(p2, q2)]),
-          explain:
-            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第二个括号内某项符号（即 `C` 与 `D` 前的符号在分配时某一个被改变）。",
-          causeNo: 15,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1, q1), ebProductPair(p1, q2n), ebProductPair(p2, q1), ebProductPair(p2, q2n)]),
-          explain:
-            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第二个括号内某项符号（即 `C` 与 `D` 前的符号在分配时某一个被改变）。",
-          causeNo: 15,
-        },
-        {
-          text: ebJoinSum([ebProductPair(p1, q1n), ebProductPair(p1, q2n), ebProductPair(p2, q1n), ebProductPair(p2, q2n)]),
-          explain:
-            "对于 `(± A ± B) × (± C ± D)`，乘法分配时改变第二个括号内整体符号（即 `C` 与 `D` 前的符号在分配时均被改变）。",
-          causeNo: 16,
-        },
-        {
-          text: ebJoinSum([order[0], order[3]]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉交叉项（只做了 `AC` 和 `BD`）。",
-          causeNo: 17,
-        },
-        {
-          text: ebJoinSum(order.slice(0, 3)),
-          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉 `AC` / `AD` / `BC` / `BD` 中某一项（一项，非多项）。",
-          causeNo: 18,
-        },
-        {
-          text: ebJoinSum(order.slice(1)),
-          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉 `AC` / `AD` / `BC` / `BD` 中某一项（一项，非多项）。",
-          causeNo: 18,
-        },
-        {
-          text: ebJoinSum([order[0], order[2], order[3]]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，漏掉 `AC` / `AD` / `BC` / `BD` 中某一项（一项，非多项）。",
-          causeNo: 18,
-        },
-        {
-          text: ebJoinSum([order[0], order[0], order[1], order[2], order[3]]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，弄错分配后 `AC` / `AD` / `BC` / `BD` 中某一项前的系数（一项，非多项）。",
-          causeNo: 19,
-        },
-        {
-          text: ebJoinSum([order[0], order[1], order[1], order[2], order[3]]),
-          explain: "对于 `(± A ± B) × (± C ± D)`，弄错分配后 `AC` / `AD` / `BC` / `BD` 中某一项前的系数（一项，非多项）。",
-          causeNo: 19,
-        },
-      ];
+      const left = {
+        term1: { kind: "x", mag: 2, sign: 1 },
+        term2: { kind: "n", mag: 3, sign: 1 },
+      };
+      const right = {
+        term1: { kind: "n", mag: 4, sign: 1 },
+        term2: { kind: "x", mag: 5, sign: 1 },
+      };
+      const opAB = true;
+      const opCD = true;
+      const correctText = l5AnswerText(left, right, opAB, opCD);
       return {
-        expandKind: "L5c",
-        prompt,
+        expandKind: "L5",
+        prompt: l5BuildPrompt(left, right, opAB, opCD),
         correctText,
-        wrongPool: dedupeExpandWrongPool(correctText, wrongPool),
+        wrongPool: ebPickWrongPoolEntries(
+          ebDedupeWrongPool(correctText, l5WrongPool({ left, right, opAB, opCD })),
+          L5_WRONG_PER_QUESTION
+        ),
         presetWrong: [],
       };
     }
@@ -1485,7 +1454,7 @@
     'L2 · 乘除去括号',
     'L3 · 分配并算积',
     'L4 · 分配并算积（进阶）',
-    'L5 · 综合'
+    'L5 · 两括号相乘'
   ];
 
   global.JmlExpandBrackets = {
