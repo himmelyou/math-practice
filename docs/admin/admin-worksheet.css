@@ -235,6 +235,12 @@
     margin: 8mm;
   }
 
+  body.jml-worksheet-printing {
+    margin: 0;
+    background: #fff !important;
+  }
+
+  body.jml-worksheet-printing #admin-gate-root,
   body.jml-worksheet-printing .jml-admin-version-bar,
   body.jml-worksheet-printing .jml-admin-toolbar,
   body.jml-worksheet-printing .jml-shell-inner > h1,
@@ -249,33 +255,60 @@
     display: none !important;
   }
 
+  body.jml-worksheet-printing .jml-shell,
+  body.jml-worksheet-printing #admin-app {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+
   body.jml-worksheet-printing .jml-shell-inner {
     max-width: none !important;
     padding: 0 !important;
     margin: 0 !important;
   }
 
-  body.jml-worksheet-printing #panel-worksheet {
+  body.jml-worksheet-printing #panel-worksheet,
+  body.jml-worksheet-printing #panel-worksheet.hidden {
     display: block !important;
   }
 
-  body.jml-worksheet-printing .jml-worksheet-preview-wrap {
-    padding: 0;
-    background: transparent;
-    overflow: visible;
+  body.jml-worksheet-printing .jml-worksheet-preview-wrap,
+  body.jml-worksheet-printing #jml-worksheet-preview {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    overflow: visible !important;
   }
 
+  /* 打印：高度交给 @page，避免 281mm 块高 + 页边距叠出第二页空白 */
   body.jml-worksheet-printing .jml-ws-page {
-    --ws-page-h: 281mm;
     width: 100%;
-    height: var(--ws-page-h);
-    max-height: var(--ws-page-h);
+    height: auto;
+    min-height: 0;
+    max-height: none;
     margin: 0;
     padding: var(--ws-pad-y) var(--ws-pad-x);
     box-shadow: none;
-    overflow: hidden;
+    overflow: visible;
     page-break-after: always;
     break-after: page;
+  }
+
+  body.jml-worksheet-printing .jml-ws-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  body.jml-worksheet-printing .jml-ws-col {
+    height: auto;
+  }
+
+  body.jml-worksheet-printing .jml-ws-item {
+    flex: 0 0 auto;
+    min-height: 24mm;
   }
 
   body.jml-worksheet-printing .jml-worksheet-preview-empty {

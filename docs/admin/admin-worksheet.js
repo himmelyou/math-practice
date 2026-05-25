@@ -42,7 +42,7 @@
         '<div class="jml-ws-qline">' +
         '<span class="jml-ws-num">' +
         n +
-        '.</span> ' +
+        ')</span> ' +
         '<span class="jml-ws-prompt">' +
         escapeHtml(q.prompt) +
         '</span>';
