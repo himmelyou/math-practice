@@ -1,9 +1,24 @@
 /**
- * 拆括号 L1-L5 出题（与主站 docs/index.html 同源）
+ * 拆括号 L1–L5 出题（与主站 docs/index.html 内联块同源，合并前请与此文件 diff）
+ *
+ * 与 index.html 差异（2025-05 核对）：仅 L2「无法去括号」文案——主站用 t("expand.choice.cannotRemoveBrackets")。
+ * 本文件经 resolveExpandChoiceText：无钩子时用简体 fallback；合并主站时可设
+ *   window.__JML_EXPAND_T__ = t
+ * 与主站 i18n 一致。管理端/打印不设置钩子即可。
  */
 (function (global) {
   function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /** 与主站 t(key)||fallback 对齐；管理端无 t() 时仅用 fallback */
+  function resolveExpandChoiceText(key, fallback) {
+    var fn = global.__JML_EXPAND_T__;
+    if (typeof fn === "function") {
+      var s = fn(key);
+      if (s != null && String(s).trim() !== "") return String(s);
+    }
+    return fallback;
   }
 
     function shuffleInPlace(arr) {
@@ -14,6 +29,27 @@
         arr[j] = t;
       }
       return arr;
+    }
+
+    /** 去掉与正确答案重复的错误项 */
+    function ebDedupeWrongPool(correctText, wrongPool) {
+      const seen = new Set([correctText]);
+      const deduped = [];
+      for (let i = 0; i < wrongPool.length; i += 1) {
+        const w = wrongPool[i];
+        if (!w || !w.text || seen.has(w.text)) continue;
+        seen.add(w.text);
+        deduped.push(w);
+      }
+      return deduped;
+    }
+
+    /** 从错因池随机取最多 maxCount 条（规格：每题 3 个错误选项） */
+    function ebPickWrongPoolEntries(wrongPool, maxCount) {
+      if (!Array.isArray(wrongPool) || !wrongPool.length) return [];
+      const n = Math.min(maxCount, wrongPool.length);
+      if (wrongPool.length <= n) return wrongPool.slice();
+      return shuffleInPlace(wrongPool.slice()).slice(0, n);
     }
 
     // ===== 拆括号 L1–L5（见项目根目录《拆括号等级说明.md》）=====
@@ -175,64 +211,98 @@
       return out;
     }
 
-    function buildExpandQuestion_L1() {
-      const minusOuter = Math.random() < 0.8;
-      const A = randomInt(1, 12);
-      const B = randomInt(1, 12);
-      const C = randomInt(1, 12);
-      const innerOp = Math.random() < 0.5 ? "+" : "-";
-      const prompt = minusOuter ? `${A} - (${B} ${innerOp} ${C})` : `${A} + (${B} ${innerOp} ${C})`;
-      let correctTerms;
-      const innerTerms = [B, innerOp === "+" ? C : -C];
-      if (minusOuter) {
-        if (innerOp === "+") correctTerms = [A, -B, -C];
-        else correctTerms = [A, -B, C];
-      } else {
-        if (innerOp === "+") correctTerms = [A, B, C];
-        else correctTerms = [A, B, -C];
+    /** L1 题型 + 错因（与《拆括号等级说明.md》L1 正文一致） */
+    const L1_TYPE_T1 = "L1-T1";
+    const L1_TYPE_T2 = "L1-T2";
+    const L1_T1_SHARE = 0.8;
+    const L1_NUM_MIN = 1;
+    const L1_NUM_MAX = 12;
+    const L1_WRONG_PER_QUESTION = 3;
+
+    function l1PickQuestionType() {
+      return Math.random() < L1_T1_SHARE ? L1_TYPE_T1 : L1_TYPE_T2;
+    }
+
+    /** 括号内两项去括号前的带符号值：[B, ±C] */
+    function l1SignedInnerPair(B, C, innerPlus) {
+      return [B, innerPlus ? C : -C];
+    }
+
+    function l1CorrectTerms(questionType, A, B, C, innerPlus) {
+      if (questionType === L1_TYPE_T1) {
+        return innerPlus ? [A, -B, -C] : [A, -B, C];
       }
+      return innerPlus ? [A, B, C] : [A, B, -C];
+    }
+
+    function l1WrongPoolForType(questionType, A, innerFirst, innerSecond) {
+      const fmt = formatExpandedTerms;
+      if (questionType === L1_TYPE_T1) {
+        return [
+          {
+            text: fmt([A, innerFirst, innerSecond]),
+            explain: "括号外是减号，但括号里两项都没变号。",
+            causeNo: 1,
+          },
+          {
+            text: fmt([A, -innerFirst, innerSecond]),
+            explain: "括号外是减号，但只变了第一项的符号。",
+            causeNo: 2,
+          },
+          {
+            text: fmt([A, innerFirst, -innerSecond]),
+            explain: "括号外是减号，但只变了第二项的符号。",
+            causeNo: 3,
+          },
+        ];
+      }
+      return [
+        {
+          text: fmt([A, -innerFirst, -innerSecond]),
+          explain: "括号外是加号，却把括号里两项都变号了。",
+          causeNo: 1,
+        },
+        {
+          text: fmt([A, -innerFirst, innerSecond]),
+          explain: "括号外是加号，却只改了第一项的符号。",
+          causeNo: 2,
+        },
+        {
+          text: fmt([A, innerFirst, -innerSecond]),
+          explain: "括号外是加号，却只改了第二项的符号。",
+          causeNo: 3,
+        },
+      ];
+    }
+
+    function buildExpandQuestion_L1() {
+      const questionType = l1PickQuestionType();
+      const outerMinus = questionType === L1_TYPE_T1;
+      const A = randomInt(L1_NUM_MIN, L1_NUM_MAX);
+      const B = randomInt(L1_NUM_MIN, L1_NUM_MAX);
+      const C = randomInt(L1_NUM_MIN, L1_NUM_MAX);
+      const innerPlus = Math.random() < 0.5;
+      const innerOp = innerPlus ? "+" : "-";
+      const prompt = outerMinus
+        ? `${A} - (${B} ${innerOp} ${C})`
+        : `${A} + (${B} ${innerOp} ${C})`;
+      const [innerFirst, innerSecond] = l1SignedInnerPair(B, C, innerPlus);
+      const correctTerms = l1CorrectTerms(questionType, A, B, C, innerPlus);
+      const correctText = formatExpandedTerms(correctTerms);
+      const wrongPool = ebPickWrongPoolEntries(
+        ebDedupeWrongPool(correctText, l1WrongPoolForType(questionType, A, innerFirst, innerSecond)),
+        L1_WRONG_PER_QUESTION
+      );
+
       return {
         expandKind: "L1",
+        questionType,
         prompt,
         correctTerms,
-        innerTerms,
-        outerMinus: minusOuter,
-        correctText: formatExpandedTerms(correctTerms),
-        wrongPool: minusOuter
-          ? [
-              {
-                text: formatExpandedTerms([A, innerTerms[0], innerTerms[1]]),
-                explain: "括号外为「−」时：整体未按规则变号。",
-                causeNo: 1,
-              },
-              {
-                text: formatExpandedTerms([A, -innerTerms[0], innerTerms[1]]),
-                explain: "括号外为「−」时：只变第一项，第二项未跟着变号。",
-                causeNo: 2,
-              },
-              {
-                text: formatExpandedTerms([A, innerTerms[0], -innerTerms[1]]),
-                explain: "括号外为「−」时：只变第二项，第一项未跟着变号。",
-                causeNo: 3,
-              },
-            ]
-          : [
-              {
-                text: formatExpandedTerms([A, -innerTerms[0], -innerTerms[1]]),
-                explain: "括号外为「+」时：整体都变号。",
-                causeNo: 4,
-              },
-              {
-                text: formatExpandedTerms([A, -innerTerms[0], innerTerms[1]]),
-                explain: "括号外为「+」时：无故改变第一项符号，第二项不变号。",
-                causeNo: 5,
-              },
-              {
-                text: formatExpandedTerms([A, innerTerms[0], -innerTerms[1]]),
-                explain: "括号外为「+」时：无故改变第二项符号，第一项不变号。",
-                causeNo: 6,
-              },
-            ],
+        correctText,
+        wrongPool,
+        presetWrong: [],
+        outerMinus,
       };
     }
 
@@ -276,7 +346,10 @@
         const leftP = layout === 2;
         prompt = leftP ? `(${inner}) ÷ ${k}` : `${k} ÷ (${inner})`;
         if (!leftP) {
-          correctText = "此类情况无法去除括号";
+          correctText = resolveExpandChoiceText(
+            "expand.choice.cannotRemoveBrackets",
+            "此类情况无法去除括号"
+          );
           const w2 = innerOp === "+" ? `${k} ÷ ${B}` : `- ${k} ÷ ${B}`;
           wrongPool = [
             { text: ebJoinSum([`${k} ÷ ${A}`, `${k} ÷ ${B}`]), explain: "对于 `k ÷ (A ± B)` 时，对括号内强行分配所有项。", causeNo: 8 },
@@ -930,6 +1003,7 @@
 
   global.JmlExpandBrackets = {
     buildQuestion: buildExpandBracketsQuestion,
+    formatExpandedTerms: formatExpandedTerms,
     LEVEL_LABELS: LEVEL_LABELS
   };
 })(typeof window !== 'undefined' ? window : this);
