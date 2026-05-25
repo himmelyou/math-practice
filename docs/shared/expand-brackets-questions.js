@@ -857,188 +857,366 @@
       };
     }
 
-    function buildExpandQuestion_L4() {
-      const dual = Math.random() < 0.5;
-      const k = randomInt(1, 12);
-      const k1 = randomInt(1, 12);
-      const k2 = randomInt(1, 12);
-      let wrongPool = [];
-      let prompt;
-      let correctText;
+    /** L4 题型 + 错因（与《拆括号等级说明.md》L4 正文一致） */
+    const L4_TYPE_T1 = "L4-T1";
+    const L4_TYPE_T2 = "L4-T2";
+    const L4_TYPE_T3 = "L4-T3";
+    const L4_TYPE_T4 = "L4-T4";
+    const L4_TYPE_WEIGHTS = [
+      { id: L4_TYPE_T1, weight: 0.25 },
+      { id: L4_TYPE_T2, weight: 0.25 },
+      { id: L4_TYPE_T3, weight: 0.25 },
+      { id: L4_TYPE_T4, weight: 0.25 },
+    ];
+    const L4_B_MIN = 2;
+    const L4_NUM_MIN = 1;
+    const L4_NUM_MAX = 12;
+    const L4_NEG_CHANCE = 0.4;
+    const L4_LAYOUT_A_LEFT = 0.8;
+    const L4_WRONG_PER_QUESTION = 3;
 
-      if (!dual) {
-        const A = ebPickAtom();
-        const B = ebPickAtom();
-        const C = ebPickAtom();
-        const signA = Math.random() < 0.5 ? 1 : -1;
-        const opK = Math.random() < 0.5 ? "+" : "-";
-        const innerOp = Math.random() < 0.5 ? "+" : "-";
-        prompt =
-          ebTermSignedAtom(signA, A) +
-          " " +
-          opK +
-          " " +
-          k +
-          "(" +
-          ebFmtAtom(B) +
-          " " +
-          innerOp +
-          " " +
-          ebFmtAtom(C) +
-          ")";
-        const innerP = ebSegPair(1, B, innerOp, C);
-        const kfac = opK === "+" ? 1 : -1;
-        const parts = [];
-        parts.push(ebTermSignedAtom(signA, A));
-        innerP.forEach(([s, at]) => {
-          parts.push(ebKTimesTerm(k * kfac, s, at));
-        });
-        correctText = ebJoinSum(parts);
-        wrongPool = [
+    function l4PickQuestionType() {
+      const r = Math.random();
+      let acc = 0;
+      for (let i = 0; i < L4_TYPE_WEIGHTS.length; i += 1) {
+        acc += L4_TYPE_WEIGHTS[i].weight;
+        if (r < acc) return L4_TYPE_WEIGHTS[i].id;
+      }
+      return L4_TYPE_T4;
+    }
+
+    function l4TypeFlags(questionType) {
+      return {
+        outerPlus: questionType === L4_TYPE_T1 || questionType === L4_TYPE_T2,
+        innerPlus: questionType === L4_TYPE_T1 || questionType === L4_TYPE_T3,
+      };
+    }
+
+    function l4FmtX(coeff) {
+      return coeff === 1 ? "x" : `${coeff}x`;
+    }
+
+    function l4FmtX2(coeff) {
+      return coeff === 1 ? "x²" : `${coeff}x²`;
+    }
+
+    function l4FmtTerm(t) {
+      let body;
+      if (t.kind === "n") body = String(t.mag);
+      else if (t.kind === "x") body = l4FmtX(t.mag);
+      else body = l4FmtX2(t.mag);
+      return t.sign < 0 ? "-" + body : body;
+    }
+
+    function l4NegTerm(t) {
+      return { kind: t.kind, mag: t.mag, sign: -t.sign };
+    }
+
+    function l4JoinTerms(terms) {
+      return ebJoinSum(terms.map(l4FmtTerm));
+    }
+
+    function l4FmtB(B) {
+      return B.kind === "n" ? String(B.mag) : l4FmtX(B.mag);
+    }
+
+    function l4MaybeNegSign() {
+      return Math.random() < L4_NEG_CHANCE ? -1 : 1;
+    }
+
+    function l4PickA() {
+      const isX = Math.random() < 0.5;
+      return {
+        kind: isX ? "x" : "n",
+        mag: randomInt(L4_NUM_MIN, L4_NUM_MAX),
+        sign: l4MaybeNegSign(),
+      };
+    }
+
+    function l4PickB() {
+      const isX = Math.random() < 0.5;
+      return {
+        kind: isX ? "x" : "n",
+        mag: randomInt(L4_B_MIN, L4_NUM_MAX),
+      };
+    }
+
+    function l4PickInnerPair() {
+      let innerN = randomInt(L4_NUM_MIN, L4_NUM_MAX);
+      let xCoeff = randomInt(L4_NUM_MIN, L4_NUM_MAX);
+      while (xCoeff === innerN) xCoeff = randomInt(L4_NUM_MIN, L4_NUM_MAX);
+      const constFirst = Math.random() < 0.5;
+      const term1 = constFirst
+        ? { kind: "n", mag: innerN, sign: l4MaybeNegSign() }
+        : { kind: "x", mag: xCoeff, sign: l4MaybeNegSign() };
+      const term2 = constFirst
+        ? { kind: "x", mag: xCoeff, sign: 1 }
+        : { kind: "n", mag: innerN, sign: 1 };
+      return { term1, term2 };
+    }
+
+    function l4BracketInner(term1, term2, innerPlus) {
+      const op = innerPlus ? "+" : "-";
+      return `${l4FmtTerm(term1)} ${op} ${l4FmtTerm(term2)}`;
+    }
+
+    function l4BracketPart(B, term1, term2, innerPlus) {
+      return `${l4FmtB(B)}(${l4BracketInner(term1, term2, innerPlus)})`;
+    }
+
+    function l4BuildPrompt(params) {
+      const bracket = l4BracketPart(params.B, params.term1, params.term2, params.innerPlus);
+      const outer = params.outerPlus ? "+" : "-";
+      const aStr = l4FmtTerm(params.A);
+      return params.aLeft ? `${aStr} ${outer} ${bracket}` : `${bracket} ${outer} ${aStr}`;
+    }
+
+    function l4Mul(B, term, doMul) {
+      if (!doMul) {
+        return { kind: term.kind, mag: term.mag, sign: term.sign };
+      }
+      if (B.kind === "n") {
+        if (term.kind === "n") {
+          return { kind: "n", mag: B.mag * term.mag, sign: term.sign };
+        }
+        return { kind: "x", mag: B.mag * term.mag, sign: term.sign };
+      }
+      if (term.kind === "n") {
+        return { kind: "x", mag: B.mag * term.mag, sign: term.sign };
+      }
+      return { kind: "x2", mag: B.mag * term.mag, sign: term.sign };
+    }
+
+    function l4InnerSecondTerm(term2, innerPlus) {
+      return { kind: term2.kind, mag: term2.mag, sign: innerPlus ? 1 : -1 };
+    }
+
+    function l4DistPair(B, term1, term2, innerPlus, opts) {
+      const o = opts || {};
+      const multFirst = o.multFirst !== false;
+      const multSecond = o.multSecond !== false;
+      const useInnerPlus = o.innerPlus != null ? o.innerPlus : innerPlus;
+      let d1 = l4Mul(B, term1, multFirst);
+      let d2 = l4Mul(B, l4InnerSecondTerm(term2, useInnerPlus), multSecond);
+      if (o.nMag != null) {
+        if (d1.kind === "n") d1 = { kind: "n", mag: o.nMag, sign: d1.sign };
+        if (d2.kind === "n") d2 = { kind: "n", mag: o.nMag, sign: d2.sign };
+      }
+      if (o.xMag != null) {
+        if (d1.kind === "x") d1 = { kind: "x", mag: o.xMag, sign: d1.sign };
+        if (d2.kind === "x") d2 = { kind: "x", mag: o.xMag, sign: d2.sign };
+      }
+      if (o.x2Mag != null) {
+        if (d1.kind === "x2") d1 = { kind: "x2", mag: o.x2Mag, sign: d1.sign };
+        if (d2.kind === "x2") d2 = { kind: "x2", mag: o.x2Mag, sign: d2.sign };
+      }
+      return [d1, d2];
+    }
+
+    function l4OrderAnswer(params, d1, d2, outerApply) {
+      const aTerm = { kind: params.A.kind, mag: params.A.mag, sign: params.A.sign };
+      let e1 = d1;
+      let e2 = d2;
+      const mode =
+        outerApply != null
+          ? outerApply
+          : params.outerPlus
+            ? "plus"
+            : params.aLeft
+              ? "minus"
+              : "plus";
+      if (mode === "minus") {
+        e1 = l4NegTerm(e1);
+        e2 = l4NegTerm(e2);
+      } else if (mode === "minusFirst") {
+        e1 = l4NegTerm(e1);
+      } else if (mode === "minusSecond") {
+        e2 = l4NegTerm(e2);
+      } else if (mode === "minusDist") {
+        e1 = l4NegTerm(e1);
+        e2 = l4NegTerm(e2);
+      }
+      if (params.aLeft) return [aTerm, e1, e2];
+      if (params.outerPlus) return [e1, e2, aTerm];
+      return [e1, e2, l4NegTerm(aTerm)];
+    }
+
+    function l4AnswerText(params, distOpts, outerApply) {
+      const pair = l4DistPair(
+        params.B,
+        params.term1,
+        params.term2,
+        params.innerPlus,
+        distOpts || {}
+      );
+      return l4JoinTerms(l4OrderAnswer(params, pair[0], pair[1], outerApply));
+    }
+
+    function l4AltMag(mag, delta) {
+      let v = mag + delta;
+      if (v < L4_NUM_MIN) v = L4_NUM_MIN;
+      if (v > L4_NUM_MAX) v = L4_NUM_MAX;
+      if (v === mag) v = mag === L4_NUM_MAX ? mag - 1 : mag + 1;
+      return v;
+    }
+
+    function l4WrongMagOpts(params) {
+      const pair = l4DistPair(params.B, params.term1, params.term2, params.innerPlus, {});
+      const t = pair[1];
+      if (t.kind === "x2") return { x2Mag: l4AltMag(t.mag, 1) };
+      if (t.kind === "x") return { xMag: l4AltMag(t.mag, 1) };
+      return { nMag: l4AltMag(t.mag, 1) };
+    }
+
+    function l4WrongPoolForType(questionType, params) {
+      const outerPlus = params.outerPlus;
+      const innerPlus = params.innerPlus;
+
+      if (outerPlus) {
+        return [
           {
-            text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, 1, B)]),
-            explain: "对于含 `± k (± B ± C)`，`± k` 只乘括号内第一项。",
+            text: l4AnswerText(params, { multFirst: true, multSecond: false }),
+            explain: "第二项忘了乘括号外的 B。",
+            causeNo: 1,
+          },
+          {
+            text: l4AnswerText(params, { multFirst: false, multSecond: false }),
+            explain: "括号内两项都忘了乘 B。",
             causeNo: 2,
           },
           {
-            text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, 1, C)]),
-            explain: "对于含 `± k (± B ± C)`，`± k` 只乘括号内第二项。",
+            text: l4AnswerText(params, { innerPlus: !innerPlus }),
+            explain: innerPlus
+              ? "内层应是「加」却按「减」分配。"
+              : "内层应是「减」却按「加」分配。",
             causeNo: 3,
           },
           {
-            text: ebJoinSum([parts[0], ebFmtAtom(B), ebFmtAtom(C)]),
-            explain: "对于含 `± k (± B ± C)`，系数 `± k` 直接被遗忘，得到结果为 `± B ± C`（错形）。",
-            causeNo: 5,
-          },
-          {
-            text: ebJoinSum([parts[0], ebKTimesTerm(k * kfac, -1, B), ebKTimesTerm(k * kfac, 1, C)]),
-            explain: "对于含 `± k (± B ± C)`，分配时将括号内 `B` 或 `C` 的符号弄错。",
+            text: l4AnswerText(params, l4WrongMagOpts(params)),
+            explain: "乘积算错。",
             causeNo: 4,
           },
-          {
-            text: ebJoinSum([ebKTimesTerm(k * kfac, 1, B), ebKTimesTerm(k * kfac, 1, C)]),
-            explain: "对于含 `± A ± k (± B ± C)`，遗忘 `± A`。",
-            causeNo: 8,
-          },
-          {
-            text: ebJoinSum([`${ebFmtAtom(A)} × ${ebFmtAtom(B)}`, ebKTimesTerm(k * kfac, 1, C)]),
-            explain: "对于含 `± A ± k (± B ± C)`，误将 `A` 当成系数与括号内项错误相乘（错形）。",
-            causeNo: 7,
-          },
-          {
-            text: ebJoinSum([parts[0], `${k}`, ebFmtAtom(B), ebFmtAtom(C)]),
-            explain: "对于含 `± k (± B ± C)`，分配时把 `k` 当作普通加减项插入（错形）。",
-            causeNo: 6,
-          },
-          {
-            text: ebJoinSum([`${k} × ${ebFmtAtom(B)}`, `${k} + ${ebFmtAtom(C)}`]),
-            explain: "含括号的展开后分配时计算错误（如把 `k × (A ± B)` 错成 `(k × A) ± (k ± B)` 一类错形）。",
-            causeNo: 19,
-          },
         ];
-      } else {
-        const A = ebPickAtom();
-        const B = ebPickAtom();
-        const C = ebPickAtom();
-        const D = ebPickAtom();
-        const sA = Math.random() < 0.5 ? 1 : -1;
-        const opAB = Math.random() < 0.5 ? "+" : "-";
-        const sC = Math.random() < 0.5 ? 1 : -1;
-        const opCD = Math.random() < 0.5 ? "+" : "-";
-        const mid = Math.random() < 0.5 ? "+" : "-";
-        prompt =
-          k1 +
-          ebBracketPrompt(sA, A, opAB, B) +
-          " " +
-          mid +
-          " " +
-          k2 +
-          ebBracketPrompt(sC, C, opCD, D);
-        const seg1 = ebSegPair(sA, A, opAB, B);
-        const seg2 = ebSegPair(sC, C, opCD, D);
-        const sm = mid === "+" ? 1 : -1;
-        const leftParts = seg1.map(([s, at]) => ebKTimesTerm(k1, s, at));
-        const rightParts = seg2.map(([s, at]) => ebKTimesTerm(k2, sm * s, at));
-        const rawRight = seg2.map(([s, at]) => ebKTimesTerm(k2, s, at));
-        correctText = ebJoinSum(leftParts.concat(rightParts));
-        wrongPool = [
-          {
-            text: ebJoinSum(leftParts.concat(rightParts.slice(0, 1))),
-            explain: "双段中，段间或段首为「− / +」时，第二段漏抄第二项。",
-            causeNo: 14,
-          },
-          {
-            text: ebJoinSum(leftParts.concat([rightParts[1]])),
-            explain: "双段中，段间或段首为「− / +」时，第二段漏抄第一项。",
-            causeNo: 13,
-          },
-          {
-            text: ebJoinSum(leftParts.map((p, i) => (i === 0 ? p + " " : p)).concat(rightParts)),
-            explain: "某段首项前的「+ / −」被吃掉或重复变号；或双段符号衔接有误。",
-            causeNo: 18,
-          },
-          {
-            text: ebJoinSum(leftParts.concat(rawRight)),
-            explain: "双段中，段间或段首为「−」时，第二段整体忘变号。",
-            causeNo: 10,
-          },
-        ];
-        if (mid === "-") {
-          wrongPool.push({
-            text: ebJoinSum(leftParts.concat([rawRight[0], rightParts[1]])),
-            explain: "双段中，段间或段首为「−」时，第二段只变第一项符号，第二项未变号。",
-            causeNo: 11,
-          });
-          wrongPool.push({
-            text: ebJoinSum(leftParts.concat([rightParts[0], rawRight[1]])),
-            explain: "双段中，段间或段首为「−」时，第二段只变第二项符号，第一项未变号。",
-            causeNo: 12,
-          });
-        }
-        if (mid === "+") {
-          wrongPool.push({
-            text: ebJoinSum(leftParts.concat(seg2.map(([s, at]) => ebKTimesTerm(k2, -s, at)))),
-            explain: "双段中，段间或段首为「+」时，第二段无故整体变号。",
-            causeNo: 15,
-          });
-          wrongPool.push({
-            text: ebJoinSum(leftParts.concat([ebKTimesTerm(k2, -seg2[0][0], seg2[0][1]), rightParts[1]])),
-            explain: "双段中，段间或段首为「+」时，第二段无故仅改变第一项符号。",
-            causeNo: 16,
-          });
-          wrongPool.push({
-            text: ebJoinSum(leftParts.concat([rightParts[0], ebKTimesTerm(k2, -seg2[1][0], seg2[1][1])])),
-            explain: "双段中，段间或段首为「+」时，第二段无故仅改变第二项符号。",
-            causeNo: 17,
-          });
-        }
-        wrongPool.push({
-          text: ebJoinSum([leftParts[1], leftParts[0], rightParts[0], rightParts[1]]),
-          explain: "第一段与第二段符号混抄、段界不清。",
-          causeNo: 20,
-        });
-        wrongPool.push({
-          text: ebJoinSum([`${k1} × ${ebFmtAtom(A)}`, `${k1} × ${ebFmtAtom(B)}`, rightParts[0], rightParts[1]]),
-          explain: "含括号的展开后分配时计算错误（错形）。",
-          causeNo: 19,
-        });
-        wrongPool.push({
-          text: ebJoinSum(leftParts.slice(0, 1).concat(rightParts)),
-          explain: "漏写含 `x`、`y` 的项，或漏写常数 `a`、`b` 项（错形）。",
-          causeNo: 21,
-        });
       }
 
-      const seen = new Set([correctText]);
-      const deduped = [];
-      for (let i = 0; i < wrongPool.length; i += 1) {
-        const w = wrongPool[i];
-        if (!w || !w.text || seen.has(w.text)) continue;
-        seen.add(w.text);
-        deduped.push(w);
+      if (questionType === L4_TYPE_T3) {
+        const noFlip = params.aLeft ? "plus" : "minusDist";
+        return [
+          {
+            text: l4AnswerText(params, {}, noFlip),
+            explain: "括号外是减号，但括号里两项都没变号。",
+            causeNo: 1,
+          },
+          {
+            text: l4AnswerText(params, {}, "minusFirst"),
+            explain: "括号外是减号，但只变了第一项的符号。",
+            causeNo: 2,
+          },
+          {
+            text: l4AnswerText(params, {}, "minusSecond"),
+            explain: "括号外是减号，但只变了第二项的符号。",
+            causeNo: 2,
+          },
+          {
+            text: l4AnswerText(params, { multFirst: true, multSecond: false }),
+            explain: "变号对但第二项忘了乘 B。",
+            causeNo: 3,
+          },
+          {
+            text: l4AnswerText(params, { multFirst: false, multSecond: false }),
+            explain: "变号对但两项都忘了乘 B。",
+            causeNo: 4,
+          },
+        ];
       }
 
-      return { expandKind: "L4", prompt, correctText, wrongPool: deduped, presetWrong: [] };
+      return [
+        {
+          text: l4AnswerText(
+            params,
+            { innerPlus: !innerPlus },
+            params.aLeft ? "plus" : "minusDist"
+          ),
+          explain: "外「减」、内「减」时变号规则全错。",
+          causeNo: 1,
+        },
+        {
+          text: l4AnswerText(params, { innerPlus: !innerPlus }, "minusFirst"),
+          explain: "只变一项，或内层减号看错。",
+          causeNo: 2,
+        },
+        {
+          text: l4AnswerText(params, { innerPlus: !innerPlus }, "minusSecond"),
+          explain: "只变一项，或内层减号看错。",
+          causeNo: 2,
+        },
+        {
+          text: l4AnswerText(params, { multFirst: true, multSecond: false }),
+          explain: "变号对但第二项忘了乘 B。",
+          causeNo: 3,
+        },
+        {
+          text: l4AnswerText(params, l4WrongMagOpts(params)),
+          explain: "变号、乘 B 都试了但算积错。",
+          causeNo: 4,
+        },
+      ];
+    }
+
+    function buildExpandQuestion_L4() {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const questionType = l4PickQuestionType();
+        const { outerPlus, innerPlus } = l4TypeFlags(questionType);
+        const inner = l4PickInnerPair();
+        const params = {
+          questionType,
+          A: l4PickA(),
+          B: l4PickB(),
+          term1: inner.term1,
+          term2: inner.term2,
+          innerPlus,
+          outerPlus,
+          aLeft: Math.random() < L4_LAYOUT_A_LEFT,
+        };
+        const prompt = l4BuildPrompt(params);
+        const correctText = l4AnswerText(params);
+        const wrongPool = ebPickWrongPoolEntries(
+          ebDedupeWrongPool(correctText, l4WrongPoolForType(questionType, params)),
+          L4_WRONG_PER_QUESTION
+        );
+        if (wrongPool.length >= L4_WRONG_PER_QUESTION) {
+          return {
+            expandKind: "L4",
+            questionType,
+            prompt,
+            correctText,
+            wrongPool,
+            presetWrong: [],
+          };
+        }
+      }
+      const questionType = L4_TYPE_T1;
+      const params = {
+        questionType,
+        A: { kind: "n", mag: 5, sign: -1 },
+        B: { kind: "x", mag: 2 },
+        term1: { kind: "n", mag: 3, sign: 1 },
+        term2: { kind: "x", mag: 4, sign: 1 },
+        innerPlus: true,
+        outerPlus: true,
+        aLeft: true,
+      };
+      return {
+        expandKind: "L4",
+        questionType,
+        prompt: l4BuildPrompt(params),
+        correctText: l4AnswerText(params),
+        wrongPool: ebPickWrongPoolEntries(
+          ebDedupeWrongPool(l4AnswerText(params), l4WrongPoolForType(questionType, params)),
+          L4_WRONG_PER_QUESTION
+        ),
+        presetWrong: [],
+      };
     }
 
     function buildExpandQuestion_L5() {
@@ -1306,7 +1484,7 @@
     'L1 · 一层括号（整数）',
     'L2 · 乘除去括号',
     'L3 · 分配并算积',
-    'L4 · 系数×括号',
+    'L4 · 分配并算积（进阶）',
     'L5 · 综合'
   ];
 
