@@ -750,24 +750,28 @@
         ];
       }
 
+      const noFlip = params.aLeft ? "plus" : "minusDist";
       return [
         {
-          text: l3AnswerText(
-            params,
-            { innerPlus: !innerPlus },
-            params.aLeft ? "plus" : "minusDist"
-          ),
+          text: l3AnswerText(params, {}, noFlip),
           explain: "外「减」、内「减」时变号规则全错。",
           causeNo: 1,
         },
         {
-          text: l3AnswerText(params, { innerPlus: !innerPlus }, "minusFirst"),
+          text: l3AnswerText(params, {}, "minusFirst"),
           explain: "只变一项，或内层减号看错。",
           causeNo: 2,
         },
         {
-          text: l3AnswerText(params, { innerPlus: !innerPlus }, "minusSecond"),
+          text: l3AnswerText(params, {}, "minusSecond"),
           explain: "只变一项，或内层减号看错。",
+          causeNo: 2,
+        },
+        {
+          text: l3AnswerText(params, { innerPlus: !innerPlus }),
+          explain: innerPlus
+            ? "内层应是「加」却按「减」分配。"
+            : "内层应是「减」却按「加」分配。",
           causeNo: 2,
         },
         {
@@ -1136,24 +1140,28 @@
         ];
       }
 
+      const noFlip = params.aLeft ? "plus" : "minusDist";
       return [
         {
-          text: l4AnswerText(
-            params,
-            { innerPlus: !innerPlus },
-            params.aLeft ? "plus" : "minusDist"
-          ),
+          text: l4AnswerText(params, {}, noFlip),
           explain: "外「减」、内「减」时变号规则全错。",
           causeNo: 1,
         },
         {
-          text: l4AnswerText(params, { innerPlus: !innerPlus }, "minusFirst"),
+          text: l4AnswerText(params, {}, "minusFirst"),
           explain: "只变一项，或内层减号看错。",
           causeNo: 2,
         },
         {
-          text: l4AnswerText(params, { innerPlus: !innerPlus }, "minusSecond"),
+          text: l4AnswerText(params, {}, "minusSecond"),
           explain: "只变一项，或内层减号看错。",
+          causeNo: 2,
+        },
+        {
+          text: l4AnswerText(params, { innerPlus: !innerPlus }),
+          explain: innerPlus
+            ? "内层应是「加」却按「减」分配。"
+            : "内层应是「减」却按「加」分配。",
           causeNo: 2,
         },
         {
