@@ -1,7 +1,8 @@
 /**
- * 发布时修改版本号与构建号，便于在管理端/学员端核对是否已部署最新静态资源。
+ * 发布时修改版本号、构建号与缓存标签；各 HTML 中 ?v= 须与本文件 JML_CACHE_TAG 一致。
  */
 (function (g) {
-  g.JML_APP_VERSION = "v1.6.3";
-  g.JML_BUILD_ID = "20260519a";
+  g.JML_APP_VERSION = "v1.6.4";
+  g.JML_BUILD_ID = "20260525a";
+  g.JML_CACHE_TAG = "14";
 })(typeof window !== "undefined" ? window : globalThis);
