@@ -3539,13 +3539,16 @@
     const buildExpandBracketsQuestion = (level) => JmlExpandBrackets.buildQuestion(level);
     const formatExpandedTerms = (terms) => JmlExpandBrackets.formatExpandedTerms(terms);
 
-    /** 拆括号：是否在选项后显示《拆括号等级说明》错因编号。默认开启；地址栏加 `?expand_cause=0` 可关闭。 */
+    /** 拆括号错因编号：仅后台标记的测试员可见；地址栏 `?expand_cause=0` 可强制关闭。 */
     function shouldHideExpandCauseLabels() {
       try {
-        return new URLSearchParams(location.search || "").get("expand_cause") === "0";
+        if (new URLSearchParams(location.search || "").get("expand_cause") === "0") return true;
       } catch (e) {
-        return false;
+        /* ignore */
       }
+      if (isGuestMode) return true;
+      const u = cachedUser;
+      return !(u && u.isTester === true);
     }
 
     function buildExpandChoices(q) {

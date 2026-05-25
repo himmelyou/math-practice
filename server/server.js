@@ -1290,6 +1290,7 @@ app.post("/api/admin/users", async (req, res) => {
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
+    isTester: false,
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users.map(safeUser) });
@@ -1307,11 +1308,13 @@ app.put("/api/admin/users/:username", async (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const allowed = ["password", "levelIndex", "bestLevelIndex", "totalScore"];
+  const allowed = ["password", "levelIndex", "bestLevelIndex", "totalScore", "isTester"];
   for (const k of allowed) {
     if (updates[k] === undefined) continue;
     if (k === "password") {
       data.users[idx].password = await bcrypt.hash(updates.password, BCRYPT_ROUNDS);
+    } else if (k === "isTester") {
+      data.users[idx].isTester = updates[k] === true;
     } else {
       data.users[idx][k] = updates[k];
     }

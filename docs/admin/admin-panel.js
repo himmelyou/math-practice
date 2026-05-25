@@ -149,6 +149,27 @@
     });
   }
 
+  async function setUserTester(username, isTester) {
+    if (!username) return;
+    setStatus('更新测试员标记…', '');
+    try {
+      await apiFetch('/api/admin/users/' + encodeURIComponent(username), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isTester: !!isTester }),
+      });
+      var u = state.users.find(function (x) {
+        return x.username === username;
+      });
+      if (u) u.isTester = !!isTester;
+      setStatus((isTester ? '已设为测试员：' : '已取消测试员：') + username, 'ok');
+      renderUsersTable();
+    } catch (e) {
+      setStatus(e.message || '更新失败', 'err');
+      renderUsersTable();
+    }
+  }
+
   function renderUsersTable() {
     var tbody = document.getElementById('jml-users-tbody');
     if (!tbody) return;
@@ -158,7 +179,7 @@
     if (!list.length) {
       var tr = document.createElement('tr');
       var td = document.createElement('td');
-      td.colSpan = 6;
+      td.colSpan = 7;
       td.style.textAlign = 'center';
       td.style.color = '#64748b';
       td.style.padding = '24px';
@@ -168,6 +189,7 @@
       return;
     }
     list.forEach(function (u) {
+      var username = u.username || '';
       var tr = document.createElement('tr');
       function tdText(text, cls) {
         var td = document.createElement('td');
@@ -183,6 +205,30 @@
       tr.appendChild(tdText((u.nickname && String(u.nickname).trim()) || '-', ''));
       tr.appendChild(tdText(formatDateTime(u.lastGameTs), ''));
       tr.appendChild(tdText(u.totalScore != null ? String(u.totalScore) : '0', 'num'));
+
+      var tdTester = document.createElement('td');
+      tdTester.className = 'jml-col-tester';
+      var testerLabel = document.createElement('label');
+      testerLabel.className = 'jml-tester-switch';
+      testerLabel.title = '开启后，该账号在拆括号内测时可看到错误选项后的错因编号';
+      var testerInput = document.createElement('input');
+      testerInput.type = 'checkbox';
+      testerInput.checked = u.isTester === true;
+      testerInput.setAttribute('aria-label', '测试员：' + (u.username || ''));
+      var testerUi = document.createElement('span');
+      testerUi.className = 'jml-tester-switch-ui';
+      testerUi.setAttribute('aria-hidden', 'true');
+      testerLabel.appendChild(testerInput);
+      testerLabel.appendChild(testerUi);
+      testerInput.addEventListener('change', function () {
+        var want = testerInput.checked;
+        testerInput.disabled = true;
+        setUserTester(username, want).finally(function () {
+          testerInput.disabled = false;
+        });
+      });
+      tdTester.appendChild(testerLabel);
+      tr.appendChild(tdTester);
 
       var tdAct = document.createElement('td');
       tdAct.className = 'jml-actions-wrap';
@@ -208,7 +254,6 @@
         return b;
       }
 
-      var username = u.username || '';
       menu.appendChild(menuBtn('重置密码', function () { openResetPasswordModal(username); }));
       menu.appendChild(menuBtn('修改积分', function () { openScoreModal(username, u.totalScore != null ? u.totalScore : 0); }));
       menu.appendChild(menuBtn('删除账户', function () { openDeleteModal(username); }, true));
