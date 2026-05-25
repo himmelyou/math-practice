@@ -541,104 +541,320 @@
       };
     }
 
-    function buildExpandQuestion_L3() {
-      const A = ebPickAtom();
-      const B = ebPickAtom();
-      const C = ebPickAtom();
-      const D = ebPickAtom();
-      const sA = Math.random() < 0.5 ? 1 : -1;
-      const opAB = Math.random() < 0.5 ? "+" : "-";
-      const sC = Math.random() < 0.5 ? 1 : -1;
-      const opCD = Math.random() < 0.5 ? "+" : "-";
-      const mid = Math.random() < 0.5 ? "+" : "-";
-      const prompt = ebBracketPrompt(sA, A, opAB, B) + " " + mid + " " + ebBracketPrompt(sC, C, opCD, D);
-      const seg1 = ebSegPair(sA, A, opAB, B);
-      const seg2 = ebSegPair(sC, C, opCD, D);
-      const pairs = ebCombineSegs(seg1, seg2, mid);
-      const correctText = ebPairsToSum(pairs);
-      const [p1, p2, q1, q2] = pairs;
-      const wrongPool = [];
+    /** L3 题型 + 错因（与《拆括号等级说明.md》L3 正文一致） */
+    const L3_TYPE_T1 = "L3-T1";
+    const L3_TYPE_T2 = "L3-T2";
+    const L3_TYPE_T3 = "L3-T3";
+    const L3_TYPE_T4 = "L3-T4";
+    const L3_TYPE_WEIGHTS = [
+      { id: L3_TYPE_T1, weight: 0.25 },
+      { id: L3_TYPE_T2, weight: 0.25 },
+      { id: L3_TYPE_T3, weight: 0.25 },
+      { id: L3_TYPE_T4, weight: 0.25 },
+    ];
+    const L3_K_MIN = 2;
+    const L3_NUM_MIN = 1;
+    const L3_NUM_MAX = 12;
+    const L3_LAYOUT_A_LEFT = 0.8;
+    const L3_WRONG_PER_QUESTION = 3;
 
-      if (mid === "-") {
-        wrongPool.push({
-          text: ebPairsToSum([p1, p2, seg2[0], seg2[1]]),
-          explain: "段间为「−」时，第二段整体忘变号。",
+    function l3PickQuestionType() {
+      const r = Math.random();
+      let acc = 0;
+      for (let i = 0; i < L3_TYPE_WEIGHTS.length; i += 1) {
+        acc += L3_TYPE_WEIGHTS[i].weight;
+        if (r < acc) return L3_TYPE_WEIGHTS[i].id;
+      }
+      return L3_TYPE_T4;
+    }
+
+    function l3TypeFlags(questionType) {
+      return {
+        outerPlus: questionType === L3_TYPE_T1 || questionType === L3_TYPE_T2,
+        innerPlus: questionType === L3_TYPE_T1 || questionType === L3_TYPE_T3,
+      };
+    }
+
+    function l3FmtX(coeff) {
+      return coeff === 1 ? "x" : `${coeff}x`;
+    }
+
+    function l3FmtA(aIsX, aMag) {
+      return aIsX ? l3FmtX(aMag) : String(aMag);
+    }
+
+    function l3TermToStr(t) {
+      const body = t.kind === "n" ? String(t.mag) : l3FmtX(t.mag);
+      return t.sign < 0 ? "-" + body : body;
+    }
+
+    function l3NegTerm(t) {
+      return { kind: t.kind, mag: t.mag, sign: -t.sign };
+    }
+
+    function l3JoinTerms(terms) {
+      return ebJoinSum(terms.map(l3TermToStr));
+    }
+
+    function l3BracketInner(term1, term2, innerPlus) {
+      const op = innerPlus ? "+" : "-";
+      const left = term1.kind === "n" ? String(term1.mag) : l3FmtX(term1.mag);
+      const right = term2.kind === "n" ? String(term2.mag) : l3FmtX(term2.mag);
+      return `${left} ${op} ${right}`;
+    }
+
+    function l3BracketPart(k, term1, term2, innerPlus) {
+      const inner = l3BracketInner(term1, term2, innerPlus);
+      return `${k}(${inner})`;
+    }
+
+    function l3BuildPrompt(params) {
+      const bracket = l3BracketPart(params.k, params.term1, params.term2, params.innerPlus);
+      const outer = params.outerPlus ? "+" : "-";
+      const aStr = l3FmtA(params.aIsX, params.aMag);
+      return params.aLeft ? `${aStr} ${outer} ${bracket}` : `${bracket} ${outer} ${aStr}`;
+    }
+
+    /** 括号内从左到右分配后的两项（已乘 k，尚未处理外连接符） */
+    function l3DistPair(k, term1, term2, innerPlus, opts) {
+      const o = opts || {};
+      const multFirst = o.multFirst !== false;
+      const multSecond = o.multSecond !== false;
+      const useInnerPlus = o.innerPlus != null ? o.innerPlus : innerPlus;
+      let mag1 = multFirst ? k * term1.mag : term1.mag;
+      let mag2 = multSecond ? k * term2.mag : term2.mag;
+      if (o.xMag != null) {
+        if (term1.kind === "x") mag1 = o.xMag;
+        if (term2.kind === "x") mag2 = o.xMag;
+      }
+      if (o.nMag != null) {
+        if (term1.kind === "n") mag1 = o.nMag;
+        if (term2.kind === "n") mag2 = o.nMag;
+      }
+      return [
+        { kind: term1.kind, mag: mag1, sign: 1 },
+        { kind: term2.kind, mag: mag2, sign: useInnerPlus ? 1 : -1 },
+      ];
+    }
+
+    function l3OrderAnswer(params, d1, d2, outerApply) {
+      const aTerm = { kind: params.aIsX ? "x" : "n", mag: params.aMag, sign: 1 };
+      let e1 = d1;
+      let e2 = d2;
+      const mode =
+        outerApply != null
+          ? outerApply
+          : params.outerPlus
+            ? "plus"
+            : params.aLeft
+              ? "minus"
+              : "plus";
+      if (mode === "minus") {
+        e1 = l3NegTerm(e1);
+        e2 = l3NegTerm(e2);
+      } else if (mode === "minusFirst") {
+        e1 = l3NegTerm(e1);
+      } else if (mode === "minusSecond") {
+        e2 = l3NegTerm(e2);
+      } else if (mode === "minusDist") {
+        e1 = l3NegTerm(e1);
+        e2 = l3NegTerm(e2);
+      }
+      if (params.aLeft) return [aTerm, e1, e2];
+      if (params.outerPlus) return [e1, e2, aTerm];
+      return [e1, e2, l3NegTerm(aTerm)];
+    }
+
+    function l3AnswerText(params, distOpts, outerApply) {
+      const pair = l3DistPair(
+        params.k,
+        params.term1,
+        params.term2,
+        params.innerPlus,
+        distOpts || {}
+      );
+      return l3JoinTerms(l3OrderAnswer(params, pair[0], pair[1], outerApply));
+    }
+
+    function l3AltMag(mag, delta) {
+      let v = mag + delta;
+      if (v < L3_NUM_MIN) v = L3_NUM_MIN;
+      if (v > L3_NUM_MAX) v = L3_NUM_MAX;
+      if (v === mag) v = mag === L3_NUM_MAX ? mag - 1 : mag + 1;
+      return v;
+    }
+
+    function l3WrongPoolForType(questionType, params) {
+      const outerPlus = params.outerPlus;
+      const innerPlus = params.innerPlus;
+      const k = params.k;
+      const xCoeff = params.term1.kind === "x" ? params.term1.mag : params.term2.mag;
+
+      if (outerPlus) {
+        return [
+          {
+            text: l3AnswerText(params, { multFirst: true, multSecond: false }),
+            explain: "第二项忘了乘括号外的 k。",
+            causeNo: 1,
+          },
+          {
+            text: l3AnswerText(params, { multFirst: false, multSecond: false }),
+            explain: "括号内两项都忘了乘 k。",
+            causeNo: 2,
+          },
+          {
+            text: l3AnswerText(params, { innerPlus: !innerPlus }),
+            explain: innerPlus
+              ? "内层应是「加」却按「减」分配。"
+              : "内层应是「减」却按「加」分配。",
+            causeNo: 3,
+          },
+          {
+            text: l3AnswerText(params, { xMag: k * l3AltMag(xCoeff, 1) }),
+            explain: "k 与 x 的系数相乘算错。",
+            causeNo: 4,
+          },
+        ];
+      }
+
+      if (questionType === L3_TYPE_T3) {
+        const noFlip = params.aLeft ? "plus" : "minusDist";
+        const half1 = params.aLeft ? "minusFirst" : "minusFirst";
+        const half2 = params.aLeft ? "minusSecond" : "minusSecond";
+        return [
+          {
+            text: l3AnswerText(params, {}, noFlip),
+            explain: "括号外是减号，但括号里两项都没变号。",
+            causeNo: 1,
+          },
+          {
+            text: l3AnswerText(params, {}, half1),
+            explain: "括号外是减号，但只变了第一项的符号。",
+            causeNo: 2,
+          },
+          {
+            text: l3AnswerText(params, {}, half2),
+            explain: "括号外是减号，但只变了第二项的符号。",
+            causeNo: 2,
+          },
+          {
+            text: l3AnswerText(params, { multFirst: true, multSecond: false }),
+            explain: "变号对但第二项忘了乘 k。",
+            causeNo: 3,
+          },
+          {
+            text: l3AnswerText(params, { multFirst: false, multSecond: false }),
+            explain: "变号对但两项都忘了乘 k。",
+            causeNo: 4,
+          },
+        ];
+      }
+
+      return [
+        {
+          text: l3AnswerText(
+            params,
+            { innerPlus: !innerPlus },
+            params.aLeft ? "plus" : "minusDist"
+          ),
+          explain: "外「减」、内「减」时变号规则全错。",
           causeNo: 1,
-        });
-        wrongPool.push({
-          text: ebPairsToSum([p1, p2, ebNegPair(q1), q2]),
-          explain: "段间为「−」时，第二段只变第一项符号，第二项未变号。",
+        },
+        {
+          text: l3AnswerText(params, { innerPlus: !innerPlus }, "minusFirst"),
+          explain: "只变一项，或内层减号看错。",
           causeNo: 2,
-        });
-        wrongPool.push({
-          text: ebPairsToSum([p1, p2, q1, ebNegPair(q2)]),
-          explain: "段间为「−」时，第二段只变第二项符号，第一项未变号。",
+        },
+        {
+          text: l3AnswerText(params, { innerPlus: !innerPlus }, "minusSecond"),
+          explain: "只变一项，或内层减号看错。",
+          causeNo: 2,
+        },
+        {
+          text: l3AnswerText(params, { multFirst: true, multSecond: false }),
+          explain: "变号对但第二项忘了乘 k。",
           causeNo: 3,
-        });
-      }
-      wrongPool.push({
-        text: ebPairsToSum([p1, p2, q2]),
-        explain: "段间为「− / +」时，第二段漏抄第一项。",
-        causeNo: 4,
-      });
-      wrongPool.push({
-        text: ebPairsToSum([p1, p2, q1]),
-        explain: "段间为「− / +」时，第二段漏抄第二项。",
-        causeNo: 5,
-      });
-      if (mid === "+") {
-        wrongPool.push({
-          text: ebPairsToSum([p1, p2, ebNegPair(q1), ebNegPair(q2)]),
-          explain: "段间为「+」时，第二段无故整体变号。",
-          causeNo: 6,
-        });
-        wrongPool.push({
-          text: ebPairsToSum([p1, p2, ebNegPair(q1), q2]),
-          explain: "段间为「+」时，第二段无故仅改变第一项符号。",
-          causeNo: 7,
-        });
-        wrongPool.push({
-          text: ebPairsToSum([p1, p2, q1, ebNegPair(q2)]),
-          explain: "段间为「+」时，第二段无故仅改变第二项符号。",
-          causeNo: 8,
-        });
-      }
-      wrongPool.push({
-        text: ebPairsToSum([ebNegPair(p1), p2, q1, q2]),
-        explain: "某段首项前的「+ / −」被吃掉或重复变号；或第一段展开后第一项符号错误。",
-        causeNo: 13,
-      });
-      wrongPool.push({
-        text: ebPairsToSum([q1, q2, p1, p2]),
-        explain: "第一段与第二段符号混抄、段界不清。",
-        causeNo: 10,
-      });
-      wrongPool.push({
-        text: ebPairsToSum([p2, q1, q2]),
-        explain: "第一段漏抄第一项。",
-        causeNo: 11,
-      });
-      wrongPool.push({
-        text: ebPairsToSum([p1, q1, q2]),
-        explain: "第一段漏抄第二项。",
-        causeNo: 12,
-      });
-      wrongPool.push({
-        text: ebPairsToSum([p1, ebNegPair(p2), q1, q2]),
-        explain: "第一段展开后第二项符号错误。",
-        causeNo: 14,
-      });
+        },
+        {
+          text: l3AnswerText(params, { xMag: k * l3AltMag(xCoeff, 1) }),
+          explain: "变号、乘 k 都试了但算积错。",
+          causeNo: 4,
+        },
+      ];
+    }
 
-      const seen = new Set([correctText]);
-      const deduped = [];
-      for (let i = 0; i < wrongPool.length; i += 1) {
-        const w = wrongPool[i];
-        if (!w || !w.text || seen.has(w.text)) continue;
-        seen.add(w.text);
-        deduped.push(w);
-      }
+    function l3PickInnerPair() {
+      let innerN = randomInt(L3_NUM_MIN, L3_NUM_MAX);
+      let xCoeff = randomInt(L3_NUM_MIN, L3_NUM_MAX);
+      while (xCoeff === innerN) xCoeff = randomInt(L3_NUM_MIN, L3_NUM_MAX);
+      const constFirst = Math.random() < 0.5;
+      const term1 = constFirst ? { kind: "n", mag: innerN } : { kind: "x", mag: xCoeff };
+      const term2 = constFirst ? { kind: "x", mag: xCoeff } : { kind: "n", mag: innerN };
+      return { term1, term2, constFirst };
+    }
 
-      return { expandKind: "L3", prompt, correctText, wrongPool: deduped, presetWrong: [] };
+    function buildExpandQuestion_L3() {
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const questionType = l3PickQuestionType();
+        const { outerPlus, innerPlus } = l3TypeFlags(questionType);
+        const k = randomInt(L3_K_MIN, L3_NUM_MAX);
+        const inner = l3PickInnerPair();
+        const aIsX = Math.random() < 0.5;
+        const aMag = randomInt(L3_NUM_MIN, L3_NUM_MAX);
+        const params = {
+          questionType,
+          k,
+          term1: inner.term1,
+          term2: inner.term2,
+          innerPlus,
+          outerPlus,
+          constFirst: inner.constFirst,
+          aLeft: Math.random() < L3_LAYOUT_A_LEFT,
+          aIsX,
+          aMag,
+        };
+        const prompt = l3BuildPrompt(params);
+        const correctText = l3AnswerText(params);
+        const wrongPool = ebPickWrongPoolEntries(
+          ebDedupeWrongPool(correctText, l3WrongPoolForType(questionType, params)),
+          L3_WRONG_PER_QUESTION
+        );
+        if (wrongPool.length >= L3_WRONG_PER_QUESTION) {
+          return {
+            expandKind: "L3",
+            questionType,
+            prompt,
+            correctText,
+            wrongPool,
+            presetWrong: [],
+          };
+        }
+      }
+      const questionType = L3_TYPE_T1;
+      const k = 2;
+      const params = {
+        questionType,
+        k,
+        term1: { kind: "n", mag: 3 },
+        term2: { kind: "x", mag: 4 },
+        innerPlus: true,
+        outerPlus: true,
+        constFirst: true,
+        aLeft: true,
+        aIsX: false,
+        aMag: 5,
+      };
+      return {
+        expandKind: "L3",
+        questionType,
+        prompt: l3BuildPrompt(params),
+        correctText: l3AnswerText(params),
+        wrongPool: ebPickWrongPoolEntries(
+          ebDedupeWrongPool(l3AnswerText(params), l3WrongPoolForType(questionType, params)),
+          L3_WRONG_PER_QUESTION
+        ),
+        presetWrong: [],
+      };
     }
 
     function buildExpandQuestion_L4() {
@@ -1089,7 +1305,7 @@
   var LEVEL_LABELS = [
     'L1 · 一层括号（整数）',
     'L2 · 乘除去括号',
-    'L3 · 两段括号',
+    'L3 · 分配并算积',
     'L4 · 系数×括号',
     'L5 · 综合'
   ];
