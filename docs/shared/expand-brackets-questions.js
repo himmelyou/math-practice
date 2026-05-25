@@ -306,146 +306,239 @@
       };
     }
 
-    function buildExpandQuestion_L2() {
-      const k = randomInt(1, 12);
-      const A = randomInt(1, 12);
-      const B = randomInt(1, 12);
-      const innerOp = Math.random() < 0.5 ? "+" : "-";
-      const inner = innerOp === "+" ? `${A} + ${B}` : `${A} - ${B}`;
-      const layout = randomInt(0, 7);
-      let prompt;
-      let correctText;
-      let wrongPool = [];
+    /** L2 题型 + 错因（与《拆括号等级说明.md》L2 正文一致） */
+    const L2_TYPE_T1 = "L2-T1";
+    const L2_TYPE_T2 = "L2-T2";
+    const L2_TYPE_T3 = "L2-T3";
+    const L2_TYPE_T4 = "L2-T4";
+    const L2_TYPE_T5 = "L2-T5";
+    const L2_TYPE_T6 = "L2-T6";
+    const L2_TYPE_WEIGHTS = [
+      { id: L2_TYPE_T1, weight: 0.2 },
+      { id: L2_TYPE_T2, weight: 0.1 },
+      { id: L2_TYPE_T3, weight: 0.2 },
+      { id: L2_TYPE_T4, weight: 0.2 },
+      { id: L2_TYPE_T5, weight: 0.2 },
+      { id: L2_TYPE_T6, weight: 0.1 },
+    ];
+    const L2_NUM_MIN = 1;
+    const L2_NUM_MAX = 12;
+    const L2_WRONG_PER_QUESTION = 3;
+    const L2_CANNOT_REMOVE = resolveExpandChoiceText(
+      "expand.choice.cannotRemoveBrackets",
+      "此类情况无法去除括号"
+    );
 
-      if (layout <= 1) {
-        const leftK = layout === 0;
-        prompt = leftK ? `${k} × (${inner})` : `(${inner}) × ${k}`;
-        const t1 = `${k} × ${A}`;
-        const t2 = innerOp === "+" ? `${k} × ${B}` : `- ${k} × ${B}`;
-        correctText = ebJoinSum([t1, t2]);
-        wrongPool = [
-          { text: ebJoinSum([t2]), explain: "乘法分配时漏乘括号内第一项。", causeNo: 1 },
-          { text: ebJoinSum([t1]), explain: "乘法分配时漏乘括号内第二项。", causeNo: 2 },
-          {
-            text: innerOp === "+" ? ebJoinSum([t1, `- ${k} × ${B}`]) : ebJoinSum([t1, `${k} × ${B}`]),
-            explain: "乘法分配时，当括号内符号为加号或减号时，错看原有符号，导致分配后第二项符号错误。",
-            causeNo: 3,
-          },
-          {
-            text: innerOp === "+" ? `${k} + ${A} + ${B}` : `${k} - ${A} + ${B}`,
-            explain: "对于 `k × (A op B)` 或 `(A op B) × k`，且 op 为加号或减号时，将中间乘号看成 op 进行分配。",
-            causeNo: 4,
-          },
-          {
-            text: innerOp === "+" ? `${k} × ${A} + ${k} × ${B}` : `${k} × ${A} - ${k} × ${B}`,
-            explain: "对于 `k × (A op B)` 或 `(A op B) × k`，且 op 为乘号时，将 op 看成加号导致误用加法分配律。",
-            causeNo: 5,
-          },
-        ];
-      } else if (layout <= 3) {
-        const leftP = layout === 2;
-        prompt = leftP ? `(${inner}) ÷ ${k}` : `${k} ÷ (${inner})`;
-        if (!leftP) {
-          correctText = resolveExpandChoiceText(
-            "expand.choice.cannotRemoveBrackets",
-            "此类情况无法去除括号"
-          );
-          const w2 = innerOp === "+" ? `${k} ÷ ${B}` : `- ${k} ÷ ${B}`;
-          wrongPool = [
-            { text: ebJoinSum([`${k} ÷ ${A}`, `${k} ÷ ${B}`]), explain: "对于 `k ÷ (A ± B)` 时，对括号内强行分配所有项。", causeNo: 8 },
-            { text: ebJoinSum([`${k} ÷ ${A}`]), explain: "对于 `k ÷ (A ± B)` 时，对括号内强行分配，且只分配部分项。", causeNo: 9 },
-            { text: `${k} ÷ ${A} + ${B}`, explain: "对于 `k ÷ (A ± B)` 时，强行展开但项衔接错误。", causeNo: 8 },
-            { text: `${k} ÷ ${A} - ${B}`, explain: "对于 `k ÷ (A ± B)` 时，强行展开且符号处理错误。", causeNo: 9 },
-          ];
-        } else {
-          const t1 = `${A} ÷ ${k}`;
-          const t2 = innerOp === "+" ? `${B} ÷ ${k}` : `- ${B} ÷ ${k}`;
-          correctText = ebJoinSum([t1, t2]);
-          wrongPool = [
-            {
-              text: innerOp === "+" ? ebJoinSum([t1, `- ${B} ÷ ${k}`]) : ebJoinSum([t1, `${B} ÷ ${k}`]),
-              explain: "对于 `(A ± B) ÷ k`，分配后对于原括号内的符号分配错误（例如加号变减号等）。",
-              causeNo: 15,
-            },
-            {
-              text: innerOp === "+" ? `${A} + ${B} ÷ ${k}` : `${A} - ${B} ÷ ${k}`,
-              explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项照抄。",
-              causeNo: 12,
-            },
-            {
-              text: innerOp === "+" ? `${A} ÷ ${k} + ${B}` : `${A} ÷ ${k} - ${B}`,
-              explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项照抄。",
-              causeNo: 11,
-            },
-            { text: ebJoinSum([t1]), explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项漏抄。", causeNo: 13 },
-            { text: ebJoinSum([t2]), explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项漏抄。", causeNo: 14 },
-            { text: `${A} + ${B} ÷ ${k}`, explain: "除法只作用在括号内其中一项，书写顺序错误。", causeNo: 99 },
-          ];
-        }
-      } else if (layout === 4) {
-        const opIn = Math.random() < 0.5 ? "×" : "÷";
-        prompt = `${k} × (${A} ${opIn} ${B})`;
-        if (opIn === "×") {
-          correctText = `${k} × ${A} × ${B}`;
-          wrongPool = [
-            { text: `${k} × ${A} + ${k} × ${B}`, explain: "对于 `k × (A op B)` 且 op 为乘号时，将 op 看成加号导致误用加法分配律。", causeNo: 5 },
-            { text: `${k} + ${A} + ${B}`, explain: "对于 `k × (A op B)` 或 `(A op B) × k`，且 op 为加号或减号时，将中间乘号看成 op 进行分配。", causeNo: 4 },
-            { text: `${A} × ${B} + ${k}`, explain: "运算顺序或拆写错误。", causeNo: 99 },
-          ];
-        } else {
-          correctText = `${k} × ${A} ÷ ${B}`;
-          wrongPool = [
-            { text: `${k} × ${A} ÷ ${k} × ${B}`, explain: "对于 `k × (A ÷ B)` 或 `(A ÷ B) × k`，写成 `k × A ÷ k × B` 的错误分配。", causeNo: 6 },
-            { text: `${k} × ${A} + ${k} × ${B}`, explain: "括号内为除号时误用加法分配律拆开。", causeNo: 5 },
-            { text: `${k} × ${A} + ${k} ÷ ${B}`, explain: "括号内为除号时，拆写衔接错误。", causeNo: 99 },
-            { text: `${A} × ${B} + ${k}`, explain: "运算顺序或拆写错误。", causeNo: 99 },
-          ];
-        }
-      } else if (layout === 5) {
-        const opIn = Math.random() < 0.5 ? "×" : "÷";
-        prompt = `(${A} ${opIn} ${B}) × ${k}`;
-        if (opIn === "×") {
-          correctText = `${A} × ${B} × ${k}`;
-          wrongPool = [
-            { text: `${k} × ${A} + ${k} × ${B}`, explain: "对于 `k × (A op B)` 且 op 为乘号时，将 op 看成加号导致误用加法分配律。", causeNo: 5 },
-            { text: `${A} × ${k} + ${B}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第一项，第二项照抄。", causeNo: 11 },
-            { text: `${A} + ${B} × ${k}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第二项，第一项照抄。", causeNo: 12 },
-            { text: `${A} × ${B} + ${k}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第一项，第二项漏抄。", causeNo: 13 },
-            { text: `${B} × ${k}`, explain: "对于 `(A ± B) op k`，op 为乘时，只乘第二项，第一项漏抄。", causeNo: 14 },
-          ];
-        } else {
-          correctText = `${A} ÷ ${B} × ${k}`;
-          wrongPool = [
-            { text: `${k} × ${A} ÷ ${k} × ${B}`, explain: "对于 `k × (A ÷ B)` 或 `(A ÷ B) × k`，写成 `k × A ÷ k × B` 的错误分配。", causeNo: 6 },
-            { text: `${A} ÷ ${k} + ${B}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项照抄。", causeNo: 11 },
-            { text: `${A} + ${B} ÷ ${k}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项照抄。", causeNo: 12 },
-            { text: `${A} ÷ ${B}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第一项，第二项漏抄。", causeNo: 13 },
-            { text: `${B} ÷ ${k}`, explain: "对于 `(A ± B) op k`，op 为除时，只除第二项，第一项漏抄。", causeNo: 14 },
-          ];
-        }
-      } else {
-        const opIn = Math.random() < 0.5 ? "×" : "÷";
-        prompt = `(${A} ${opIn} ${B}) ÷ ${k}`;
-        if (opIn === "×") {
-          correctText = `${A} × ${B} ÷ ${k}`;
-          wrongPool = [
-            { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。", causeNo: 99 },
-            { text: `${k} ÷ ${A} × ${k} ÷ ${B}`, explain: "对于 `k ÷ (A × B)` 或 `(A × B) ÷ k`，写成 `k ÷ A × k ÷ B` 的错误分配。", causeNo: 7 },
-            { text: `${A} × ${k} ÷ ${B}`, explain: "除法与括号衔接或运算顺序错误。", causeNo: 99 },
-            { text: `${A} ÷ ${k} × ${B}`, explain: "除法与括号衔接或运算顺序错误。", causeNo: 99 },
-          ];
-        } else {
-          correctText = `${A} ÷ ${B} ÷ ${k}`;
-          wrongPool = [
-            { text: `${A} ÷ ${k} + ${B} ÷ ${k}`, explain: "括号内为乘除时误用加减拆括号。", causeNo: 99 },
-            { text: `${k} ÷ ${A} ÷ ${k} ÷ ${B}`, explain: "对于 `k ÷ (A ÷ B)` 时对括号内强行分配。", causeNo: 10 },
-            { text: `${A} ÷ ${B} × ${k}`, explain: "除法与括号衔接错误。", causeNo: 99 },
-            { text: `${A} × ${B} ÷ ${k}`, explain: "除法与括号衔接错误。", causeNo: 99 },
-          ];
-        }
+    function l2PickQuestionType() {
+      const r = Math.random();
+      let acc = 0;
+      for (let i = 0; i < L2_TYPE_WEIGHTS.length; i += 1) {
+        acc += L2_TYPE_WEIGHTS[i].weight;
+        if (r < acc) return L2_TYPE_WEIGHTS[i].id;
       }
+      return L2_TYPE_T6;
+    }
 
-      return { expandKind: "L2", prompt, correctText, wrongPool, presetWrong: [] };
+    function l2PickAB() {
+      const A = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+      let B = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+      while (B === A) B = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+      return [A, B];
+    }
+
+    function l2InnerPm(A, B, innerPlus) {
+      return innerPlus ? `${A} + ${B}` : `${A} - ${B}`;
+    }
+
+    function l2BuildT1(k, A, B) {
+      const innerPlus = Math.random() < 0.5;
+      const inner = l2InnerPm(A, B, innerPlus);
+      const kLeft = Math.random() < 0.5;
+      const prompt = kLeft ? `${k} × (${inner})` : `(${inner}) × ${k}`;
+      let t1;
+      let t2;
+      if (kLeft) {
+        t1 = `${k} × ${A}`;
+        t2 = innerPlus ? `${k} × ${B}` : `- ${k} × ${B}`;
+      } else {
+        t1 = `${A} × ${k}`;
+        t2 = innerPlus ? `${B} × ${k}` : `- ${B} × ${k}`;
+      }
+      const correctText = ebJoinSum([t1, t2]);
+      const wrong3 = kLeft
+        ? innerPlus
+          ? ebJoinSum([t1, `- ${k} × ${B}`])
+          : ebJoinSum([t1, `${k} × ${B}`])
+        : innerPlus
+          ? ebJoinSum([t1, `- ${B} × ${k}`])
+          : ebJoinSum([t1, `${B} × ${k}`]);
+      const wrong4 = kLeft ? `${k} × (${A} × ${B})` : `(${A} × ${B}) × ${k}`;
+      const fullWrongPool = [
+        { text: ebJoinSum([t2]), explain: "分配时漏乘第一项。", causeNo: 1 },
+        { text: ebJoinSum([t1]), explain: "分配时漏乘第二项。", causeNo: 2 },
+        { text: wrong3, explain: "分配时第二项符号看错。", causeNo: 3 },
+        { text: wrong4, explain: "把括号内加减看成乘除。", causeNo: 4 },
+      ];
+      return { prompt, correctText, fullWrongPool };
+    }
+
+    function l2BuildT2(k, A, B) {
+      const innerTimes = Math.random() < 0.5;
+      const innerOp = innerTimes ? "×" : "÷";
+      const inner = `${A} ${innerOp} ${B}`;
+      const kLeft = Math.random() < 0.5;
+      const prompt = kLeft ? `${k} × (${inner})` : `(${inner}) × ${k}`;
+      let correctText;
+      if (kLeft) {
+        correctText = innerTimes ? `${k} × ${A} × ${B}` : `${k} × ${A} ÷ ${B}`;
+      } else {
+        correctText = innerTimes ? `${A} × ${B} × ${k}` : `${A} ÷ ${B} × ${k}`;
+      }
+      const w1 = kLeft
+        ? `${k} × ${A} ${innerOp} ${k} × ${B}`
+        : `${A} × ${k} ${innerOp} ${B} × ${k}`;
+      const w2 = kLeft ? `${k} × ${A} + ${k} × ${B}` : `${A} × ${k} + ${B} × ${k}`;
+      const w3 = kLeft ? `${k} × ${A} + ${B}` : `${A} + ${B} × ${k}`;
+      const fullWrongPool = [
+        { text: w1, explain: "误用乘法分配，对两项都乘 k 却没去掉括号。", causeNo: 1 },
+        { text: w2, explain: "把内层 × / ÷ 看成 + / − 去分配。", causeNo: 2 },
+        { text: w3, explain: "把内层看成 ± 且只去了一半括号。", causeNo: 3 },
+      ];
+      return { prompt, correctText, fullWrongPool };
+    }
+
+    function l2BuildT3(k, A, B) {
+      const innerPlus = Math.random() < 0.5;
+      const inner = l2InnerPm(A, B, innerPlus);
+      const prompt = `${k} ÷ (${inner})`;
+      const correctText = L2_CANNOT_REMOVE;
+      const t2sign = innerPlus ? `${k} ÷ ${B}` : `- ${k} ÷ ${B}`;
+      const fullWrongPool = [
+        {
+          text: ebJoinSum([`${k} ÷ ${A}`, t2sign]),
+          explain: "强行分配两项。",
+          causeNo: 1,
+        },
+        { text: ebJoinSum([`${k} ÷ ${A}`]), explain: "只「分配」了一项。", causeNo: 2 },
+        { text: `${k} ÷ (${A} × ${B})`, explain: "把括号内 ± 看成 ×。", causeNo: 3 },
+      ];
+      return { prompt, correctText, fullWrongPool };
+    }
+
+    function l2BuildT4(k, A, B) {
+      const innerTimes = Math.random() < 0.5;
+      const innerOp = innerTimes ? "×" : "÷";
+      const prompt = `${k} ÷ (${A} ${innerOp} ${B})`;
+      const correctText = innerTimes ? `${k} ÷ ${A} ÷ ${B}` : `${k} ÷ ${A} × ${B}`;
+      const fullWrongPool = [
+        { text: `${k} ÷ ${A} × ${k} ÷ ${B}`, explain: "误用「分别除」式分配。", causeNo: 1 },
+        innerTimes
+          ? {
+              text: `${k} ÷ ${A} + ${k} ÷ ${B}`,
+              explain: "把内层乘除误当加减分配。",
+              causeNo: 2,
+            }
+          : {
+              text: `${k} ÷ ${A} ÷ ${B}`,
+              explain: "内层是 A ÷ B 时，÷ 没变 ×。",
+              causeNo: 2,
+            },
+        innerTimes
+          ? { text: `${k} ÷ ${B} ÷ ${A}`, explain: "内层是 A × B 时项顺序写反。", causeNo: 3 }
+          : { text: `${k} ÷ ${B} × ${A}`, explain: "内层是 A ÷ B 时符号或顺序衔接错误。", causeNo: 3 },
+      ];
+      return { prompt, correctText, fullWrongPool };
+    }
+
+    function l2BuildT5(k, A, B) {
+      const innerPlus = Math.random() < 0.5;
+      const inner = l2InnerPm(A, B, innerPlus);
+      const prompt = `(${inner}) ÷ ${k}`;
+      const t1 = `${A} ÷ ${k}`;
+      const t2 = innerPlus ? `${B} ÷ ${k}` : `- ${B} ÷ ${k}`;
+      const correctText = ebJoinSum([t1, t2]);
+      const fullWrongPool = [
+        { text: `(${A} × ${B}) ÷ ${k}`, explain: "把括号内 ± 看成 ×。", causeNo: 1 },
+        {
+          text: innerPlus ? ebJoinSum([t1, `- ${B} ÷ ${k}`]) : ebJoinSum([t1, `${B} ÷ ${k}`]),
+          explain: "括号内是 + 却按 − 去分配。",
+          causeNo: 2,
+        },
+        {
+          text: innerPlus ? `${A} + ${B} ÷ ${k}` : `${A} - ${B} ÷ ${k}`,
+          explain: "第一项漏 ÷ k。",
+          causeNo: 3,
+        },
+        { text: `${A} ÷ ${k} + ${B}`, explain: "第二项漏 ÷ k。", causeNo: 4 },
+        {
+          text: innerPlus ? `${A} × ${k} + ${B} × ${k}` : `${A} × ${k} - ${B} × ${k}`,
+          explain: "把括号外 ÷ 当成 ×。",
+          causeNo: 5,
+        },
+      ];
+      return { prompt, correctText, fullWrongPool };
+    }
+
+    function l2BuildT6(k, A, B) {
+      const innerTimes = Math.random() < 0.5;
+      const innerOp = innerTimes ? "×" : "÷";
+      const prompt = `(${A} ${innerOp} ${B}) ÷ ${k}`;
+      const correctText = innerTimes ? `${A} × ${B} ÷ ${k}` : `${A} ÷ ${B} ÷ ${k}`;
+      const fullWrongPool = [
+        {
+          text: ebJoinSum([`${A} ÷ ${k} × ${B} ÷ ${k}`]),
+          explain: "对 (A × B) ÷ k 误用加减分配。",
+          causeNo: 1,
+        },
+        { text: `${A} × ${k} ÷ ${B}`, explain: "(A × B) ÷ k 拆写混乱。", causeNo: 2 },
+        {
+          text: ebJoinSum([`${A} ÷ ${k}`, `${B} ÷ ${k}`]),
+          explain: "把内层 × / ÷ 当成 ± 去分配。",
+          causeNo: 3,
+        },
+        { text: `${B} × ${A} ÷ ${k}`, explain: "乘除号顺序写反。", causeNo: 4 },
+      ];
+      if (!innerTimes) {
+        fullWrongPool[1] = {
+          text: `${A} ÷ ${k} + ${B} ÷ ${k}`,
+          explain: "对 (A ÷ B) ÷ k 误用加减分配。",
+          causeNo: 1,
+        };
+        fullWrongPool[3] = {
+          text: `${B} ÷ ${A} ÷ ${k}`,
+          explain: "乘除号顺序写反。",
+          causeNo: 4,
+        };
+      }
+      return { prompt, correctText, fullWrongPool };
+    }
+
+    function l2BuildByType(questionType, k, A, B) {
+      if (questionType === L2_TYPE_T1) return l2BuildT1(k, A, B);
+      if (questionType === L2_TYPE_T2) return l2BuildT2(k, A, B);
+      if (questionType === L2_TYPE_T3) return l2BuildT3(k, A, B);
+      if (questionType === L2_TYPE_T4) return l2BuildT4(k, A, B);
+      if (questionType === L2_TYPE_T5) return l2BuildT5(k, A, B);
+      return l2BuildT6(k, A, B);
+    }
+
+    function buildExpandQuestion_L2() {
+      const questionType = l2PickQuestionType();
+      const k = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+      const [A, B] = l2PickAB();
+      const built = l2BuildByType(questionType, k, A, B);
+      const wrongPool = ebPickWrongPoolEntries(
+        ebDedupeWrongPool(built.correctText, built.fullWrongPool),
+        L2_WRONG_PER_QUESTION
+      );
+      return {
+        expandKind: "L2",
+        questionType,
+        prompt: built.prompt,
+        correctText: built.correctText,
+        wrongPool,
+        presetWrong: [],
+      };
     }
 
     function buildExpandQuestion_L3() {
