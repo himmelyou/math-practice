@@ -39,6 +39,34 @@ function safeUserForStudent(u) {
   return out;
 }
 
+/** 记局后仅返回客户端需刷新的字段 */
+function buildRunSyncForStudent(u, mode) {
+  const sync = { totalScore: typeof u.totalScore === "number" ? u.totalScore : 0 };
+  const m = normalizeRunMode(mode);
+  if (m === "level") {
+    sync.recentLevelRuns = Array.isArray(u.recentLevelRuns) ? u.recentLevelRuns : [];
+  } else if (m === "training") {
+    sync.recentTrainingRuns = Array.isArray(u.recentTrainingRuns) ? u.recentTrainingRuns : [];
+  } else if (m === "primeComposite") {
+    sync.recentPrimeCompositeRuns = Array.isArray(u.recentPrimeCompositeRuns) ? u.recentPrimeCompositeRuns : [];
+  } else if (m === "expandBrackets") {
+    sync.recentExpandBracketsRuns = Array.isArray(u.recentExpandBracketsRuns) ? u.recentExpandBracketsRuns : [];
+  } else {
+    sync.recentSurvivalRuns = Array.isArray(u.recentSurvivalRuns) ? u.recentSurvivalRuns : [];
+    sync.bestSurvivalSec = typeof u.bestSurvivalSec === "number" ? u.bestSurvivalSec : 0;
+    sync.bestScore = typeof u.bestScore === "number" ? u.bestScore : 0;
+  }
+  return sync;
+}
+
+function pickStudentUserPatch(u, keys) {
+  const patch = {};
+  (keys || []).forEach((k) => {
+    if (u && Object.prototype.hasOwnProperty.call(u, k)) patch[k] = u[k];
+  });
+  return patch;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 const os = require("os");
@@ -891,20 +919,24 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   }
   const u = data.users[idx];
   const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
     if (k === "avatarId") {
       const vr = validateAndNormalizeAvatarIdForUser(u, updates.avatarId);
       if (!vr.ok) return;
       u.avatarId = vr.value;
+      touched.push("avatarId");
       return;
     }
     if (k === "totalScore" || k === "bestSurvivalSec" || k === "bestScore" || k === "levelChallengeBestLevel") {
       const cur = typeof u[k] === "number" ? u[k] : 0;
       const inc = updates[k];
       if (typeof inc === "number") u[k] = Math.max(cur, inc);
+      touched.push(k);
     } else {
       data.users[idx][k] = updates[k];
+      touched.push(k);
     }
   });
   // avatarId 校验失败时返回明确错误
@@ -916,7 +948,11 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   }
   writeJson(USERS_FILE, data);
   data.users[idx].avatarId = resolveUserAvatarIdOrEmpty(data.users[idx]);
-  res.json({ ok: true, user: safeUserForStudent(data.users[idx]) });
+  const outUser = data.users[idx];
+  res.json({
+    ok: true,
+    patch: pickStudentUserPatch(outUser, touched),
+  });
 });
 
 // ========== 学员修改密码，需登录且只能修改自己 ==========
@@ -1093,7 +1129,8 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   }
 
   if (uIdx >= 0) {
-    return res.json({ ok: true, user: safeUserForStudent(userData.users[uIdx]) });
+    const u = userData.users[uIdx];
+    return res.json({ ok: true, sync: buildRunSyncForStudent(u, runEntry.mode) });
   }
   res.json({ ok: true });
 });

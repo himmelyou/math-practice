@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=15"></script>
-  <script src="shared/app-version.js?v=15"></script>
+  <script src="config.js?v=16"></script>
+  <script src="shared/app-version.js?v=16"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -2731,11 +2731,11 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=15"></script>
-  <script src="stats-heatmap-browser.js?v=15"></script>
-  <script src="stats-aggregate-browser.js?v=15"></script>
-  <script src="stats-chart-browser.js?v=15"></script>
-  <script src="shared/expand-brackets-questions.js?v=15"></script>
+  <script src="prime-composite-logic.js?v=16"></script>
+  <script src="stats-heatmap-browser.js?v=16"></script>
+  <script src="stats-aggregate-browser.js?v=16"></script>
+  <script src="stats-chart-browser.js?v=16"></script>
+  <script src="shared/expand-brackets-questions.js?v=16"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -3527,6 +3527,8 @@
     let trainingSessionBrushMode = false;
     /** 本局训练开始时快照：结算是否走刷热图分支 */
     let trainingRunBrushMode = false;
+    /** 取消进行中的后台训练选关刷新 */
+    let trainingEntryRefreshGen = 0;
 
     // ========= 拆括号（选择题）模式状态 =========
     let expandLevel = 0; // 0-based
@@ -4499,6 +4501,7 @@
         "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
         "stats.scriptNotLoaded": "統計腳本未載入。",
         "stats.needServer": "需連接伺服器才能查看數據統計，請設定 API 後重試。",
+        "stats.loading": "載入中…",
         "stats.loadRetry": "載入失敗，請稍後重試。",
         "modal.password.title": "修改密碼",
         "modal.password.currentPh": "目前密碼",
@@ -4768,6 +4771,7 @@
         "stats.levelEmpty": "No per-question stats yet. Play more runs.",
         "stats.scriptNotLoaded": "Stats scripts failed to load.",
         "stats.needServer": "Statistics require a server connection. Configure API and try again.",
+        "stats.loading": "Loading…",
         "stats.loadRetry": "Load failed. Please try again later.",
         "modal.password.title": "Change password",
         "modal.password.currentPh": "Current password",
@@ -5221,6 +5225,27 @@
       return data.ok ? data.user : null;
     }
 
+    function applyUserPatchToCachedUser(patch) {
+      if (!patch || typeof patch !== "object") return;
+      if (!cachedUser) cachedUser = {};
+      Object.keys(patch).forEach((k) => {
+        cachedUser[k] = patch[k];
+      });
+    }
+
+    function applyRunSyncToCachedUser(sync) {
+      if (!sync || typeof sync !== "object") return;
+      if (!cachedUser) cachedUser = {};
+      if (sync.totalScore != null) cachedUser.totalScore = sync.totalScore;
+      if (sync.recentLevelRuns) cachedUser.recentLevelRuns = sync.recentLevelRuns;
+      if (sync.recentTrainingRuns) cachedUser.recentTrainingRuns = sync.recentTrainingRuns;
+      if (sync.recentPrimeCompositeRuns) cachedUser.recentPrimeCompositeRuns = sync.recentPrimeCompositeRuns;
+      if (sync.recentExpandBracketsRuns) cachedUser.recentExpandBracketsRuns = sync.recentExpandBracketsRuns;
+      if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
+      if (sync.bestSurvivalSec != null) cachedUser.bestSurvivalSec = sync.bestSurvivalSec;
+      if (sync.bestScore != null) cachedUser.bestScore = sync.bestScore;
+    }
+
     async function apiPutUser(username, updates) {
       const base = getApiBase();
       if (!base) return null;
@@ -5232,7 +5257,10 @@
       });
       const data = await res.json();
       if (res.status === 401) { handleAuthRequired(); return null; }
-      return data.ok ? data.user : null;
+      if (!data || !data.ok) return null;
+      if (data.patch) applyUserPatchToCachedUser(data.patch);
+      if (data.user) cachedUser = data.user;
+      return cachedUser;
     }
 
     async function apiGetWrongAnswers(username) {
@@ -5322,6 +5350,14 @@
         });
         if (res.status === 401) { handleAuthRequired(); return false; }
         const data = await res.json();
+        if (data && data.sync) {
+          applyRunSyncToCachedUser(data.sync);
+          renderRecentRuns();
+          renderPrimeRecentRuns();
+          renderExpandBracketsRecentRuns();
+          updateHomeTotalScore();
+          return true;
+        }
         if (data && data.user) {
           cachedUser = data.user;
           renderRecentRuns();
@@ -6183,8 +6219,9 @@
       dom.answerInput.disabled = true;
       dom.answerInput.value = "";
 
-      currentLevelIndex = await resolveTrainingEntryLevelAsync();
+      currentLevelIndex = getTrainingEntryLevelFallback();
       setTrainingPracticeSubtitle();
+      void refreshTrainingEntryLevelInBackground();
 
       if (dom.timerChip) dom.timerChip.style.display = "";
       const statusGrid = document.getElementById("status-grid");
@@ -6923,6 +6960,7 @@
     }
 
     function showHome() {
+      cancelTrainingEntryRefresh();
       setTopActionsVisible(true);
       setGameOverLayout(false);
       setFeedback("", null);
@@ -8096,6 +8134,43 @@
       requestAnimationFrame(drawStudentStatsChart);
     }
 
+    function getStudentStatsCacheKey(username) {
+      return "jml_student_stats_v1_" + String(username || "");
+    }
+
+    function loadStudentStatsCache(username) {
+      try {
+        const raw = sessionStorage.getItem(getStudentStatsCacheKey(username));
+        if (!raw) return null;
+        const o = JSON.parse(raw);
+        if (!o || !Array.isArray(o.runs)) return null;
+        return { runs: o.runs, cohort: o.cohort || null };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveStudentStatsCache(username, runs, cohort) {
+      try {
+        sessionStorage.setItem(
+          getStudentStatsCacheKey(username),
+          JSON.stringify({ runs, cohort, ts: Date.now() })
+        );
+      } catch (e) { /* ignore */ }
+    }
+
+    function showStudentStatsLoading() {
+      const empty = document.getElementById("stats-level-empty");
+      const heatHost = document.getElementById("stats-heatmap-host");
+      const chartBlock = document.getElementById("stats-chart-block");
+      if (empty) {
+        empty.style.display = "block";
+        empty.textContent = t("stats.loading");
+      }
+      if (heatHost) heatHost.style.display = "none";
+      if (chartBlock) chartBlock.style.display = "none";
+    }
+
     async function showStatsView() {
       if (isGuestMode) return;
       const name = loadCurrentUsername();
@@ -8125,6 +8200,12 @@
         if (chartBlock) chartBlock.style.display = "none";
         return;
       }
+      const cached = loadStudentStatsCache(name);
+      if (cached) {
+        renderStudentStatsFromRuns(cached.runs, cached.cohort);
+      } else {
+        showStudentStatsLoading();
+      }
       try {
         const [cohort, runsRes] = await Promise.all([
           fetchPublicLevelCohortForTraining(),
@@ -8132,16 +8213,20 @@
         ]);
         const runsData = await runsRes.json();
         if (runsRes.status === 401) { handleAuthRequired(); return; }
+        if (!statsSection || !statsSection.classList.contains("visible")) return;
         const runs = runsData.ok ? runsData.runs : [];
+        saveStudentStatsCache(name, runs, cohort);
         renderStudentStatsFromRuns(runs, cohort);
       } catch (e) {
         console.warn("加载数据统计失败", e);
-        if (empty) {
-          empty.style.display = "block";
-          empty.textContent = t("stats.loadRetry");
+        if (!cached) {
+          if (empty) {
+            empty.style.display = "block";
+            empty.textContent = t("stats.loadRetry");
+          }
+          if (heatHost) heatHost.style.display = "none";
+          if (chartBlock) chartBlock.style.display = "none";
         }
-        if (heatHost) heatHost.style.display = "none";
-        if (chartBlock) chartBlock.style.display = "none";
       }
     }
 
@@ -8659,6 +8744,41 @@
       return entry.levelIndex;
     }
 
+    /** 不拉 runs：用本地已同步等级 / 闯关进度 / 刷热图状态先展示 */
+    function getTrainingEntryLevelFallback() {
+      refreshTrainingDayLocalState();
+      const st = loadTrainingFlowState();
+      trainingSessionBrushMode = !!st.brushMode;
+      const saved = getLevelTrainingCurrentLevel();
+      if (saved >= 0) return Math.min(15, Math.max(0, saved));
+      return getTrainingStartLevel();
+    }
+
+    function cancelTrainingEntryRefresh() {
+      trainingEntryRefreshGen += 1;
+    }
+
+    /** 进入训练或 prestart 后后台用热图校正关卡（不阻塞 UI） */
+    async function refreshTrainingEntryLevelInBackground() {
+      if (gameMode !== "training") return;
+      const gen = ++trainingEntryRefreshGen;
+      try {
+        const idx = await resolveTrainingEntryLevelAsync();
+        if (gen !== trainingEntryRefreshGen || gameMode !== "training") return;
+        currentLevelIndex = idx;
+        setTrainingPracticeSubtitle();
+        updateTrainingStatusUI();
+        if (dom.gameSection && dom.gameSection.classList.contains("training-prestart") && dom.questionText) {
+          const sub = document.getElementById("game-subtitle");
+          const hint = sub ? String(sub.textContent || "").trim() : "";
+          dom.questionText.textContent = hint || "";
+          dom.questionText.classList.toggle("rule-hint", !!hint);
+        }
+      } catch (e) {
+        console.warn("后台刷新训练选关失败", e);
+      }
+    }
+
     function setTrainingPracticeSubtitle() {
       const sub = document.getElementById("game-subtitle");
       if (!sub) return;
@@ -8765,10 +8885,11 @@
         showToast(t("toast.trainingNeedLevelOnce"));
         return;
       }
-      currentLevelIndex = await resolveTrainingEntryLevelAsync();
+      currentLevelIndex = getTrainingEntryLevelFallback();
       setTrainingPracticeSubtitle();
       gameMode = "training";
       showGameSection();
+      void refreshTrainingEntryLevelInBackground();
     }
 
     function handleModeExpandBrackets() {
@@ -8812,7 +8933,7 @@
 
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
-      await refreshGameSettings();
+      void refreshGameSettings();
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
@@ -8868,7 +8989,7 @@
 
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
-      await refreshGameSettings();
+      void refreshGameSettings();
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
@@ -9254,11 +9375,10 @@
         return;
       }
       try {
-        const user = await apiGetUser(name);
+        const [user] = await Promise.all([apiGetUser(name), refreshGameSettings()]);
         if (user) {
           cachedUser = user;
           ensureUserProgressDefault(cachedUser);
-          await refreshGameSettings();
           document.getElementById("login-view").style.display = "none";
           document.getElementById("app-view").style.display = "flex";
           const cpBtn = document.getElementById("change-password-btn");
