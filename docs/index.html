@@ -201,7 +201,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 9px 15px max(8px, env(safe-area-inset-bottom, 0px));
+      padding: 10px 16px 12px;
       max-width: 720px;
       margin: 0 auto;
       width: 100%;
@@ -214,17 +214,17 @@
 
     .app-header {
       text-align: center;
-      padding: 4px 0 8px;
+      padding: 4px 0 10px;
       flex-shrink: 0;
     }
 
     .home-title-img {
       display: block;
-      width: min(292px, 86vw);
+      width: min(300px, 88vw);
       height: auto;
       max-height: none;
       object-fit: contain;
-      margin: 0 auto 8px;
+      margin: 0 auto 10px;
     }
 
     .app-title {
@@ -264,8 +264,8 @@
     .home-user-strip {
       display: flex;
       align-items: center;
-      gap: 9px;
-      padding: 9px 11px;
+      gap: 10px;
+      padding: 10px 12px;
       background: #e3edf8;
       border: 1px solid rgba(120, 144, 180, 0.22);
       border-radius: 14px;
@@ -402,32 +402,25 @@
     }
 
     .home-groups {
-      flex: 1;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
-      gap: 10px;
+      gap: 12px;
       min-height: 0;
-      padding: 2px 0 4px;
-      overflow-x: hidden;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
     }
     .mode-group {
       background: rgba(255, 255, 255, 0.96);
       border-radius: 14px;
-      box-shadow: 0 5px 16px rgba(15, 23, 42, 0.065);
-      padding: 9px 10px 11px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
+      padding: 10px 10px 12px;
       border: 1px solid rgba(148, 163, 184, 0.22);
       flex-shrink: 0;
     }
     .group-head {
       display: flex;
       align-items: center;
-      gap: 7px;
-      margin: 0 0 8px;
-      padding: 0 3px;
+      gap: 8px;
+      margin: 0 0 10px;
+      padding: 0 4px;
     }
     .group-head-icon {
       flex-shrink: 0;
@@ -446,16 +439,16 @@
     .mode-list {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 9px;
+      gap: 10px;
     }
 
     .home-mode-card {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 9px;
+      padding: 8px 10px;
       min-height: 0;
-      height: 39px;
+      height: 40px;
       text-align: left;
       font-size: 0.875rem;
       line-height: 1.25;
@@ -508,18 +501,15 @@
     .home-mode-card.mode-btn-locked::after { display: none !important; }
 
     @media (max-height: 780px) {
-      .home-title-img { width: min(276px, 84vw); margin-bottom: 6px; }
-      .home-groups { gap: 8px; }
-      .mode-group { padding: 8px 9px 10px; }
-      .group-head { margin-bottom: 7px; }
-      .mode-list { gap: 8px; }
-      .home-mode-card { height: 37px; padding: 5px 8px; }
+      .home-title-img { width: min(280px, 86vw); margin-bottom: 8px; }
+      .home-mode-card { height: 36px; padding: 5px 7px; font-size: 0.875rem; }
       .home-mode-icon, .home-mode-icon--placeholder {
-        width: 23px;
-        height: 23px;
-        min-width: 23px;
-        min-height: 23px;
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        min-height: 22px;
       }
+      .app-home-version { padding-top: 4px; }
     }
     .mode-btn-soon {
       opacity: 0.92;
@@ -1561,9 +1551,10 @@
     .app-footer { display: none; }
 
     .home-section {
-      margin-top: 6px;
+      margin-top: 8px;
       display: flex;
       flex-direction: column;
+      gap: 8px;
       flex: 1;
       min-height: 0;
       overflow: hidden;
@@ -1572,7 +1563,7 @@
     .app-home-version {
       flex-shrink: 0;
       margin: 0;
-      padding: 6px 8px 2px;
+      padding: 6px 8px 4px;
       text-align: center;
       font-size: 0.7rem;
       line-height: 1.2;
