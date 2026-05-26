@@ -320,9 +320,14 @@
       filter: brightness(0) invert(1);
       flex-shrink: 0;
     }
-    .home-global-back {
-      margin-top: 6px;
-      width: 100%;
+    .home-user-actions #global-back-home-btn {
+      align-self: center;
+      width: auto;
+      max-width: 108px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      line-height: 1.2;
+      white-space: nowrap;
     }
     .score-row {
       display: inline-flex;
@@ -1544,20 +1549,23 @@
       margin-top: 8px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
       flex: 1;
       min-height: 0;
       overflow: hidden;
     }
 
     .app-home-version {
-      margin-top: auto;
-      padding: 8px 8px 2px;
+      flex-shrink: 0;
+      margin: 0;
+      padding: 6px 8px 4px;
       text-align: center;
       font-size: 0.7rem;
       line-height: 1.2;
       color: rgba(96, 125, 139, 0.85);
-      flex-shrink: 0;
+    }
+
+    .home-section.hidden + .app-home-version {
+      display: none;
     }
 
     .home-total-score {
@@ -2172,9 +2180,9 @@
             <span class="home-pill-icon--placeholder" aria-hidden="true"></span>
             <span id="logout-btn-label">注销</span>
           </button>
+          <button type="button" id="global-back-home-btn" style="display:none;">返回首页</button>
         </div>
       </div>
-      <button type="button" id="global-back-home-btn" class="home-global-back" style="display:none;">返回首页</button>
     </header>
 
     <section class="home-section" id="home-section">
@@ -2281,8 +2289,8 @@
           </div>
         </section>
       </div>
-      <p class="app-home-version" id="app-home-version">版本 v1.6.4</p>
     </section>
+    <p class="app-home-version" id="app-home-version">版本 v1.6.4</p>
 
     <div class="game-section" id="game-section">
       <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。</p>
@@ -3682,12 +3690,12 @@
       if (visible) {
         if (globalBackBtn) globalBackBtn.style.display = "none";
         if (changePwdBtn) changePwdBtn.style.display = isGuestMode ? "none" : "";
-        if (logoutBtn) logoutBtn.style.display = "";
+        if (logoutBtn) logoutBtn.style.display = isGuestMode ? "none" : "";
         return;
       }
       if (globalBackBtn) globalBackBtn.style.display = "";
       if (changePwdBtn) changePwdBtn.style.display = "none";
-      if (logoutBtn) logoutBtn.style.display = "";
+      if (logoutBtn) logoutBtn.style.display = "none";
       updateGlobalBackButtonState();
     }
 
