@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=14"></script>
-  <script src="shared/app-version.js?v=14"></script>
+  <script src="config.js?v=15"></script>
+  <script src="shared/app-version.js?v=15"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -2731,11 +2731,11 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=14"></script>
-  <script src="stats-heatmap-browser.js?v=14"></script>
-  <script src="stats-aggregate-browser.js?v=14"></script>
-  <script src="stats-chart-browser.js?v=14"></script>
-  <script src="shared/expand-brackets-questions.js?v=14"></script>
+  <script src="prime-composite-logic.js?v=15"></script>
+  <script src="stats-heatmap-browser.js?v=15"></script>
+  <script src="stats-aggregate-browser.js?v=15"></script>
+  <script src="stats-chart-browser.js?v=15"></script>
+  <script src="shared/expand-brackets-questions.js?v=15"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5235,6 +5235,68 @@
       return data.ok ? data.user : null;
     }
 
+    async function apiGetWrongAnswers(username) {
+      const base = getApiBase();
+      if (!base) return null;
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(username) + "/wrong-answers",
+        { credentials: "include", headers: getAuthHeaders() }
+      );
+      const data = await res.json();
+      if (res.status === 401) { handleAuthRequired(); return null; }
+      return data.ok && Array.isArray(data.wrongAnswers) ? data.wrongAnswers : null;
+    }
+
+    async function apiPostWrongAnswer(username, entry) {
+      const base = getApiBase();
+      if (!base) return null;
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(username) + "/wrong-answers",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ entry }),
+          credentials: "include",
+        }
+      );
+      const data = await res.json();
+      if (res.status === 401) { handleAuthRequired(); return null; }
+      if (!data.ok) return null;
+      return {
+        wrongAnswers: Array.isArray(data.wrongAnswers) ? data.wrongAnswers : null,
+        skipped: data.skipped === true,
+      };
+    }
+
+    async function apiClearWrongAnswers(username) {
+      const base = getApiBase();
+      if (!base) return null;
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(username) + "/wrong-answers",
+        { method: "DELETE", credentials: "include", headers: getAuthHeaders() }
+      );
+      const data = await res.json();
+      if (res.status === 401) { handleAuthRequired(); return null; }
+      return data.ok ? (Array.isArray(data.wrongAnswers) ? data.wrongAnswers : []) : null;
+    }
+
+    async function apiPostExpandBracketsWrongAnswer(username, entry) {
+      const base = getApiBase();
+      if (!base) return false;
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(username) + "/expand-brackets-wrong-answers",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ entry }),
+          credentials: "include",
+        }
+      );
+      if (res.status === 401) { handleAuthRequired(); return false; }
+      const data = await res.json();
+      return !!(data && data.ok);
+    }
+
     async function apiChangePassword(username, currentPassword, newPassword) {
       const base = getApiBase();
       if (!base) return { ok: false, error: t("error.noServer") };
@@ -5465,7 +5527,6 @@
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
-      if (!Array.isArray(user.expandBracketsWrongAnswers)) user.expandBracketsWrongAnswers = [];
     }
 
     function loadState() {
@@ -5521,13 +5582,15 @@
       const base = getApiBase();
       if (!base) return;
       try {
-        const u = cachedUser || {};
+        const u = cachedUser || { username };
         if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
-        // 达到上限后，不再写入“最新错题”，以避免把更真实的旧错题踢掉
         if (u.wrongAnswers.length >= WRONGBOOK_MAX_STORE) return;
         u.wrongAnswers.unshift(entry);
         cachedUser = u;
-        await apiPutUser(username, { wrongAnswers: u.wrongAnswers });
+        const result = await apiPostWrongAnswer(username, entry);
+        if (result && Array.isArray(result.wrongAnswers)) {
+          cachedUser.wrongAnswers = result.wrongAnswers;
+        }
       } catch (e) {
         console.warn("同步错题到服务器失败", e);
       }
@@ -5548,17 +5611,8 @@
     }
 
     async function apiAppendExpandBracketsWrongAnswer(username, entry) {
-      const base = getApiBase();
-      if (!base) return;
       try {
-        const u = cachedUser || {};
-        if (!Array.isArray(u.expandBracketsWrongAnswers)) u.expandBracketsWrongAnswers = [];
-        u.expandBracketsWrongAnswers.unshift(entry);
-        if (u.expandBracketsWrongAnswers.length > EXPAND_WRONG_MAX_STORE) {
-          u.expandBracketsWrongAnswers = u.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE);
-        }
-        cachedUser = u;
-        await apiPutUser(username, { expandBracketsWrongAnswers: u.expandBracketsWrongAnswers });
+        await apiPostExpandBracketsWrongAnswer(username, entry);
       } catch (e) {
         console.warn("同步拆括号错题到服务器失败", e);
       }
@@ -6420,8 +6474,8 @@
           const name = loadCurrentUsername();
           if (name) {
             try {
-              const updated = await apiPutUser(name, { wrongAnswers: [] });
-              if (updated) cachedUser = updated;
+              const cleared = await apiClearWrongAnswers(name);
+              if (cleared && cachedUser) cachedUser.wrongAnswers = cleared;
             } catch (e) {
               console.warn("清空错题本失败", e);
             }
@@ -8228,16 +8282,20 @@
         dom.expandSection.style.display = "none";
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
-      if (getApiBase()) {
-        const name = loadCurrentUsername();
-        if (name) {
-          try {
-            const u = await apiGetUser(name);
-            if (u) { cachedUser = u; ensureUserProgressDefault(cachedUser); }
-          } catch (e) { console.warn("刷新错题失败", e); }
-        }
-      }
       renderWrongbookList();
+      const name = loadCurrentUsername();
+      if (!name || !getApiBase()) return;
+      try {
+        const wrongs = await apiGetWrongAnswers(name);
+        if (wrongs) {
+          if (!cachedUser) cachedUser = { username: name };
+          ensureUserProgressDefault(cachedUser);
+          cachedUser.wrongAnswers = wrongs;
+          renderWrongbookList();
+        }
+      } catch (e) {
+        console.warn("刷新错题失败", e);
+      }
     }
 
     function renderWrongbookList() {

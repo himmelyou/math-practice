@@ -27,6 +27,18 @@ function safeUser(u) {
   return rest;
 }
 
+const WRONGBOOK_MAX_STORE = 30;
+const EXPAND_WRONG_MAX_STORE = 20;
+
+/** 学员端 API：不返回拆括号错题（仅管理端 report 使用） */
+function safeUserForStudent(u) {
+  const out = safeUser(u);
+  if (out && Object.prototype.hasOwnProperty.call(out, "expandBracketsWrongAnswers")) {
+    delete out.expandBracketsWrongAnswers;
+  }
+  return out;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 const os = require("os");
@@ -715,7 +727,7 @@ app.post("/api/register", async (req, res) => {
   data.users.push(newUser);
   writeJson(USERS_FILE, data);
   const token = setAuthCookie(res, name);
-  res.json({ ok: true, user: safeUser(newUser), token });
+  res.json({ ok: true, user: safeUserForStudent(newUser), token });
 });
 
 // ========== 学员登录 ==========
@@ -757,12 +769,90 @@ app.post("/api/login", async (req, res) => {
     }
   }
   const token = setAuthCookie(res, username);
-  res.json({ ok: true, user: safeUser(user), token });
+  res.json({ ok: true, user: safeUserForStudent(user), token });
 });
 
 // ========== 学员登出（清除登录态） ==========
 app.post("/api/logout", (req, res) => {
   clearAuthCookie(res);
+  res.json({ ok: true });
+});
+
+// ========== 错题本（学员）：按需读写 ==========
+app.get("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const wrongAnswers = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+  res.json({ ok: true, wrongAnswers });
+});
+
+app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const raw = req.body && req.body.entry != null ? req.body.entry : req.body;
+  if (!raw || typeof raw !== "object") {
+    return res.status(400).json({ ok: false, error: "无效错题" });
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const u = data.users[idx];
+  if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+  if (u.wrongAnswers.length >= WRONGBOOK_MAX_STORE) {
+    return res.json({ ok: true, wrongAnswers: u.wrongAnswers, skipped: true });
+  }
+  const entry = {
+    text: String(raw.text || ""),
+    answer: Number(raw.answer),
+    studentAnswer: Number(raw.studentAnswer),
+  };
+  u.wrongAnswers.unshift(entry);
+  writeJson(USERS_FILE, data);
+  res.json({ ok: true, wrongAnswers: u.wrongAnswers });
+});
+
+app.delete("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  data.users[idx].wrongAnswers = [];
+  writeJson(USERS_FILE, data);
+  res.json({ ok: true, wrongAnswers: [] });
+});
+
+app.post("/api/user/:username/expand-brackets-wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const raw = req.body && req.body.entry != null ? req.body.entry : req.body;
+  if (!raw || typeof raw !== "object") {
+    return res.status(400).json({ ok: false, error: "无效错题" });
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const u = data.users[idx];
+  if (!Array.isArray(u.expandBracketsWrongAnswers)) u.expandBracketsWrongAnswers = [];
+  const entry = {
+    ts: typeof raw.ts === "number" ? raw.ts : Date.now(),
+    levelIndex: typeof raw.levelIndex === "number" ? raw.levelIndex : 0,
+    prompt: String(raw.prompt || ""),
+    correctAnswer: String(raw.correctAnswer || ""),
+    studentAnswer: String(raw.studentAnswer || ""),
+  };
+  u.expandBracketsWrongAnswers.unshift(entry);
+  if (u.expandBracketsWrongAnswers.length > EXPAND_WRONG_MAX_STORE) {
+    u.expandBracketsWrongAnswers = u.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE);
+  }
+  writeJson(USERS_FILE, data);
   res.json({ ok: true });
 });
 
@@ -786,7 +876,7 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   }
   // 头像：若被删/禁用/未解锁则回退为空（前端用默认符号展示）
   user.avatarId = resolveUserAvatarIdOrEmpty(user);
-  res.json({ ok: true, user: safeUser(user) });
+  res.json({ ok: true, user: safeUserForStudent(user) });
 });
 
 // ========== 更新学员进度（游戏结束后同步），需登录且只能访问自己 ==========
@@ -826,7 +916,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   }
   writeJson(USERS_FILE, data);
   data.users[idx].avatarId = resolveUserAvatarIdOrEmpty(data.users[idx]);
-  res.json({ ok: true, user: safeUser(data.users[idx]) });
+  res.json({ ok: true, user: safeUserForStudent(data.users[idx]) });
 });
 
 // ========== 学员修改密码，需登录且只能修改自己 ==========
@@ -1003,7 +1093,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   }
 
   if (uIdx >= 0) {
-    return res.json({ ok: true, user: safeUser(userData.users[uIdx]) });
+    return res.json({ ok: true, user: safeUserForStudent(userData.users[uIdx]) });
   }
   res.json({ ok: true });
 });
