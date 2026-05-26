@@ -440,6 +440,8 @@
       min-height: 0;
       height: 40px;
       text-align: left;
+      font-size: 0.875rem;
+      line-height: 1.25;
       background: #ffffff;
       border: 1px solid rgba(148, 163, 184, 0.24);
       box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -448,20 +450,25 @@
     .home-mode-card .home-mode-label {
       flex: 1;
       min-width: 0;
-      font-size: 0.875rem;
+      font-size: inherit;
       font-weight: 600;
-      line-height: 1.25;
+      line-height: inherit;
     }
     .home-mode-icon {
       flex-shrink: 0;
       width: 24px;
       height: 24px;
+      min-width: 24px;
+      min-height: 24px;
       object-fit: contain;
     }
     .home-mode-icon--placeholder {
       display: block;
+      flex-shrink: 0;
       width: 24px;
       height: 24px;
+      min-width: 24px;
+      min-height: 24px;
       border-radius: 8px;
       background: linear-gradient(180deg, #eceff1, #cfd8dc);
     }
@@ -485,9 +492,13 @@
 
     @media (max-height: 780px) {
       .home-title-img { width: min(280px, 86vw); margin-bottom: 8px; }
-      .home-mode-card { height: 36px; padding: 5px 7px; }
-      .home-mode-card .home-mode-label { font-size: 0.8125rem; }
-      .home-mode-icon, .home-mode-icon--placeholder { width: 22px; height: 22px; }
+      .home-mode-card { height: 36px; padding: 5px 7px; font-size: 0.875rem; }
+      .home-mode-icon, .home-mode-icon--placeholder {
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        min-height: 22px;
+      }
       .app-home-version { padding-top: 4px; }
     }
     .mode-btn-soon {
@@ -1577,6 +1588,8 @@
     .mode-btn.home-mode-card {
       border-radius: 10px;
       padding: 6px 8px;
+      font-size: 0.875rem;
+      text-align: left;
       box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     }
 
@@ -1918,15 +1931,15 @@
       }
     }
 
-    /* 平板横屏：中间窄栏模拟竖屏手机，两侧 body 背景留白（不含手机横屏） */
-    @media (orientation: landscape) and (min-width: 768px) {
+    /* 平板横屏（触摸设备）：中间窄栏、两侧见 body 背景；桌面浏览器拉宽不走此条，避免中间白条 */
+    @media (orientation: landscape) and (min-width: 768px) and (hover: none) and (pointer: coarse) {
       .app {
         flex: 1;
         max-width: 430px;
         width: 100%;
         margin: 0 auto;
         padding: 10px 16px 12px;
-        background: rgba(255, 255, 255, 0.72);
+        background: transparent;
         box-shadow: var(--shadow-soft);
       }
 
@@ -8282,14 +8295,14 @@
     function updateSurvivalButtonLabel() {
       const btn = document.getElementById("mode-survival");
       if (!btn) return;
-      btn.textContent = t("home.mode.survival");
+      setHomeModeLabel("mode-survival", "home.mode.survival");
       btn.classList.toggle("mode-btn-locked", isSurvivalLocked());
     }
 
     function updateRankingButtonLabel() {
       const btn = document.getElementById("mode-ranking");
       if (!btn) return;
-      btn.textContent = t("home.mode.ranking");
+      setHomeModeLabel("mode-ranking", "home.mode.ranking");
       btn.classList.remove("mode-btn-locked");
     }
 
@@ -8638,11 +8651,10 @@
     function updateTrainingButtonLabel() {
       const btn = document.getElementById("mode-practice");
       if (!btn) return;
+      setHomeModeLabel("mode-practice", "home.mode.training");
       if (isTrainingLocked()) {
-        btn.textContent = t("home.mode.training");
         btn.classList.add("mode-btn-locked");
       } else {
-        btn.textContent = t("home.mode.training");
         btn.classList.remove("mode-btn-locked");
       }
     }
