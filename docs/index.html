@@ -103,9 +103,9 @@
       border: 1px solid rgba(13, 71, 161, 0.2);
       background: #fff;
       border-radius: 999px;
-      min-width: 86px;
+      min-width: 72px;
       height: 26px;
-      padding: 0 10px;
+      padding: 0 12px;
       font-size: 0.74rem;
       color: #0d47a1;
       cursor: pointer;
@@ -113,11 +113,10 @@
       text-align: center;
       white-space: nowrap;
       box-sizing: border-box;
+      font-family: inherit;
     }
-    .lang-switch-btn.active {
-      color: #fff;
-      background: #1976d2;
-      border-color: #1976d2;
+    .lang-switch-btn:hover {
+      background: #f7fbff;
     }
 
     .login-title {
@@ -2136,8 +2135,7 @@
   <div id="login-view" class="login-view">
     <div class="login-card">
       <div class="lang-switch" id="lang-switch">
-        <button type="button" class="lang-switch-btn" id="lang-btn-zhhant">繁體中文</button>
-        <button type="button" class="lang-switch-btn" id="lang-btn-en">EN</button>
+        <button type="button" class="lang-switch-btn" id="lang-toggle-btn" aria-label="切換語言">EN</button>
       </div>
       <h1 class="login-title">Number Sense Lab</h1>
       <div class="login-panel active" id="login-panel">
@@ -4269,6 +4267,7 @@
         "lang.label": "語言",
         "lang.zhHant": "繁體中文",
         "lang.en": "English",
+        "lang.toggleAria": "切換語言",
         "login.username.placeholder": "使用者名稱",
         "login.password.placeholder": "密碼",
         "login.submit": "登入",
@@ -4553,6 +4552,7 @@
         "lang.label": "Language",
         "lang.zhHant": "Traditional Chinese",
         "lang.en": "English",
+        "lang.toggleAria": "Switch language",
         "login.username.placeholder": "Username",
         "login.password.placeholder": "Password",
         "login.submit": "Sign In",
@@ -5055,8 +5055,7 @@
       const backToLoginBtn = byId("back-to-login-btn");
       const loginHint = document.querySelector(".login-hint");
       const loginVersion = document.querySelector(".login-version");
-      const zhBtn = byId("lang-btn-zhhant");
-      const enBtn = byId("lang-btn-en");
+      const langToggleBtn = byId("lang-toggle-btn");
 
       if (loginUsername) loginUsername.placeholder = t("login.username.placeholder");
       if (loginPassword) loginPassword.placeholder = t("login.password.placeholder");
@@ -5069,13 +5068,9 @@
       if (registerBtn) registerBtn.textContent = t("login.register.submit");
       if (backToLoginBtn) backToLoginBtn.textContent = t("login.register.back");
       if (loginHint) loginHint.textContent = t("login.hint");
-      if (zhBtn) {
-        zhBtn.textContent = t("lang.zhHant");
-        zhBtn.classList.toggle("active", currentLang === "zhHant");
-      }
-      if (enBtn) {
-        enBtn.textContent = t("lang.en");
-        enBtn.classList.toggle("active", currentLang === "en");
+      if (langToggleBtn) {
+        langToggleBtn.textContent = currentLang === "en" ? t("lang.zhHant") : t("lang.en");
+        langToggleBtn.setAttribute("aria-label", t("lang.toggleAria"));
       }
       const appVer =
         (typeof window !== "undefined" && window.JML_APP_VERSION) ||
@@ -9266,17 +9261,9 @@
 
       const loginBtn = document.getElementById("login-btn");
       loginBtn.addEventListener("click", handleLogin);
-      const langBtnZh = document.getElementById("lang-btn-zhhant");
-      const langBtnEn = document.getElementById("lang-btn-en");
-      if (langBtnZh) langBtnZh.addEventListener("click", function () {
-        saveLang("zhHant");
-        applyI18nToLoginView();
-        applyI18nToMainView();
-        const rThead = document.getElementById("ranking-thead-v2");
-        if (rThead) rThead.innerHTML = buildRankingTheadHtml(lastRankingTab);
-      });
-      if (langBtnEn) langBtnEn.addEventListener("click", function () {
-        saveLang("en");
+      const langToggleBtn = document.getElementById("lang-toggle-btn");
+      if (langToggleBtn) langToggleBtn.addEventListener("click", function () {
+        saveLang(currentLang === "en" ? "zhHant" : "en");
         applyI18nToLoginView();
         applyI18nToMainView();
         const rThead = document.getElementById("ranking-thead-v2");
