@@ -51,7 +51,9 @@
       min-height: 100vh;
       min-height: 100dvh;
       min-height: -webkit-fill-available;
+      height: 100svh;
       height: 100dvh;
+      max-height: 100svh;
       max-height: 100dvh;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background: transparent;
@@ -1516,8 +1518,9 @@
 
     /* 软键盘（方案B）：独立卡片，开局后替换最近记录区域 */
     .soft-kbd-card {
-      margin-top: 10px;
+      margin-top: 8px;
       padding: 4px 10px 6px;
+      padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
       background: #ffffff;
       border-radius: var(--border-radius);
       box-shadow: var(--shadow-soft);
@@ -1527,12 +1530,28 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
+    }
+    #soft-kbd-card .feedback:empty {
+      display: none !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+    }
+    .game-play-body--kbd .soft-kbd-card {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+    .game-play-body--kbd .soft-kbd-card .soft-kbd {
+      margin-top: auto;
+      flex-shrink: 0;
     }
     .soft-kbd {
       width: 100%;
       padding-bottom: 6px;
       box-sizing: border-box;
+      flex-shrink: 0;
     }
     .soft-kbd-grid {
       display: grid;
@@ -2054,63 +2073,83 @@
       width: 100%;
     }
 
-    /* 游戏区固定壳：上方提示区 + 底部固定操作位（开始按钮 / 输入框） */
-    #game-card {
-      flex: 0 0 auto;
-      height: clamp(190px, 30vh, 240px);
+    /* 题目区 + 键盘/记录：占满 game-section 剩余高度 */
+    .game-play-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .game-play-body > #game-card,
+    .game-play-body > #expand-game-card {
+      flex-shrink: 0;
+    }
+
+    .game-play-body > .recent-card {
+      flex: 1;
+      min-height: 0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
-    #game-card > .question-header {
+    .game-play-body > .soft-kbd-card {
+      flex: 1;
+      min-height: 0;
+    }
+
+    @media (max-width: 520px) {
+      .game-play-body.game-play-body--kbd {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+    }
+
+    /* 题目卡：未开局固定壳 / 开局后随内容（共用 class） */
+    #game-card,
+    #expand-game-card {
+      flex: 0 0 auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #game-card > .question-header,
+    #expand-game-card > .question-header {
       flex-shrink: 0;
     }
 
-    #game-card > .question-text {
-      flex: 1 1 auto;
-      min-height: 3.2em;
-      overflow-y: auto;
-      margin-top: 0;
-    }
-
-    #game-card > .question-subtext {
+    #game-card > .question-subtext,
+    #expand-game-card > .question-subtext {
       flex-shrink: 0;
-    }
-
-    #game-card > .answer-form {
-      flex-shrink: 0;
-      margin-top: auto;
     }
 
     #game-card > .batch-summary {
       flex-shrink: 0;
     }
 
-    .expand-brackets-page #expand-game-card {
-      flex: 0 0 auto;
+    #game-card.game-card--prestart,
+    #expand-game-card.game-card--prestart {
       height: clamp(190px, 30vh, 240px);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
     }
 
-    #expand-game-card > .question-header {
-      flex-shrink: 0;
-    }
-
-    #expand-game-card > .question-text {
+    #game-card.game-card--prestart > .question-text,
+    #expand-game-card.game-card--prestart > .question-text {
       flex: 1 1 auto;
       min-height: 3.2em;
       overflow-y: auto;
       margin-top: 0;
     }
 
-    #expand-game-card > .question-subtext {
+    #game-card.game-card--prestart > .answer-form {
       flex-shrink: 0;
+      margin-top: auto;
     }
 
-    #expand-game-card > .expand-brackets-panel {
+    #expand-game-card.game-card--prestart > .expand-brackets-panel {
       flex-shrink: 0;
       margin-top: auto;
       display: flex;
@@ -2121,28 +2160,42 @@
     #expand-game-card .expand-brackets-panel .expand-action-anchor {
       margin-top: 0;
     }
-    .game-section .recent-card {
-      flex: 1;
+
+    #game-card.game-card--playing,
+    #expand-game-card.game-card--playing {
+      height: auto;
+      max-height: min(42vh, 240px);
+    }
+
+    #game-card.game-card--playing > .question-text,
+    #expand-game-card.game-card--playing > .question-text {
+      flex: 0 1 auto;
       min-height: 0;
-      overflow: hidden;
+      max-height: min(30vh, 168px);
+      overflow-y: auto;
+      margin-top: 0;
+    }
+
+    #game-card.game-card--playing > .answer-form {
+      flex-shrink: 0;
+      margin-top: 0;
+    }
+
+    #expand-game-card.game-card--playing > .expand-brackets-panel {
+      flex-shrink: 0;
+      margin-top: 0;
       display: flex;
       flex-direction: column;
-    }
-    .game-section .recent-card .recent-body {
-      flex: 1;
       min-height: 0;
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
+      max-height: min(36vh, 200px);
     }
-    .game-section .soft-kbd-card {
-      flex: 1;
-      min-height: 0;
-    }
-    /* 未开局压缩：在固定高度下保证开始按钮可见（生存/闯关/训练） */
-    .game-section.training-prestart #game-card {
+
+    .game-section.training-prestart #game-card.game-card--prestart,
+    .game-section.training-prestart #expand-game-card.game-card--prestart {
       gap: 8px;
     }
+
     .game-section.training-prestart .question-text.rule-hint {
       font-size: 0.82rem;
       line-height: 1.35;
@@ -2152,6 +2205,46 @@
       -webkit-line-clamp: 2;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .game-play-body > .recent-card .recent-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    .expand-brackets-page.game-section.visible,
+    #expand-brackets-section.visible {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #expand-play-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .expand-brackets-page #expand-game-card > .expand-history {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .expand-brackets-page #expand-game-card > .expand-history .recent-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     .game-section.wrong-practice-active .question-header {
       display: none;
@@ -2164,7 +2257,18 @@
       padding-top: 14px;
     }
     @media (max-width: 520px) {
-      #game-card { height: clamp(140px, 28vh, 180px); }
+      #game-card.game-card--prestart,
+      #expand-game-card.game-card--prestart {
+        height: clamp(140px, 28vh, 180px);
+      }
+      #game-card.game-card--playing,
+      #expand-game-card.game-card--playing {
+        max-height: min(38vh, 200px);
+      }
+      #game-card.game-card--playing > .question-text,
+      #expand-game-card.game-card--playing > .question-text {
+        max-height: min(26vh, 140px);
+      }
     }
 
     @media (min-width: 768px) and (orientation: portrait) {
@@ -2216,9 +2320,9 @@
         overscroll-behavior: contain;
       }
 
-      #game-card {
+      #game-card.game-card--prestart,
+      #expand-game-card.game-card--prestart {
         height: clamp(130px, 28vh, 168px);
-        overflow: hidden;
       }
 
       .soft-kbd-card {
@@ -2578,7 +2682,8 @@
         </div>
       </div>
 
-    <main class="card" id="game-card">
+      <div class="game-play-body" id="game-play-body">
+    <main class="card game-card--prestart" id="game-card">
       <div class="question-header">
         <div class="question-label">
           <span class="status-label" id="status-label-difficulty">当前难度：</span>
@@ -2666,6 +2771,7 @@
         </div>
       </div>
     </section>
+      </div>
     </div>
 
     <section class="game-section expand-brackets-page" id="expand-brackets-section" style="display:none;">
@@ -2695,7 +2801,8 @@
         </div>
       </div>
 
-      <main class="card" id="expand-game-card">
+      <div class="game-play-body" id="expand-play-body">
+      <main class="card game-card--prestart" id="expand-game-card">
         <div class="question-header">
           <div class="question-label">
             <span class="status-label">当前难度：</span>
@@ -2757,6 +2864,7 @@
           </div>
         </div>
       </main>
+      </div>
     </section>
 
     <div class="toast" id="app-toast" role="status" aria-live="polite"></div>
@@ -3797,6 +3905,7 @@
       dom.recentHistoryWrap = document.getElementById("recent-history-wrap");
       dom.recentCard = document.querySelector("#game-section .recent-card");
       dom.softKbdCard = document.getElementById("soft-kbd-card");
+      dom.gamePlayBody = document.getElementById("game-play-body");
       dom.softKbd = document.getElementById("soft-kbd");
       dom.wrongbookSection = document.getElementById("wrongbook-section");
       dom.wrongbookList = document.getElementById("wrongbook-list");
@@ -3839,6 +3948,7 @@
     function setSoftKeyboardVisible(visible) {
       if (dom.softKbdCard) dom.softKbdCard.style.display = visible ? "flex" : "none";
       if (dom.recentCard) dom.recentCard.style.display = visible ? "none" : "flex";
+      if (dom.gamePlayBody) dom.gamePlayBody.classList.toggle("game-play-body--kbd", !!visible);
       if (dom.feedback) dom.feedback.classList.toggle("soft-kbd-feedback", !!visible);
     }
 
@@ -4410,6 +4520,7 @@
         survivalTimerId = null;
       }
 
+      setExpandGameCardLayoutMode("playing");
       if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
       if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "none";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
@@ -4526,6 +4637,7 @@
       setExpandGameCardGameOver(false);
       if (dom.expandPanel) dom.expandPanel.style.display = "block";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
+      setExpandGameCardLayoutMode("prestart");
       if (dom.expandStartRow) dom.expandStartRow.style.display = "";
       if (dom.expandStartBtn) dom.expandStartBtn.textContent = t("game.btn.startChallenge");
       if (dom.expandChoices) dom.expandChoices.style.display = "none";
@@ -6416,16 +6528,33 @@
       dom.gameOverPanel.classList.toggle("training-summary", !!active);
     }
 
+    /** 题目卡布局：未开局固定壳 / 开局后随内容 */
+    function setGameCardLayoutMode(mode) {
+      const card = document.getElementById("game-card");
+      if (!card) return;
+      card.classList.toggle("game-card--prestart", mode === "prestart");
+      card.classList.toggle("game-card--playing", mode === "playing");
+    }
+
+    function setExpandGameCardLayoutMode(mode) {
+      const card = document.getElementById("expand-game-card");
+      if (!card) return;
+      card.classList.toggle("game-card--prestart", mode === "prestart");
+      card.classList.toggle("game-card--playing", mode === "playing");
+    }
+
     /** 题目卡底部操作位：开始按钮与输入框同一槽位，互斥显示 */
     function setGameCardActionSlot(mode) {
       const inputRow = document.getElementById("answer-input-row");
       if (mode === "start") {
+        setGameCardLayoutMode("prestart");
         if (dom.startRow) dom.startRow.style.display = "";
         if (inputRow) inputRow.style.display = "none";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
         return;
       }
       if (mode === "input") {
+        setGameCardLayoutMode("playing");
         if (dom.startRow) dom.startRow.style.display = "none";
         if (inputRow) inputRow.style.display = "";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
