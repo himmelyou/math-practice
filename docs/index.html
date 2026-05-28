@@ -70,6 +70,7 @@
     .login-view {
       flex: 1;
       display: flex;
+      flex-direction: column;
       justify-content: center;
       align-items: center;
       padding: 16px;
@@ -78,36 +79,51 @@
       overflow: hidden;
     }
 
-    .login-card {
+    .login-shell {
       width: 100%;
       max-width: 380px;
-      background: #ffffff;
-      border-radius: var(--border-radius);
-      box-shadow: var(--shadow-soft);
-      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
       box-sizing: border-box;
-      min-height: 478px;
+    }
+
+    .login-title-img {
+      display: block;
+      width: min(300px, 88vw);
+      height: auto;
+      object-fit: contain;
+      margin: 0 auto 14px;
+    }
+
+    .login-card {
+      width: 100%;
+      background: #f8fafe;
+      border-radius: 18px;
+      box-shadow: 0 8px 23.1px rgba(0, 6, 128, 0.13);
+      padding: 16px 18px 14px;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
     }
 
-    .lang-switch {
+    .login-view .lang-switch {
       display: flex;
       align-items: center;
       justify-content: flex-end;
       gap: 6px;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       min-height: 28px;
     }
-    .lang-switch-btn {
-      border: 1px solid rgba(13, 71, 161, 0.2);
+    .login-view .lang-switch-btn {
+      border: 1px solid rgba(117, 125, 159, 0.35);
       background: #fff;
       border-radius: 999px;
       min-width: 72px;
       height: 26px;
       padding: 0 12px;
       font-size: 0.74rem;
-      color: #0d47a1;
+      color: #757d9f;
       cursor: pointer;
       line-height: 26px;
       text-align: center;
@@ -115,18 +131,8 @@
       box-sizing: border-box;
       font-family: inherit;
     }
-    .lang-switch-btn:hover {
-      background: #f7fbff;
-    }
-
-    .login-title {
-      margin: 0 0 50px;
-      font-size: 1.4rem;
-      font-weight: 700;
-      color: #0d47a1;
-      text-align: center;
-      width: 100%;
-      display: block;
+    .login-view .lang-switch-btn:hover {
+      background: #f4f6fb;
     }
 
     .login-subtitle {
@@ -135,52 +141,93 @@
       color: var(--muted);
     }
 
-    .login-field {
+    .login-view .login-field {
       margin-bottom: 10px;
     }
 
-    .login-field input {
-      width: 100%;
-      padding: 9px 12px;
+    .login-view .login-field-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 14px 0 12px;
       border-radius: 999px;
-      border: 1px solid rgba(13, 71, 161, 0.16);
-      outline: none;
-      font-size: 0.95rem;
+      border: 1px solid #e5e5e5;
+      background: #fff;
       box-sizing: border-box;
     }
 
-    .login-field input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.16);
-      background: #f7fbff;
+    .login-view .login-field-row:focus-within {
+      border-color: #4e83f8;
+      box-shadow: 0 0 0 3px rgba(78, 131, 248, 0.14);
     }
 
-    .login-btn {
+    .login-view .login-field-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      object-fit: contain;
+      opacity: 0.55;
+    }
+
+    .login-view .login-field-row input {
+      flex: 1;
+      min-width: 0;
+      width: 0;
+      padding: 0;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      box-sizing: border-box;
+    }
+
+    .login-view .login-field-row input::placeholder {
+      color: #b0b5c5;
+    }
+
+    .login-view .login-btn {
       width: 100%;
       margin-top: 12px;
       border-radius: 999px;
       border: none;
-      height: 40px;
+      height: 42px;
       padding: 0 14px;
       font-size: 0.96rem;
       font-weight: 600;
       cursor: pointer;
-      background: linear-gradient(135deg, var(--primary), var(--primary-light));
-      color: #fff;
-      box-shadow: 0 6px 14px rgba(25, 118, 210, 0.4);
       white-space: nowrap;
+      line-height: 42px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+
+    .login-view .login-panel .login-btn:first-of-type {
+      margin-top: 4px;
+    }
+
+    .login-view .login-btn--primary {
+      background: #4e83f8;
+      color: #fff;
+      box-shadow: none;
+    }
+
+    .login-view .login-btn--accent {
+      background: #f8a94e;
+      color: #fff;
+      box-shadow: none;
+    }
+
+    .login-view .login-btn--outline {
+      background: #fff;
+      color: #4e83f8;
+      box-shadow: none;
+      border: 1px solid #4e83f8;
       line-height: 40px;
     }
 
-    .login-panel .login-btn:first-of-type { margin-top: 0; }
-    .guest-btn {
-      background: #f1f6ff;
-      color: var(--primary);
-      box-shadow: none;
-      border: 1px solid rgba(25, 118, 210, 0.25);
-    }
-
-    .login-error {
+    .login-view .login-error {
       min-height: 20px;
       margin-top: 6px;
       font-size: 0.8rem;
@@ -188,23 +235,27 @@
       color: var(--danger);
     }
 
-    .login-hint {
+    .login-view .login-hint {
       margin-top: 8px;
       font-size: 0.78rem;
       line-height: 1.45;
       min-height: 2.9em;
-      color: var(--muted);
+      color: #757d9f;
     }
 
-    .login-panel { display: none; min-height: 218px; }
-    .login-panel.active { display: block; }
-    .login-version {
+    .login-view .login-panel {
+      display: none;
+    }
+    .login-view .login-panel.active {
+      display: block;
+    }
+    .login-view .login-version {
       margin-top: 10px;
       margin-bottom: 0;
       font-size: 0.72rem;
       line-height: 1.25;
       min-height: 1.25em;
-      color: var(--muted);
+      color: #757d9f;
     }
 
     .app {
@@ -877,9 +928,56 @@
       box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     }
     .change-password-modal h3 { margin: 0 0 14px 0; font-size: 1rem; color: #37474f; }
-    .change-password-modal .login-field { margin-bottom: 12px; }
-    .change-password-modal .login-field input { width: 100%; box-sizing: border-box; }
-    .change-password-modal .modal-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
+    .change-password-modal .login-field,
+    #change-nickname-modal-overlay .login-field {
+      margin-bottom: 12px;
+    }
+    .change-password-modal .login-field input,
+    #change-nickname-modal-overlay .login-field input {
+      width: 100%;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(13, 71, 161, 0.16);
+      outline: none;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+    }
+    .change-password-modal .login-field input:focus,
+    #change-nickname-modal-overlay .login-field input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.16);
+    }
+    .change-password-modal .modal-actions,
+    #change-nickname-modal-overlay .modal-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+    .change-password-modal .modal-actions .login-btn,
+    #change-nickname-modal-overlay .modal-actions .login-btn {
+      width: auto;
+      min-width: 72px;
+      margin-top: 0;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      line-height: 36px;
+      font-family: inherit;
+      background: #4e83f8;
+      color: #fff;
+    }
+    .change-password-modal .modal-actions .login-btn.btn-secondary,
+    #change-nickname-modal-overlay .modal-actions .login-btn.btn-secondary {
+      background: #f1f6ff;
+      color: var(--primary);
+      border: 1px solid rgba(25, 118, 210, 0.25);
+      line-height: 34px;
+    }
     .change-password-modal .modal-error { color: #c62828; font-size: 0.82rem; margin-top: 8px; }
 
     .status-grid {
@@ -2146,38 +2244,55 @@
 </head>
 <body>
   <div id="login-view" class="login-view">
-    <div class="login-card">
-      <div class="lang-switch" id="lang-switch">
-        <button type="button" class="lang-switch-btn" id="lang-toggle-btn" aria-label="切換語言">EN</button>
+    <div class="login-shell">
+      <img class="login-title-img" src="assets/home/title_head.png" alt="Number Sense Lab" decoding="async" />
+      <div class="login-card">
+        <div class="lang-switch" id="lang-switch">
+          <button type="button" class="lang-switch-btn" id="lang-toggle-btn" aria-label="切換語言">EN</button>
+        </div>
+        <div class="login-panel active" id="login-panel">
+          <div class="login-field">
+            <div class="login-field-row">
+              <img class="login-field-icon" src="assets/home/ic_user.png" width="18" height="18" alt="" />
+              <input id="login-username" type="text" autocomplete="username" placeholder="用户名" />
+            </div>
+          </div>
+          <div class="login-field">
+            <div class="login-field-row">
+              <img class="login-field-icon" src="assets/home/ic_password.png" width="18" height="18" alt="" />
+              <input id="login-password" type="password" autocomplete="current-password" placeholder="密码" />
+            </div>
+          </div>
+          <button id="login-btn" class="login-btn login-btn--primary" type="button">登录</button>
+          <button id="go-register-btn" class="login-btn login-btn--accent" type="button">注册</button>
+          <button id="guest-btn" class="login-btn login-btn--outline" type="button">游客试玩</button>
+        </div>
+        <div class="login-panel" id="register-panel">
+          <div class="login-field">
+            <div class="login-field-row">
+              <img class="login-field-icon" src="assets/home/ic_user.png" width="18" height="18" alt="" />
+              <input id="register-username" type="text" autocomplete="username" placeholder="用户名（2-20位，字母数字下划线中文）" />
+            </div>
+          </div>
+          <div class="login-field">
+            <div class="login-field-row">
+              <img class="login-field-icon" src="assets/home/ic_password.png" width="18" height="18" alt="" />
+              <input id="register-password" type="password" autocomplete="new-password" placeholder="密码（至少6位）" />
+            </div>
+          </div>
+          <div class="login-field">
+            <div class="login-field-row">
+              <img class="login-field-icon" src="assets/home/ic_password.png" width="18" height="18" alt="" />
+              <input id="register-confirm" type="password" autocomplete="new-password" placeholder="确认密码" />
+            </div>
+          </div>
+          <button id="register-btn" class="login-btn login-btn--accent" type="button">注册</button>
+          <button id="back-to-login-btn" class="login-btn login-btn--outline" type="button">返回登录</button>
+        </div>
+        <div id="login-error" class="login-error"></div>
+        <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
+        <p class="login-version">版本 v1.6.4</p><!-- 与 app-version.js、#app-home-version 保持一致 -->
       </div>
-      <h1 class="login-title">Number Sense Lab</h1>
-      <div class="login-panel active" id="login-panel">
-        <div class="login-field">
-          <input id="login-username" type="text" autocomplete="username" placeholder="用户名" />
-        </div>
-        <div class="login-field">
-          <input id="login-password" type="password" autocomplete="current-password" placeholder="密码" />
-        </div>
-        <button id="login-btn" class="login-btn">登录</button>
-        <button id="go-register-btn" class="login-btn" type="button">注册</button>
-        <button id="guest-btn" class="login-btn guest-btn">游客试玩</button>
-      </div>
-      <div class="login-panel" id="register-panel">
-        <div class="login-field">
-          <input id="register-username" type="text" autocomplete="username" placeholder="用户名（2-20位，字母数字下划线中文）" />
-        </div>
-        <div class="login-field">
-          <input id="register-password" type="password" autocomplete="new-password" placeholder="密码（至少6位）" />
-        </div>
-        <div class="login-field">
-          <input id="register-confirm" type="password" autocomplete="new-password" placeholder="确认密码" />
-        </div>
-        <button id="register-btn" class="login-btn">注册</button>
-        <button id="back-to-login-btn" class="login-btn guest-btn" type="button">返回登录</button>
-      </div>
-      <div id="login-error" class="login-error"></div>
-      <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
-      <p class="login-version">版本 v1.6.4</p><!-- 与 app-version.js、#app-home-version 保持一致 -->
     </div>
   </div>
 
