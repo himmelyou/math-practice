@@ -1647,6 +1647,34 @@
       box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
 
+    #mode-wrongbook {
+      position: relative;
+    }
+
+    .home-mode-badge {
+      position: absolute;
+      top: 2px;
+      right: 26px;
+      z-index: 2;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: #e53935;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 18px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      pointer-events: none;
+    }
+
+    .home-mode-badge[hidden] {
+      display: none !important;
+    }
+
     .mode-btn-disabled {
       background: #e0e0e0;
       color: #9e9e9e;
@@ -2267,6 +2295,7 @@
           <div class="mode-list">
             <button type="button" class="mode-btn home-mode-card mode-btn-wrongbook" id="mode-wrongbook">
               <img class="home-mode-icon" src="assets/home/ic_tool_1.png" width="28" height="28" alt="" />
+              <span class="home-mode-badge" id="wrongbook-badge" hidden aria-hidden="true">0</span>
               <span class="home-mode-label">错题本</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
@@ -3446,19 +3475,9 @@
     const LEVEL_CHALLENGE_CORRECT_PER_LEVEL = 10;
     const TRAINING_QUESTIONS = 30;
 
-    // ========= 错题本累积锁定规则（最新错题 + 复习解锁） =========
-    const WRONGBOOK_THRESHOLD = 20; // 达到/超过则锁定除错题本外的正常模式
+    // ========= 错题本存储上限（自愿「错题练习」；全对可清空） =========
     const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条“错题”，超过后不再写入最新条目
     const EXPAND_WRONG_MAX_STORE = 20; // 拆括号错题（仅管理端 report），超出则丢弃最旧
-    function getWrongbookLockMessage() {
-      return t("wrongbook.lockMsg");
-    }
-
-    function isWrongbookLocked() {
-      if (isGuestMode) return false;
-      const wrongs = getWrongAnswers();
-      return (wrongs || []).length >= WRONGBOOK_THRESHOLD;
-    }
 
     function showWrongbookViewFast() {
       setTopActionsVisible(false);
@@ -3470,13 +3489,6 @@
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
       renderWrongbookList();
-    }
-
-    function lockWrongbookIfNeeded() {
-      if (!isWrongbookLocked()) return false;
-      alert(getWrongbookLockMessage());
-      showWrongbookViewFast();
-      return true;
     }
 
     let gameMode = "survival";
@@ -3558,6 +3570,7 @@
       dom.wrongbookList = document.getElementById("wrongbook-list");
       dom.wrongbookEmpty = document.getElementById("wrongbook-empty");
       dom.wrongbookPracticeBtn = document.getElementById("wrongbook-practice-btn");
+      dom.wrongbookBadge = document.getElementById("wrongbook-badge");
       dom.expandPanel = document.getElementById("expand-brackets-panel");
       dom.expandChoices = document.getElementById("expand-choices");
       dom.expandExplain = document.getElementById("expand-explain");
@@ -4502,7 +4515,6 @@
         "softkbd.delete": "刪除",
         "softkbd.confirm": "確認",
         "wrongbook.empty": "暫無錯題記錄。",
-        "wrongbook.lockMsg": "錯題已累積超過20條，在繼續新的訓練前請先進錯題本進行錯題複習。",
         "ranking.selectAria": "選擇榜單",
         "ranking.tablistAria": "排行榜 Tab",
         "ranking.hint.score.loading": "總積分榜 · 載入中…",
@@ -4773,7 +4785,6 @@
         "softkbd.delete": "Delete",
         "softkbd.confirm": "OK",
         "wrongbook.empty": "No wrong questions yet.",
-        "wrongbook.lockMsg": "You have 20+ wrong questions. Open the wrongbook and review before continuing.",
         "ranking.selectAria": "Select leaderboard",
         "ranking.tablistAria": "Leaderboard tabs",
         "ranking.hint.score.loading": "Total score · Loading…",
@@ -5693,12 +5704,15 @@
         if (u.wrongAnswers.length >= WRONGBOOK_MAX_STORE) return;
         u.wrongAnswers.unshift(entry);
         cachedUser = u;
+        updateWrongbookBadge();
         const result = await apiPostWrongAnswer(username, entry);
         if (result && Array.isArray(result.wrongAnswers)) {
           cachedUser.wrongAnswers = result.wrongAnswers;
         }
+        updateWrongbookBadge();
       } catch (e) {
         console.warn("同步错题到服务器失败", e);
+        updateWrongbookBadge();
       }
     }
 
@@ -6384,7 +6398,6 @@
         cachedUser.hasClearedSurvival = true;
         updateRankingButtonLabel();
       }
-      if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -6590,11 +6603,13 @@
           showHome();
           updateTrainingButtonLabel();
           updateRankingButtonLabel();
+          updateWrongbookBadge();
           return;
         }
 
-        // 非零错误：留在错题本，继续累积并保持锁定
+        // 非零错误：留在错题本
         showWrongbookViewFast();
+        updateWrongbookBadge();
       };
     }
 
@@ -6725,7 +6740,6 @@
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
 
       if (abandoned) {
-        if (lockWrongbookIfNeeded()) return;
         setFeedback("", null);
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
@@ -6768,8 +6782,6 @@
         recordTrainingLastRun(levelThisRun, accuracy >= 0.95, 0);
         await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
         renderRecentRuns();
-        if (lockWrongbookIfNeeded()) return;
-
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -6834,8 +6846,6 @@
         trainingSessionBrushMode = true;
       }
       renderRecentRuns();
-      if (lockWrongbookIfNeeded()) return;
-
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -6887,7 +6897,6 @@
         appendRun(survivalTimeSec, runScore, persistIdx, 0, "level", currentRunAttempts.slice(), false, false);
         renderRecentRuns();
         updateTrainingButtonLabel();
-        if (lockWrongbookIfNeeded()) return;
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -6925,7 +6934,6 @@
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
       renderRecentRuns();
       updateLevelStatusUI();
-      if (lockWrongbookIfNeeded()) return;
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -7060,6 +7068,7 @@
       updateHomeAvatarPlaceholder();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
+      updateWrongbookBadge();
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
       scheduleHomeTopBreathe();
@@ -7099,11 +7108,6 @@
     function showPrimeCompositePlaceholder() {
       if (isGuestMode) {
         showToast(t("toast.primeNeedLogin"));
-        return;
-      }
-      if (isWrongbookLocked()) {
-        alert(getWrongbookLockMessage());
-        showWrongbookViewFast();
         return;
       }
       primeCompositeResetToIdle();
@@ -8431,6 +8435,29 @@
       return Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
     }
 
+    function updateWrongbookBadge() {
+      const badge = dom.wrongbookBadge;
+      if (!badge) return;
+      if (isGuestMode) {
+        badge.hidden = true;
+        badge.setAttribute("aria-hidden", "true");
+        badge.removeAttribute("aria-label");
+        return;
+      }
+      const n = getWrongAnswers().length;
+      if (n <= 0) {
+        badge.hidden = true;
+        badge.setAttribute("aria-hidden", "true");
+        badge.removeAttribute("aria-label");
+        return;
+      }
+      const text = n > 99 ? "99+" : String(n);
+      badge.textContent = text;
+      badge.hidden = false;
+      badge.setAttribute("aria-hidden", "false");
+      badge.setAttribute("aria-label", "错题 " + n + " 道");
+    }
+
     async function showWrongbookView() {
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
@@ -8466,6 +8493,7 @@
         list.innerHTML = "";
         empty.style.display = "block";
         if (practiceBtn) practiceBtn.style.display = "none";
+        updateWrongbookBadge();
         return;
       }
       empty.style.display = "none";
@@ -8476,6 +8504,7 @@
         </div>
       `).join("");
       if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
+      updateWrongbookBadge();
     }
 
     function escapeHtml(s) {
@@ -8520,11 +8549,6 @@
         const sub = document.getElementById("game-subtitle");
         if (sub) sub.textContent = t("game.subtitle.survival");
         showGameSection();
-        return;
-      }
-      if (isWrongbookLocked()) {
-        alert(getWrongbookLockMessage());
-        showWrongbookViewFast();
         return;
       }
       if (isSurvivalLocked()) {
@@ -8914,11 +8938,6 @@
         showToast(t("toast.guestSurvivalOnly"));
         return;
       }
-      if (isWrongbookLocked()) {
-        alert(getWrongbookLockMessage());
-        showWrongbookViewFast();
-        return;
-      }
       gameMode = "level";
       const sub = document.getElementById("game-subtitle");
       if (sub) sub.textContent = t("game.subtitle.level");
@@ -8947,11 +8966,6 @@
     async function handleModePractice() {
       if (isGuestMode) {
         showToast(t("toast.guestSurvivalOnly"));
-        return;
-      }
-      if (isWrongbookLocked()) {
-        alert(getWrongbookLockMessage());
-        showWrongbookViewFast();
         return;
       }
       if (isTrainingLocked()) {
@@ -9019,6 +9033,7 @@
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       loadState();
+      updateWrongbookBadge();
       showHome();
       updateSurvivalStatusUI();
     }
@@ -9075,6 +9090,7 @@
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       loadState();
+      updateWrongbookBadge();
       showHome();
       updateSurvivalStatusUI();
     }
@@ -9464,6 +9480,7 @@
             if (mr) mr.style.display = "";
             updateRankingButtonLabel();
             updateTrainingButtonLabel();
+            updateWrongbookBadge();
             applyTesterOnlyHomeModes();
             scheduleHomeTopBreathe();
             return;
