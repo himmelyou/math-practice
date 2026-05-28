@@ -3396,7 +3396,7 @@
       return isEn ? (DEFAULT_LEVEL_DESC_EN[idx] || "") : getDefaultLevelDescZh(idx);
     }
 
-    /** 仅 L1–L16 代号，中英文一致 */
+    /** 结束卡等窄位：仅 L1–L16，无描述 */
     function getLevelShortCode(idx) {
       const n = Number(idx);
       if (!Number.isFinite(n) || n < 0) return "-";
@@ -3405,7 +3405,7 @@
       return level && level.id ? level.id : ("L" + (i + 1));
     }
 
-    /** 局内/结算：L{n} · 难度描述（前缀简写，描述仍走 i18n） */
+    /** 局内状态条：L{n} · 难度描述（前缀简写，描述仍走 i18n） */
     function getLevelDisplayName(idx) {
       const n = Number(idx);
       if (!Number.isFinite(n) || n < 0) return "-";
@@ -6971,7 +6971,7 @@
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(maxLevelThisRun);
+        if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(maxLevelThisRun);
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
@@ -7458,7 +7458,7 @@
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = String(runScore);
           if (wrongEl) wrongEl.textContent = "0";
-          if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(persistIdx);
+          if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -7496,7 +7496,7 @@
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(endLevel);
+        if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(endLevel);
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
