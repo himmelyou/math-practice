@@ -1647,17 +1647,11 @@
       box-shadow: 0 10px 22px rgba(0, 0, 0, 0.05);
     }
 
-    #mode-wrongbook {
-      position: relative;
-    }
-
     .home-mode-badge {
-      position: absolute;
-      top: 2px;
-      right: 26px;
-      z-index: 2;
+      flex-shrink: 0;
       min-width: 18px;
       height: 18px;
+      margin-right: 2px;
       padding: 0 5px;
       border-radius: 999px;
       background: #e53935;
@@ -2295,8 +2289,8 @@
           <div class="mode-list">
             <button type="button" class="mode-btn home-mode-card mode-btn-wrongbook" id="mode-wrongbook">
               <img class="home-mode-icon" src="assets/home/ic_tool_1.png" width="28" height="28" alt="" />
-              <span class="home-mode-badge" id="wrongbook-badge" hidden aria-hidden="true">0</span>
               <span class="home-mode-label">错题本</span>
+              <span class="home-mode-badge" id="wrongbook-badge" hidden aria-hidden="true">0</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
