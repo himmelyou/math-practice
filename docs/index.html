@@ -2257,17 +2257,15 @@
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice mode-btn-soon" id="mode-gcd" aria-disabled="true">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-gcd" style="display:none;">
               <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
               <span class="home-mode-label">公因数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
-              <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice mode-btn-soon" id="mode-lcm" aria-disabled="true">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-lcm" style="display:none;">
               <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
               <span class="home-mode-label">公倍数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
-              <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
           </div>
         </section>
@@ -2296,11 +2294,10 @@
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-ranking mode-btn-soon" id="mode-achievement-wall" aria-disabled="true">
+            <button type="button" class="mode-btn home-mode-card mode-btn-ranking" id="mode-achievement-wall" style="display:none;">
               <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
               <span class="home-mode-label">成就墙</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
-              <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
           </div>
         </section>
@@ -3767,6 +3764,24 @@
     // ===== 拆括号 L1–L5：shared/expand-brackets-questions.js（与《拆括号等级说明.md》同步维护）=====
     const buildExpandBracketsQuestion = (level) => JmlExpandBrackets.buildQuestion(level);
     const formatExpandedTerms = (terms) => JmlExpandBrackets.formatExpandedTerms(terms);
+
+    const TESTER_ONLY_HOME_MODE_IDS = ["mode-gcd", "mode-lcm", "mode-achievement-wall"];
+
+    function isTesterUser() {
+      return !!(cachedUser && cachedUser.isTester === true);
+    }
+
+    /** 开发中入口：仅测试员可见，样式与普通模式一致（无锁）。 */
+    function applyTesterOnlyHomeModes() {
+      const show = isTesterUser();
+      TESTER_ONLY_HOME_MODE_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = show ? "" : "none";
+        el.classList.remove("mode-btn-soon", "mode-btn-locked");
+        el.removeAttribute("aria-disabled");
+      });
+    }
 
     /** 拆括号错因编号：仅后台标记的测试员可见；地址栏 `?expand_cause=0` 可强制关闭。 */
     function shouldHideExpandCauseLabels() {
@@ -6977,6 +6992,7 @@
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
       updateTopTitleForCurrentView(true);
+      applyTesterOnlyHomeModes();
     }
 
     function userHasClearedSurvival(user) {
@@ -9377,6 +9393,7 @@
             if (mr) mr.style.display = "";
             updateRankingButtonLabel();
             updateTrainingButtonLabel();
+            applyTesterOnlyHomeModes();
             return;
         }
       } catch (e) {
