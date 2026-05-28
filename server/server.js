@@ -440,21 +440,51 @@ function defaultI18nPayload() {
   return readI18nFallbackFromClientHtml() || legacyDefaultI18nPayload();
 }
 
+/** 仅存在于 docs/index.html I18N_FALLBACK，不进 i18n.json / 管理端。 */
+const BUILTIN_I18N_KEY_RE = /^home\.(mode\.|btn\.)/;
+
+function isBuiltinI18nKey(key) {
+  return BUILTIN_I18N_KEY_RE.test(String(key || "").trim());
+}
+
+function stripBuiltinI18nKeys(langObj) {
+  const out = {};
+  if (!langObj || typeof langObj !== "object") return out;
+  Object.keys(langObj).forEach((k) => {
+    if (!isBuiltinI18nKey(k)) out[k] = langObj[k];
+  });
+  return out;
+}
+
+function stripBuiltinFromI18nPayload(payload) {
+  return {
+    zhHant: stripBuiltinI18nKeys(payload && payload.zhHant),
+    en: stripBuiltinI18nKeys(payload && payload.en),
+  };
+}
+
 function normalizeI18nPayload(input) {
   const base = defaultI18nPayload();
   const out = { zhHant: { ...base.zhHant }, en: { ...base.en } };
-  if (!input || typeof input !== "object") return out;
+  if (!input || typeof input !== "object") {
+    return stripBuiltinFromI18nPayload(out);
+  }
   ["zhHant", "en"].forEach((lang) => {
     const src = input[lang];
     if (!src || typeof src !== "object") return;
     Object.keys(src).forEach((k) => {
       const key = String(k || "").trim();
-      if (!key) return;
+      if (!key || isBuiltinI18nKey(key)) return;
       const val = src[k];
       out[lang][key] = typeof val === "string" ? val : String(val ?? "");
     });
   });
-  return out;
+  return stripBuiltinFromI18nPayload(out);
+}
+
+function readManageableI18nFromDisk() {
+  const raw = readJson(I18N_FILE, {});
+  return normalizeI18nPayload(raw);
 }
 
 // 确保 data 目录存在
@@ -1498,7 +1528,7 @@ app.get("/api/admin/i18n", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const data = normalizeI18nPayload(readJson(I18N_FILE, defaultI18nPayload()));
+  const data = readManageableI18nFromDisk();
   res.json({ ok: true, i18n: data });
 });
 
@@ -1554,7 +1584,7 @@ app.get("/api/settings", (req, res) => {
 
 // ========== 学员端：获取多语言文案（公开） ==========
 app.get("/api/i18n", (req, res) => {
-  const data = normalizeI18nPayload(readJson(I18N_FILE, defaultI18nPayload()));
+  const data = readManageableI18nFromDisk();
   res.json({ ok: true, i18n: data });
 });
 

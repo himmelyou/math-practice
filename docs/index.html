@@ -5044,6 +5044,7 @@
         if (!data || !data.ok || !data.i18n) return;
         const nextZh = data.i18n.zhHant && typeof data.i18n.zhHant === "object" ? data.i18n.zhHant : {};
         const nextEn = data.i18n.en && typeof data.i18n.en === "object" ? data.i18n.en : {};
+        /* 内置 home.mode.* / home.btn.* 仅来自 I18N_FALLBACK；服务端 i18n.json 不存这些键 */
         i18nRuntime = {
           zhHant: { ...I18N_FALLBACK.zhHant, ...nextZh },
           en: { ...I18N_FALLBACK.en, ...nextEn },
