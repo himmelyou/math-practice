@@ -19,6 +19,9 @@
       --muted: #607d8b;
       --border-radius: 14px;
       --shadow-soft: 0 10px 25px rgba(0, 0, 0, 0.08);
+      /* 开局题卡：封顶对齐常见手机满意高度；中间 .question-body 随题卡剩余空间伸缩 */
+      --game-card-playing-max: clamp(168px, 38vh, 260px);
+      --game-card-playing-min: 148px;
     }
 
     * {
@@ -2083,9 +2086,22 @@
       flex-shrink: 0;
     }
 
-    .game-play-body--kbd > #game-card.game-card--playing {
+    .game-play-tail {
+      display: none;
+      flex: 0 0 0;
+      min-height: 0;
+    }
+
+    .game-play-body--kbd .game-play-tail {
+      display: block;
       flex: 1 1 auto;
       min-height: 0;
+    }
+
+    .game-play-body--kbd > #game-card.game-card--playing {
+      flex: 0 1 auto;
+      min-height: var(--game-card-playing-min);
+      max-height: var(--game-card-playing-max);
     }
 
     .game-play-body > .recent-card {
@@ -2115,9 +2131,6 @@
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
-      }
-      .game-play-body--kbd > #game-card.game-card--playing {
-        max-height: min(44vh, 280px);
       }
     }
 
@@ -2192,9 +2205,14 @@
     #game-card.game-card--playing,
     #expand-game-card.game-card--playing {
       height: auto;
-      max-height: none;
       padding: 10px 14px 10px;
       gap: 6px;
+    }
+
+    #game-card.game-card--playing {
+      flex: 0 1 auto;
+      min-height: var(--game-card-playing-min);
+      max-height: var(--game-card-playing-max);
     }
 
     /* 题目区 = 题头与输入框之间的 .question-body；算式单行垂直居中 */
@@ -2836,6 +2854,7 @@
         </div>
       </div>
     </section>
+      <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
       </div>
     </div>
 
