@@ -1011,11 +1011,15 @@
       font-size: 0.8rem;
       color: var(--muted);
       display: grid;
-      grid-template-columns: 14px minmax(0, 1fr) auto;
+      grid-template-columns: 14px 4.85em minmax(0, 1fr);
       align-items: center;
       column-gap: 4px;
       white-space: nowrap;
       min-width: 0;
+    }
+
+    html[lang="en"] .status-item {
+      grid-template-columns: 14px 5.75em minmax(0, 1fr);
     }
 
     .status-item-icon {
@@ -1049,8 +1053,11 @@
 
     .status-item > .status-value {
       grid-column: 3;
-      justify-self: end;
-      text-align: right;
+      justify-self: start;
+      text-align: left;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .status-item-full {
