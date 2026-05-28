@@ -1193,21 +1193,16 @@
     }
 
     .game-card-action-anchor {
-      position: relative;
       width: min(47%, 192px);
       max-width: 100%;
-      min-height: 44px;
+      min-height: calc(3em + 24px);
       margin-left: auto;
       margin-right: auto;
       box-sizing: border-box;
     }
 
-    #game-card .input-row,
-    #game-card #start-row {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 0;
+    #game-card .game-card-action-anchor .input-row,
+    #game-card .game-card-action-anchor #start-row {
       width: 100%;
       margin: 0;
     }
@@ -1224,7 +1219,8 @@
       min-width: 0;
       width: 100%;
       box-sizing: border-box;
-      padding: 10px 12px;
+      min-height: 3em;
+      padding: 12px 16px;
       font-size: 1.25rem;
       font-weight: 600;
       line-height: 1.2;
@@ -3790,6 +3786,7 @@
       dom.answerInput = document.getElementById("answer-input");
       dom.submitBtn = document.getElementById("submit-btn");
       dom.startGameBtn = document.getElementById("start-game-btn");
+      dom.startRow = document.getElementById("start-row");
       dom.feedback = document.getElementById("feedback");
       dom.batchSummary = document.getElementById("batch-summary");
       dom.gameOverPanel = document.getElementById("game-over-panel");
@@ -6419,6 +6416,25 @@
       dom.gameOverPanel.classList.toggle("training-summary", !!active);
     }
 
+    /** 题目卡底部操作位：开始按钮与输入框同一槽位，互斥显示 */
+    function setGameCardActionSlot(mode) {
+      const inputRow = document.getElementById("answer-input-row");
+      if (mode === "start") {
+        if (dom.startRow) dom.startRow.style.display = "";
+        if (inputRow) inputRow.style.display = "none";
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+        return;
+      }
+      if (mode === "input") {
+        if (dom.startRow) dom.startRow.style.display = "none";
+        if (inputRow) inputRow.style.display = "";
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+        return;
+      }
+      if (dom.startRow) dom.startRow.style.display = "none";
+      if (inputRow) inputRow.style.display = "none";
+    }
+
     const QUESTION_REFRESH_MS = 25;  // 题目切换时先隐藏再出现的间隔，极短但肉眼可见
 
     function renderQuestion(question) {
@@ -6462,15 +6478,13 @@
       maxLevelThisRun = 0;
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("input");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
@@ -6503,15 +6517,13 @@
       maxLevelThisRun = 0;
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("input");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
@@ -6579,15 +6591,13 @@
       if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("input");
       if (dom.submitBtn) {
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
@@ -6623,8 +6633,7 @@
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "none";
+      setGameCardActionSlot("hidden");
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
       dom.answerInput.disabled = true;
@@ -6657,10 +6666,8 @@
       renderRecentRuns();
 
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
-      if (dom.startGameBtn) {
-        dom.startGameBtn.style.display = "";
-        dom.startGameBtn.textContent = t("game.btn.startChallenge");
-      }
+      setGameCardActionSlot("start");
+      if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       updateGlobalBackButtonState();
     }
@@ -6709,10 +6716,8 @@
           if (wrongEl) wrongEl.textContent = "—";
           if (maxLevelEl) maxLevelEl.textContent = "—";
         }
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const inputRow = document.getElementById("answer-input-row");
-        if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
         appendRun(survivalTimeSec, 0, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice(), false, true);
@@ -6760,10 +6765,8 @@
           }
         }
       }
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("hidden");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
     }
@@ -6855,11 +6858,9 @@
       initSoftKeyboardIfNeeded();
       setSoftKeyboardVisible(true);
       if (dom.submitBtn) dom.submitBtn.style.display = "";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("input");
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "";
     }
 
     function evaluateAnswerWrong(userAnswer) {
@@ -7090,10 +7091,8 @@
           if (wrongEl) wrongEl.textContent = "—";
           if (maxLevelEl) maxLevelEl.textContent = "—";
         }
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const inputRow = document.getElementById("answer-input-row");
-        if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
         appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, true);
@@ -7131,10 +7130,8 @@
           if (wrongEl) wrongEl.textContent = runWrongCount;
           if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
         }
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const inputRow = document.getElementById("answer-input-row");
-        if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
         return;
@@ -7195,10 +7192,8 @@
         if (wrongEl) wrongEl.textContent = runWrongCount;
         if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
       }
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("hidden");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
     }
@@ -7246,10 +7241,8 @@
           if (wrongEl) wrongEl.textContent = "0";
           if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(persistIdx);
         }
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+        setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const inputRow = document.getElementById("answer-input-row");
-        if (inputRow) inputRow.style.display = "none";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
         updateLevelStatusUI();
@@ -7297,10 +7290,8 @@
           }
         }
       }
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
+      setGameCardActionSlot("hidden");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
       updateTrainingButtonLabel();
@@ -7359,7 +7350,7 @@
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+      setGameCardActionSlot("start");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       setFeedback("", null);
       showHome();
@@ -8721,11 +8712,9 @@
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       const abandonRow = document.getElementById("abandon-row");
       if (abandonRow) abandonRow.style.display = "none";
-      if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+      setGameCardActionSlot("start");
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
-      const inputRow = document.getElementById("answer-input-row");
-      if (inputRow) inputRow.style.display = "none";
       updateTopTitleForCurrentView(false);
       updateStatusModeLabel();
     }
@@ -9798,7 +9787,7 @@
             updateSurvivalButtonLabel();
             renderRecentRuns();
             if (dom.submitBtn) dom.submitBtn.style.display = "none";
-            if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+            setGameCardActionSlot("start");
             if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
             if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
             const ms = document.getElementById("mode-stats");
