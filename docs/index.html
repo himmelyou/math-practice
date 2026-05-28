@@ -112,7 +112,7 @@
       align-items: center;
       justify-content: flex-end;
       gap: 6px;
-      margin-bottom: 10px;
+      margin-bottom: 22px;
       min-height: 28px;
     }
     .login-view .lang-switch-btn {
@@ -150,7 +150,7 @@
       align-items: center;
       gap: 8px;
       height: 42px;
-      padding: 0 14px 0 12px;
+      padding: 0 14px 0 16px;
       border-radius: 999px;
       border: 1px solid #e5e5e5;
       background: #fff;
@@ -163,8 +163,8 @@
     }
 
     .login-view .login-field-icon {
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       flex-shrink: 0;
       object-fit: contain;
       opacity: 0.55;
@@ -249,13 +249,14 @@
     .login-view .login-panel.active {
       display: block;
     }
-    .login-view .login-version {
-      margin-top: 10px;
-      margin-bottom: 0;
-      font-size: 0.72rem;
-      line-height: 1.25;
-      min-height: 1.25em;
-      color: #757d9f;
+    .login-shell > .app-home-version {
+      flex-shrink: 0;
+      margin: 8px 0 0;
+      padding: 2px 8px 0;
+      text-align: center;
+      font-size: 0.7rem;
+      line-height: 1.15;
+      color: rgba(96, 125, 139, 0.85);
     }
 
     .app {
@@ -2253,13 +2254,13 @@
         <div class="login-panel active" id="login-panel">
           <div class="login-field">
             <div class="login-field-row">
-              <img class="login-field-icon" src="assets/home/ic_user.png" width="18" height="18" alt="" />
+              <img class="login-field-icon" src="assets/home/ic_user.png" width="16" height="16" alt="" />
               <input id="login-username" type="text" autocomplete="username" placeholder="用户名" />
             </div>
           </div>
           <div class="login-field">
             <div class="login-field-row">
-              <img class="login-field-icon" src="assets/home/ic_password.png" width="18" height="18" alt="" />
+              <img class="login-field-icon" src="assets/home/ic_password.png" width="16" height="16" alt="" />
               <input id="login-password" type="password" autocomplete="current-password" placeholder="密码" />
             </div>
           </div>
@@ -2270,19 +2271,19 @@
         <div class="login-panel" id="register-panel">
           <div class="login-field">
             <div class="login-field-row">
-              <img class="login-field-icon" src="assets/home/ic_user.png" width="18" height="18" alt="" />
+              <img class="login-field-icon" src="assets/home/ic_user.png" width="16" height="16" alt="" />
               <input id="register-username" type="text" autocomplete="username" placeholder="用户名（2-20位，字母数字下划线中文）" />
             </div>
           </div>
           <div class="login-field">
             <div class="login-field-row">
-              <img class="login-field-icon" src="assets/home/ic_password.png" width="18" height="18" alt="" />
+              <img class="login-field-icon" src="assets/home/ic_password.png" width="16" height="16" alt="" />
               <input id="register-password" type="password" autocomplete="new-password" placeholder="密码（至少6位）" />
             </div>
           </div>
           <div class="login-field">
             <div class="login-field-row">
-              <img class="login-field-icon" src="assets/home/ic_password.png" width="18" height="18" alt="" />
+              <img class="login-field-icon" src="assets/home/ic_password.png" width="16" height="16" alt="" />
               <input id="register-confirm" type="password" autocomplete="new-password" placeholder="确认密码" />
             </div>
           </div>
@@ -2291,8 +2292,8 @@
         </div>
         <div id="login-error" class="login-error"></div>
         <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
-        <p class="login-version">版本 v1.6.4</p><!-- 与 app-version.js、#app-home-version 保持一致 -->
       </div>
+      <p class="app-home-version" id="login-home-version">版本 v1.6.4</p><!-- 与 app-version.js、#app-home-version 保持一致 -->
     </div>
   </div>
 
@@ -5256,7 +5257,7 @@
       const registerBtn = byId("register-btn");
       const backToLoginBtn = byId("back-to-login-btn");
       const loginHint = document.querySelector(".login-hint");
-      const loginVersion = document.querySelector(".login-version");
+      const loginVersion = document.getElementById("login-home-version");
       const langToggleBtn = byId("lang-toggle-btn");
 
       if (loginUsername) loginUsername.placeholder = t("login.username.placeholder");
