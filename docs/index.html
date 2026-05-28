@@ -3396,18 +3396,7 @@
       return isEn ? (DEFAULT_LEVEL_DESC_EN[idx] || "") : getDefaultLevelDescZh(idx);
     }
 
-    function getLevelDisplayName(idx) {
-      const n = Number(idx);
-      if (!Number.isFinite(n) || n < 0) return "-";
-      const levelNum = Math.floor(n) + 1;
-      const desc = getLevelDescText(n);
-      if (currentLang === "en") {
-        return desc ? "Level " + levelNum + " · " + desc : "Level " + levelNum;
-      }
-      return desc ? "第 " + levelNum + " 级 · " + desc : "第 " + levelNum + " 级";
-    }
-
-    /** 结束卡等窄位：仅 L1–L16，中英文一致 */
+    /** 仅 L1–L16 代号，中英文一致 */
     function getLevelShortCode(idx) {
       const n = Number(idx);
       if (!Number.isFinite(n) || n < 0) return "-";
@@ -3416,8 +3405,17 @@
       return level && level.id ? level.id : ("L" + (i + 1));
     }
 
+    /** 局内/结算：L{n} · 难度描述（前缀简写，描述仍走 i18n） */
+    function getLevelDisplayName(idx) {
+      const n = Number(idx);
+      if (!Number.isFinite(n) || n < 0) return "-";
+      const code = getLevelShortCode(n);
+      const desc = getLevelDescText(n);
+      return desc ? code + " · " + desc : code;
+    }
+
     function refreshLevelDisplayNames() {
-      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelShortCode(currentLevelIndex);
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
     }
 
     // ===== 难度模块定义 =====
@@ -6524,7 +6522,7 @@
       if (dom.timerChip) {
         dom.timerChip.classList.toggle("low", survivalTimeLeft <= 10);
       }
-      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelShortCode(currentLevelIndex);
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       const correctPerLevel = gameMode === "level" ? LEVEL_CHALLENGE_CORRECT_PER_LEVEL : SURVIVAL_CORRECT_PER_LEVEL;
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
       if (dom.runScore) dom.runScore.textContent = runScore;
@@ -6553,7 +6551,7 @@
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
-      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelShortCode(currentLevelIndex);
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + LEVEL_CHALLENGE_CORRECT_PER_LEVEL;
       if (dom.runScore) dom.runScore.textContent = runScore;
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (getLevelChallengeBestLevel() + 1);
@@ -6781,7 +6779,7 @@
       const timeStr = m + ":" + String(s).padStart(2, "0");
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
-      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelShortCode(currentLevelIndex);
+      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -6973,7 +6971,7 @@
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(maxLevelThisRun);
+        if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(maxLevelThisRun);
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
@@ -7460,7 +7458,7 @@
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = String(runScore);
           if (wrongEl) wrongEl.textContent = "0";
-          if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
+          if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(persistIdx);
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
@@ -7498,7 +7496,7 @@
         if (scoreEl) scoreEl.textContent = runScore;
         const wrongEl = document.getElementById("game-over-wrong");
         if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(endLevel);
+        if (maxLevelEl) maxLevelEl.textContent = getLevelDisplayName(endLevel);
         if (isGuestMode) {
           const guest = getGuestSurvivalData();
           if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
