@@ -1010,10 +1010,10 @@
     .status-item {
       font-size: 0.8rem;
       color: var(--muted);
-      display: inline-flex;
+      display: grid;
+      grid-template-columns: 14px minmax(0, 1fr) auto;
       align-items: center;
-      justify-content: flex-start;
-      gap: 4px;
+      column-gap: 4px;
       white-space: nowrap;
       min-width: 0;
     }
@@ -1022,14 +1022,35 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
+      grid-column: 1;
       line-height: 0;
       color: var(--primary);
-      opacity: 0.82;
+      opacity: 1;
     }
+
+    .status-item-icon[data-kind="mode"] { color: #4e83f8; }
+    .status-item-icon[data-kind="score"] { color: #f5a623; }
+    .status-item-icon[data-kind="streak"] { color: #2e7d32; }
+    .status-item-icon[data-kind="level"] { color: #5c6bc0; }
+    .status-item-icon[data-kind="difficulty"] { color: #607d8b; }
+    .status-item-icon[data-kind="wrong"] { color: #d32f2f; }
+    .status-item-icon[data-kind="progress"] { color: #1976d2; }
 
     .status-item-icon-svg {
       display: block;
+    }
+
+    .status-item > .status-label {
+      grid-column: 2;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-item > .status-value {
+      grid-column: 3;
+      justify-self: end;
+      text-align: right;
     }
 
     .status-item-full {
@@ -4511,6 +4532,7 @@
         wrap.setAttribute("aria-hidden", "true");
         itemEl.insertBefore(wrap, itemEl.firstChild);
       }
+      wrap.setAttribute("data-kind", kind);
       wrap.innerHTML = STATUS_ICON_SVG[kind];
     }
 
@@ -5185,9 +5207,16 @@
       return "zhHant";
     }
 
+    function syncDocumentLang() {
+      const root = document.documentElement;
+      if (!root) return;
+      root.lang = currentLang === "en" ? "en" : "zh-Hant";
+    }
+
     function saveLang(lang) {
       currentLang = normalizeLang(lang);
       try { localStorage.setItem(APP_LANG_KEY, currentLang); } catch (e) {}
+      syncDocumentLang();
     }
 
     function t(key) {
