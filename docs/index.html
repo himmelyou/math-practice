@@ -1101,6 +1101,19 @@
       white-space: nowrap;
     }
 
+    .timer-chip-prefix {
+      display: inline-flex;
+      align-items: center;
+      line-height: 0;
+      flex-shrink: 0;
+    }
+
+    .timer-chip-icon {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
     .timer-chip.low {
       background: rgba(211, 47, 47, 0.08);
       color: var(--danger);
@@ -2466,7 +2479,7 @@
           <span class="status-value" id="current-level-name">-</span>
         </div>
         <div class="timer-chip" id="timer-chip">
-          <span id="timer-chip-prefix">剩余 </span><span id="timer-value">1:00</span>
+          <span id="timer-chip-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="timer-value">1:00</span>
         </div>
       </div>
 
@@ -2582,7 +2595,7 @@
             <select class="expand-level-select" id="expand-level-select" style="display:none;" aria-label="选择拆括号难度"></select>
           </div>
           <div class="timer-chip" id="expand-timer-chip">
-            <span id="expand-timer-prefix">用时 </span><span id="expand-timer-value">0:00</span>
+            <span id="expand-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="expand-timer-value">0:00</span>
           </div>
         </div>
 
@@ -2731,7 +2744,7 @@
               <span class="status-label" id="prime-header-hint">请判断是质数还是合数</span>
             </div>
             <div class="timer-chip" id="prime-timer-chip">
-              <span id="prime-timer-prefix">用时 </span><span id="prime-elapsed">0:00</span>
+              <span id="prime-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="prime-elapsed">0:00</span>
             </div>
           </div>
           <div class="question-text prime-question-num" id="prime-current-n">—</div>
@@ -4426,6 +4439,12 @@
       return s === 0 ? m + "m" : m + "m " + s + "s";
     }
 
+    const TIMER_CHIP_PREFIX_HTML =
+      '<span id="timer-chip-prefix" class="timer-chip-prefix" aria-hidden="true">' +
+      '<svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+      '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>' +
+      '<path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
     /** 与训练/闯关正向计时器一致：分:秒（如 0:05、1:23） */
     function formatGameElapsedClock(sec) {
       sec = Math.max(0, Math.round(Number(sec) || 0));
@@ -5126,12 +5145,6 @@
       setT("ranking-gate-body-2", "ranking.gate.survivalBody2");
       setT("ranking-empty-v2", "ranking.empty");
       setT("ranking-coming-soon", "ranking.comingSoon");
-      const tcp = byId("timer-chip-prefix");
-      if (tcp) tcp.textContent = t("game.timer.remainingPrefix");
-      const etp = byId("expand-timer-prefix");
-      if (etp) etp.textContent = t("game.timer.elapsedPrefix");
-      const ptp = byId("prime-timer-prefix");
-      if (ptp) ptp.textContent = t("game.timer.elapsedPrefix");
       const expGrid = byId("expand-status-grid");
       if (expGrid) {
         const items = expGrid.querySelectorAll(".status-item");
@@ -6102,7 +6115,6 @@
       const m = Math.floor(survivalTimeLeft / 60);
       const s = survivalTimeLeft % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
-      if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.remainingPrefix");
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) {
@@ -6133,7 +6145,6 @@
       const m = Math.floor(elapsed / 60);
       const s = elapsed % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
-      if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.elapsedPrefix");
       if (dom.survivalTime) dom.survivalTime.textContent = timeStr;
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
@@ -6329,7 +6340,6 @@
       const m = Math.floor(elapsed / 60);
       const s = elapsed % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
-      if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.elapsedPrefix");
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
       if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
@@ -8451,10 +8461,9 @@
         if (dom.timerChip) {
           dom.timerChip.style.display = "";
           if (!document.getElementById("timer-value")) {
-            dom.timerChip.innerHTML = '<span id="timer-chip-prefix"></span><span id="timer-value">1:00</span>';
+            dom.timerChip.innerHTML = TIMER_CHIP_PREFIX_HTML + '<span id="timer-value">1:00</span>';
             dom.timerChipPrefix = document.getElementById("timer-chip-prefix");
             dom.timerValue = document.getElementById("timer-value");
-            if (dom.timerChipPrefix) dom.timerChipPrefix.textContent = t("game.timer.remainingPrefix");
           }
         }
         if (dom.questionSubtext) dom.questionSubtext.textContent = "";
