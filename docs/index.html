@@ -304,8 +304,8 @@
       align-items: center;
       justify-content: center;
       gap: 4px;
-      border: none;
-      border-radius: 8px;
+      box-sizing: border-box;
+      border-radius: 10px;
       padding: 5px 10px;
       font-size: 0.75rem;
       font-weight: 600;
@@ -323,12 +323,14 @@
       flex-shrink: 0;
     }
     .home-pill-btn--primary {
-      background: linear-gradient(180deg, #5b9fd4, #3d7eb8);
       color: #fff;
+      background: #4e83f8;
+      border: 1px solid #98b8fa;
     }
     .home-pill-btn--danger {
-      background: linear-gradient(180deg, #f08a7a, #e57373);
       color: #fff;
+      background: #f66d6f;
+      border: 1px solid #f19b9e;
     }
     .home-pill-icon {
       filter: brightness(0) invert(1);
@@ -349,7 +351,8 @@
       gap: 4px;
       font-size: 0.8125rem;
       color: #546e7a;
-      background: rgba(255, 255, 255, 0.55);
+      background: #c2d4fa;
+      border: none;
       border-radius: 999px;
       padding: 3px 10px 3px 8px;
     }
@@ -846,16 +849,6 @@
     .user-name {
       font-weight: 600;
       color: var(--primary);
-    }
-
-    .logout-btn, .change-pwd-btn {
-      border-radius: 999px;
-      border: none;
-      padding: 4px 10px;
-      font-size: 0.8rem;
-      cursor: pointer;
-      background: #f5f7ff;
-      color: #546e7a;
     }
 
     #global-back-home-btn {
