@@ -286,6 +286,12 @@
       flex-shrink: 0;
     }
 
+    /* 游戏页：人物栏与状态栏间距与块间 8px 一致 */
+    .app:has(.game-section.visible) .app-header,
+    .app:has(#expand-brackets-section.visible) .app-header {
+      padding-bottom: 0;
+    }
+
     .home-title-img {
       display: block;
       width: min(300px, 88vw);
@@ -1043,7 +1049,7 @@
     }
 
     .status-item > .status-value {
-      margin-left: 2ch;
+      margin-left: 1ch;
     }
 
     .status-item-full {
@@ -1197,7 +1203,7 @@
     .game-card-action-anchor {
       width: min(47%, 192px);
       max-width: 100%;
-      min-height: calc(3em + 24px);
+      min-height: 40px;
       margin-left: auto;
       margin-right: auto;
       box-sizing: border-box;
@@ -1221,9 +1227,9 @@
       min-width: 0;
       width: 100%;
       box-sizing: border-box;
-      min-height: 3em;
-      padding: 12px 16px;
-      font-size: 1.25rem;
+      min-height: 2.25em;
+      padding: 8px 12px;
+      font-size: 1.1rem;
       font-weight: 600;
       line-height: 1.2;
       border-radius: 999px;
@@ -1263,8 +1269,8 @@
     }
 
     #start-game-btn {
-      padding: 12px 16px;
-      min-height: 3em;
+      padding: 8px 12px;
+      min-height: 2.25em;
       width: 100% !important;
       flex: none !important;
     }
@@ -1531,22 +1537,6 @@
       display: flex;
       flex-direction: column;
     }
-    #soft-kbd-card .feedback:empty {
-      display: none !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      border: none !important;
-    }
-    .game-play-body--kbd .soft-kbd-card {
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      overscroll-behavior: contain;
-    }
-    .game-play-body--kbd .soft-kbd-card .soft-kbd {
-      margin-top: auto;
-      flex-shrink: 0;
-    }
     .soft-kbd {
       width: 100%;
       padding-bottom: 6px;
@@ -1603,10 +1593,12 @@
     }
 
     .feedback.soft-kbd-feedback {
-      min-height: 24px !important;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      min-height: 34px !important;
       margin-top: 0 !important;
-      margin-bottom: 10px !important;
-      padding: 4px 8px !important;
+      margin-bottom: 8px !important;
+      padding: 5px 8px !important;
       font-size: 0.82rem !important;
       line-height: 1.3 !important;
       border-radius: 10px !important;
@@ -1618,6 +1610,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
       text-align: center !important;
+    }
+    #soft-kbd-card .feedback.soft-kbd-feedback:empty {
+      visibility: hidden;
+      background: transparent !important;
+      border-color: transparent !important;
     }
     .feedback.soft-kbd-feedback.correct {
       background: #e8f5e9 !important;
@@ -2082,9 +2079,14 @@
       overflow: hidden;
     }
 
-    .game-play-body > #game-card,
-    .game-play-body > #expand-game-card {
+    .game-play-body > #game-card.game-card--prestart,
+    .game-play-body > #expand-game-card.game-card--prestart {
       flex-shrink: 0;
+    }
+
+    .game-play-body--kbd > #game-card.game-card--playing {
+      flex: 1 1 auto;
+      min-height: 0;
     }
 
     .game-play-body > .recent-card {
@@ -2100,11 +2102,23 @@
       min-height: 0;
     }
 
+    .game-play-body--kbd > .soft-kbd-card {
+      flex: 0 0 auto;
+      overflow: hidden;
+    }
+
+    .game-play-body--kbd .soft-kbd-card .soft-kbd {
+      flex-shrink: 0;
+    }
+
     @media (max-width: 520px) {
       .game-play-body.game-play-body--kbd {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
+      }
+      .game-play-body--kbd > #game-card.game-card--playing {
+        max-height: min(44vh, 280px);
       }
     }
 
@@ -2164,31 +2178,54 @@
     #game-card.game-card--playing,
     #expand-game-card.game-card--playing {
       height: auto;
-      max-height: min(42vh, 240px);
+      max-height: none;
+      padding: 10px 14px 10px;
+      gap: 6px;
     }
 
-    #game-card.game-card--playing > .question-text,
+    #game-card.game-card--playing > .question-text {
+      flex: 1 1 auto;
+      min-height: 2.4em;
+      max-height: none;
+      overflow-y: auto;
+      margin-top: 0;
+      padding: 4px 6px 2px;
+    }
+
     #expand-game-card.game-card--playing > .question-text {
       flex: 0 1 auto;
       min-height: 0;
-      max-height: min(30vh, 168px);
+      max-height: none;
       overflow-y: auto;
       margin-top: 0;
+      padding: 4px 6px 2px;
     }
 
+    #game-card.game-card--playing > .question-header,
+    #game-card.game-card--playing > .question-subtext,
     #game-card.game-card--playing > .answer-form {
       flex-shrink: 0;
       margin-top: 0;
     }
 
     #expand-game-card.game-card--playing > .expand-brackets-panel {
-      flex-shrink: 0;
+      flex: 0 0 auto;
       margin-top: 0;
       display: flex;
       flex-direction: column;
       min-height: 0;
       overflow-y: auto;
       max-height: min(36vh, 200px);
+    }
+
+    #expand-play-body > #expand-game-card.game-card--playing {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    #expand-play-body > #expand-game-card.game-card--playing > .question-text {
+      flex: 1 1 auto;
+      min-height: 2em;
     }
 
     .game-section.training-prestart #game-card.game-card--prestart,
@@ -2260,14 +2297,6 @@
       #game-card.game-card--prestart,
       #expand-game-card.game-card--prestart {
         height: clamp(140px, 28vh, 180px);
-      }
-      #game-card.game-card--playing,
-      #expand-game-card.game-card--playing {
-        max-height: min(38vh, 200px);
-      }
-      #game-card.game-card--playing > .question-text,
-      #expand-game-card.game-card--playing > .question-text {
-        max-height: min(26vh, 140px);
       }
     }
 
