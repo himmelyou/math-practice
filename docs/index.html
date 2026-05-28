@@ -211,7 +211,11 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 10px 16px 4px;
+      --home-top-breathe: 0px;
+      padding-top: calc(10px + var(--home-top-breathe));
+      padding-right: 16px;
+      padding-bottom: 4px;
+      padding-left: 16px;
       max-width: 720px;
       margin: 0 auto;
       width: 100%;
@@ -1960,7 +1964,10 @@
         max-width: 430px;
         width: 100%;
         margin: 0 auto;
-        padding: 10px 16px 4px;
+        padding-top: calc(10px + var(--home-top-breathe, 0px));
+        padding-right: 16px;
+        padding-bottom: 4px;
+        padding-left: 16px;
         background: transparent;
         box-shadow: var(--shadow-soft);
       }
@@ -3778,6 +3785,83 @@
         el.classList.remove("mode-btn-soon", "mode-btn-locked");
         el.removeAttribute("aria-disabled");
       });
+      scheduleHomeTopBreathe();
+    }
+
+    const HOME_TOP_BREATHE_BASE_PX = 10;
+    const HOME_TOP_BREATHE_MAX_PX = 28;
+    const HOME_TOP_BREATHE_SAFETY_PX = 4;
+    const HOME_TOP_BREATHE_SLACK_RATIO = 0.85;
+    let homeTopBreatheRaf = 0;
+    let homeTopBreatheResizeTimer = 0;
+
+    function clearHomeTopBreathe() {
+      const app = document.getElementById("app-view");
+      if (app) app.style.setProperty("--home-top-breathe", "0px");
+    }
+
+    function layoutHomeTopBreathe() {
+      const app = document.getElementById("app-view");
+      const homeSection = document.getElementById("home-section");
+      const header = app ? app.querySelector(".app-header") : null;
+      const version = document.getElementById("app-home-version");
+      if (!app || !homeSection || !header || !version) return;
+      if (app.style.display === "none" || homeSection.classList.contains("hidden")) {
+        clearHomeTopBreathe();
+        return;
+      }
+
+      app.style.setProperty("--home-top-breathe", "0px");
+      const prevFlex = homeSection.style.flex;
+      const prevMinHeight = homeSection.style.minHeight;
+      homeSection.style.flex = "0 0 auto";
+      homeSection.style.minHeight = "0";
+
+      const available = app.clientHeight;
+      const padBottom = parseFloat(getComputedStyle(app).paddingBottom) || 4;
+      const homeMarginTop = parseFloat(getComputedStyle(homeSection).marginTop) || 0;
+      const contentH =
+        header.offsetHeight + homeMarginTop + homeSection.offsetHeight + version.offsetHeight;
+      const slack =
+        available - HOME_TOP_BREATHE_BASE_PX - padBottom - contentH - HOME_TOP_BREATHE_SAFETY_PX;
+
+      homeSection.style.flex = prevFlex;
+      homeSection.style.minHeight = prevMinHeight;
+
+      let extra = 0;
+      if (slack > 0) {
+        extra = Math.min(
+          HOME_TOP_BREATHE_MAX_PX,
+          Math.floor(slack * HOME_TOP_BREATHE_SLACK_RATIO)
+        );
+      }
+      app.style.setProperty("--home-top-breathe", extra + "px");
+    }
+
+    function scheduleHomeTopBreathe() {
+      if (homeTopBreatheRaf) cancelAnimationFrame(homeTopBreatheRaf);
+      homeTopBreatheRaf = requestAnimationFrame(() => {
+        homeTopBreatheRaf = requestAnimationFrame(() => {
+          homeTopBreatheRaf = 0;
+          layoutHomeTopBreathe();
+        });
+      });
+    }
+
+    function bindHomeTopBreatheListeners() {
+      const titleImg = document.querySelector(".home-title-img");
+      if (titleImg && !titleImg.dataset.homeTopBreatheBound) {
+        titleImg.dataset.homeTopBreatheBound = "1";
+        titleImg.addEventListener("load", scheduleHomeTopBreathe);
+      }
+      if (!window.__jmlHomeTopBreatheResizeBound) {
+        window.__jmlHomeTopBreatheResizeBound = true;
+        window.addEventListener("resize", () => {
+          if (homeTopBreatheResizeTimer) clearTimeout(homeTopBreatheResizeTimer);
+          homeTopBreatheResizeTimer = setTimeout(scheduleHomeTopBreathe, 100);
+        });
+        window.addEventListener("orientationchange", scheduleHomeTopBreathe);
+      }
     }
 
     /** 拆括号错因编号：仅后台标记的测试员可见；地址栏 `?expand_cause=0` 可强制关闭。 */
@@ -5164,6 +5248,8 @@
       if (statsSec && statsSec.classList.contains("visible")) updateStudentStatsChartTitle();
       refreshLevelDisplayNames();
       applyI18nGlobalChrome();
+      const homeSec = document.getElementById("home-section");
+      if (homeSec && !homeSec.classList.contains("hidden")) scheduleHomeTopBreathe();
     }
 
     function getAuthToken() {
@@ -6918,6 +7004,7 @@
       inlineEl.style.display = "inline-flex";
       const textEl = document.getElementById("home-total-score-text");
       if (textEl) textEl.textContent = t("home.score.prefix") + score;
+      scheduleHomeTopBreathe();
     }
 
     let toastTimerId = null;
@@ -6991,6 +7078,7 @@
       updateTrainingButtonLabel();
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
+      scheduleHomeTopBreathe();
     }
 
     function userHasClearedSurvival(user) {
@@ -9347,6 +9435,7 @@
 
       const logoutBtn = document.getElementById("logout-btn");
       logoutBtn.addEventListener("click", handleLogout);
+      bindHomeTopBreatheListeners();
     }
 
     async function init() {
@@ -9392,6 +9481,7 @@
             updateRankingButtonLabel();
             updateTrainingButtonLabel();
             applyTesterOnlyHomeModes();
+            scheduleHomeTopBreathe();
             return;
         }
       } catch (e) {
