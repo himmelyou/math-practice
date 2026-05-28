@@ -1013,9 +1013,23 @@
       display: inline-flex;
       align-items: center;
       justify-content: flex-start;
-      gap: 0;
+      gap: 4px;
       white-space: nowrap;
       min-width: 0;
+    }
+
+    .status-item-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      line-height: 0;
+      color: var(--primary);
+      opacity: 0.82;
+    }
+
+    .status-item-icon-svg {
+      display: block;
     }
 
     .status-item-full {
@@ -4456,6 +4470,89 @@
       '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>' +
       '<path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 
+    const STATUS_ICON_SVG = {
+      mode:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+        '<rect x="13" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+        '<rect x="4" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/>' +
+        '<rect x="13" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="2"/></svg>',
+      score:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<path d="M12 4.5l2.1 4.3 4.8.7-3.5 3.4.8 4.7L12 15.8l-4.2 2.3.8-4.7-3.5-3.4 4.8-.7L12 4.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+      streak:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<path d="M7 12.5l3.2 3.2L17 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      level:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<path d="M8 7h8v2.5a4 4 0 01-8 0V7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>' +
+        '<path d="M12 11.5V16M9.5 20h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+      difficulty:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<path d="M6 17V11M12 17V7M18 17v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+      wrong:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>' +
+        '<path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+      progress:
+        '<svg class="status-item-icon-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false">' +
+        '<circle cx="5" cy="6" r="1.2" fill="currentColor"/>' +
+        '<circle cx="5" cy="12" r="1.2" fill="currentColor"/>' +
+        '<circle cx="5" cy="18" r="1.2" fill="currentColor"/>' +
+        '<path d="M9 6h11M9 12h11M9 18h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    };
+
+    function setStatusItemIcon(itemEl, kind) {
+      if (!itemEl || !STATUS_ICON_SVG[kind]) return;
+      let wrap = itemEl.querySelector(".status-item-icon");
+      if (!wrap) {
+        wrap = document.createElement("span");
+        wrap.className = "status-item-icon";
+        wrap.setAttribute("aria-hidden", "true");
+        itemEl.insertBefore(wrap, itemEl.firstChild);
+      }
+      wrap.innerHTML = STATUS_ICON_SVG[kind];
+    }
+
+    function setMainGameStatusIcons(variant) {
+      setStatusItemIcon(document.getElementById("status-row-mode"), "mode");
+      setStatusItemIcon(document.getElementById("status-row-3"), "score");
+      setStatusItemIcon(document.getElementById("status-row-5"), "wrong");
+      const row2 = document.getElementById("status-row-2");
+      const row4 = document.getElementById("status-row-4");
+      if (variant === "training" || variant === "wrongPractice") {
+        setStatusItemIcon(row2, "streak");
+        setStatusItemIcon(row4, "difficulty");
+      } else {
+        setStatusItemIcon(row2, "streak");
+        setStatusItemIcon(row4, "level");
+      }
+    }
+
+    function initExpandStatusIcons() {
+      const grid = document.getElementById("expand-status-grid");
+      if (!grid) return;
+      const kinds = ["mode", "progress", "score", "level", "wrong"];
+      grid.querySelectorAll(".status-item").forEach((item, i) => {
+        setStatusItemIcon(item, kinds[i]);
+      });
+    }
+
+    function initPrimeStatusIcons() {
+      const grid = document.getElementById("prime-status-grid");
+      if (!grid) return;
+      const kinds = ["mode", "score", "progress", "streak", "wrong"];
+      grid.querySelectorAll(".status-item").forEach((item, i) => {
+        setStatusItemIcon(item, kinds[i]);
+      });
+    }
+
+    function initStatusGridIcons() {
+      setMainGameStatusIcons("survival");
+      initExpandStatusIcons();
+      initPrimeStatusIcons();
+    }
+
     /** 与训练/闯关正向计时器一致：分:秒（如 0:05、1:23） */
     function formatGameElapsedClock(sec) {
       sec = Math.max(0, Math.round(Number(sec) || 0));
@@ -6114,6 +6211,7 @@
 
     // ===== 生存模式：计时与 UI 更新 =====
     function updateSurvivalStatusUI() {
+      setMainGameStatusIcons("survival");
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -6143,6 +6241,7 @@
 
     /** 闯关模式：正向计时、无倒计时条变红 */
     function updateLevelStatusUI() {
+      setMainGameStatusIcons("level");
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -6196,6 +6295,7 @@
     }
 
     function updateWrongPracticeStatusUI() {
+      setMainGameStatusIcons("wrongPractice");
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -6347,6 +6447,7 @@
     }
 
     function updateTrainingStatusUI() {
+      setMainGameStatusIcons("training");
       const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
       const m = Math.floor(elapsed / 60);
       const s = elapsed % 60;
@@ -9573,6 +9674,7 @@
       saveLang(getSavedLang());
       await loadI18nFromServer();
       initDomRefs();
+      initStatusGridIcons();
       applyI18nToLoginView();
       applyI18nToMainView();
       bindEvents();
