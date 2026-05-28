@@ -1010,23 +1010,19 @@
     .status-item {
       font-size: 0.8rem;
       color: var(--muted);
-      display: grid;
-      grid-template-columns: 14px 4.85em minmax(0, 1fr);
+      display: inline-flex;
       align-items: center;
-      column-gap: 4px;
+      justify-content: flex-start;
+      gap: 4px;
       white-space: nowrap;
       min-width: 0;
-    }
-
-    html[lang="en"] .status-item {
-      grid-template-columns: 14px 5.75em minmax(0, 1fr);
     }
 
     .status-item-icon {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      grid-column: 1;
+      flex-shrink: 0;
       line-height: 0;
       color: var(--primary);
       opacity: 1;
@@ -1044,20 +1040,8 @@
       display: block;
     }
 
-    .status-item > .status-label {
-      grid-column: 2;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
     .status-item > .status-value {
-      grid-column: 3;
-      justify-self: start;
-      text-align: left;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      margin-left: 2ch;
     }
 
     .status-item-full {
@@ -1205,17 +1189,34 @@
       width: 100%;
       max-width: none;
       align-self: stretch;
+      flex-shrink: 0;
+    }
+
+    .game-card-action-anchor {
+      position: relative;
+      width: min(47%, 192px);
+      max-width: 100%;
+      min-height: 44px;
+      margin-left: auto;
+      margin-right: auto;
+      box-sizing: border-box;
+    }
+
+    #game-card .input-row,
+    #game-card #start-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      margin: 0;
     }
 
     .input-row {
       display: flex;
       gap: 10px;
       margin-top: 0;
-      width: min(47%, 192px);
-      margin-left: auto;
-      margin-right: auto;
       box-sizing: border-box;
-      max-width: 100%;
     }
 
     #answer-input {
@@ -1245,10 +1246,7 @@
     .button-row {
       display: flex;
       gap: 10px;
-      margin-top: 8px;
-      margin-left: auto;
-      margin-right: auto;
-      width: min(47%, 192px);
+      margin-top: 0;
     }
     .game-back-row {
       margin-top: 10px;
@@ -1274,9 +1272,7 @@
     }
 
     #start-row {
-      width: min(47%, 192px);
-      margin-left: auto;
-      margin-right: auto;
+      width: 100%;
     }
 
     #game-back-row {
@@ -1386,15 +1382,24 @@
       min-height: auto;
       overflow: visible;
     }
+    .expand-action-anchor {
+      width: min(47%, 192px);
+      max-width: 100%;
+      min-height: 44px;
+      margin: 0 auto;
+      flex-shrink: 0;
+    }
+
     .expand-choices {
       display: grid;
       grid-template-columns: 1fr;
       gap: 10px;
-      margin-top: 10px;
+      margin-top: 0;
+      width: 100%;
     }
     .expand-start-row {
-      width: min(47%, 192px);
-      margin: 6px auto 0;
+      width: 100%;
+      margin: 0;
     }
     .expand-start-row .btn-primary {
       width: 100%;
@@ -2053,17 +2058,72 @@
       width: 100%;
     }
 
-    /* 游戏区固定壳：题目卡固定高度，避免开局前后高度变化导致抖动 */
+    /* 游戏区固定壳：上方提示区 + 底部固定操作位（开始按钮 / 输入框） */
     #game-card {
       flex: 0 0 auto;
       height: clamp(190px, 30vh, 240px);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
-    .expand-brackets-page #expand-game-card {
+
+    #game-card > .question-header {
+      flex-shrink: 0;
+    }
+
+    #game-card > .question-text {
       flex: 1 1 auto;
-      min-height: 0;
-      height: auto;
+      min-height: 3.2em;
+      overflow-y: auto;
+      margin-top: 0;
+    }
+
+    #game-card > .question-subtext {
+      flex-shrink: 0;
+    }
+
+    #game-card > .answer-form {
+      flex-shrink: 0;
+      margin-top: auto;
+    }
+
+    #game-card > .batch-summary {
+      flex-shrink: 0;
+    }
+
+    .expand-brackets-page #expand-game-card {
+      flex: 0 0 auto;
+      height: clamp(190px, 30vh, 240px);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #expand-game-card > .question-header {
+      flex-shrink: 0;
+    }
+
+    #expand-game-card > .question-text {
+      flex: 1 1 auto;
+      min-height: 3.2em;
+      overflow-y: auto;
+      margin-top: 0;
+    }
+
+    #expand-game-card > .question-subtext {
+      flex-shrink: 0;
+    }
+
+    #expand-game-card > .expand-brackets-panel {
+      flex-shrink: 0;
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    #expand-game-card .expand-brackets-panel .expand-action-anchor {
+      margin-top: 0;
     }
     .game-section .recent-card {
       flex: 1;
@@ -2097,9 +2157,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .game-section.training-prestart #start-row {
-      margin-top: 2px;
-    }
     .game-section.wrong-practice-active .question-header {
       display: none;
     }
@@ -2109,9 +2166,6 @@
     .game-section.wrong-practice-active #question-text {
       margin-top: 14px;
       padding-top: 14px;
-    }
-    .game-section.wrong-practice-active #answer-input-row {
-      margin-top: 10px;
     }
     @media (max-width: 520px) {
       #game-card { height: clamp(140px, 28vh, 180px); }
@@ -2541,11 +2595,13 @@
 
 
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
-        <div class="input-row" id="answer-input-row" style="display:none">
-          <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly />
-        </div>
-        <div class="button-row" id="start-row">
-          <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
+        <div class="game-card-action-anchor">
+          <div class="input-row" id="answer-input-row" style="display:none">
+            <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly />
+          </div>
+          <div class="button-row" id="start-row">
+            <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
+          </div>
         </div>
         <div class="button-row" id="abandon-row" style="display:none;">
           <button type="button" class="btn-primary btn-secondary" id="abandon-game-btn">放弃本局</button>
@@ -2656,10 +2712,12 @@
         <div class="question-subtext" id="expand-question-subtext"></div>
 
         <div class="expand-brackets-panel" id="expand-brackets-panel" style="display:none;">
-          <div class="expand-start-row" id="expand-start-row" style="display:none;">
-            <button type="button" class="btn-primary" id="expand-start-btn">开始挑战</button>
+          <div class="expand-action-anchor">
+            <div class="expand-start-row" id="expand-start-row" style="display:none;">
+              <button type="button" class="btn-primary" id="expand-start-btn">开始挑战</button>
+            </div>
+            <div class="expand-choices" id="expand-choices"></div>
           </div>
-          <div class="expand-choices" id="expand-choices"></div>
           <div class="expand-explain" id="expand-explain" style="display:none;">
             <div class="expand-explain-body" id="expand-explain-body"></div>
             <div class="expand-next-row">
