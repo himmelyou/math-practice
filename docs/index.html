@@ -307,7 +307,6 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 4px;
       box-sizing: border-box;
       border-radius: 10px;
       padding: 5px 10px;
@@ -318,14 +317,6 @@
       white-space: nowrap;
       font-family: inherit;
     }
-    .home-pill-icon--placeholder {
-      display: inline-block;
-      width: 12px;
-      height: 12px;
-      border-radius: 3px;
-      background: rgba(255, 255, 255, 0.45);
-      flex-shrink: 0;
-    }
     .home-pill-btn--primary {
       color: #fff;
       background: #4e83f8;
@@ -335,10 +326,6 @@
       color: #fff;
       background: #f66d6f;
       border: 1px solid #f19b9e;
-    }
-    .home-pill-icon {
-      filter: brightness(0) invert(1);
-      flex-shrink: 0;
     }
     .home-user-actions #global-back-home-btn {
       align-self: center;
@@ -2193,11 +2180,9 @@
         </div>
         <div class="home-user-actions">
           <button id="change-password-btn" class="change-pwd-btn home-pill-btn home-pill-btn--primary" type="button">
-            <img src="assets/home/ic_lock.png" width="14" height="14" alt="" class="home-pill-icon" />
             <span id="change-password-btn-label">修改密码</span>
           </button>
           <button id="logout-btn" class="logout-btn home-pill-btn home-pill-btn--danger" type="button">
-            <span class="home-pill-icon--placeholder" aria-hidden="true"></span>
             <span id="logout-btn-label">注销</span>
           </button>
           <button type="button" id="global-back-home-btn" style="display:none;">返回首页</button>
@@ -2256,18 +2241,18 @@
           </div>
           <div class="mode-list">
             <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-prime-composite">
-              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <img class="home-mode-icon" src="assets/home/ic_challenge_1.png" width="28" height="28" alt="" />
               <span class="home-mode-label">质数合数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
             <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-gcd" style="display:none;">
-              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <img class="home-mode-icon" src="assets/home/ic_challenge_2.png" width="28" height="28" alt="" />
               <span class="home-mode-label">公因数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
             </button>
             <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-lcm" style="display:none;">
-              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <img class="home-mode-icon" src="assets/home/ic_challenge_3.png" width="28" height="28" alt="" />
               <span class="home-mode-label">公倍数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
             </button>
@@ -2281,19 +2266,19 @@
           </div>
           <div class="mode-list">
             <button type="button" class="mode-btn home-mode-card mode-btn-wrongbook" id="mode-wrongbook">
-              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <img class="home-mode-icon" src="assets/home/ic_tool_1.png" width="28" height="28" alt="" />
               <span class="home-mode-label">错题本</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
             <button type="button" class="mode-btn home-mode-card mode-btn-stats" id="mode-stats" style="display:none;">
-              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <img class="home-mode-icon" src="assets/home/ic_tool_2.png" width="28" height="28" alt="" />
               <span class="home-mode-label">数据统计</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
             <button type="button" class="mode-btn home-mode-card mode-btn-ranking" id="mode-ranking" style="display:none;">
-              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <img class="home-mode-icon" src="assets/home/ic_tool_3.png" width="28" height="28" alt="" />
               <span class="home-mode-label">排行榜</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
