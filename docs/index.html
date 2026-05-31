@@ -22,6 +22,9 @@
       /* 开局题卡：封顶对齐常见手机满意高度；中间 .question-body 随题卡剩余空间伸缩 */
       --game-card-playing-max: clamp(168px, 38vh, 260px);
       --game-card-playing-min: 148px;
+      --expand-card-playing-max: clamp(220px, 48vh, 320px);
+      --expand-card-playing-min: 160px;
+      --expand-card-prestart-height: clamp(190px, 30vh, 240px);
     }
 
     * {
@@ -1679,8 +1682,7 @@
 
     /* 拆括号：结算时只保留结算卡+历史，隐藏题头/题目/选项区（与训练模式 game-over-active 一致） */
     #expand-game-card.game-over-active .question-header,
-    #expand-game-card.game-over-active .question-text,
-    #expand-game-card.game-over-active .question-subtext,
+    #expand-game-card.game-over-active .question-body,
     #expand-game-card.game-over-active .expand-brackets-panel {
       display: none !important;
     }
@@ -2081,8 +2083,7 @@
       overflow: hidden;
     }
 
-    .game-play-body > #game-card.game-card--prestart,
-    .game-play-body > #expand-game-card.game-card--prestart {
+    .game-play-body > #game-card.game-card--prestart {
       flex-shrink: 0;
     }
 
@@ -2134,22 +2135,19 @@
       }
     }
 
-    /* 题目卡：未开局固定壳 / 开局后随内容（共用 class） */
-    #game-card,
-    #expand-game-card {
+    /* 主游戏题目卡 */
+    #game-card {
       flex: 0 0 auto;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
-    #game-card > .question-header,
-    #expand-game-card > .question-header {
+    #game-card > .question-header {
       flex-shrink: 0;
     }
 
-    #game-card > .question-body,
-    #expand-game-card > .question-body {
+    #game-card > .question-body {
       min-width: 0;
     }
 
@@ -2157,13 +2155,11 @@
       flex-shrink: 0;
     }
 
-    #game-card.game-card--prestart,
-    #expand-game-card.game-card--prestart {
+    #game-card.game-card--prestart {
       height: clamp(190px, 30vh, 240px);
     }
 
-    #game-card.game-card--prestart > .question-body,
-    #expand-game-card.game-card--prestart > .question-body {
+    #game-card.game-card--prestart > .question-body {
       flex: 1 1 auto;
       min-height: 3.2em;
       min-width: 0;
@@ -2172,16 +2168,14 @@
       flex-direction: column;
     }
 
-    #game-card.game-card--prestart > .question-body > .question-text,
-    #expand-game-card.game-card--prestart > .question-body > .question-text {
+    #game-card.game-card--prestart > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
       margin-top: 0;
     }
 
-    #game-card.game-card--prestart > .question-body > .question-subtext,
-    #expand-game-card.game-card--prestart > .question-body > .question-subtext {
+    #game-card.game-card--prestart > .question-body > .question-subtext {
       flex-shrink: 0;
     }
 
@@ -2190,20 +2184,7 @@
       margin-top: auto;
     }
 
-    #expand-game-card.game-card--prestart > .expand-brackets-panel {
-      flex-shrink: 0;
-      margin-top: auto;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
-    #expand-game-card .expand-brackets-panel .expand-action-anchor {
-      margin-top: 0;
-    }
-
-    #game-card.game-card--playing,
-    #expand-game-card.game-card--playing {
+    #game-card.game-card--playing {
       height: auto;
       padding: 10px 14px 10px;
       gap: 6px;
@@ -2246,43 +2227,13 @@
       text-overflow: ellipsis;
     }
 
-    #expand-game-card.game-card--playing > .question-text {
-      flex: 0 1 auto;
-      min-height: 0;
-      max-height: none;
-      overflow-y: auto;
-      margin-top: 0;
-      padding: 4px 6px 2px;
-    }
-
     #game-card.game-card--playing > .question-header,
     #game-card.game-card--playing > .answer-form {
       flex-shrink: 0;
       margin-top: 0;
     }
 
-    #expand-game-card.game-card--playing > .expand-brackets-panel {
-      flex: 0 0 auto;
-      margin-top: 0;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      overflow-y: auto;
-      max-height: min(36vh, 200px);
-    }
-
-    #expand-play-body > #expand-game-card.game-card--playing {
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-
-    #expand-play-body > #expand-game-card.game-card--playing > .question-text {
-      flex: 1 1 auto;
-      min-height: 2em;
-    }
-
-    .game-section.training-prestart #game-card.game-card--prestart,
-    .game-section.training-prestart #expand-game-card.game-card--prestart {
+    .game-section.training-prestart #game-card.game-card--prestart {
       gap: 8px;
     }
 
@@ -2322,6 +2273,137 @@
       overflow: hidden;
     }
 
+    #expand-play-body > #expand-game-card.card {
+      flex: 0 1 auto;
+      margin-top: 8px;
+    }
+
+    #expand-play-body > #expand-game-card.game-card--prestart {
+      flex-shrink: 0;
+      height: var(--expand-card-prestart-height);
+    }
+
+    #expand-play-body > #expand-game-card.game-card--playing {
+      flex: 0 1 auto;
+      min-height: var(--expand-card-playing-min);
+      max-height: var(--expand-card-playing-max);
+      height: auto;
+      padding: 10px 14px 10px;
+      gap: 6px;
+    }
+
+    #expand-play-body .game-play-tail {
+      display: block;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    @media (max-width: 520px) {
+      #expand-play-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+    }
+
+    .expand-brackets-page #expand-game-card {
+      flex: 0 0 auto;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .expand-brackets-page #expand-game-card > .question-header {
+      flex-shrink: 0;
+    }
+
+    .expand-brackets-page #expand-game-card > .question-body {
+      min-width: 0;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--prestart > .question-body {
+      flex: 1 1 auto;
+      min-height: 3.2em;
+      min-width: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-text {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      margin-top: 0;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-subtext {
+      flex-shrink: 0;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--prestart > .expand-brackets-panel {
+      flex-shrink: 0;
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .expand-brackets-page #expand-game-card .expand-brackets-panel .expand-action-anchor {
+      margin-top: 0;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--prestart .question-text.rule-hint {
+      font-size: 0.82rem;
+      line-height: 1.35;
+      padding: 4px 6px 0;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--playing > .question-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-subtext {
+      flex-shrink: 0;
+      margin: 0;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-subtext:empty {
+      display: none;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-text {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0;
+      padding: 2px 6px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel {
+      flex: 0 0 auto;
+      margin-top: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+      max-height: min(32vh, 200px);
+    }
+
     .expand-brackets-page #expand-game-card > .expand-history {
       flex: 1;
       min-height: 0;
@@ -2347,9 +2429,12 @@
       padding-top: 14px;
     }
     @media (max-width: 520px) {
-      #game-card.game-card--prestart,
-      #expand-game-card.game-card--prestart {
+      #game-card.game-card--prestart {
         height: clamp(140px, 28vh, 180px);
+      }
+      .expand-brackets-page {
+        --expand-card-prestart-height: clamp(140px, 28vh, 180px);
+        --expand-card-playing-max: clamp(200px, 44vh, 280px);
       }
     }
 
@@ -2402,9 +2487,12 @@
         overscroll-behavior: contain;
       }
 
-      #game-card.game-card--prestart,
-      #expand-game-card.game-card--prestart {
+      #game-card.game-card--prestart {
         height: clamp(130px, 28vh, 168px);
+      }
+
+      .expand-brackets-page {
+        --expand-card-prestart-height: clamp(130px, 28vh, 168px);
       }
 
       .soft-kbd-card {
@@ -2895,8 +2983,10 @@
           </div>
         </div>
 
-        <div class="question-text" id="expand-question-text"></div>
-        <div class="question-subtext" id="expand-question-subtext"></div>
+        <div class="question-body">
+          <div class="question-subtext" id="expand-question-subtext"></div>
+          <div class="question-text" id="expand-question-text"></div>
+        </div>
 
         <div class="expand-brackets-panel" id="expand-brackets-panel" style="display:none;">
           <div class="expand-action-anchor">
@@ -2948,6 +3038,7 @@
           </div>
         </div>
       </main>
+      <div class="game-play-tail" id="expand-play-tail" aria-hidden="true"></div>
       </div>
     </section>
 
