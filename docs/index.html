@@ -1216,7 +1216,8 @@
     }
 
     #game-card .game-card-action-anchor .input-row,
-    #game-card .game-card-action-anchor #start-row {
+    #game-card .game-card-action-anchor #start-row,
+    #expand-game-card .game-card-action-anchor #expand-start-row {
       width: 100%;
       margin: 0;
     }
@@ -1274,7 +1275,8 @@
       flex: none !important;
     }
 
-    #start-game-btn {
+    #start-game-btn,
+    #expand-start-btn {
       padding: 8px 12px;
       min-height: 2.25em;
       width: 100% !important;
@@ -1392,28 +1394,12 @@
       min-height: auto;
       overflow: visible;
     }
-    .expand-action-anchor {
-      width: min(47%, 192px);
-      max-width: 100%;
-      min-height: 44px;
-      margin: 0 auto;
-      flex-shrink: 0;
-    }
-
     .expand-choices {
       display: grid;
       grid-template-columns: 1fr;
       gap: 10px;
       margin-top: 0;
       width: 100%;
-    }
-    .expand-start-row {
-      width: 100%;
-      margin: 0;
-    }
-    .expand-start-row .btn-primary {
-      width: 100%;
-      flex: none !important;
     }
     .expand-choice-btn {
       width: 100%;
@@ -2292,7 +2278,29 @@
       gap: 6px;
     }
 
+    #expand-play-body > .recent-card {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #expand-play-body > .recent-card .recent-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
     #expand-play-body .game-play-tail {
+      display: none;
+      flex: 0 0 0;
+      min-height: 0;
+    }
+
+    #expand-play-body.expand-play-body--playing .game-play-tail {
       display: block;
       flex: 1 1 auto;
       min-height: 0;
@@ -2341,16 +2349,17 @@
       flex-shrink: 0;
     }
 
-    .expand-brackets-page #expand-game-card.game-card--prestart > .expand-brackets-panel {
+    .expand-brackets-page #expand-game-card.game-card--prestart > .answer-form {
       flex-shrink: 0;
       margin-top: auto;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel {
+      flex-shrink: 0;
+      margin-top: 0;
       display: flex;
       flex-direction: column;
       min-height: 0;
-    }
-
-    .expand-brackets-page #expand-game-card .expand-brackets-panel .expand-action-anchor {
-      margin-top: 0;
     }
 
     .expand-brackets-page #expand-game-card.game-card--prestart .question-text.rule-hint {
@@ -2404,19 +2413,8 @@
       max-height: min(32vh, 200px);
     }
 
-    .expand-brackets-page #expand-game-card > .expand-history {
-      flex: 1;
-      min-height: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .expand-brackets-page #expand-game-card > .expand-history .recent-body {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+    .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel .expand-choices {
+      width: 100%;
     }
     .game-section.wrong-practice-active .question-header {
       display: none;
@@ -2988,13 +2986,16 @@
           <div class="question-text" id="expand-question-text"></div>
         </div>
 
-        <div class="expand-brackets-panel" id="expand-brackets-panel" style="display:none;">
-          <div class="expand-action-anchor">
-            <div class="expand-start-row" id="expand-start-row" style="display:none;">
+        <form id="expand-answer-form" class="answer-form" action="javascript:void(0);">
+          <div class="game-card-action-anchor">
+            <div class="button-row" id="expand-start-row">
               <button type="button" class="btn-primary" id="expand-start-btn">开始挑战</button>
             </div>
-            <div class="expand-choices" id="expand-choices"></div>
           </div>
+        </form>
+
+        <div class="expand-brackets-panel" id="expand-brackets-panel" style="display:none;">
+          <div class="expand-choices" id="expand-choices"></div>
           <div class="expand-explain" id="expand-explain" style="display:none;">
             <div class="expand-explain-body" id="expand-explain-body"></div>
             <div class="expand-next-row">
@@ -3016,28 +3017,29 @@
           </div>
         </div>
 
-        <div class="expand-history" id="expand-history" style="display:none;">
-          <div class="recent-header" style="margin-top:10px;">
-            <span class="recent-title" id="expand-recent-title">最近十次拆括号</span>
-          </div>
-          <div class="recent-body">
-            <div id="expand-history-wrap">
-              <table class="recent-table">
-                <thead>
-                  <tr>
-                    <th id="expand-th-dt">日期时间</th>
-                    <th id="expand-th-time">用时</th>
-                    <th id="expand-th-wrong">错题</th>
-                    <th id="expand-th-level">等级</th>
-                  </tr>
-                </thead>
-                <tbody id="expand-history-body"></tbody>
-              </table>
-              <div id="expand-history-empty" class="recent-empty">当前还没有练习记录。</div>
-            </div>
+      </main>
+
+      <section class="recent-card" id="expand-recent-card" style="display:none;">
+        <div class="recent-header">
+          <span class="recent-title" id="expand-recent-title">最近十次拆括号</span>
+        </div>
+        <div class="recent-body">
+          <div id="expand-history-wrap">
+            <table class="recent-table">
+              <thead>
+                <tr>
+                  <th id="expand-th-dt">日期时间</th>
+                  <th id="expand-th-time">用时</th>
+                  <th id="expand-th-wrong">错题</th>
+                  <th id="expand-th-level">等级</th>
+                </tr>
+              </thead>
+              <tbody id="expand-history-body"></tbody>
+            </table>
+            <div id="expand-history-empty" class="recent-empty">当前还没有练习记录。</div>
           </div>
         </div>
-      </main>
+      </section>
       <div class="game-play-tail" id="expand-play-tail" aria-hidden="true"></div>
       </div>
     </section>
@@ -4100,7 +4102,9 @@
       dom.expandNextBtn = document.getElementById("expand-next-btn");
       dom.expandStartBtn = document.getElementById("expand-start-btn");
       dom.expandStartRow = document.getElementById("expand-start-row");
-      dom.expandHistory = document.getElementById("expand-history");
+      dom.expandAnswerForm = document.getElementById("expand-answer-form");
+      dom.expandRecentCard = document.getElementById("expand-recent-card");
+      dom.expandHistory = document.getElementById("expand-history-wrap");
       dom.expandHistoryBody = document.getElementById("expand-history-body");
       dom.expandHistoryEmpty = document.getElementById("expand-history-empty");
       dom.expandQuestionText = document.getElementById("expand-question-text");
@@ -4547,7 +4551,35 @@
     }
 
     function setExpandHistoryVisible(visible) {
-      if (dom.expandHistory) dom.expandHistory.style.display = visible ? "block" : "none";
+      if (dom.expandRecentCard) dom.expandRecentCard.style.display = visible ? "flex" : "none";
+    }
+
+    function setExpandPlayBodyMode(mode) {
+      const body = document.getElementById("expand-play-body");
+      if (!body) return;
+      body.classList.toggle("expand-play-body--playing", mode === "playing");
+    }
+
+    /** 拆括号未开局：与主游戏相同的开始按钮槽位 */
+    function setExpandCardActionSlot(mode) {
+      if (mode === "start") {
+        setExpandGameCardLayoutMode("prestart");
+        setExpandPlayBodyMode("prestart");
+        if (dom.expandAnswerForm) dom.expandAnswerForm.style.display = "";
+        if (dom.expandStartRow) dom.expandStartRow.style.display = "";
+        if (dom.expandPanel) dom.expandPanel.style.display = "none";
+        return;
+      }
+      if (mode === "playing") {
+        setExpandGameCardLayoutMode("playing");
+        setExpandPlayBodyMode("playing");
+        if (dom.expandAnswerForm) dom.expandAnswerForm.style.display = "none";
+        if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
+        if (dom.expandPanel) dom.expandPanel.style.display = "block";
+        return;
+      }
+      if (dom.expandAnswerForm) dom.expandAnswerForm.style.display = "none";
+      if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
     }
 
     function getExpandBracketsUnlockedMaxLevel() {
@@ -4701,8 +4733,7 @@
         survivalTimerId = null;
       }
 
-      setExpandGameCardLayoutMode("playing");
-      if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
+      setExpandCardActionSlot("playing");
       if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "none";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
       if (dom.expandLevelSelect) dom.expandLevelSelect.disabled = true;
@@ -4816,10 +4847,8 @@
       }
       if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "none";
       setExpandGameCardGameOver(false);
-      if (dom.expandPanel) dom.expandPanel.style.display = "block";
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
-      setExpandGameCardLayoutMode("prestart");
-      if (dom.expandStartRow) dom.expandStartRow.style.display = "";
+      setExpandCardActionSlot("start");
       if (dom.expandStartBtn) dom.expandStartBtn.textContent = t("game.btn.startChallenge");
       if (dom.expandChoices) dom.expandChoices.style.display = "none";
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "none";
