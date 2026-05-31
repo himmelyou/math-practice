@@ -2276,6 +2276,15 @@
       gap: 6px;
     }
 
+    /* 结算态：题卡随 training-summary 收缩，历史区 flex:1（与主游戏 game-over-active 一致） */
+    #expand-play-body > #expand-game-card.game-card--playing.game-over-active {
+      flex: 0 1 auto;
+      flex-grow: 0;
+      min-height: 0;
+      max-height: none;
+      height: auto;
+    }
+
     #expand-play-body.expand-play-body--playing {
       overflow: hidden;
     }
