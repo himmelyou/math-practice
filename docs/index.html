@@ -2371,12 +2371,7 @@
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-subtext {
-      flex-shrink: 0;
-      margin: 0;
-    }
-
-    .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-subtext:empty {
-      display: none;
+      display: none !important;
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-text {
@@ -2384,7 +2379,11 @@
       width: 100%;
       max-width: 100%;
       margin-top: 0;
-      padding: 2px 6px;
+      padding: 12px 6px;
+      min-height: 2.75em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: clip;
@@ -4631,6 +4630,12 @@
       return Math.max(0, Math.min(4, Math.max(current, maxRun)));
     }
 
+    function hideExpandQuestionSubtext() {
+      if (!dom.expandQuestionSubtext) return;
+      dom.expandQuestionSubtext.textContent = "";
+      dom.expandQuestionSubtext.style.display = "none";
+    }
+
     function syncExpandLevelTexts() {
       if (dom.expandCurrentLevelName) dom.expandCurrentLevelName.textContent = `L${expandLevel + 1}`;
       if (dom.expandLevelText) dom.expandLevelText.textContent = `L${expandLevel + 1}`;
@@ -4732,12 +4737,7 @@
         dom.expandQuestionText.textContent = q.prompt;
         dom.expandQuestionText.classList.remove("rule-hint");
       }
-      if (dom.expandQuestionSubtext) {
-        dom.expandQuestionSubtext.style.display = "";
-        const lk = `expand.level.L${expandLevel + 1}`;
-        dom.expandQuestionSubtext.textContent = t(lk) || "";
-        if (!dom.expandQuestionSubtext.textContent) dom.expandQuestionSubtext.style.display = "none";
-      }
+      hideExpandQuestionSubtext();
       if (dom.expandProgressText) dom.expandProgressText.textContent = `${expandQuestionIndex + 1} / 20`;
       if (dom.expandWrongText) dom.expandWrongText.textContent = String(expandWrongCount);
       renderExpandChoices(q);
@@ -4781,7 +4781,7 @@
       setExpandHistoryVisible(false);
       if (dom.expandChoices) dom.expandChoices.style.display = "grid";
       if (dom.expandQuestionText) dom.expandQuestionText.style.display = "";
-      if (dom.expandQuestionSubtext) dom.expandQuestionSubtext.style.display = "";
+      hideExpandQuestionSubtext();
       startExpandTimer();
       bindExpandQuestionFitObserver();
       updateGlobalBackButtonState();
@@ -4813,10 +4813,7 @@
         dom.expandQuestionText.textContent = "";
         dom.expandQuestionText.style.display = "none";
       }
-      if (dom.expandQuestionSubtext) {
-        dom.expandQuestionSubtext.textContent = "";
-        dom.expandQuestionSubtext.style.display = "none";
-      }
+      hideExpandQuestionSubtext();
       if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "";
       if (dom.expandGameOverTitle) dom.expandGameOverTitle.textContent = t("expand.end.title");
       if (dom.expandGoDurationLabel) dom.expandGoDurationLabel.textContent = t("expand.end.time");
@@ -6539,10 +6536,7 @@
           dom.expandQuestionText.textContent = "";
           dom.expandQuestionText.style.display = "none";
         }
-        if (dom.expandQuestionSubtext) {
-          dom.expandQuestionSubtext.textContent = "";
-          dom.expandQuestionSubtext.style.display = "none";
-        }
+        hideExpandQuestionSubtext();
         if (dom.expandChoices) dom.expandChoices.style.display = "none";
         if (dom.expandExplain) dom.expandExplain.style.display = "none";
         setExpandHistoryVisible(true);
