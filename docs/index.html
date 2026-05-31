@@ -22,8 +22,6 @@
       /* 开局题卡：封顶对齐常见手机满意高度；中间 .question-body 随题卡剩余空间伸缩 */
       --game-card-playing-max: clamp(168px, 38vh, 260px);
       --game-card-playing-min: 148px;
-      --expand-card-playing-max: clamp(220px, 48vh, 320px);
-      --expand-card-playing-min: 160px;
       --expand-card-prestart-height: clamp(190px, 30vh, 240px);
     }
 
@@ -2270,12 +2268,16 @@
     }
 
     #expand-play-body > #expand-game-card.game-card--playing {
-      flex: 0 1 auto;
-      min-height: var(--expand-card-playing-min);
-      max-height: var(--expand-card-playing-max);
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
       height: auto;
       padding: 10px 14px 10px;
       gap: 6px;
+    }
+
+    #expand-play-body.expand-play-body--playing {
+      overflow: hidden;
     }
 
     #expand-play-body > .recent-card {
@@ -2297,12 +2299,6 @@
     #expand-play-body .game-play-tail {
       display: none;
       flex: 0 0 0;
-      min-height: 0;
-    }
-
-    #expand-play-body.expand-play-body--playing .game-play-tail {
-      display: block;
-      flex: 1 1 auto;
       min-height: 0;
     }
 
@@ -2354,14 +2350,6 @@
       margin-top: auto;
     }
 
-    .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel {
-      flex-shrink: 0;
-      margin-top: 0;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
     .expand-brackets-page #expand-game-card.game-card--prestart .question-text.rule-hint {
       font-size: 0.82rem;
       line-height: 1.35;
@@ -2374,11 +2362,12 @@
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .question-body {
-      flex: 1 1 auto;
-      min-height: 0;
+      flex: 0 0 auto;
+      flex-shrink: 0;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      min-width: 0;
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-subtext {
@@ -2391,26 +2380,25 @@
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .question-body > .question-text {
-      flex: 1 1 auto;
-      min-height: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      flex: 0 0 auto;
+      width: 100%;
+      max-width: 100%;
       margin-top: 0;
       padding: 2px 6px;
       overflow: hidden;
       white-space: nowrap;
-      text-overflow: ellipsis;
+      text-overflow: clip;
+      line-height: 1.25;
+      text-align: center;
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel {
-      flex: 0 0 auto;
+      flex: 1 1 auto;
+      min-height: 0;
       margin-top: 0;
       display: flex;
       flex-direction: column;
-      min-height: 0;
       overflow-y: auto;
-      max-height: min(32vh, 200px);
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel .expand-choices {
@@ -2432,7 +2420,6 @@
       }
       .expand-brackets-page {
         --expand-card-prestart-height: clamp(140px, 28vh, 180px);
-        --expand-card-playing-max: clamp(200px, 44vh, 280px);
       }
     }
 
@@ -4545,6 +4532,54 @@
       expandPendingNext = false;
     }
 
+    const EXPAND_QUESTION_FONT_MAX_PX = 20;
+    const EXPAND_QUESTION_FONT_MIN_PX = 10;
+    let expandQuestionFitObserver = null;
+
+    /** 拆括号算式：单行完整显示，放不下则逐步缩小字号（不省略） */
+    function fitExpandQuestionTextSize() {
+      const el = dom.expandQuestionText;
+      if (!el || el.style.display === "none" || el.classList.contains("rule-hint")) return;
+      const card = document.getElementById("expand-game-card");
+      if (!card || !card.classList.contains("game-card--playing")) return;
+      el.style.fontSize = EXPAND_QUESTION_FONT_MAX_PX + "px";
+      const limit = el.clientWidth;
+      if (limit <= 0) return;
+      let size = EXPAND_QUESTION_FONT_MAX_PX;
+      while (el.scrollWidth > limit && size > EXPAND_QUESTION_FONT_MIN_PX) {
+        size -= 1;
+        el.style.fontSize = size + "px";
+      }
+    }
+
+    function scheduleFitExpandQuestionTextSize() {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(fitExpandQuestionTextSize);
+      });
+    }
+
+    function resetExpandQuestionTextSize() {
+      if (dom.expandQuestionText) dom.expandQuestionText.style.fontSize = "";
+    }
+
+    function bindExpandQuestionFitObserver() {
+      const card = document.getElementById("expand-game-card");
+      if (!card || typeof ResizeObserver === "undefined") return;
+      if (expandQuestionFitObserver) expandQuestionFitObserver.disconnect();
+      expandQuestionFitObserver = new ResizeObserver(() => {
+        if (gameMode !== "expandBrackets" || !isPlaying || gameOver) return;
+        fitExpandQuestionTextSize();
+      });
+      expandQuestionFitObserver.observe(card);
+    }
+
+    function unbindExpandQuestionFitObserver() {
+      if (expandQuestionFitObserver) {
+        expandQuestionFitObserver.disconnect();
+        expandQuestionFitObserver = null;
+      }
+    }
+
     function setExpandGameCardGameOver(active) {
       const card = document.getElementById("expand-game-card");
       if (card) card.classList.toggle("game-over-active", !!active);
@@ -4707,6 +4742,7 @@
       if (dom.expandWrongText) dom.expandWrongText.textContent = String(expandWrongCount);
       renderExpandChoices(q);
       expandQuestionIndex += 1;
+      scheduleFitExpandQuestionTextSize();
     }
 
     function startExpandBracketsGame() {
@@ -4747,12 +4783,14 @@
       if (dom.expandQuestionText) dom.expandQuestionText.style.display = "";
       if (dom.expandQuestionSubtext) dom.expandQuestionSubtext.style.display = "";
       startExpandTimer();
+      bindExpandQuestionFitObserver();
       updateGlobalBackButtonState();
       nextExpandQuestion();
     }
 
     async function endExpandBracketsGame() {
       if (gameMode !== "expandBrackets") return;
+      unbindExpandQuestionFitObserver();
       isPlaying = false;
       stopExpandTimer();
       const durationSec = Math.floor((Date.now() - (expandStartTs || Date.now())) / 1000);
@@ -4833,6 +4871,8 @@
       if (dom.expandScoreText) dom.expandScoreText.textContent = "0";
       if (dom.expandWrongText) dom.expandWrongText.textContent = "0";
 
+      unbindExpandQuestionFitObserver();
+      resetExpandQuestionTextSize();
       if (dom.expandQuestionText) {
         const sub = document.getElementById("game-subtitle");
         const hint = sub ? String(sub.textContent || "").trim() : "";
