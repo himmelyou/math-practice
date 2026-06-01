@@ -292,7 +292,8 @@
 
     /* 游戏页：人物栏与状态栏间距与块间 8px 一致 */
     .app:has(.game-section.visible) .app-header,
-    .app:has(#expand-brackets-section.visible) .app-header {
+    .app:has(#expand-brackets-section.visible) .app-header,
+    .app:has(#prime-composite-section.visible) .app-header {
       padding-bottom: 0;
     }
 
@@ -2502,55 +2503,123 @@
         min-height: 40px;
       }
 
-      .prime-composite-page #prime-game-card.card,
-      .prime-composite-page .prime-idle-card.card,
-      #prime-panel-finished #prime-finished-panel-inner.game-over-panel {
-        height: clamp(130px, 28vh, 168px);
-      }
     }
 
-    /* 质数合数：与主游戏共用 status-grid / card / button-row 规范 */
+    /* 质数合数：布局对齐 game-play-body + recent-card（与主游戏/拆括号一致） */
+    .prime-composite-page.game-section.visible,
+    #prime-composite-section.visible {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
     .prime-composite-page #prime-status-grid {
       margin-top: 8px;
     }
-    /* 质数合数页同样固定壳，避免开局/结束切换导致高度跳动 */
-    #prime-composite-section {
-      overflow: hidden;
-    }
-    #prime-composite-section .prime-panel-idle,
-    #prime-composite-section .prime-panel-playing,
-    #prime-composite-section .prime-panel-finished {
+
+    #prime-play-body {
       flex: 1;
       min-height: 0;
-    }
-    /* 与主游戏区同档位高度，保证各模式视觉统一 */
-    .prime-composite-page #prime-game-card.card {
-      height: clamp(190px, 30vh, 240px);
+      display: flex;
+      flex-direction: column;
       overflow: hidden;
     }
-    .prime-composite-page .prime-idle-card.card {
-      height: clamp(190px, 30vh, 240px);
+
+    #prime-play-body > .prime-panel-idle,
+    #prime-play-body > .prime-panel-playing,
+    #prime-play-body > .prime-panel-finished {
+      flex-shrink: 0;
+    }
+
+    #prime-play-body > .prime-panel-playing {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #prime-play-body > .prime-panel-finished {
+      flex: 0 0 auto;
+    }
+
+    #prime-play-body > .recent-card {
+      flex: 1;
+      min-height: 0;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
     }
-    #prime-panel-finished #prime-finished-panel-inner.game-over-panel {
-      height: clamp(190px, 30vh, 240px);
-      overflow: hidden;
-    }
-    @media (max-width: 520px) {
-      .prime-composite-page #prime-game-card.card { height: clamp(140px, 28vh, 180px); }
-      .prime-composite-page .prime-idle-card.card { height: clamp(140px, 28vh, 180px); }
-      #prime-panel-finished #prime-finished-panel-inner.game-over-panel { height: clamp(140px, 28vh, 180px); }
-    }
-    .prime-wrong-list {
-      max-height: none;
+
+    #prime-play-body > .recent-card .recent-body {
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
     }
-    .prime-composite-page .prime-idle-card.card,
-    .prime-composite-page #prime-game-card.card,
-    .prime-composite-page #prime-panel-finished {
+
+    #prime-play-body.prime-play-body--playing > .recent-card {
+      display: none;
+    }
+
+    .prime-composite-page .prime-idle-card.card {
+      height: clamp(190px, 30vh, 240px);
+      overflow: hidden;
       margin-top: 8px;
+    }
+
+    .prime-composite-page #prime-game-card.card {
+      flex: 1 1 auto;
+      min-height: 0;
+      max-height: none;
+      height: auto;
+      overflow: hidden;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .prime-composite-page .prime-finish-card.card {
+      flex: 0 0 auto;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    #prime-finished-panel-inner.game-over-panel {
+      height: auto;
+      max-height: none;
+      overflow: visible;
+    }
+
+    .prime-wrong-review-hint {
+      margin: 10px 0 4px;
+      text-align: left;
+      font-size: 0.86rem;
+    }
+
+    .prime-wrong-list {
+      max-height: min(22vh, 140px);
+      overflow-y: auto;
+      margin-top: 4px;
+      text-align: left;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+    }
+
+    @media (max-width: 520px) {
+      .prime-composite-page .prime-idle-card.card {
+        height: clamp(140px, 28vh, 180px);
+      }
+      #prime-play-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
     }
     .question-text.prime-question-num {
       margin-top: 0;
@@ -2609,15 +2678,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .prime-composite-page #prime-abandon-row.button-row {
-      width: min(47%, 192px);
-      margin-top: 10px;
-    }
-    .prime-composite-page #prime-abandon-row .btn-primary {
-      width: 100%;
-      flex: none !important;
-    }
-    .prime-wrong-list { max-height: 90px; overflow-y: auto; margin-top: 6px; text-align: left; }
     .prime-wrong-row {
       padding: 8px 0;
       border-bottom: 1px solid #eee;
@@ -3090,8 +3150,8 @@
       </div>
     </section>
 
-    <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分；状态栏与主游戏同结构 -->
-    <section class="ranking-section prime-composite-page" id="prime-composite-section" style="display:none;margin-top:12px;flex-direction:column;">
+    <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分 -->
+    <section class="game-section prime-composite-page" id="prime-composite-section" style="display:none;">
       <div class="status-grid" id="prime-status-grid">
         <div class="timer-chip" id="prime-timer-chip">
           <span id="prime-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="prime-elapsed">0:00</span>
@@ -3118,6 +3178,7 @@
         </div>
       </div>
 
+      <div class="prime-play-body" id="prime-play-body">
       <div id="prime-panel-idle" class="prime-panel-idle" style="display:none;">
         <main class="card prime-idle-card">
           <p class="question-subtext prime-intro-text">判断 <strong>2～99</strong> 中的数是质数还是合数；每题 <strong>5</strong> 分，共 <strong>50</strong> 题，正向计时。</p>
@@ -3135,36 +3196,36 @@
             </div>
           </div>
           <div class="question-text prime-question-num" id="prime-current-n">—</div>
-          <p class="question-subtext" id="prime-hint-sub" style="display:none;"></p>
           <div class="button-row prime-choice-row">
             <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-prime">质数</button>
             <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-composite">合数</button>
-          </div>
-          <div class="button-row" id="prime-abandon-row" style="display:none;">
-            <button type="button" class="btn-primary btn-secondary" id="prime-abandon-btn">放弃本局</button>
           </div>
         </main>
       </div>
 
       <div id="prime-panel-finished" class="prime-panel-finished" style="display:none;">
-        <div class="game-over-panel" id="prime-finished-panel-inner">
-          <h2 class="game-over-title" id="prime-finish-title">本局结束</h2>
-          <p class="game-over-line"><span id="prime-lbl-correct">答对：</span><strong id="prime-finish-correct">0</strong></p>
-          <p class="game-over-line"><span id="prime-lbl-wrong">答错：</span><strong id="prime-finish-wrong">0</strong></p>
-          <p class="game-over-line"><span id="prime-lbl-time">用时：</span><strong id="prime-finish-time">0:00</strong></p>
-          <p class="game-over-line"><span id="prime-lbl-session">本局得分：</span><strong id="prime-finish-session">0</strong></p>
-          <p id="prime-finished-sync-ok" class="game-over-line" style="display:none;color:var(--success);">总积分已同步更新。</p>
-          <p id="prime-finished-sync-fail" class="game-over-line" style="display:none;color:var(--danger);">积分同步失败，请检查网络后重试。</p>
-          <p id="prime-finished-sync-local" class="game-over-line" style="display:none;color:var(--muted);">未连接服务器，总积分仅在本地累加。</p>
-          <p id="prime-wrong-review-hint" class="panel-hint" style="margin:14px 0 6px;text-align:left;">错题回顾</p>
-          <div id="prime-finish-wrong-list" class="prime-wrong-list"></div>
-          <div class="game-over-buttons">
-            <button type="button" class="btn-primary" id="prime-composite-again-btn">再来一局</button>
+        <main class="card prime-finish-card">
+          <div class="game-over-panel training-summary" id="prime-finished-panel-inner">
+            <h2 class="game-over-title" id="prime-finish-title">本局结束</h2>
+            <div class="game-over-stats-grid">
+              <p class="game-over-line"><span id="prime-lbl-correct">答对：</span><strong id="prime-finish-correct">0</strong></p>
+              <p class="game-over-line"><span id="prime-lbl-wrong">答错：</span><strong id="prime-finish-wrong">0</strong></p>
+              <p class="game-over-line"><span id="prime-lbl-time">用时：</span><strong id="prime-finish-time">0:00</strong></p>
+              <p class="game-over-line"><span id="prime-lbl-session">本局得分：</span><strong id="prime-finish-session">0</strong></p>
+            </div>
+            <p id="prime-finished-sync-ok" class="game-over-line" style="display:none;color:var(--success);">总积分已同步更新。</p>
+            <p id="prime-finished-sync-fail" class="game-over-line" style="display:none;color:var(--danger);">积分同步失败，请检查网络后重试。</p>
+            <p id="prime-finished-sync-local" class="game-over-line" style="display:none;color:var(--muted);">未连接服务器，总积分仅在本地累加。</p>
+            <p id="prime-wrong-review-hint" class="panel-hint prime-wrong-review-hint">错题回顾</p>
+            <div id="prime-finish-wrong-list" class="prime-wrong-list"></div>
+            <div class="game-over-buttons">
+              <button type="button" class="btn-primary" id="prime-composite-again-btn">再来一局</button>
+            </div>
           </div>
-        </div>
+        </main>
       </div>
 
-      <section class="recent-card" style="margin-top:12px;">
+      <section class="recent-card" id="prime-recent-card">
         <div class="recent-header">
           <span class="recent-title" id="prime-recent-title">最近十次质数合数</span>
         </div>
@@ -3176,8 +3237,6 @@
                 <th id="prime-th-time">用时</th>
                 <th id="prime-th-score">得分</th>
                 <th id="prime-th-wrong">错题</th>
-                <th id="prime-th-level">最高难度</th>
-                <th id="prime-th-cleared">通关</th>
               </tr>
             </thead>
             <tbody id="prime-recent-history-body"></tbody>
@@ -3185,6 +3244,7 @@
           <div id="prime-recent-history-empty" class="recent-empty">当前还没有练习记录。</div>
         </div>
       </section>
+      </div>
     </section>
 
     <!-- 选择头像：单独页面（对齐小程序） -->
@@ -5269,6 +5329,9 @@
         "prime.btn.prime": "質數",
         "prime.btn.composite": "合數",
         "prime.header.hint": "請判斷是質數還是合數",
+        "prime.abandonConfirm": "確定放棄本局？本局不計分。",
+        "prime.noWrongThisRun": "本局無錯題",
+        "prime.wrongRow": "數字 {n} · 正確應為「{answer}」",
         "avatar.pageTitle": "選擇頭像",
         "avatar.pageSubtitle": "點擊頭像更換；未解鎖頭像會顯示所需積分。",
         "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
@@ -5539,6 +5602,9 @@
         "prime.btn.prime": "Prime",
         "prime.btn.composite": "Composite",
         "prime.header.hint": "Is it prime or composite?",
+        "prime.abandonConfirm": "Abandon this run? It will not be scored.",
+        "prime.noWrongThisRun": "No wrong answers this run",
+        "prime.wrongRow": "Number {n} · correct: {answer}",
         "avatar.pageTitle": "Choose avatar",
         "avatar.pageSubtitle": "Tap to change; locked avatars show required points.",
         "stats.levelEmpty": "No per-question stats yet. Play more runs.",
@@ -5753,7 +5819,6 @@
       setT("prime-header-hint", "prime.header.hint");
       setT("prime-btn-prime", "prime.btn.prime");
       setT("prime-btn-composite", "prime.btn.composite");
-      setT("prime-abandon-btn", "game.btn.abandon");
       setT("prime-finish-title", "prime.finishTitle");
       setT("prime-lbl-correct", "prime.finishCorrect");
       setT("prime-lbl-wrong", "prime.finishWrong");
@@ -5768,8 +5833,6 @@
       setT("prime-th-time", "recent.th.time");
       setT("prime-th-score", "recent.th.score");
       setT("prime-th-wrong", "recent.th.wrong");
-      setT("prime-th-level", "recent.th.maxLevel");
-      setT("prime-th-cleared", "recent.th.cleared");
       setT("prime-recent-history-empty", "recent.empty");
       const avH = document.querySelector("#avatar-picker-section .ranking-title");
       if (avH) avH.textContent = t("avatar.pageTitle");
@@ -6494,8 +6557,6 @@
           "<td>" + timeStr + "</td>" +
           "<td>" + (r.score != null ? r.score : 0) + "</td>" +
           "<td>" + wrongStr + "</td>" +
-          "<td>-</td>" +
-          "<td>-</td>" +
           "</tr>"
         );
       });
@@ -7762,7 +7823,10 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) primeSection.style.display = "none";
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       primeCompositeResetToIdle();
@@ -7794,7 +7858,10 @@
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.remove("visible");
       const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) primeSection.style.display = "none";
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
@@ -7826,7 +7893,11 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) primeSection.style.display = "block";
+      if (primeSection) {
+        primeSection.style.display = "flex";
+        primeSection.classList.add("visible");
+      }
+      setPrimePlayBodyPhase("idle");
       void renderPrimeRecentRuns();
     }
 
@@ -7834,8 +7905,26 @@
       primeCompositeCleanup();
       primeCompositeResetToIdle();
       const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) primeSection.style.display = "none";
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
+    }
+
+    function setPrimeRecentVisible(visible) {
+      const card = document.getElementById("prime-recent-card");
+      if (card) card.style.display = visible ? "flex" : "none";
+    }
+
+    function setPrimePlayBodyPhase(phase) {
+      const body = document.getElementById("prime-play-body");
+      if (!body) return;
+      body.classList.toggle("prime-play-body--playing", phase === "playing");
+    }
+
+    function primeKindLabel(kind) {
+      return kind === "prime" ? t("prime.btn.prime") : t("prime.btn.composite");
     }
 
     let primeCompositeTimerId = null;
@@ -7887,9 +7976,9 @@
 
     function primeCompositeResetToIdle() {
       primeCompositeCleanup();
-      const abandonRow = document.getElementById("prime-abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       primeCompositeResetStatusStrip();
+      setPrimePlayBodyPhase("idle");
+      setPrimeRecentVisible(true);
       const idle = document.getElementById("prime-panel-idle");
       const playing = document.getElementById("prime-panel-playing");
       const finished = document.getElementById("prime-panel-finished");
@@ -7902,7 +7991,7 @@
     function primeCompositeAbandon() {
       const playing = document.getElementById("prime-panel-playing");
       if (!playing || playing.style.display === "none") return;
-      if (!confirm("确定放弃本局？本局不计分。")) return;
+      if (!confirm(t("prime.abandonConfirm"))) return;
       const elapsedSec = Math.max(0, Math.floor((Date.now() - primeCompositeStartTs) / 1000));
       primeCompositeCleanup();
       if (primeCompositeTimerId) {
@@ -7911,9 +8000,9 @@
       }
       const elapsedEl = document.getElementById("prime-elapsed");
       if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(0);
-      const abandonRow = document.getElementById("prime-abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       primeCompositeResetStatusStrip();
+      setPrimePlayBodyPhase("idle");
+      setPrimeRecentVisible(true);
       const idle = document.getElementById("prime-panel-idle");
       const finished = document.getElementById("prime-panel-finished");
       if (idle) idle.style.display = "block";
@@ -7973,7 +8062,7 @@
         primeCompositeWrongCount += 1;
         const liveWrongEl = document.getElementById("prime-live-wrong");
         if (liveWrongEl) liveWrongEl.textContent = String(primeCompositeWrongCount);
-        primeCompositeWrongItems.push({ n: q.n, kindLabel: JML.kindLabel(q.kind) });
+        primeCompositeWrongItems.push({ n: q.n, kind: q.kind });
         primeCompositeChoicesLocked = true;
         const wrongBtn = kind === "prime" ? document.getElementById("prime-btn-prime") : document.getElementById("prime-btn-composite");
         if (wrongBtn) wrongBtn.classList.add("prime-choice-wrong");
@@ -8019,9 +8108,9 @@
       const finished = document.getElementById("prime-panel-finished");
       if (idle) idle.style.display = "none";
       if (finished) finished.style.display = "none";
-      if (playing) playing.style.display = "block";
-      const abandonRow = document.getElementById("prime-abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
+      if (playing) playing.style.display = "flex";
+      setPrimePlayBodyPhase("playing");
+      setPrimeRecentVisible(false);
       const scoreEl = document.getElementById("prime-session-score");
       if (scoreEl) scoreEl.textContent = "0";
       const liveWrongEl = document.getElementById("prime-live-wrong");
@@ -8038,8 +8127,6 @@
 
     async function primeCompositeFinish() {
       primeCompositeCleanup();
-      const abandonRowFinish = document.getElementById("prime-abandon-row");
-      if (abandonRowFinish) abandonRowFinish.style.display = "none";
       if (primeCompositeTimerId) {
         clearInterval(primeCompositeTimerId);
         primeCompositeTimerId = null;
@@ -8051,6 +8138,8 @@
       if (idle) idle.style.display = "none";
       if (playing) playing.style.display = "none";
       if (finished) finished.style.display = "block";
+      setPrimePlayBodyPhase("idle");
+      setPrimeRecentVisible(true);
       updateGlobalBackButtonState();
       const syncOk = document.getElementById("prime-finished-sync-ok");
       const syncFail = document.getElementById("prime-finished-sync-fail");
@@ -8069,10 +8158,11 @@
       const listEl = document.getElementById("prime-finish-wrong-list");
       if (listEl) {
         if (primeCompositeWrongItems.length === 0) {
-          listEl.innerHTML = "<div class=\"stats-empty-msg\">本局无错题</div>";
+          listEl.innerHTML = "<div class=\"stats-empty-msg\">" + escapeHtml(t("prime.noWrongThisRun")) + "</div>";
         } else {
           listEl.innerHTML = primeCompositeWrongItems.map((w) => {
-            return "<div class=\"prime-wrong-row\">数字 " + escapeHtml(String(w.n)) + " · 正确应为「" + escapeHtml(w.kindLabel) + "」</div>";
+            const answer = primeKindLabel(w.kind);
+            return "<div class=\"prime-wrong-row\">" + escapeHtml(tf("prime.wrongRow", { n: w.n, answer })) + "</div>";
           }).join("");
         }
       }
@@ -8620,7 +8710,10 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) primeSection.style.display = "none";
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
       sec.style.display = "block";
       renderAvatarPicker();
     }
@@ -8963,7 +9056,10 @@
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
       const primeSectionStats = document.getElementById("prime-composite-section");
-      if (primeSectionStats) primeSectionStats.style.display = "none";
+      if (primeSectionStats) {
+        primeSectionStats.style.display = "none";
+        primeSectionStats.classList.remove("visible");
+      }
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
       const empty = document.getElementById("stats-level-empty");
@@ -9114,7 +9210,10 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) primeSection.style.display = "none";
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       if (dom.expandSection) {
@@ -9997,8 +10096,6 @@
       if (modePrimeComposite) modePrimeComposite.addEventListener("click", showPrimeCompositePlaceholder);
       const modeExpandBrackets = document.getElementById("mode-expand-brackets");
       if (modeExpandBrackets) modeExpandBrackets.addEventListener("click", handleModeExpandBrackets);
-      const primeAbandonBtn = document.getElementById("prime-abandon-btn");
-      if (primeAbandonBtn) primeAbandonBtn.addEventListener("click", primeCompositeAbandon);
       const primeStartBtn = document.getElementById("prime-composite-start-btn");
       if (primeStartBtn) primeStartBtn.addEventListener("click", primeCompositeStart);
       const primeAgainBtn = document.getElementById("prime-composite-again-btn");
