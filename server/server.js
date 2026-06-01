@@ -284,6 +284,40 @@ function readI18nFallbackFromClientHtml() {
   }
 }
 
+/** docs/shared/stats-i18n-pack.js — 热力图/统计图表文案，与前端 Object.assign 一致 */
+function readStatsI18nPackFromFile() {
+  try {
+    const packPath = path.join(__dirname, "..", "docs", "shared", "stats-i18n-pack.js");
+    if (!fs.existsSync(packPath)) return null;
+    const src = fs.readFileSync(packPath, "utf8");
+    const m = src.match(/JmlStatsI18nPack\s*=\s*(\{[\s\S]*\})\s*;\s*\}\)\(/);
+    if (!m) return null;
+    const parsed = Function('"use strict"; return (' + m[1] + ");")();
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !parsed.zhHant ||
+      !parsed.en ||
+      typeof parsed.zhHant !== "object" ||
+      typeof parsed.en !== "object"
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function mergeStatsI18nPack(base) {
+  const pack = readStatsI18nPackFromFile();
+  if (!pack || !base) return base;
+  return {
+    zhHant: { ...base.zhHant, ...pack.zhHant },
+    en: { ...base.en, ...pack.en },
+  };
+}
+
 /** 仅当仓库内无 docs/index.html 时使用（例如只部署 server 目录）。 */
 function legacyDefaultI18nPayload() {
   return {
@@ -443,7 +477,8 @@ function legacyDefaultI18nPayload() {
 }
 
 function defaultI18nPayload() {
-  return readI18nFallbackFromClientHtml() || legacyDefaultI18nPayload();
+  const base = readI18nFallbackFromClientHtml() || legacyDefaultI18nPayload();
+  return mergeStatsI18nPack(base);
 }
 
 /** 仅存在于 docs/index.html I18N_FALLBACK，不进 i18n.json / 管理端。 */

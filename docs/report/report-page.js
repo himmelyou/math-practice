@@ -41,6 +41,76 @@
     heat: null,
   };
 
+  var REPORT_LANG_KEY = 'jml_lang_v1';
+  var reportI18nRuntime = { zhHant: {}, en: {} };
+
+  function getReportLang() {
+    try {
+      var v = localStorage.getItem(REPORT_LANG_KEY) || '';
+      return v === 'en' ? 'en' : 'zhHant';
+    } catch (e) {
+      return 'zhHant';
+    }
+  }
+
+  function rt(key) {
+    var lang = getReportLang();
+    var pack = window.JmlStatsI18nPack || { zhHant: {}, en: {} };
+    var cur = reportI18nRuntime[lang] && reportI18nRuntime[lang][key];
+    if (cur) return cur;
+    if (pack[lang] && pack[lang][key]) return pack[lang][key];
+    if (pack.zhHant && pack.zhHant[key]) return pack.zhHant[key];
+    return key;
+  }
+
+  function rtf(key, params) {
+    var s = rt(key);
+    if (!params) return s;
+    return String(s).replace(/\{(\w+)\}/g, function (_, name) {
+      return params[name] != null ? String(params[name]) : '';
+    });
+  }
+
+  function getReportChartLabels() {
+    return {
+      axisErrorRate: rt('stats.chart.axisErrorRate'),
+      axisAvgSec: rt('stats.chart.axisAvgSec'),
+      cohortNoSample: rt('stats.chart.cohortNoSample'),
+      cohortBoxLegend: rt('stats.chart.cohortBoxLegend'),
+      cohortStudentLine: rt('stats.chart.cohortStudentLine'),
+      cohortStudentPct: rt('stats.chart.cohortStudentPct'),
+      cohortSampleN: rt('stats.chart.cohortSampleN'),
+      histNoData: rt('stats.chart.histNoData'),
+      histYAxis: rt('stats.chart.histYAxis'),
+      histLegend: rt('stats.chart.histLegend'),
+      histStudentPrefix: rt('stats.chart.histStudentPrefix'),
+      histStudentPct: rt('stats.chart.histStudentPct'),
+      histSampleBins: rt('stats.chart.histSampleBins'),
+    };
+  }
+
+  function getReportTrainingReasonLabels() {
+    return {
+      brush: rt('stats.training.reason.brush'),
+      scanBelow: rt('stats.training.reason.scanBelow'),
+      openNew: rt('stats.training.reason.openNew'),
+      retrySame: rt('stats.training.reason.retrySame'),
+      afterFailBelow: rt('stats.training.reason.afterFailBelow'),
+      dailyDefault: rt('stats.training.reason.dailyDefault'),
+    };
+  }
+
+  function loadReportI18n() {
+    return apiFetch('/api/i18n')
+      .then(function (d) {
+        if (d && d.ok && d.i18n) {
+          reportI18nRuntime.zhHant = d.i18n.zhHant || {};
+          reportI18nRuntime.en = d.i18n.en || {};
+        }
+      })
+      .catch(function () {});
+  }
+
   function apiBase() {
     var base = (window.__JML_API_BASE__ || window.API_BASE_URL || '').trim();
     return base.replace(/\/+$/, '');
@@ -494,16 +564,16 @@
   function buildHeatmapSectionHtml() {
     var HM = window.JmlStatsHeatmap;
     if (!HM || !HM.buildHeatmapCells) {
-      return '<p class="jml-stats-cohort-warn">热图脚本未加载（请确认已加载 docs/stats-heatmap-browser.js）</p>';
+      return '<p class="jml-stats-cohort-warn">' + escapeHtml(rt('stats.heat.scriptMissing')) + '</p>';
     }
     var cohort = state.cohort;
     var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+    var capStr =
+      capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's';
     var capNote =
       cohort && cohort.timeSpentMsCapNote
         ? cohort.timeSpentMsCapNote
-        : '答对题单题耗时超过 ' +
-          (capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's') +
-          ' 的记录不纳入个人/全体速度侧统计（排除挂机、长时间切屏等异常偏慢）。';
+        : rtf('stats.heat.capNote', { cap: capStr });
 
     var heat = HM.buildHeatmapCells({
       runs: state.runs,
@@ -535,50 +605,68 @@
     var recMode = trainingNext ? trainingNext.mode : '';
     var recReason =
       trainingNext && HM.trainingNextLevelReasonText
-        ? HM.trainingNextLevelReasonText(trainingNext)
+        ? HM.trainingNextLevelReasonText(trainingNext, getReportTrainingReasonLabels())
         : '';
 
     var cohortWarn = '';
     if (state.cohortError) {
       cohortWarn =
-        '<div class="jml-stats-cohort-warn"><strong>全体常模未加载。</strong> ' +
+        '<div class="jml-stats-cohort-warn"><strong>' +
+        escapeHtml(rt('stats.heat.cohortWarn')) +
+        '</strong> ' +
         escapeHtml(state.cohortError) +
-        ' 热图仍可显示本学员四则数据，但无百分位对比。</div>';
+        ' ' +
+        escapeHtml(rt('stats.heat.cohortWarnTail')) +
+        '</div>';
     }
 
+    var legendBody = rtf('stats.heat.legend.body', {
+      window: heat.personalWindowAttempts || 200,
+      halfLife: heat.personalHalfLifeDays || 14,
+      minAttempts: heat.minAttempts,
+    });
     var legend =
       '<div class="jml-heatmap-legend">' +
-      '<strong>图例：</strong>仅统计 <code>survival</code> / <code>level</code> / <code>training</code>。个人：每档取时间上最近的 ' +
-      escapeHtml(String(heat.personalWindowAttempts || 200)) +
-      ' 题，按 <code>run.ts</code> 与「今天」相差的<strong>整天数</strong>做指数权重（半衰期 ' +
-      escapeHtml(String(heat.personalHalfLifeDays || 14)) +
-      ' 天，λ=ln2/H）。格内<strong>准确率</strong>、<strong>答对均时</strong>均为加权值（均时由加权 ln(耗时) 还原为秒，仅含答对且单题≤1 分钟）。每档窗口内题数 ≥ ' +
-      escapeHtml(String(heat.minAttempts)) +
-      ' 时激活着色。主色：<strong>准确率 &lt;95%</strong> 时由加权准确率定色相（约 90% 橙黄交界、95% 黄绿交界）；<strong>≥95%</strong> 时进入绿色带，<strong>深浅主要由速度分位</strong>（快偏深绿、慢偏浅绿；无常模速度时深浅取中位）。边框粗：速度分位偏慢。' +
-      '<br /><strong>速度上限：</strong>' +
+      '<strong>' +
+      escapeHtml(rt('stats.heat.legend.title')) +
+      '</strong>' +
+      escapeHtml(legendBody) +
+      '<br /><strong>' +
+      escapeHtml(rt('stats.heat.legend.speedCap')) +
+      '</strong>' +
       escapeHtml(capNote) +
       (cohort && cohort.builtAt
-        ? '<br /><strong>常模快照：</strong>生成 ' +
-          escapeHtml(formatDateTime(cohort.builtAt)) +
-          '，过期 ' +
-          escapeHtml(formatDateTime(cohort.expiresAt)) +
-          '（默认 TTL 24h，环境变量 <code>COHORT_STATS_TTL_MS</code> 可改）。' +
-          (cohort.servedFromCache ? ' 本次<strong>读缓存</strong>。' : ' 本次<strong>已重算并写盘</strong>。')
+        ? '<br /><strong>' +
+          escapeHtml(rt('stats.heat.legend.cohortSnap')) +
+          '</strong>' +
+          escapeHtml(
+            rtf('stats.heat.legend.cohortBuilt', {
+              built: formatDateTime(cohort.builtAt),
+              expires: formatDateTime(cohort.expiresAt),
+            })
+          ) +
+          (cohort.servedFromCache
+            ? ' ' + escapeHtml(rt('stats.heat.legend.cohortCache'))
+            : ' ' + escapeHtml(rt('stats.heat.legend.cohortRebuilt')))
         : '') +
       (recK != null
-        ? '<br /><strong>推荐下一练（与训练同一逻辑）：</strong>L' +
-          (recK + 1) +
-          '（' +
-          escapeHtml(recMode === 'brush' ? '刷热图' : '当日闯关') +
-          ' · ' +
-          escapeHtml(recReason || trainingNext.reason || '') +
-          '；状态 brushMode=' +
+        ? '<br /><strong>' +
+          escapeHtml(rt('stats.heat.legend.recommend')) +
+          '</strong>' +
           escapeHtml(
-            String(!!(trainingNext.brushMode || (dayState && dayState.brushMode)))
-          ) +
-          '；<span class="jml-heatmap-cell-sub">刷新本页或重选学员后与训练对齐。放弃局不改变当日状态。</span>）。'
+            rtf('stats.heat.legend.recommendDetail', {
+              level: recK + 1,
+              mode: recMode === 'brush' ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily'),
+              reason: recReason || (trainingNext && trainingNext.reason) || '',
+              brush: String(!!(trainingNext.brushMode || (dayState && dayState.brushMode))),
+            })
+          )
         : '') +
       '</div>';
+
+    var lblAcc = rt('stats.heat.accuracy');
+    var lblTime = rt('stats.heat.avgTimeCorrect');
+    var lblW = rt('stats.heat.weighted');
 
     var cellsHtml = heat.cells
       .map(function (c) {
@@ -586,14 +674,23 @@
         var cls = 'jml-heatmap-cell' + (c.active ? '' : ' inactive');
         var st = heatmapCellInlineStyle(c);
         var timeT =
-          c.timePct != null ? '速·分位 ' + Math.round(c.timePct) : c.active ? '速·分位 —' : '—';
+          c.timePct != null
+            ? rtf('stats.heat.speedPct', { pct: Math.round(c.timePct) })
+            : c.active
+              ? rt('stats.heat.speedPctDash')
+              : '—';
         var nEffT =
-          c.nEff != null && c.active ? 'n_eff≈' + escapeHtml(String(c.nEff)) : '';
+          c.nEff != null && c.active ? rtf('stats.heat.nEff', { n: c.nEff }) : '';
         var ageT =
           c.active && c.ageDaysMin != null && c.ageDaysMax != null
-            ? '天龄 ' + escapeHtml(String(c.ageDaysMin)) + '–' + escapeHtml(String(c.ageDaysMax))
+            ? rtf('stats.heat.ageDays', { min: c.ageDaysMin, max: c.ageDaysMax })
             : '';
         var selCls = c.levelIndex === state.statsLevelIndex ? ' jml-heatmap-cell-selected' : '';
+        var title = rtf('stats.heat.cellTitle', {
+          label: label,
+          p: c.pText != null ? String(c.pText) : '-',
+          avg: c.avgSecText != null ? String(c.avgSecText) : '-',
+        });
         return (
           '<div class="' +
           cls +
@@ -605,27 +702,38 @@
           ' role="button" tabindex="0"' +
           (st ? ' style="' + st + '"' : '') +
           ' title="' +
-          escapeHtml(label + ' 准确率(加权) ' + c.pText + ' 答对均时(加权) ' + (c.avgSecText || '-')) +
+          escapeHtml(title) +
           '">' +
           '<div class="jml-heatmap-cell-label">' +
           escapeHtml(label) +
           '</div>' +
-          '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">准确率</span> ' +
-          escapeHtml(c.pText) +
-          ' <span class="jml-heatmap-cell-sub">加权</span></div>' +
-          '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">答对均时</span> ' +
+          '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">' +
+          escapeHtml(lblAcc) +
+          '</span> ' +
+          escapeHtml(c.pText != null ? String(c.pText) : '-') +
+          ' <span class="jml-heatmap-cell-sub">' +
+          escapeHtml(lblW) +
+          '</span></div>' +
+          '<div class="jml-heatmap-cell-metric"><span class="jml-heatmap-metric-label">' +
+          escapeHtml(lblTime) +
+          '</span> ' +
           escapeHtml(c.avgSecText != null ? c.avgSecText : '-') +
-          ' <span class="jml-heatmap-cell-sub">加权</span></div>' +
-          '<div class="jml-heatmap-cell-meta">窗口题数 n=' +
-          escapeHtml(String(c.n != null && Number.isFinite(c.n) ? c.n : 0)) +
-          '（激活≥' +
-          escapeHtml(String(heat.minAttempts != null ? heat.minAttempts : 10)) +
-          '）</div>' +
+          ' <span class="jml-heatmap-cell-sub">' +
+          escapeHtml(lblW) +
+          '</span></div>' +
+          '<div class="jml-heatmap-cell-meta">' +
+          escapeHtml(
+            rtf('stats.heat.windowN', {
+              n: c.n != null && Number.isFinite(c.n) ? c.n : 0,
+              min: heat.minAttempts != null ? heat.minAttempts : 10,
+            })
+          ) +
+          '</div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(timeT) +
           '</div>' +
-          (nEffT ? '<div class="jml-heatmap-cell-meta">' + nEffT + '</div>' : '') +
-          (ageT ? '<div class="jml-heatmap-cell-meta">' + ageT + '</div>' : '') +
+          (nEffT ? '<div class="jml-heatmap-cell-meta">' + escapeHtml(nEffT) + '</div>' : '') +
+          (ageT ? '<div class="jml-heatmap-cell-meta">' + escapeHtml(ageT) + '</div>' : '') +
           '</div>'
         );
       })
@@ -649,7 +757,9 @@
 
     var debugBlock =
       '<details class="jml-stats-debug">' +
-      '<summary>调试：完整 JSON（常模 + 热图计算结果）</summary>' +
+      '<summary>' +
+      escapeHtml(rt('stats.report.debugSummary')) +
+      '</summary>' +
       '<pre>' +
       escapeHtml(debugJson) +
       '</pre>' +
@@ -685,7 +795,7 @@
     var heatmapBlock = buildHeatmapSectionHtml();
 
     wrap.innerHTML =
-      '<p class="jml-stats-intro">本页统计与热图<strong>仅</strong>聚合生存 / 闯关 / 训练三种模式的 <code>runs.attempts</code>。热图个人侧为「每档最近 200 题 + 按天龄指数权重（半衰期 14 天）」。点击下方某一难度格：上方为按日曲线；下方两张为<strong>全体答对单题耗时</strong>常模（分位箱线图 vs 直方图，红虚线为该学员加权均时）。直方图需先点工具栏「刷新全体常模」重算后才有数据。</p>' +
+      '<p class="jml-stats-intro">' + escapeHtml(rt('stats.report.intro')) + '</p>' +
       heatmapBlock +
       '<h3 class="jml-report-h3" id="jml-stats-chart-heading"></h3>' +
       '<div class="jml-stats-chart-wrap"><canvas id="jml-stats-canvas"></canvas></div>' +
@@ -721,15 +831,15 @@
     var name = LEVEL_NAMES[li] || 'L' + (li + 1);
     var chartHeading = document.getElementById('jml-stats-chart-heading');
     if (chartHeading) {
-      chartHeading.textContent = '按日曲线（' + name + ' · 最近最多 14 个有练习日）';
+      chartHeading.textContent = rtf('stats.report.chartHeading', { name: name });
     }
     var boxH = document.getElementById('jml-cohort-box-heading');
     if (boxH) {
-      boxH.textContent = '全体答对耗时 · 分位箱线图（' + name + '）';
+      boxH.textContent = rtf('stats.report.boxHeading', { name: name });
     }
     var histH = document.getElementById('jml-cohort-hist-heading');
     if (histH) {
-      histH.textContent = '全体答对耗时 · 直方图（' + name + '）';
+      histH.textContent = rtf('stats.report.histHeading', { name: name });
     }
   }
 
@@ -775,6 +885,7 @@
           studentSec: studentSec,
           studentPct: studentPct,
           sampleN: lnQ ? lnQ.n : null,
+          labels: getReportChartLabels(),
         });
       }
     }
@@ -795,6 +906,7 @@
           histogram: hist,
           studentSec: studentSec,
           studentPct: studentPct,
+          labels: getReportChartLabels(),
         });
       }
     }
@@ -825,7 +937,7 @@
       ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('暂无曲线数据', cssW / 2, cssH / 2);
+      ctx.fillText(rt('stats.chart.noSeries'), cssW / 2, cssH / 2);
       return;
     }
     var payload = {
@@ -834,6 +946,7 @@
       avgSecs: model.series.map(function (x) { return x.avgSec; }),
       yMaxErr: model.yMaxErr,
       yMaxSec: model.yMaxSec,
+      labels: getReportChartLabels(),
     };
     if (window.JmlStatsChart && window.JmlStatsChart.drawStatsDualAxisChart) {
       window.JmlStatsChart.drawStatsDualAxisChart(ctx, cssW, cssH, payload);
@@ -914,10 +1027,12 @@
   window.JmlReportPage = {
     init: function () {
       showApiWarning();
-      bindEvents();
-      loadLevelCohort();
-      loadUserList().then(function () {
-        // no-op
+      loadReportI18n().finally(function () {
+        bindEvents();
+        loadLevelCohort();
+        loadUserList().then(function () {
+          // no-op
+        });
       });
     },
   };

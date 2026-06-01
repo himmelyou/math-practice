@@ -1,8 +1,36 @@
 /**
  * 浏览器 Canvas 2D 画双轴折线图；canonical 位于 docs/，report 与主站共用。
+ * payload.labels 由调用方传入（见 shared/stats-i18n-pack.js）。
  */
 (function (global) {
+  function resolveLabels(payload) {
+    var L = (payload && payload.labels) || {};
+    return {
+      axisErrorRate: L.axisErrorRate || '错误率(%)',
+      axisAvgSec: L.axisAvgSec || '平均每题(秒)',
+      cohortNoSample: L.cohortNoSample || '该等级暂无全体常模样本',
+      cohortBoxLegend: L.cohortBoxLegend || '箱体 P25–P75 · 中线 P50 · 须 P10–P90',
+      cohortStudentLine: L.cohortStudentLine || '学员加权均时 {sec}s',
+      cohortStudentPct: L.cohortStudentPct || '速分位≈{pct}',
+      cohortSampleN: L.cohortSampleN || '常模样本（答对题）n={n}',
+      histNoData: L.histNoData || '暂无直方图数据（请点「刷新全体常模」重算）',
+      histYAxis: L.histYAxis || '答对题次数',
+      histLegend: L.histLegend || '全体答对单题耗时（直方图）',
+      histStudentPrefix: L.histStudentPrefix || '学员',
+      histStudentPct: L.histStudentPct || '分位≈{pct}',
+      histSampleBins: L.histSampleBins || '样本 n={n} · {bins} 档',
+    };
+  }
+
+  function fillTpl(s, params) {
+    if (!params) return s;
+    return String(s).replace(/\{(\w+)\}/g, function (_, name) {
+      return params[name] != null ? String(params[name]) : '';
+    });
+  }
+
   function drawStatsDualAxisChart(ctx, cssWidth, cssHeight, payload) {
+    var lab = resolveLabels(payload);
     var dates = payload.dates;
     var errorRates = payload.errorRates;
     var avgSecs = payload.avgSecs;
@@ -28,12 +56,12 @@
     ctx.save();
     ctx.translate(14, top + plotH / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillText('错误率(%)', 0, 0);
+    ctx.fillText(lab.axisErrorRate, 0, 0);
     ctx.restore();
     ctx.save();
     ctx.translate(cssWidth - 14, top + plotH / 2);
     ctx.rotate(Math.PI / 2);
-    ctx.fillText('平均每题(秒)', 0, 0);
+    ctx.fillText(lab.axisAvgSec, 0, 0);
     ctx.restore();
 
     ctx.strokeStyle = 'rgba(0,0,0,0.06)';
@@ -140,13 +168,13 @@
     ctx.fillRect(lx, ly + 3, 12, 3);
     lx += 16;
     ctx.fillStyle = '#37474f';
-    ctx.fillText('错误率(%)', lx, ly);
-    lx += 72;
+    ctx.fillText(lab.axisErrorRate, lx, ly);
+    lx += Math.max(72, lab.axisErrorRate.length * 7);
     ctx.fillStyle = '#2e7d32';
     ctx.fillRect(lx, ly + 3, 12, 3);
     lx += 16;
     ctx.fillStyle = '#37474f';
-    ctx.fillText('平均每题(秒)', lx, ly);
+    ctx.fillText(lab.axisAvgSec, lx, ly);
   }
 
   function lnToSec(ln) {
@@ -161,10 +189,8 @@
     return String(Math.round(sec * 100) / 100);
   }
 
-  /**
-   * 图1：全体答对耗时五数概括（ln 分位 → 秒）+ 学员加权均时竖线
-   */
   function drawCohortQuantileBoxChart(ctx, cssWidth, cssHeight, payload) {
+    var lab = resolveLabels(payload);
     var q = payload.quantiles;
     var studentSec = payload.studentSec;
     var studentPct = payload.studentPct;
@@ -177,7 +203,7 @@
       ctx.font = '13px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('该等级暂无全体常模样本', cssWidth / 2, cssHeight / 2);
+      ctx.fillText(lab.cohortNoSample, cssWidth / 2, cssHeight / 2);
       return;
     }
     var margin = { left: 52, right: 16, top: 36, bottom: 40 };
@@ -279,27 +305,28 @@
     ctx.fillStyle = '#1976d2';
     ctx.fillRect(left, 8, 12, 3);
     ctx.fillStyle = '#37474f';
-    ctx.fillText('箱体 P25–P75 · 中线 P50 · 须 P10–P90', left + 16, 6);
+    ctx.fillText(lab.cohortBoxLegend, left + 16, 6);
     if (studentSec != null) {
       ctx.fillStyle = '#c62828';
       ctx.fillRect(left + 220, 8, 12, 3);
       ctx.fillStyle = '#37474f';
-      var leg2 =
-        '学员加权均时 ' +
-        formatSecShort(studentSec) +
-        's' +
-        (studentPct != null ? ' · 速分位≈' + Math.round(studentPct) : '');
+      var leg2 = fillTpl(lab.cohortStudentLine, { sec: formatSecShort(studentSec) });
+      if (studentPct != null) {
+        leg2 += ' · ' + fillTpl(lab.cohortStudentPct, { pct: Math.round(studentPct) });
+      }
       ctx.fillText(leg2, left + 236, 6);
     }
     ctx.fillStyle = '#607d8b';
     ctx.font = '10px sans-serif';
-    ctx.fillText('常模样本（答对题）n=' + (sampleN != null ? sampleN : q.n), left, top + plotH + 22);
+    ctx.fillText(
+      fillTpl(lab.cohortSampleN, { n: sampleN != null ? sampleN : q.n }),
+      left,
+      top + plotH + 22
+    );
   }
 
-  /**
-   * 图2：全体答对耗时直方图（常模 bin）+ 学员均时竖线
-   */
   function drawCohortHistogramChart(ctx, cssWidth, cssHeight, payload) {
+    var lab = resolveLabels(payload);
     var hist = payload.histogram;
     var studentSec = payload.studentSec;
     var studentPct = payload.studentPct;
@@ -311,7 +338,7 @@
       ctx.font = '13px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('暂无直方图数据（请点「刷新全体常模」重算）', cssWidth / 2, cssHeight / 2);
+      ctx.fillText(lab.histNoData, cssWidth / 2, cssHeight / 2);
       return;
     }
     var counts = hist.counts;
@@ -394,7 +421,7 @@
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#607d8b';
     ctx.font = '11px sans-serif';
-    ctx.fillText('答对题次数', 0, 0);
+    ctx.fillText(lab.histYAxis, 0, 0);
     ctx.restore();
 
     ctx.textAlign = 'left';
@@ -404,23 +431,28 @@
     ctx.fillStyle = '#2e7d32';
     ctx.fillRect(left, 8, 12, 10);
     ctx.fillStyle = '#37474f';
-    ctx.fillText('全体答对单题耗时（直方图）', left + 16, 6);
+    ctx.fillText(lab.histLegend, left + 16, 6);
     if (studentSec != null) {
       ctx.fillStyle = '#c62828';
       ctx.fillRect(left + 200, 12, 12, 3);
       ctx.fillStyle = '#37474f';
-      ctx.fillText(
-        '学员 ' +
-          formatSecShort(studentSec) +
-          's' +
-          (studentPct != null ? ' · 分位≈' + Math.round(studentPct) : ''),
-        left + 216,
-        6
-      );
+      var leg2 =
+        lab.histStudentPrefix +
+        ' ' +
+        formatSecShort(studentSec) +
+        's';
+      if (studentPct != null) {
+        leg2 += ' · ' + fillTpl(lab.histStudentPct, { pct: Math.round(studentPct) });
+      }
+      ctx.fillText(leg2, left + 216, 6);
     }
     ctx.fillStyle = '#607d8b';
     ctx.font = '10px sans-serif';
-    ctx.fillText('样本 n=' + (hist.n != null ? hist.n : '—') + ' · ' + nBins + ' 档', left, top + plotH + 22);
+    ctx.fillText(
+      fillTpl(lab.histSampleBins, { n: hist.n != null ? hist.n : '—', bins: nBins }),
+      left,
+      top + plotH + 22
+    );
   }
 
   global.JmlStatsChart = {
@@ -428,5 +460,7 @@
     drawCohortQuantileBoxChart: drawCohortQuantileBoxChart,
     drawCohortHistogramChart: drawCohortHistogramChart,
     lnToSec: lnToSec,
+    resolveLabels: resolveLabels,
+    fillTpl: fillTpl,
   };
 })(typeof window !== 'undefined' ? window : this);

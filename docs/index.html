@@ -1969,6 +1969,8 @@
       z-index: 1;
     }
     .stats-heat-l { font-weight: 700; font-size: 10px; margin-bottom: 2px; }
+    .stats-heat-metric { font-size: 9px; line-height: 1.25; color: var(--muted); }
+    .stats-heat-metric-lbl { font-weight: 600; color: #546e7a; }
     .stats-heat-num { font-size: 10px; }
     .stats-chart-title { margin: 6px 0 6px; font-size: 0.9rem; font-weight: 600; color: #37474f; }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -3349,6 +3351,7 @@
   </div>
 
   <script src="prime-composite-logic.js?v=16"></script>
+  <script src="shared/stats-i18n-pack.js?v=16"></script>
   <script src="stats-heatmap-browser.js?v=16"></script>
   <script src="stats-aggregate-browser.js?v=16"></script>
   <script src="stats-chart-browser.js?v=16"></script>
@@ -5802,6 +5805,10 @@
         "api.loadAvatarsFail": "Failed to load avatars",
       },
     };
+    if (typeof window !== "undefined" && window.JmlStatsI18nPack) {
+      Object.assign(I18N_FALLBACK.zhHant, window.JmlStatsI18nPack.zhHant);
+      Object.assign(I18N_FALLBACK.en, window.JmlStatsI18nPack.en);
+    }
     let currentLang = "zhHant";
     let i18nRuntime = {
       zhHant: { ...I18N_FALLBACK.zhHant },
@@ -5851,6 +5858,35 @@
       let s = t(key);
       if (!params) return s;
       return String(s).replace(/\{(\w+)\}/g, (_, name) => (params[name] != null ? String(params[name]) : ""));
+    }
+
+    function getStatsChartLabels() {
+      return {
+        axisErrorRate: t("stats.chart.axisErrorRate"),
+        axisAvgSec: t("stats.chart.axisAvgSec"),
+        cohortNoSample: t("stats.chart.cohortNoSample"),
+        cohortBoxLegend: t("stats.chart.cohortBoxLegend"),
+        cohortStudentLine: t("stats.chart.cohortStudentLine"),
+        cohortStudentPct: t("stats.chart.cohortStudentPct"),
+        cohortSampleN: t("stats.chart.cohortSampleN"),
+        histNoData: t("stats.chart.histNoData"),
+        histYAxis: t("stats.chart.histYAxis"),
+        histLegend: t("stats.chart.histLegend"),
+        histStudentPrefix: t("stats.chart.histStudentPrefix"),
+        histStudentPct: t("stats.chart.histStudentPct"),
+        histSampleBins: t("stats.chart.histSampleBins"),
+      };
+    }
+
+    function getTrainingReasonLabels() {
+      return {
+        brush: t("stats.training.reason.brush"),
+        scanBelow: t("stats.training.reason.scanBelow"),
+        openNew: t("stats.training.reason.openNew"),
+        retrySame: t("stats.training.reason.retrySame"),
+        afterFailBelow: t("stats.training.reason.afterFailBelow"),
+        dailyDefault: t("stats.training.reason.dailyDefault"),
+      };
     }
 
     function applyI18nGlobalChrome() {
@@ -6112,6 +6148,18 @@
         renderWrongbookList();
         updateWrongbookBadge();
       }
+      const statsSec = document.getElementById("stats-section");
+      if (statsSec && statsSec.classList.contains("visible") && studentStatsState.heat) {
+        const heatHost = document.getElementById("stats-heatmap-host");
+        if (heatHost) {
+          heatHost.innerHTML =
+            '<div class="stats-heatmap-grid-compact">' +
+            buildStudentStatsHeatmapCellsHtml(studentStatsState.heat) +
+            "</div>";
+        }
+        updateStudentStatsChartTitle();
+        requestAnimationFrame(drawStudentStatsChart);
+      }
 
       setTextById("expand-start-btn", "expand.start");
       setTextById("expand-play-again-btn", "game.btn.playAgain");
@@ -6122,8 +6170,6 @@
       setTextById("expand-th-time", "expand.th.time");
       setTextById("expand-th-wrong", "expand.th.wrong");
       setTextById("expand-th-level", "expand.th.level");
-      const statsSec = document.getElementById("stats-section");
-      if (statsSec && statsSec.classList.contains("visible")) updateStudentStatsChartTitle();
       refreshLevelDisplayNames();
       applyI18nGlobalChrome();
       const homeSec = document.getElementById("home-section");
@@ -8976,6 +9022,9 @@
 
     function buildStudentStatsHeatmapCellsHtml(heat) {
       if (!heat || !Array.isArray(heat.cells)) return "";
+      const lblAcc = t("stats.heat.accuracy");
+      const lblTime = t("stats.heat.avgTimeCorrect");
+      const lblW = t("stats.heat.weighted");
       return heat.cells
         .map(function (c) {
           const label = "L" + (c.levelIndex + 1);
@@ -8983,24 +9032,42 @@
           const st = studentHeatmapCellStyle(c);
           const sel = c.levelIndex === studentStatsState.statsLevelIndex ? " stats-heat-cell-selected" : "";
           const sec = c.avgSecText != null ? escapeHtml(String(c.avgSecText)) : "-";
+          const pTxt = escapeHtml(c.pText != null ? String(c.pText) : "-");
+          const title = escapeHtml(
+            tf("stats.heat.cellTitle", {
+              label: label,
+              p: c.pText != null ? String(c.pText) : "-",
+              avg: c.avgSecText != null ? String(c.avgSecText) : "-",
+            })
+          );
           return (
             '<div class="' +
             cls +
             sel +
             '" data-level-index="' +
             c.levelIndex +
-            '" role="button" tabindex="0"' +
+            '" role="button" tabindex="0" title="' +
+            title +
+            '"' +
             (st ? ' style="' + st + '"' : "") +
             ">" +
             '<div class="stats-heat-l">' +
             escapeHtml(label) +
             "</div>" +
-            '<div class="stats-heat-num">' +
-            escapeHtml(c.pText != null ? String(c.pText) : "-") +
-            "</div>" +
-            '<div class="stats-heat-num">' +
+            '<div class="stats-heat-metric"><span class="stats-heat-metric-lbl">' +
+            escapeHtml(lblAcc) +
+            '</span> ' +
+            pTxt +
+            ' <span class="stats-heat-metric-lbl">' +
+            escapeHtml(lblW) +
+            "</span></div>" +
+            '<div class="stats-heat-metric"><span class="stats-heat-metric-lbl">' +
+            escapeHtml(lblTime) +
+            "</span> " +
             sec +
-            "</div></div>"
+            ' <span class="stats-heat-metric-lbl">' +
+            escapeHtml(lblW) +
+            "</span></div></div>"
           );
         })
         .join("");
@@ -9048,7 +9115,7 @@
         ctx.font = "14px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("暂无曲线数据", cssW / 2, cssH / 2);
+        ctx.fillText(t("stats.chart.noSeries"), cssW / 2, cssH / 2);
         return;
       }
       const payload = {
@@ -9057,6 +9124,7 @@
         avgSecs: model.series.map(function (x) { return x.avgSec; }),
         yMaxErr: model.yMaxErr,
         yMaxSec: model.yMaxSec,
+        labels: getStatsChartLabels(),
       };
       if (window.JmlStatsChart && window.JmlStatsChart.drawStatsDualAxisChart) {
         window.JmlStatsChart.drawStatsDualAxisChart(ctx, cssW, cssH, payload);
@@ -9739,7 +9807,7 @@
       try {
         const reasonText =
           typeof HM.trainingNextLevelReasonText === "function"
-            ? HM.trainingNextLevelReasonText(result)
+            ? HM.trainingNextLevelReasonText(result, getTrainingReasonLabels())
             : result.reason;
         console.log("[JML 训练选关]", JSON.stringify({
           at: new Date().toISOString(),

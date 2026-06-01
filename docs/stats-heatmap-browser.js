@@ -433,16 +433,17 @@
     };
   }
 
-  function trainingNextLevelReasonText(result) {
+  function trainingNextLevelReasonText(result, labels) {
     if (!result) return '';
+    var L = labels || {};
     if (result.mode === 'brush') {
-      return '刷热图：加权≥95% 且速度分位最慢';
+      return L.brush || '刷热图：加权≥95% 且速度分位最慢';
     }
-    if (result.reason === 'scan_below') return '当日闯关：第一个加权准确率<95%';
-    if (result.reason === 'open_new') return '当日闯关：开新关（题数<10）';
-    if (result.reason === 'retry_same') return '当日闯关：本关继续（未达单局95%）';
-    if (result.reason === 'after_fail_below') return '当日闯关：三败后下一弱关';
-    return '当日闯关';
+    if (result.reason === 'scan_below') return L.scanBelow || '当日闯关：第一个加权准确率<95%';
+    if (result.reason === 'open_new') return L.openNew || '当日闯关：开新关（题数<10）';
+    if (result.reason === 'retry_same') return L.retrySame || '当日闯关：本关继续（未达单局95%）';
+    if (result.reason === 'after_fail_below') return L.afterFailBelow || '当日闯关：三败后下一弱关';
+    return L.dailyDefault || '当日闯关';
   }
 
   /**
