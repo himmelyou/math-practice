@@ -1216,7 +1216,8 @@
 
     #game-card .game-card-action-anchor .input-row,
     #game-card .game-card-action-anchor #start-row,
-    #expand-game-card .game-card-action-anchor #expand-start-row {
+    #expand-game-card .game-card-action-anchor #expand-start-row,
+    .prime-composite-page .prime-idle-card .game-card-action-anchor #prime-start-row {
       width: 100%;
       margin: 0;
     }
@@ -1275,7 +1276,8 @@
     }
 
     #start-game-btn,
-    #expand-start-btn {
+    #expand-start-btn,
+    #prime-composite-start-btn {
       padding: 8px 12px;
       min-height: 2.25em;
       width: 100% !important;
@@ -2575,6 +2577,19 @@
       height: var(--prime-card-idle-height);
       overflow: hidden;
       margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .prime-composite-page .prime-idle-card > .prime-intro-text {
+      flex-shrink: 0;
+    }
+
+    .prime-composite-page .prime-idle-card > .answer-form {
+      flex-shrink: 0;
+      margin-top: auto;
+      align-self: stretch;
     }
 
     .prime-composite-page #prime-game-card.card {
@@ -2677,26 +2692,6 @@
     .prime-choice-btn.prime-choice-wrong {
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
       box-shadow: none !important;
-    }
-    .prime-composite-page .prime-idle-card .button-row,
-    .prime-composite-page .prime-idle-card .game-back-row {
-      width: min(47%, 192px);
-      margin-left: auto;
-      margin-right: auto;
-    }
-    .prime-idle-card .button-row {
-      margin-top: 12px;
-    }
-    .prime-idle-card .button-row .btn-primary {
-      width: 100%;
-      flex: none !important;
-    }
-    .prime-idle-card .game-back-row {
-      margin-top: 10px;
-    }
-    .prime-composite-page .prime-idle-card .game-back-row .btn-primary {
-      width: 100%;
-      flex: none !important;
     }
     .prime-intro-text {
       text-align: left;
@@ -3214,9 +3209,13 @@
       <div id="prime-panel-idle" class="prime-panel-idle" style="display:none;">
         <main class="card prime-idle-card">
           <p class="question-subtext prime-intro-text">判断 <strong>2～99</strong> 中的数是质数还是合数；每题 <strong>5</strong> 分，共 <strong>50</strong> 题，正向计时。</p>
-          <div class="button-row">
-            <button type="button" class="btn-primary" id="prime-composite-start-btn">开始练习</button>
-          </div>
+          <form class="answer-form" action="javascript:void(0);">
+            <div class="game-card-action-anchor">
+              <div class="button-row" id="prime-start-row">
+                <button type="button" class="btn-primary" id="prime-composite-start-btn">开始挑战</button>
+              </div>
+            </div>
+          </form>
         </main>
       </div>
 
@@ -5847,7 +5846,7 @@
       }
       const intro = document.querySelector(".prime-intro-text");
       if (intro) intro.textContent = t("prime.intro");
-      setT("prime-composite-start-btn", "prime.startPractice");
+      setT("prime-composite-start-btn", "game.btn.startChallenge");
       setT("prime-header-hint", "prime.header.hint");
       setT("prime-btn-prime", "prime.btn.prime");
       setT("prime-btn-composite", "prime.btn.composite");
