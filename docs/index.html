@@ -2582,8 +2582,25 @@
       gap: 6px;
     }
 
-    .prime-composite-page .prime-idle-card > .prime-intro-text {
+    .prime-composite-page .prime-idle-header {
       flex-shrink: 0;
+      visibility: hidden;
+    }
+
+    .prime-composite-page .prime-idle-card > .question-body {
+      flex: 1 1 auto;
+      min-height: 3.2em;
+      min-width: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .prime-composite-page .prime-idle-card > .question-body > .question-text.rule-hint {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      margin-top: 0;
     }
 
     .prime-composite-page .prime-idle-card > .answer-form {
@@ -2693,12 +2710,13 @@
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
       box-shadow: none !important;
     }
-    .prime-intro-text {
+    .prime-composite-page .prime-idle-card .question-text.rule-hint.prime-intro-text {
       text-align: left;
-      line-height: 1.4;
-      margin: 0 0 2px;
       font-size: 0.82rem;
+      font-weight: 500;
       color: var(--muted);
+      line-height: 1.35;
+      padding: 4px 6px 0;
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
@@ -3208,7 +3226,15 @@
       <div class="prime-play-body" id="prime-play-body">
       <div id="prime-panel-idle" class="prime-panel-idle" style="display:none;">
         <main class="card prime-idle-card">
-          <p class="question-subtext prime-intro-text">判断 <strong>2～99</strong> 中的数是质数还是合数；每题 <strong>5</strong> 分，共 <strong>50</strong> 题，正向计时。</p>
+          <div class="question-header prime-idle-header" aria-hidden="true">
+            <div class="question-label">
+              <span class="status-label">当前难度：</span>
+              <span class="status-value">—</span>
+            </div>
+          </div>
+          <div class="question-body">
+            <div class="question-text rule-hint prime-intro-text" id="prime-idle-intro"></div>
+          </div>
           <form class="answer-form" action="javascript:void(0);">
             <div class="game-card-action-anchor">
               <div class="button-row" id="prime-start-row">
