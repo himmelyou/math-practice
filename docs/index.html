@@ -2535,10 +2535,10 @@
     }
 
     #prime-play-body > .prime-panel-playing {
-      flex: 1 1 auto;
-      min-height: 0;
+      flex: 0 0 auto;
       display: flex;
       flex-direction: column;
+      align-items: stretch;
     }
 
     #prime-play-body > .prime-panel-finished {
@@ -2566,22 +2566,51 @@
       display: none;
     }
 
+    .prime-composite-page {
+      --prime-card-idle-height: clamp(190px, 30vh, 240px);
+      --prime-card-playing-height: clamp(148px, 15vh, 200px);
+    }
+
     .prime-composite-page .prime-idle-card.card {
-      height: clamp(190px, 30vh, 240px);
+      height: var(--prime-card-idle-height);
       overflow: hidden;
       margin-top: 8px;
     }
 
     .prime-composite-page #prime-game-card.card {
-      flex: 1 1 auto;
-      min-height: 0;
-      max-height: none;
-      height: auto;
+      flex: 0 0 auto;
+      height: var(--prime-card-playing-height);
       overflow: hidden;
       margin-top: 8px;
+      padding: 10px 14px 12px;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .prime-composite-page #prime-game-card > .question-header {
+      flex-shrink: 0;
+      width: 100%;
+      text-align: center;
+    }
+
+    .prime-composite-page #prime-game-card > .question-header .question-label {
       justify-content: center;
+      width: 100%;
+    }
+
+    .prime-composite-page #prime-game-card > .question-text.prime-question-num {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 4px 6px;
+      margin: 0;
     }
 
     .prime-composite-page .prime-finish-card.card {
@@ -2612,8 +2641,9 @@
     }
 
     @media (max-width: 520px) {
-      .prime-composite-page .prime-idle-card.card {
-        height: clamp(140px, 28vh, 180px);
+      .prime-composite-page {
+        --prime-card-idle-height: clamp(140px, 28vh, 180px);
+        --prime-card-playing-height: clamp(132px, 18vh, 168px);
       }
       #prime-play-body {
         overflow-y: auto;
@@ -2628,12 +2658,14 @@
       letter-spacing: 0.02em;
       color: #0d47a1;
       line-height: 1.12;
-      padding: 6px 6px 0;
     }
     .prime-composite-page .button-row.prime-choice-row {
       width: min(94%, 384px);
       max-width: 100%;
       margin-top: 0;
+      margin-left: auto;
+      margin-right: auto;
+      flex-shrink: 0;
       gap: 8px;
     }
     .prime-composite-page .button-row.prime-choice-row .btn-primary {
