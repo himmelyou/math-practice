@@ -216,11 +216,27 @@
     const L1_TYPE_T2 = "L1-T2";
     const L1_T1_SHARE = 0.8;
     const L1_NUM_MIN = 1;
-    const L1_NUM_MAX = 12;
+    const L1_NUM_MAX = 99;
     const L1_WRONG_PER_QUESTION = 3;
 
     function l1PickQuestionType() {
       return Math.random() < L1_T1_SHARE ? L1_TYPE_T1 : L1_TYPE_T2;
+    }
+
+    function l1InnerValue(B, C, innerPlus) {
+      return innerPlus ? B + C : B - C;
+    }
+
+    function l1WholeValue(questionType, A, B, C, innerPlus) {
+      const inner = l1InnerValue(B, C, innerPlus);
+      return questionType === L1_TYPE_T1 ? A - inner : A + inner;
+    }
+
+    /** 括号内与整式按数值求值均为正（学员未学负数） */
+    function l1ParamsPositive(questionType, A, B, C, innerPlus) {
+      const inner = l1InnerValue(B, C, innerPlus);
+      if (inner <= 0) return false;
+      return l1WholeValue(questionType, A, B, C, innerPlus) > 0;
     }
 
     /** 括号内两项去括号前的带符号值：[B, ±C] */
@@ -276,31 +292,58 @@
     }
 
     function buildExpandQuestion_L1() {
-      const questionType = l1PickQuestionType();
-      const outerMinus = questionType === L1_TYPE_T1;
-      const A = randomInt(L1_NUM_MIN, L1_NUM_MAX);
-      const B = randomInt(L1_NUM_MIN, L1_NUM_MAX);
-      const C = randomInt(L1_NUM_MIN, L1_NUM_MAX);
-      const innerPlus = Math.random() < 0.5;
-      const innerOp = innerPlus ? "+" : "-";
-      const prompt = outerMinus
-        ? `${A} - (${B} ${innerOp} ${C})`
-        : `${A} + (${B} ${innerOp} ${C})`;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const questionType = l1PickQuestionType();
+        const outerMinus = questionType === L1_TYPE_T1;
+        const A = randomInt(L1_NUM_MIN, L1_NUM_MAX);
+        const B = randomInt(L1_NUM_MIN, L1_NUM_MAX);
+        const C = randomInt(L1_NUM_MIN, L1_NUM_MAX);
+        const innerPlus = Math.random() < 0.5;
+        if (!l1ParamsPositive(questionType, A, B, C, innerPlus)) continue;
+        const innerOp = innerPlus ? "+" : "-";
+        const prompt = outerMinus
+          ? `${A} - (${B} ${innerOp} ${C})`
+          : `${A} + (${B} ${innerOp} ${C})`;
+        const [innerFirst, innerSecond] = l1SignedInnerPair(B, C, innerPlus);
+        const correctTerms = l1CorrectTerms(questionType, A, B, C, innerPlus);
+        const correctText = formatExpandedTerms(correctTerms);
+        const wrongPool = ebPickWrongPoolEntries(
+          ebDedupeWrongPool(correctText, l1WrongPoolForType(questionType, A, innerFirst, innerSecond)),
+          L1_WRONG_PER_QUESTION
+        );
+
+        return {
+          expandKind: "L1",
+          questionType,
+          prompt,
+          correctTerms,
+          correctText,
+          wrongPool,
+          presetWrong: [],
+          outerMinus,
+        };
+      }
+      const questionType = L1_TYPE_T1;
+      const outerMinus = true;
+      const A = 50;
+      const B = 20;
+      const C = 10;
+      const innerPlus = true;
+      const innerOp = "+";
+      const prompt = `${A} - (${B} ${innerOp} ${C})`;
       const [innerFirst, innerSecond] = l1SignedInnerPair(B, C, innerPlus);
       const correctTerms = l1CorrectTerms(questionType, A, B, C, innerPlus);
       const correctText = formatExpandedTerms(correctTerms);
-      const wrongPool = ebPickWrongPoolEntries(
-        ebDedupeWrongPool(correctText, l1WrongPoolForType(questionType, A, innerFirst, innerSecond)),
-        L1_WRONG_PER_QUESTION
-      );
-
       return {
         expandKind: "L1",
         questionType,
         prompt,
         correctTerms,
         correctText,
-        wrongPool,
+        wrongPool: ebPickWrongPoolEntries(
+          ebDedupeWrongPool(correctText, l1WrongPoolForType(questionType, A, innerFirst, innerSecond)),
+          L1_WRONG_PER_QUESTION
+        ),
         presetWrong: [],
         outerMinus,
       };
@@ -963,11 +1006,22 @@
       return `${l4FmtB(B)}(${l4BracketInner(term1, term2, innerPlus)})`;
     }
 
+    /** 段间减号紧挨 B(…) 前（减整段 B），与布局无关；T3/T4 为 true */
+    function l4BSegMinus(params) {
+      return !params.outerPlus;
+    }
+
     function l4BuildPrompt(params) {
       const bracket = l4BracketPart(params.B, params.term1, params.term2, params.innerPlus);
-      const outer = params.outerPlus ? "+" : "-";
       const aStr = l4FmtAForPrompt(params.A, params.aLeft);
-      return params.aLeft ? `${aStr} ${outer} ${bracket}` : `${bracket} ${outer} ${aStr}`;
+      if (params.aLeft) {
+        const outer = params.outerPlus ? "+" : "-";
+        return `${aStr} ${outer} ${bracket}`;
+      }
+      if (params.outerPlus) {
+        return `${bracket} + ${aStr}`;
+      }
+      return `- ${bracket} + ${aStr}`;
     }
 
     function l4Mul(B, term, doMul) {
@@ -1016,14 +1070,13 @@
       const aTerm = { kind: params.A.kind, mag: params.A.mag, sign: params.A.sign };
       let e1 = d1;
       let e2 = d2;
+      const bSegMinus = l4BSegMinus(params);
       const mode =
         outerApply != null
           ? outerApply
-          : params.outerPlus
-            ? "plus"
-            : params.aLeft
-              ? "minus"
-              : "plus";
+          : bSegMinus
+            ? "minus"
+            : "plus";
       if (mode === "minus") {
         e1 = l4NegTerm(e1);
         e2 = l4NegTerm(e2);
@@ -1036,8 +1089,8 @@
         e2 = l4NegTerm(e2);
       }
       if (params.aLeft) return [aTerm, e1, e2];
-      if (params.outerPlus) return [e1, e2, aTerm];
-      return [e1, e2, l4NegTerm(aTerm)];
+      const aTermRight = { kind: params.A.kind, mag: params.A.mag, sign: 1 };
+      return [e1, e2, aTermRight];
     }
 
     function l4AnswerText(params, distOpts, outerApply) {
@@ -1099,10 +1152,9 @@
       }
 
       if (questionType === L4_TYPE_T3) {
-        const noFlip = params.aLeft ? "plus" : "minusDist";
         return [
           {
-            text: l4AnswerText(params, {}, noFlip),
+            text: l4AnswerText(params, {}, "plus"),
             explain: "括号外是减号，但括号里两项都没变号。",
             causeNo: 1,
           },
@@ -1129,10 +1181,9 @@
         ];
       }
 
-      const noFlip = params.aLeft ? "plus" : "minusDist";
       return [
         {
-          text: l4AnswerText(params, {}, noFlip),
+          text: l4AnswerText(params, {}, "plus"),
           explain: "外「减」、内「减」时变号规则全错。",
           causeNo: 1,
         },

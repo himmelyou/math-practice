@@ -18,7 +18,7 @@
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
   <link rel="stylesheet" href="admin-panel.css" />
-  <link rel="stylesheet" href="admin-worksheet.css?v=17" />
+  <link rel="stylesheet" href="admin-worksheet.css?v=19" />
 </head>
 <body>
   <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">—</p>
@@ -203,7 +203,7 @@
     </div>
   </div>
 
-  <script src="../shared/app-version.js?v=17"></script>
+  <script src="../shared/app-version.js?v=19"></script>
   <script>
     (function () {
       var el = document.getElementById("jml-admin-version");
@@ -213,7 +213,7 @@
       el.textContent = "管理端 " + ver + (build ? " · " + build : "");
     })();
   </script>
-  <script src="../config.js?v=17"></script>
+  <script src="../config.js?v=19"></script>
   <script>
     (function () {
       if (!window.__JML_API_BASE__ && window.API_BASE_URL) {
@@ -221,10 +221,10 @@
       }
     })();
   </script>
-  <script src="../shared/admin-auth.js?v=17"></script>
-  <script src="../shared/expand-brackets-questions.js?v=17"></script>
-  <script src="admin-panel.js?v=17"></script>
-  <script src="admin-worksheet.js?v=17"></script>
+  <script src="../shared/admin-auth.js?v=19"></script>
+  <script src="../shared/expand-brackets-questions.js?v=19"></script>
+  <script src="admin-panel.js?v=19"></script>
+  <script src="admin-worksheet.js?v=19"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({
