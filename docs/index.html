@@ -6514,11 +6514,11 @@
       }
     }
 
-    function saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, survivalCleared) {
+    function saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, runCleared) {
       const data = getGuestSurvivalData();
       data.guestPlayCount = (data.guestPlayCount || 0) + 1;
       const entry = { survivalTimeSec, score, maxLevel, wrongCount: wrongCount ?? 0, ts: Date.now() };
-      if (survivalCleared === true) entry.survivalCleared = true;
+      if (runCleared === true) entry.cleared = true;
       data.recentSurvivalRuns.unshift(entry);
       if (data.recentSurvivalRuns.length > 10) {
         data.recentSurvivalRuns = data.recentSurvivalRuns.slice(0, 10);
@@ -6590,7 +6590,7 @@
       return formatSeconds(sec);
     }
 
-    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, survivalCleared, comboOnly) {
+    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, runCleared, comboOnly) {
       wrongCount = wrongCount ?? 0;
       mode = mode === "level"
         ? "level"
@@ -6600,7 +6600,7 @@
             ? "primeComposite"
             : (mode === "expandBrackets" ? "expandBrackets" : "survival")));
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
-      if (mode === "survival" && survivalCleared === true) runEntry.survivalCleared = true;
+      if (runCleared === true) runEntry.cleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
       if (comboOnly === true) runEntry.comboOnly = true;
       if (isGuestMode) {
@@ -6608,7 +6608,7 @@
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
         else if (mode === "primeComposite") { /* 游客不记录质数合数 */ }
         else if (mode === "expandBrackets") { /* 游客不记拆括号（与训练一致：需登录才写 runs） */ }
-        else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, survivalCleared);
+        else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, runCleared);
         return Promise.resolve();
       }
       const name = loadCurrentUsername();
@@ -6689,11 +6689,9 @@
         const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
         const levelIdx = Number(r.maxLevel);
         const levelName = Number.isFinite(levelIdx) && levelIdx >= 0 ? ("L" + (levelIdx + 1)) : "-";
-        const clearedStr = gameMode === "survival"
-          ? (r.survivalCleared ? t("recent.clearedYes") : t("recent.clearedNo"))
-          : gameMode === "level"
-            ? ((Number(r.maxLevel) >= 15) ? t("recent.clearedYes") : t("recent.clearedNo"))
-            : "-";
+        const clearedStr = (gameMode === "survival" || gameMode === "level")
+          ? (r.cleared === true ? t("recent.clearedYes") : t("recent.clearedNo"))
+          : "-";
         const dateStr = formatDateTime(r.ts);
         return `<tr>
           <td>${dateStr}</td>
@@ -7870,7 +7868,7 @@
       const endLevel = completed ? 15 : persistIdx;
       saveLevelChallengeLastLevel(endLevel);
       saveLevelChallengeBestLevel(endLevel);
-      appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice());
+      appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice(), completed === true);
       renderRecentRuns();
       updateLevelStatusUI();
       if (dom.gameOverPanel) {
@@ -8017,7 +8015,7 @@
     function userHasClearedSurvival(user) {
       if (!user) return false;
       if (user.hasClearedSurvival === true) return true;
-      return Array.isArray(user.recentSurvivalRuns) && user.recentSurvivalRuns.some((r) => r.survivalCleared === true);
+      return Array.isArray(user.recentSurvivalRuns) && user.recentSurvivalRuns.some((r) => r.cleared === true);
     }
 
     async function showRankingView() {

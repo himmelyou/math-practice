@@ -961,6 +961,27 @@
     }
   }
 
+  async function migrateRunClearedFields() {
+    try {
+      var msg = '将把全部 runs 中的 survivalCleared 迁移为 cleared，并删除旧字段；同时重算 hasClearedSurvival。\n\n'
+        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('cleared 字段迁移中…', '');
+      var data = await apiFetch('/api/admin/maintenance/migrate-run-cleared', { method: 'POST' });
+      var runsChanged = Number(data && data.runsRecordsChanged) || 0;
+      var recentChanged = Number(data && data.userRecentRecordsChanged) || 0;
+      var flagChanged = Number(data && data.usersHasClearedSurvivalUpdated) || 0;
+      var total = Number(data && data.totalUsers) || 0;
+      setStatus(
+        '迁移完成：runs 改动 ' + runsChanged + ' 条，用户 recent 改动 ' + recentChanged
+          + ' 条，hasClearedSurvival 更新 ' + flagChanged + ' 人（共 ' + total + ' 人）',
+        'ok',
+      );
+    } catch (e) {
+      setStatus(e.message || '迁移失败', 'err');
+    }
+  }
+
   async function backfillStreakFields() {
     try {
       if (!confirm('将从 runs 重算并写回所有学员的 streakBest/streakCurrent/streakLastDate，确认继续？')) return;
@@ -1113,6 +1134,8 @@
       });
     }
 
+    var migrateRunClearedBtn = document.getElementById('jml-btn-migrate-run-cleared');
+    if (migrateRunClearedBtn) migrateRunClearedBtn.addEventListener('click', migrateRunClearedFields);
     var backfillStreakBtn = document.getElementById('jml-btn-backfill-streak');
     if (backfillStreakBtn) backfillStreakBtn.addEventListener('click', backfillStreakFields);
     var backfillComboBtn = document.getElementById('jml-btn-backfill-combo');

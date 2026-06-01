@@ -96,6 +96,82 @@ function normalizeRunMode(mode) {
   return "survival";
 }
 
+/** 单局是否通关（生存/闯关等 mode 各自语义，统一 cleared 字段） */
+function runIsCleared(r) {
+  return !!(r && r.cleared === true);
+}
+
+function userHasClearedSurvivalFromRuns(runs) {
+  return (runs || []).some((r) => normalizeRunMode(r.mode) === "survival" && runIsCleared(r));
+}
+
+/** 将旧 survivalCleared 迁入 cleared 并删除旧键；返回是否改动 */
+function migrateRunRecordInPlace(run) {
+  if (!run || typeof run !== "object") return false;
+  let changed = false;
+  if (run.survivalCleared === true) {
+    if (run.cleared !== true) {
+      run.cleared = true;
+      changed = true;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(run, "survivalCleared")) {
+    delete run.survivalCleared;
+    changed = true;
+  }
+  return changed;
+}
+
+const USER_RECENT_RUN_KEYS = [
+  "recentSurvivalRuns",
+  "recentLevelRuns",
+  "recentTrainingRuns",
+  "recentPrimeCompositeRuns",
+  "recentExpandBracketsRuns",
+];
+
+function migrateAllRunsClearedData() {
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const usersData = readJson(USERS_FILE, { users: [] });
+  let runsChanged = 0;
+  let userRunsChanged = 0;
+  let usersFlagChanged = 0;
+
+  const allRuns = runsData.runs && typeof runsData.runs === "object" ? runsData.runs : {};
+  Object.keys(allRuns).forEach((username) => {
+    const list = Array.isArray(allRuns[username]) ? allRuns[username] : [];
+    list.forEach((run) => {
+      if (migrateRunRecordInPlace(run)) runsChanged += 1;
+    });
+  });
+
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    USER_RECENT_RUN_KEYS.forEach((key) => {
+      if (!Array.isArray(u[key])) return;
+      u[key].forEach((run) => {
+        if (migrateRunRecordInPlace(run)) userRunsChanged += 1;
+      });
+    });
+    const runs = Array.isArray(allRuns[u.username]) ? allRuns[u.username] : [];
+    const nextFlag = userHasClearedSurvivalFromRuns(runs);
+    if (u.hasClearedSurvival !== nextFlag) {
+      u.hasClearedSurvival = nextFlag;
+      usersFlagChanged += 1;
+    }
+  });
+
+  writeJson(RUNS_FILE, runsData);
+  writeJson(USERS_FILE, usersData);
+  return {
+    runsRecordsChanged: runsChanged,
+    userRecentRecordsChanged: userRunsChanged,
+    usersHasClearedSurvivalUpdated: usersFlagChanged,
+    totalUsers: users.length,
+  };
+}
+
 function buildScoreRankingRowUser(u, req) {
   if (!u || !u.username) return null;
   const displayName = (u.nickname || "").trim() ? String(u.nickname).trim() : "新人";
@@ -862,7 +938,7 @@ app.post("/api/login", async (req, res) => {
   if (user.hasClearedSurvival === undefined) {
     const runsData = readJson(RUNS_FILE, { runs: {} });
     const runs = runsData.runs[username] || [];
-    user.hasClearedSurvival = runs.some((r) => r.survivalCleared === true);
+    user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
     const uIdx = data.users.findIndex((u) => u.username === username);
     if (uIdx >= 0) {
       data.users[uIdx].hasClearedSurvival = user.hasClearedSurvival;
@@ -968,7 +1044,7 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   if (user.hasClearedSurvival === undefined) {
     const runsData = readJson(RUNS_FILE, { runs: {} });
     const runs = runsData.runs[username] || [];
-    user.hasClearedSurvival = runs.some((r) => r.survivalCleared === true);
+    user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
     const idx = data.users.findIndex((u) => u.username === username);
     if (idx >= 0) {
       data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
@@ -1096,7 +1172,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     mode: normalizeRunMode(run.mode),
   };
   if (comboOnly) runEntry.comboOnly = true;
-  if (runEntry.mode === "survival" && run.survivalCleared === true) runEntry.survivalCleared = true;
+  if (run.cleared === true) runEntry.cleared = true;
   if (Array.isArray(run.attempts)) runEntry.attempts = run.attempts;
   if (!comboOnly) {
     runsData.runs[username].unshift(runEntry);
@@ -1168,7 +1244,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (u.recentExpandBracketsRuns.length > 10) u.recentExpandBracketsRuns = u.recentExpandBracketsRuns.slice(0, 10);
     }
   }
-  if (!comboOnly && runEntry.mode === "survival" && runEntry.survivalCleared === true) {
+  if (!comboOnly && runEntry.mode === "survival" && runEntry.cleared === true) {
     const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
     let list = Array.isArray(rankingData.list) ? rankingData.list : [];
     const entry = {
@@ -1656,7 +1732,7 @@ app.get("/api/admin/user/:username", (req, res) => {
   if (user.hasClearedSurvival === undefined) {
     const runsData = readJson(RUNS_FILE, { runs: {} });
     const runs = runsData.runs[username] || [];
-    user.hasClearedSurvival = runs.some((r) => r.survivalCleared === true);
+    user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
     const idx = data.users.findIndex((u) => u.username === username);
     if (idx >= 0) {
       data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
@@ -1895,6 +1971,19 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
     res.json({ ok: true, msg: "数据已恢复" });
   } catch (e) {
     res.json({ ok: false, error: "恢复失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：一次性迁移 survivalCleared → cleared ==========
+app.post("/api/admin/maintenance/migrate-run-cleared", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const stats = migrateAllRunsClearedData();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "迁移失败：" + (e.message || String(e)) });
   }
 });
 

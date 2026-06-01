@@ -172,24 +172,33 @@
 
       <div id="panel-backup" class="jml-tab-panel hidden" data-panel="backup" role="tabpanel">
         <div class="jml-panel-head">
-          <button type="button" id="jml-btn-backup" class="jml-btn jml-btn-primary">备份数据</button>
+          <button type="button" id="jml-btn-backup" class="jml-btn jml-btn-primary">下载全部备份</button>
           <button type="button" id="jml-btn-restore" class="jml-btn">导入恢复</button>
           <input type="file" id="jml-restore-file" accept=".json" style="display:none;" />
         </div>
         <div class="jml-placeholder-panel">
-          备份会下载全部数据；恢复会覆盖当前数据，请谨慎操作。
+          <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置与文案到本地 JSON 文件。</p>
+          <p>在执行「初始化/维护」里的数据迁移或回填前，<strong>请先在此 Tab 备份</strong>。恢复会覆盖线上数据，请谨慎操作。</p>
         </div>
       </div>
 
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
-          <button type="button" id="jml-btn-backfill-streak" class="jml-btn jml-btn-primary">回填耐力字段（best/current）</button>
+          <button type="button" id="jml-btn-migrate-run-cleared" class="jml-btn jml-btn-primary">迁移 runs：survivalCleared → cleared</button>
+          <button type="button" id="jml-btn-backfill-streak" class="jml-btn">回填耐力字段（best/current）</button>
           <button type="button" id="jml-btn-backfill-combo" class="jml-btn">回填连击字段（best/current）</button>
         </div>
         <div class="jml-placeholder-panel">
-          该操作会从 runs 重算并写回每位学员的 <code>streakBest</code> / <code>streakCurrent</code> / <code>streakLastDate</code>。<br />
-          连击回填会重算并写回 <code>comboBest</code> / <code>comboCurrent</code>。<br />
-          建议先做一次系统备份。
+          <p><strong>cleared 字段迁移（推荐顺序）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>部署最新前后端代码并重启服务</li>
+            <li>打开「系统备份」Tab → 点击「下载全部备份」</li>
+            <li>回到本 Tab → 点击「迁移 runs：survivalCleared → cleared」</li>
+            <li>完成后抽查：runs 中不应再有 <code>survivalCleared</code>；生存通关局应有 <code>cleared: true</code></li>
+          </ol>
+          <p class="muted" style="margin:0;">说明：仅将旧 <code>survivalCleared</code> 迁入 <code>cleared</code> 并删除旧键；历史闯关不会按 maxLevel 回填 cleared。新局规则：闯关仅通全关写 cleared，答错/放弃不写。</p>
+          <hr style="margin:14px 0;border:none;border-top:1px solid rgba(0,0,0,.08);" />
+          <p style="margin:0;">耐力/连击回填会从 runs 重算并写回学员字段；建议同样先备份。</p>
         </div>
       </div>
     </div>
@@ -223,7 +232,7 @@
   </script>
   <script src="../shared/admin-auth.js?v=19"></script>
   <script src="../shared/expand-brackets-questions.js?v=19"></script>
-  <script src="admin-panel.js?v=19"></script>
+  <script src="admin-panel.js?v=20"></script>
   <script src="admin-worksheet.js?v=19"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
