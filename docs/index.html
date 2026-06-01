@@ -1177,13 +1177,23 @@
       padding: 8px 6px 4px;
     }
     .question-text.rule-hint {
-      font-size: 0.92rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      font-size: 0.82rem;
       font-weight: 500;
       color: var(--muted);
-      line-height: 1.6;
+      line-height: 1.35;
       text-align: left;
-      padding: 10px 10px 6px;
+      padding: 4px 6px 0;
       white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      -webkit-line-clamp: var(--rule-hint-max-lines, 99);
     }
     .question-text.question-refresh-hidden,
     .question-subtext.question-refresh-hidden {
@@ -2158,8 +2168,13 @@
     #game-card.game-card--prestart > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
-      overflow-y: auto;
+      width: 100%;
+      max-width: 100%;
       margin-top: 0;
+    }
+
+    #game-card.game-card--prestart > .question-body > .question-text.rule-hint {
+      overflow: hidden;
     }
 
     #game-card.game-card--prestart > .question-body > .question-subtext {
@@ -2222,17 +2237,6 @@
 
     .game-section.training-prestart #game-card.game-card--prestart {
       gap: 8px;
-    }
-
-    .game-section.training-prestart .question-text.rule-hint {
-      font-size: 0.82rem;
-      line-height: 1.35;
-      padding: 4px 6px 0;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .game-play-body > .recent-card .recent-body {
@@ -2349,8 +2353,13 @@
     .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
-      overflow-y: auto;
+      width: 100%;
+      max-width: 100%;
       margin-top: 0;
+    }
+
+    .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
+      overflow: hidden;
     }
 
     .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-subtext {
@@ -2360,17 +2369,6 @@
     .expand-brackets-page #expand-game-card.game-card--prestart > .answer-form {
       flex-shrink: 0;
       margin-top: auto;
-    }
-
-    .expand-brackets-page #expand-game-card.game-card--prestart .question-text.rule-hint {
-      font-size: 0.82rem;
-      line-height: 1.35;
-      padding: 4px 6px 0;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .question-body {
@@ -2599,7 +2597,7 @@
     .prime-composite-page .prime-idle-card > .question-body > .question-text.rule-hint {
       flex: 1 1 auto;
       min-height: 0;
-      overflow-y: auto;
+      overflow: hidden;
       margin-top: 0;
     }
 
@@ -2709,19 +2707,6 @@
     .prime-choice-btn.prime-choice-wrong {
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
       box-shadow: none !important;
-    }
-    .prime-composite-page .prime-idle-card .question-text.rule-hint.prime-intro-text {
-      text-align: left;
-      font-size: 0.82rem;
-      font-weight: 500;
-      color: var(--muted);
-      line-height: 1.35;
-      padding: 4px 6px 0;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .prime-wrong-row {
       padding: 8px 0;
@@ -3233,7 +3218,7 @@
             </div>
           </div>
           <div class="question-body">
-            <div class="question-text rule-hint prime-intro-text" id="prime-idle-intro"></div>
+            <div class="question-text rule-hint" id="prime-idle-intro"></div>
           </div>
           <form class="answer-form" action="javascript:void(0);">
             <div class="game-card-action-anchor">
@@ -4705,6 +4690,76 @@
       }
     }
 
+    let ruleHintResizeObserver = null;
+    let ruleHintSyncRaf = 0;
+
+    /** 未开局规则区：按题卡内可用高度动态行数，超出时在文末省略 */
+    function syncRuleHintLineClamp(el) {
+      if (!el || !el.classList.contains("rule-hint")) return;
+      const card = el.closest(".game-card--prestart, .prime-idle-card");
+      if (!card || card.offsetParent === null) return;
+      const cs = getComputedStyle(el);
+      let lh = parseFloat(cs.lineHeight);
+      if (!Number.isFinite(lh) || lh <= 0) {
+        const fs = parseFloat(cs.fontSize) || 14;
+        lh = fs * 1.35;
+      }
+      const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const h = Math.max(0, el.clientHeight - pad);
+      const maxLines = Math.max(1, Math.floor(h / lh));
+      const s = String(maxLines);
+      el.style.setProperty("--rule-hint-max-lines", s);
+      el.style.webkitLineClamp = s;
+    }
+
+    function syncAllVisibleRuleHints() {
+      document.querySelectorAll(".question-text.rule-hint").forEach(syncRuleHintLineClamp);
+    }
+
+    function scheduleSyncAllRuleHints() {
+      if (ruleHintSyncRaf) cancelAnimationFrame(ruleHintSyncRaf);
+      ruleHintSyncRaf = requestAnimationFrame(function () {
+        ruleHintSyncRaf = requestAnimationFrame(function () {
+          ruleHintSyncRaf = 0;
+          syncAllVisibleRuleHints();
+        });
+      });
+    }
+
+    function refreshVisibleRuleHintTexts() {
+      const gameCard = document.getElementById("game-card");
+      if (dom.gameSection && dom.gameSection.classList.contains("visible") && gameCard && gameCard.classList.contains("game-card--prestart") && dom.questionText) {
+        const sub = document.getElementById("game-subtitle");
+        const hint = sub ? String(sub.textContent || "").trim() : "";
+        dom.questionText.textContent = hint || "";
+        dom.questionText.classList.toggle("rule-hint", !!hint);
+      }
+      const expandCard = document.getElementById("expand-game-card");
+      if (dom.expandSection && dom.expandSection.classList.contains("visible") && expandCard && expandCard.classList.contains("game-card--prestart") && dom.expandQuestionText) {
+        const sub = document.getElementById("game-subtitle");
+        const hint = sub ? String(sub.textContent || "").trim() : "";
+        dom.expandQuestionText.textContent = hint || t("expand.subtitle");
+        dom.expandQuestionText.classList.add("rule-hint");
+      }
+    }
+
+    function bindRuleHintResizeObserver() {
+      if (typeof ResizeObserver === "undefined") return;
+      if (ruleHintResizeObserver) ruleHintResizeObserver.disconnect();
+      const targets = [
+        document.getElementById("game-card"),
+        document.getElementById("expand-game-card"),
+        document.querySelector(".prime-idle-card"),
+      ].filter(Boolean);
+      if (!targets.length) return;
+      ruleHintResizeObserver = new ResizeObserver(function () {
+        scheduleSyncAllRuleHints();
+      });
+      targets.forEach(function (node) {
+        ruleHintResizeObserver.observe(node);
+      });
+    }
+
     function setExpandGameCardGameOver(active) {
       const card = document.getElementById("expand-game-card");
       if (card) card.classList.toggle("game-over-active", !!active);
@@ -4770,6 +4825,8 @@
         dom.expandQuestionSubtext.textContent = t(lk) || "";
         dom.expandQuestionSubtext.style.display = dom.expandQuestionSubtext.textContent ? "" : "none";
       }
+      const expandCard = document.getElementById("expand-game-card");
+      if (expandCard && expandCard.classList.contains("game-card--prestart")) scheduleSyncAllRuleHints();
     }
 
     function setExpandLevelPickerVisible(visible) {
@@ -5018,6 +5075,7 @@
       setExpandHistoryVisible(true);
       renderExpandBracketsRecentRuns();
       updateGlobalBackButtonState();
+      scheduleSyncAllRuleHints();
     }
 
     function clamp(value, min, max) {
@@ -5221,6 +5279,9 @@
         "wrongbook.title": "錯題本",
         "wrongbook.subtitle": "以下是最新錯題，可自行複習。",
         "wrongbook.practice": "錯題練習",
+        "wrongbook.studentAnswer": "學員答案：",
+        "wrongbook.correctAnswer": "正確答案：",
+        "wrongbook.badgeAria": "錯題 {n} 道",
         "home.soon.expandBrackets": "拆括號：功能即將上線",
         "home.soon.gcd": "公因數：功能即將上線",
         "home.soon.lcm": "公倍數：功能即將上線",
@@ -5508,6 +5569,9 @@
         "wrongbook.title": "Wrongbook",
         "wrongbook.subtitle": "Latest wrong questions for review.",
         "wrongbook.practice": "Practice Wrong Questions",
+        "wrongbook.studentAnswer": "Your answer:",
+        "wrongbook.correctAnswer": "Correct:",
+        "wrongbook.badgeAria": "{n} wrong questions",
         "home.soon.expandBrackets": "Expand Brackets: coming soon",
         "home.soon.gcd": "Common Factors: coming soon",
         "home.soon.lcm": "Common Multiples: coming soon",
@@ -5870,7 +5934,7 @@
           if (val && i === 0) val.textContent = t("home.mode.primeComposite");
         });
       }
-      const intro = document.querySelector(".prime-intro-text");
+      const intro = document.getElementById("prime-idle-intro");
       if (intro) intro.textContent = t("prime.intro");
       setT("prime-composite-start-btn", "game.btn.startChallenge");
       setT("prime-header-hint", "prime.header.hint");
@@ -5924,6 +5988,8 @@
       setTextById("change-password-btn-label", "home.btn.changePassword");
       setTextById("logout-btn-label", "home.btn.logout");
       updateGlobalBackButtonState();
+      refreshVisibleRuleHintTexts();
+      scheduleSyncAllRuleHints();
     }
 
     async function loadI18nFromServer() {
@@ -6042,6 +6108,10 @@
       if (wbTitle) wbTitle.textContent = t("wrongbook.title");
       const wbSub = document.querySelector(".wrongbook-subtitle");
       if (wbSub) wbSub.textContent = t("wrongbook.subtitle");
+      if (dom.wrongbookSection && dom.wrongbookSection.style.display !== "none") {
+        renderWrongbookList();
+        updateWrongbookBadge();
+      }
 
       setTextById("expand-start-btn", "expand.start");
       setTextById("expand-play-again-btn", "game.btn.playAgain");
@@ -7172,6 +7242,7 @@
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       updateGlobalBackButtonState();
+      scheduleSyncAllRuleHints();
     }
 
     function showNextSurvivalQuestion() {
@@ -7956,6 +8027,7 @@
       }
       setPrimePlayBodyPhase("idle");
       void renderPrimeRecentRuns();
+      scheduleSyncAllRuleHints();
     }
 
     function hidePrimeCompositePlaceholder() {
@@ -9016,6 +9088,7 @@
       if (sec && sec.classList.contains("visible") && studentStatsState.chartModel) {
         requestAnimationFrame(drawStudentStatsChart);
       }
+      scheduleSyncAllRuleHints();
     });
 
     function renderStudentStatsFromRuns(runs, cohort) {
@@ -9254,6 +9327,7 @@
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
       updateTopTitleForCurrentView(false);
       updateStatusModeLabel();
+      scheduleSyncAllRuleHints();
     }
 
     function showExpandBracketsSection() {
@@ -9310,7 +9384,7 @@
       badge.textContent = text;
       badge.hidden = false;
       badge.setAttribute("aria-hidden", "false");
-      badge.setAttribute("aria-label", "错题 " + n + " 道");
+      badge.setAttribute("aria-label", tf("wrongbook.badgeAria", { n }));
     }
 
     async function showWrongbookView() {
@@ -9352,10 +9426,12 @@
         return;
       }
       empty.style.display = "none";
+      const lblWrong = t("wrongbook.studentAnswer");
+      const lblCorrect = t("wrongbook.correctAnswer");
       list.innerHTML = wrongs.map(w => `
         <div class="wrongbook-item">
           <div class="q">${escapeHtml(w.text || "")}</div>
-          <div>学员答案：<span class="wrong-ans">${escapeHtml(String(w.studentAnswer ?? ""))}</span> · 正确答案：<span class="correct-ans">${escapeHtml(String(w.answer ?? ""))}</span></div>
+          <div>${escapeHtml(lblWrong)}<span class="wrong-ans">${escapeHtml(String(w.studentAnswer ?? ""))}</span> · ${escapeHtml(lblCorrect)}<span class="correct-ans">${escapeHtml(String(w.answer ?? ""))}</span></div>
         </div>
       `).join("");
       if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
@@ -9725,6 +9801,7 @@
           const hint = sub ? String(sub.textContent || "").trim() : "";
           dom.questionText.textContent = hint || "";
           dom.questionText.classList.toggle("rule-hint", !!hint);
+          scheduleSyncAllRuleHints();
         }
       } catch (e) {
         console.warn("后台刷新训练选关失败", e);
@@ -10299,6 +10376,7 @@
       applyI18nToLoginView();
       applyI18nToMainView();
       bindEvents();
+      bindRuleHintResizeObserver();
       const name = loadCurrentUsername();
       if (!name) {
         document.getElementById("login-view").style.display = "flex";
