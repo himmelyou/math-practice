@@ -4,5 +4,5 @@
 (function (g) {
   g.JML_APP_VERSION = "v1.6.4";
   g.JML_BUILD_ID = "20260525a";
-  g.JML_CACHE_TAG = "16";
+  g.JML_CACHE_TAG = "17";
 })(typeof window !== "undefined" ? window : globalThis);

@@ -555,7 +555,6 @@
     const L3_K_MIN = 2;
     const L3_NUM_MIN = 1;
     const L3_NUM_MAX = 12;
-    const L3_LAYOUT_A_LEFT = 0.8;
     const L3_WRONG_PER_QUESTION = 3;
 
     function l3PickQuestionType() {
@@ -612,7 +611,7 @@
       const bracket = l3BracketPart(params.k, params.term1, params.term2, params.innerPlus);
       const outer = params.outerPlus ? "+" : "-";
       const aStr = l3FmtA(params.aIsX, params.aMag);
-      return params.aLeft ? `${aStr} ${outer} ${bracket}` : `${bracket} ${outer} ${aStr}`;
+      return `${aStr} ${outer} ${bracket}`;
     }
 
     /** 括号内从左到右分配后的两项（已乘 k，尚未处理外连接符） */
@@ -646,9 +645,7 @@
           ? outerApply
           : params.outerPlus
             ? "plus"
-            : params.aLeft
-              ? "minus"
-              : "plus";
+            : "minus";
       if (mode === "minus") {
         e1 = l3NegTerm(e1);
         e2 = l3NegTerm(e2);
@@ -660,9 +657,7 @@
         e1 = l3NegTerm(e1);
         e2 = l3NegTerm(e2);
       }
-      if (params.aLeft) return [aTerm, e1, e2];
-      if (params.outerPlus) return [e1, e2, aTerm];
-      return [e1, e2, l3NegTerm(aTerm)];
+      return [aTerm, e1, e2];
     }
 
     function l3AnswerText(params, distOpts, outerApply) {
@@ -718,22 +713,19 @@
       }
 
       if (questionType === L3_TYPE_T3) {
-        const noFlip = params.aLeft ? "plus" : "minusDist";
-        const half1 = params.aLeft ? "minusFirst" : "minusFirst";
-        const half2 = params.aLeft ? "minusSecond" : "minusSecond";
         return [
           {
-            text: l3AnswerText(params, {}, noFlip),
+            text: l3AnswerText(params, {}, "plus"),
             explain: "括号外是减号，但括号里两项都没变号。",
             causeNo: 1,
           },
           {
-            text: l3AnswerText(params, {}, half1),
+            text: l3AnswerText(params, {}, "minusFirst"),
             explain: "括号外是减号，但只变了第一项的符号。",
             causeNo: 2,
           },
           {
-            text: l3AnswerText(params, {}, half2),
+            text: l3AnswerText(params, {}, "minusSecond"),
             explain: "括号外是减号，但只变了第二项的符号。",
             causeNo: 2,
           },
@@ -750,10 +742,9 @@
         ];
       }
 
-      const noFlip = params.aLeft ? "plus" : "minusDist";
       return [
         {
-          text: l3AnswerText(params, {}, noFlip),
+          text: l3AnswerText(params, {}, "plus"),
           explain: "外「减」、内「减」时变号规则全错。",
           causeNo: 1,
         },
@@ -813,7 +804,6 @@
           innerPlus,
           outerPlus,
           constFirst: inner.constFirst,
-          aLeft: Math.random() < L3_LAYOUT_A_LEFT,
           aIsX,
           aMag,
         };
@@ -844,7 +834,6 @@
         innerPlus: true,
         outerPlus: true,
         constFirst: true,
-        aLeft: true,
         aIsX: false,
         aMag: 5,
       };
