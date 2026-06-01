@@ -5508,7 +5508,7 @@
         "toast.avatarUnlockNeed": "需 {need} 分解鎖",
         "toast.avatarChanged": "已更換頭像",
         "toast.avatarChangeFail": "更換失敗",
-        "toast.survivalNeedLevel9": "生存挑戰：需闖關模式達到 9 級解鎖",
+        "toast.survivalNeedLevel9": "生存挑戰尚未解鎖：訓練 L16 達標、闖關到達 L16，或 L16 熱圖準確率 ≥95%",
         "toast.trainingNeedLevelOnce": "訓練模式：請先完成一局闖關模式",
         "toast.guestNoAvatar": "遊客模式暫不支持頭像",
         "toast.guestSurvivalOnly": "遊客模式僅支援生存挑戰。",
@@ -5798,7 +5798,7 @@
         "toast.avatarUnlockNeed": "Unlock at {need} pts",
         "toast.avatarChanged": "Avatar updated",
         "toast.avatarChangeFail": "Update failed",
-        "toast.survivalNeedLevel9": "Survival unlocks at level 9 in Level mode.",
+        "toast.survivalNeedLevel9": "Survival locked: pass Training L16, reach L16 in Level mode, or L16 heatmap ≥95%.",
         "toast.trainingNeedLevelOnce": "Training: finish one Level run first.",
         "toast.guestNoAvatar": "Avatars are not available in guest mode.",
         "toast.guestSurvivalOnly": "Guest mode only supports Survival.",
@@ -6254,6 +6254,32 @@
       if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
       if (sync.bestSurvivalSec != null) cachedUser.bestSurvivalSec = sync.bestSurvivalSec;
       if (sync.bestScore != null) cachedUser.bestScore = sync.bestScore;
+      if (sync.trainingL16Cleared != null) cachedUser.trainingL16Cleared = sync.trainingL16Cleared === true;
+      if (sync.heatmapL16Passed != null) cachedUser.heatmapL16Passed = sync.heatmapL16Passed === true;
+      if (sync.levelChallengeBestLevel != null) cachedUser.levelChallengeBestLevel = sync.levelChallengeBestLevel;
+      if (sync.survivalEligible === true) updateSurvivalButtonLabel();
+    }
+
+    async function refreshSurvivalEligibility() {
+      const name = loadCurrentUsername();
+      if (!name || isGuestMode || !getApiBase()) return;
+      try {
+        const res = await fetch(
+          getApiBase() + "/api/user/" + encodeURIComponent(name) + "/survival-eligibility",
+          { credentials: "include", headers: getAuthHeaders() },
+        );
+        if (res.status === 401) return;
+        const data = await res.json();
+        if (!data || !data.ok) return;
+        if (!cachedUser) cachedUser = { username: name };
+        cachedUser.trainingL16Cleared = data.trainingL16Cleared === true;
+        cachedUser.heatmapL16Passed = data.heatmapL16Passed === true;
+        cachedUser.levelChallengeBestLevel = typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0;
+        if (data.survivalUnlocked === true) cachedUser.survivalUnlocked = true;
+        updateSurvivalButtonLabel();
+      } catch (e) {
+        console.warn("刷新生存解锁状态失败", e);
+      }
     }
 
     async function apiPutUser(username, updates) {
@@ -6572,6 +6598,9 @@
       if (typeof user.levelChallengeBestLevel !== "number") user.levelChallengeBestLevel = 0;
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
+      if (typeof user.survivalUnlocked !== "boolean") user.survivalUnlocked = false;
+      if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
+      if (typeof user.heatmapL16Passed !== "boolean") user.heatmapL16Passed = false;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
     }
 
@@ -6689,9 +6718,10 @@
         const wrongStr = (r.wrongCount != null ? r.wrongCount : "-").toString();
         const levelIdx = Number(r.maxLevel);
         const levelName = Number.isFinite(levelIdx) && levelIdx >= 0 ? ("L" + (levelIdx + 1)) : "-";
-        const clearedStr = (gameMode === "survival" || gameMode === "level")
-          ? (r.cleared === true ? t("recent.clearedYes") : t("recent.clearedNo"))
-          : "-";
+        let clearedStr = "-";
+        if (gameMode === "survival" || gameMode === "level" || gameMode === "training") {
+          clearedStr = r.cleared === true ? t("recent.clearedYes") : "--";
+        }
         const dateStr = formatDateTime(r.ts);
         return `<tr>
           <td>${dateStr}</td>
@@ -7720,10 +7750,11 @@
       const correctCount = trainingCorrectCount;
       const accuracy = TRAINING_QUESTIONS > 0 ? correctCount / TRAINING_QUESTIONS : 0;
       const levelThisRun = currentLevelIndex;
+      const runPass = accuracy >= 0.95;
 
       if (trainingRunBrushMode) {
-        recordTrainingLastRun(levelThisRun, accuracy >= 0.95, 0);
-        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
+        recordTrainingLastRun(levelThisRun, runPass, 0);
+        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass);
         renderRecentRuns();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
@@ -7754,7 +7785,6 @@
         return;
       }
 
-      const runPass = accuracy >= 0.95;
       const stBefore = loadTrainingFlowState();
       let failCount = 0;
       if (!runPass) {
@@ -7781,7 +7811,7 @@
         });
       }
 
-      await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice());
+      await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass);
       const brushSync = await syncTrainingBrushModeAfterDailyRun();
       if (brushSync && brushSync.enterBrush) {
         trainingSessionBrushMode = true;
@@ -8010,6 +8040,7 @@
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
       scheduleHomeTopBreathe();
+      refreshSurvivalEligibility();
     }
 
     function userHasClearedSurvival(user) {
@@ -9510,16 +9541,21 @@
       return div.innerHTML;
     }
 
+    function userEligibleForSurvivalUnlock(u) {
+      if (!u) return false;
+      ensureUserProgressDefault(u);
+      if (u.survivalUnlocked === true) return true;
+      if (u.trainingL16Cleared === true) return true;
+      if ((u.levelChallengeBestLevel || 0) >= 15) return true;
+      if (u.heatmapL16Passed === true) return true;
+      return false;
+    }
+
     function isSurvivalLocked() {
       if (isGuestMode) return false;
       const u = getCurrentUser();
       if (!u) return false;
-      ensureUserProgressDefault(u);
-      if (u.survivalUnlocked === true) return false;
-      const lastLevel = u.levelChallengeLastLevel ?? 0;
-      const hasSurvivalRuns = Array.isArray(u.recentSurvivalRuns) && u.recentSurvivalRuns.length > 0;
-      if (lastLevel >= 8 || hasSurvivalRuns) return false;
-      return true;
+      return !userEligibleForSurvivalUnlock(u);
     }
 
     async function unlockSurvivalAndEnter() {

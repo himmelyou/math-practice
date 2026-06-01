@@ -9,6 +9,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
+const heatmapStats = require("./stats-heatmap");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
@@ -56,6 +57,10 @@ function buildRunSyncForStudent(u, mode) {
     sync.bestSurvivalSec = typeof u.bestSurvivalSec === "number" ? u.bestSurvivalSec : 0;
     sync.bestScore = typeof u.bestScore === "number" ? u.bestScore : 0;
   }
+  sync.trainingL16Cleared = u.trainingL16Cleared === true;
+  sync.heatmapL16Passed = u.heatmapL16Passed === true;
+  sync.levelChallengeBestLevel = typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0;
+  sync.survivalEligible = userEligibleForSurvivalUnlock(u);
   return sync;
 }
 
@@ -103,6 +108,118 @@ function runIsCleared(r) {
 
 function userHasClearedSurvivalFromRuns(runs) {
   return (runs || []).some((r) => normalizeRunMode(r.mode) === "survival" && runIsCleared(r));
+}
+
+const SURVIVAL_UNLOCK_L16_INDEX = 15;
+const SURVIVAL_HEATMAP_PASS_ACCURACY = 0.95;
+
+function runsHaveTrainingL16Cleared(runs) {
+  return (runs || []).some((r) => {
+    if (normalizeRunMode(r.mode) !== "training") return false;
+    if (r.cleared !== true) return false;
+    return Number(r.maxLevel) >= SURVIVAL_UNLOCK_L16_INDEX;
+  });
+}
+
+function runsMaxLevelChallengeBest(runs) {
+  let best = 0;
+  (runs || []).forEach((r) => {
+    if (normalizeRunMode(r.mode) !== "level") return;
+    const ml = Number(r.maxLevel) || 0;
+    if (ml > best) best = ml;
+  });
+  return Math.min(SURVIVAL_UNLOCK_L16_INDEX, best);
+}
+
+function readCohortResultForHeatmap() {
+  const cache = readCohortLevelStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
+function computeHeatmapL16PassedFromRuns(runs) {
+  const cohort = readCohortResultForHeatmap();
+  const cellsResult = heatmapStats.buildHeatmapCells({
+    runs,
+    cohort,
+    minAttempts: 10,
+    nowTs: Date.now(),
+  });
+  return heatmapStats.isHeatmapLevelPassed(
+    cellsResult,
+    SURVIVAL_UNLOCK_L16_INDEX,
+    SURVIVAL_HEATMAP_PASS_ACCURACY,
+  );
+}
+
+/** 从 runs 重算生存解锁相关标记（只升不降）；返回是否改动 user */
+function recomputeSurvivalUnlockFlags(u, runs) {
+  if (!u) return false;
+  let changed = false;
+  if (!u.trainingL16Cleared && runsHaveTrainingL16Cleared(runs)) {
+    u.trainingL16Cleared = true;
+    changed = true;
+  }
+  const runBest = runsMaxLevelChallengeBest(runs);
+  const curBest = typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0;
+  if (runBest > curBest) {
+    u.levelChallengeBestLevel = runBest;
+    changed = true;
+  }
+  if (!u.heatmapL16Passed && computeHeatmapL16PassedFromRuns(runs)) {
+    u.heatmapL16Passed = true;
+    changed = true;
+  }
+  return changed;
+}
+
+function userEligibleForSurvivalUnlock(u, runs) {
+  if (!u) return false;
+  if (u.survivalUnlocked === true) return true;
+  if (u.trainingL16Cleared === true) return true;
+  if ((typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0) >= SURVIVAL_UNLOCK_L16_INDEX) {
+    return true;
+  }
+  if (u.heatmapL16Passed === true) return true;
+  if (runs) {
+    if (runsHaveTrainingL16Cleared(runs)) return true;
+    if (runsMaxLevelChallengeBest(runs) >= SURVIVAL_UNLOCK_L16_INDEX) return true;
+    if (computeHeatmapL16PassedFromRuns(runs)) return true;
+  }
+  return false;
+}
+
+function backfillSurvivalUnlockFlagsForAllUsers() {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  let updatedUsers = 0;
+  let trainingL16ClearedSet = 0;
+  let heatmapL16PassedSet = 0;
+  let levelChallengeBestLevelUpdated = 0;
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    const runs = runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    const before = {
+      training: u.trainingL16Cleared === true,
+      heatmap: u.heatmapL16Passed === true,
+      best: typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0,
+    };
+    const changed = recomputeSurvivalUnlockFlags(u, runs);
+    if (changed) {
+      updatedUsers += 1;
+      if (!before.training && u.trainingL16Cleared === true) trainingL16ClearedSet += 1;
+      if (!before.heatmap && u.heatmapL16Passed === true) heatmapL16PassedSet += 1;
+      if ((u.levelChallengeBestLevel || 0) > before.best) levelChallengeBestLevelUpdated += 1;
+    }
+  });
+  writeJson(USERS_FILE, { users });
+  return {
+    totalUsers: users.length,
+    updatedUsers,
+    trainingL16ClearedSet,
+    heatmapL16PassedSet,
+    levelChallengeBestLevelUpdated,
+  };
 }
 
 /** 将旧 survivalCleared 迁入 cleared 并删除旧键；返回是否改动 */
@@ -899,6 +1016,8 @@ app.post("/api/register", async (req, res) => {
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
+    trainingL16Cleared: false,
+    heatmapL16Passed: false,
     createdBy: "self",
   };
   data.users.push(newUser);
@@ -1243,6 +1362,14 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       u.recentExpandBracketsRuns.unshift(runEntry);
       if (u.recentExpandBracketsRuns.length > 10) u.recentExpandBracketsRuns = u.recentExpandBracketsRuns.slice(0, 10);
     }
+    if (!comboOnly && runEntry.mode === "level") {
+      const ml = Math.min(SURVIVAL_UNLOCK_L16_INDEX, Math.max(0, Number(runEntry.maxLevel) || 0));
+      if (ml > (u.levelChallengeBestLevel || 0)) u.levelChallengeBestLevel = ml;
+    }
+    if (!comboOnly) {
+      const allRuns = runsData.runs[username] || [];
+      recomputeSurvivalUnlockFlags(u, allRuns);
+    }
   }
   if (!comboOnly && runEntry.mode === "survival" && runEntry.cleared === true) {
     const rankingData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
@@ -1566,6 +1693,8 @@ app.post("/api/admin/users", async (req, res) => {
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
+    trainingL16Cleared: false,
+    heatmapL16Passed: false,
     isTester: false,
   });
   writeJson(USERS_FILE, data);
@@ -2042,6 +2171,42 @@ app.post("/api/admin/maintenance/backfill-combo", (req, res) => {
   });
   writeJson(USERS_FILE, { users });
   return res.json({ ok: true, totalUsers: users.length, updatedUsers: changed });
+});
+
+// ========== 学员：刷新生存解锁资格（从 runs 重算标记） ==========
+app.get("/api/user/:username/survival-eligibility", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const uIdx = usersData.users.findIndex((u) => u.username === username);
+  if (uIdx < 0) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const u = usersData.users[uIdx];
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runs = runsData.runs && Array.isArray(runsData.runs[username]) ? runsData.runs[username] : [];
+  recomputeSurvivalUnlockFlags(u, runs);
+  writeJson(USERS_FILE, usersData);
+  return res.json({
+    ok: true,
+    survivalUnlocked: u.survivalUnlocked === true,
+    trainingL16Cleared: u.trainingL16Cleared === true,
+    heatmapL16Passed: u.heatmapL16Passed === true,
+    levelChallengeBestLevel: typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0,
+    eligible: userEligibleForSurvivalUnlock(u),
+  });
+});
+
+// ========== 管理员：回填生存解锁标记（trainingL16 / heatmapL16 / levelBest） ==========
+app.post("/api/admin/maintenance/backfill-survival-unlock-flags", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const stats = backfillSurvivalUnlockFlagsForAllUsers();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
 });
 
 // ========== 头像：学员端获取头像列表（用于解锁/选择，先预留） ==========

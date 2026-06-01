@@ -185,6 +185,7 @@
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-migrate-run-cleared" class="jml-btn jml-btn-primary">迁移 runs：survivalCleared → cleared</button>
+          <button type="button" id="jml-btn-backfill-survival-unlock" class="jml-btn jml-btn-primary">回填生存解锁标记</button>
           <button type="button" id="jml-btn-backfill-streak" class="jml-btn">回填耐力字段（best/current）</button>
           <button type="button" id="jml-btn-backfill-combo" class="jml-btn">回填连击字段（best/current）</button>
         </div>
@@ -197,6 +198,15 @@
             <li>完成后抽查：runs 中不应再有 <code>survivalCleared</code>；生存通关局应有 <code>cleared: true</code></li>
           </ol>
           <p class="muted" style="margin:0;">说明：仅将旧 <code>survivalCleared</code> 迁入 <code>cleared</code> 并删除旧键；历史闯关不会按 maxLevel 回填 cleared。新局规则：闯关仅通全关写 cleared，答错/放弃不写。</p>
+          <hr style="margin:14px 0;border:none;border-top:1px solid rgba(0,0,0,.08);" />
+          <p><strong>生存解锁标记回填（cleared 迁移后执行）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>部署最新前后端并重启服务</li>
+            <li>确认管理员后台已刷新过「全体常模」（路径 C 热图需常模缓存）</li>
+            <li>「系统备份」Tab 下载备份</li>
+            <li>点击「回填生存解锁标记」：从 runs 写入 <code>trainingL16Cleared</code>、<code>heatmapL16Passed</code>、<code>levelChallengeBestLevel</code></li>
+          </ol>
+          <p class="muted" style="margin:0;">解锁规则：训练 L16 达标（cleared + maxLevel≥15）/ 闯关到过 L16 / L16 热图加权准确率 ≥95%。已写入 <code>survivalUnlocked</code> 的用户不受影响。</p>
           <hr style="margin:14px 0;border:none;border-top:1px solid rgba(0,0,0,.08);" />
           <p style="margin:0;">耐力/连击回填会从 runs 重算并写回学员字段；建议同样先备份。</p>
         </div>
@@ -232,7 +242,7 @@
   </script>
   <script src="../shared/admin-auth.js?v=19"></script>
   <script src="../shared/expand-brackets-questions.js?v=19"></script>
-  <script src="admin-panel.js?v=20"></script>
+  <script src="admin-panel.js?v=21"></script>
   <script src="admin-worksheet.js?v=19"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {

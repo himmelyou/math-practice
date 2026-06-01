@@ -982,6 +982,30 @@
     }
   }
 
+  async function backfillSurvivalUnlockFlags() {
+    try {
+      var msg = '将从全部 runs 重算并写回学员的生存解锁标记：\n'
+        + 'trainingL16Cleared、heatmapL16Passed、levelChallengeBestLevel。\n\n'
+        + '路径 C（热图）依赖已缓存的全体常模；请先确认常模已刷新。\n\n'
+        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('生存解锁标记回填中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-survival-unlock-flags', { method: 'POST' });
+      var total = Number(data && data.totalUsers) || 0;
+      var updated = Number(data && data.updatedUsers) || 0;
+      var training = Number(data && data.trainingL16ClearedSet) || 0;
+      var heatmap = Number(data && data.heatmapL16PassedSet) || 0;
+      var levelBest = Number(data && data.levelChallengeBestLevelUpdated) || 0;
+      setStatus(
+        '回填完成：共 ' + total + ' 人，更新 ' + updated + ' 人'
+          + '（训练L16 ' + training + '，热图L16 ' + heatmap + '，闯关最高 ' + levelBest + '）',
+        'ok',
+      );
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   async function backfillStreakFields() {
     try {
       if (!confirm('将从 runs 重算并写回所有学员的 streakBest/streakCurrent/streakLastDate，确认继续？')) return;
@@ -1136,6 +1160,8 @@
 
     var migrateRunClearedBtn = document.getElementById('jml-btn-migrate-run-cleared');
     if (migrateRunClearedBtn) migrateRunClearedBtn.addEventListener('click', migrateRunClearedFields);
+    var backfillSurvivalUnlockBtn = document.getElementById('jml-btn-backfill-survival-unlock');
+    if (backfillSurvivalUnlockBtn) backfillSurvivalUnlockBtn.addEventListener('click', backfillSurvivalUnlockFlags);
     var backfillStreakBtn = document.getElementById('jml-btn-backfill-streak');
     if (backfillStreakBtn) backfillStreakBtn.addEventListener('click', backfillStreakFields);
     var backfillComboBtn = document.getElementById('jml-btn-backfill-combo');
