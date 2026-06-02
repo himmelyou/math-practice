@@ -65,11 +65,10 @@
       var promptClass = 'jml-ws-prompt' + (q.compact ? ' jml-ws-prompt-compact' : '');
       html +=
         '<li class="jml-ws-item">' +
-        '<div class="jml-ws-qline jml-ws-qline-stack">' +
+        '<div class="jml-ws-qline">' +
         '<span class="jml-ws-num">' +
         n +
         '.</span>' +
-        '<div class="jml-ws-body">' +
         '<span class="' +
         promptClass +
         '">' +
@@ -78,7 +77,7 @@
       if (showAnswers) {
         html += '<span class="jml-ws-ans"> = ' + escapeHtml(q.answer) + '</span>';
       }
-      html += '</div></div>';
+      html += '</div>';
       if (!showAnswers) {
         html += '<span class="jml-ws-workspace" aria-hidden="true"></span>';
       }

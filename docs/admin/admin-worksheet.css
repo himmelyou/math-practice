@@ -177,25 +177,16 @@
   line-height: 1.25;
 }
 
-/* 题号在上、题干在下（纵向） */
-.jml-ws-qline-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.8mm;
-  width: 100%;
-}
-
-.jml-ws-qline-stack .jml-ws-body {
-  width: 100%;
-  line-height: 1.3;
-}
-
 .jml-ws-num {
-  display: block;
+  display: inline;
   font-weight: 700;
   font-size: 10pt;
-  line-height: 1.2;
+  margin-right: 2em;
+}
+
+.jml-ws-qline .jml-ws-prompt,
+.jml-ws-qline .jml-ws-ans {
+  display: inline;
 }
 
 .jml-ws-prompt {
@@ -207,11 +198,6 @@
 .jml-ws-prompt-compact {
   font-size: 10pt;
   letter-spacing: 0;
-}
-
-.jml-ws-qline-stack .jml-ws-prompt,
-.jml-ws-qline-stack .jml-ws-ans {
-  display: inline;
 }
 
 /* 四则 30 题：略收紧行距与书写区 */
