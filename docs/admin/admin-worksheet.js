@@ -2,8 +2,12 @@
  * 管理端：四则 / 拆括号习题纸生成与打印
  */
 (function () {
-  var QUESTIONS_PER_PAGE = 20;
-  var COLS_PER_PAGE = 10;
+  function getPageLayout(mode) {
+    if (mode === 'arithmetic') {
+      return { questionsPerPage: 30, perCol: 15, pageClass: 'jml-ws-page--30' };
+    }
+    return { questionsPerPage: 20, perCol: 10, pageClass: 'jml-ws-page--20' };
+  }
 
   function escapeHtml(s) {
     if (s == null) return '';
@@ -45,10 +49,12 @@
     };
   }
 
+  /** 纵向分栏：左列 1…perCol，右列 perCol+1… */
   function splitIntoColumns(questions, perCol) {
-    var left = questions.slice(0, perCol);
-    var right = questions.slice(perCol);
-    return { left: left, right: right };
+    return {
+      left: questions.slice(0, perCol),
+      right: questions.slice(perCol),
+    };
   }
 
   function renderColumnItems(items, startIndex, showAnswers) {
@@ -59,10 +65,11 @@
       var promptClass = 'jml-ws-prompt' + (q.compact ? ' jml-ws-prompt-compact' : '');
       html +=
         '<li class="jml-ws-item">' +
-        '<div class="jml-ws-qline">' +
+        '<div class="jml-ws-qline jml-ws-qline-stack">' +
         '<span class="jml-ws-num">' +
         n +
-        ')</span> ' +
+        '.</span>' +
+        '<div class="jml-ws-body">' +
         '<span class="' +
         promptClass +
         '">' +
@@ -71,7 +78,7 @@
       if (showAnswers) {
         html += '<span class="jml-ws-ans"> = ' + escapeHtml(q.answer) + '</span>';
       }
-      html += '</div>';
+      html += '</div></div>';
       if (!showAnswers) {
         html += '<span class="jml-ws-workspace" aria-hidden="true"></span>';
       }
@@ -85,13 +92,13 @@
     var name = opts.studentName;
     var questions = opts.questions;
     var showAnswers = !!opts.showAnswers;
-    var split = splitIntoColumns(questions, COLS_PER_PAGE);
-    var nameHtml = name
-      ? escapeHtml(name)
-      : '&nbsp;';
+    var layout = opts.layout || getPageLayout('expandBrackets');
+    var split = splitIntoColumns(questions, layout.perCol);
+    var nameHtml = name ? escapeHtml(name) : '&nbsp;';
 
     return (
-      '<section class="jml-ws-page' +
+      '<section class="jml-ws-page ' +
+      layout.pageClass +
       (showAnswers ? ' jml-ws-answers' : '') +
       '">' +
       '<header class="jml-ws-head">' +
@@ -107,9 +114,9 @@
       renderColumnItems(split.left, 1, showAnswers) +
       '</ol>' +
       '<ol class="jml-ws-col" start="' +
-      (COLS_PER_PAGE + 1) +
+      (layout.perCol + 1) +
       '">' +
-      renderColumnItems(split.right, COLS_PER_PAGE + 1, showAnswers) +
+      renderColumnItems(split.right, layout.perCol + 1, showAnswers) +
       '</ol>' +
       '</div>' +
       '</section>'
@@ -141,6 +148,7 @@
 
   function generateWorksheet() {
     var mode = getWorksheetMode();
+    var layout = getPageLayout(mode);
     var levelEl = document.getElementById('jml-ws-level');
     var pagesEl = document.getElementById('jml-ws-pages');
     var nameEl = document.getElementById('jml-ws-student-name');
@@ -170,7 +178,7 @@
     try {
       for (var p = 0; p < pages; p += 1) {
         var batch = [];
-        for (var i = 0; i < QUESTIONS_PER_PAGE; i += 1) {
+        for (var i = 0; i < layout.questionsPerPage; i += 1) {
           batch.push(buildQuestion(mode, level));
         }
         html += renderPageHtml({
@@ -178,6 +186,7 @@
           studentName: studentName,
           questions: batch,
           showAnswers: false,
+          layout: layout,
         });
         if (includeAnswers) {
           html += renderPageHtml({
@@ -185,6 +194,7 @@
             studentName: studentName,
             questions: batch,
             showAnswers: true,
+            layout: layout,
           });
         }
       }
