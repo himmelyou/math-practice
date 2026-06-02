@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=19"></script>
-  <script src="shared/app-version.js?v=19"></script>
+  <script src="config.js?v=20"></script>
+  <script src="shared/app-version.js?v=20"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -293,7 +293,8 @@
     /* 游戏页：人物栏与状态栏间距与块间 8px 一致 */
     .app:has(.game-section.visible) .app-header,
     .app:has(#expand-brackets-section.visible) .app-header,
-    .app:has(#prime-composite-section.visible) .app-header {
+    .app:has(#prime-composite-section.visible) .app-header,
+    .app:has(#perfect-square-section.visible) .app-header {
       padding-bottom: 0;
     }
 
@@ -2518,6 +2519,30 @@
       margin-top: 8px;
     }
 
+    .perfect-square-page.game-section.visible,
+    #perfect-square-section.visible {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      margin-top: 8px;
+      gap: 12px;
+    }
+
+    .perfect-square-page .perfect-square-idle-card {
+      min-height: clamp(160px, 28vh, 220px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    .perfect-square-page .perfect-square-idle-card .question-text {
+      margin: 0;
+      text-align: center;
+      color: var(--muted);
+    }
+
     .prime-composite-page #prime-status-grid {
       margin-top: 8px;
     }
@@ -2856,6 +2881,12 @@
             <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-prime-composite">
               <img class="home-mode-icon" src="assets/home/ic_challenge_1.png" width="28" height="28" alt="" />
               <span class="home-mode-label">质数合数</span>
+              <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
+              <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
+            </button>
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-perfect-square">
+              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <span class="home-mode-label">平方数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
@@ -3291,6 +3322,19 @@
       </div>
     </section>
 
+    <!-- 平方数（占位入口，玩法待接） -->
+    <section class="game-section perfect-square-page" id="perfect-square-section" style="display:none;">
+      <div class="status-grid" id="perfect-square-status-grid">
+        <div class="status-item status-item-full">
+          <span class="status-label" id="perfect-square-lbl-mode">当前模式：</span>
+          <span class="status-value" id="perfect-square-mode-name">平方数</span>
+        </div>
+      </div>
+      <main class="card perfect-square-idle-card">
+        <div class="question-text rule-hint" id="perfect-square-idle-hint">功能开发中，敬请期待。</div>
+      </main>
+    </section>
+
     <!-- 选择头像：单独页面（对齐小程序） -->
     <section class="ranking-section" id="avatar-picker-section" style="display:none;margin-top:12px;">
       <div class="ranking-header">
@@ -3350,11 +3394,11 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=19"></script>
-  <script src="shared/stats-i18n-pack.js?v=19"></script>
-  <script src="stats-heatmap-browser.js?v=19"></script>
-  <script src="stats-aggregate-browser.js?v=19"></script>
-  <script src="stats-chart-browser.js?v=19"></script>
+  <script src="prime-composite-logic.js?v=20"></script>
+  <script src="shared/stats-i18n-pack.js?v=20"></script>
+  <script src="stats-heatmap-browser.js?v=20"></script>
+  <script src="stats-aggregate-browser.js?v=20"></script>
+  <script src="stats-chart-browser.js?v=20"></script>
   <script src="shared/arithmetic-questions.js?v=20"></script>
   <script src="shared/expand-brackets-questions.js?v=20"></script>
   <script>
@@ -3637,6 +3681,7 @@
         dom.expandSection.style.display = "none";
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
+      hidePerfectSquareSection();
       renderWrongbookList();
     }
 
@@ -4786,6 +4831,7 @@
         "home.mode.survival": "生存挑戰",
         "home.mode.expandBrackets": "拆括號",
         "home.mode.primeComposite": "質數合數",
+        "home.mode.perfectSquare": "平方數",
         "home.mode.gcd": "公因數",
         "home.mode.lcm": "公倍數",
         "home.mode.wrongbook": "錯題本",
@@ -4816,6 +4862,7 @@
         "home.soon.gcd": "公因數：功能即將上線",
         "home.soon.lcm": "公倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
+        "perfectSquare.comingSoon": "功能開發中，敬請期待。",
         "expand.title": "拆括號",
         "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
         "expand.start": "開始挑戰",
@@ -5076,6 +5123,7 @@
         "home.mode.survival": "Survival",
         "home.mode.expandBrackets": "Brackets",
         "home.mode.primeComposite": "Primes",
+        "home.mode.perfectSquare": "Squares",
         "home.mode.gcd": "GCF",
         "home.mode.lcm": "LCM",
         "home.mode.wrongbook": "Mistakes",
@@ -5106,6 +5154,7 @@
         "home.soon.gcd": "Common Factors: coming soon",
         "home.soon.lcm": "Common Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
+        "perfectSquare.comingSoon": "Coming soon.",
         "expand.title": "Expand Brackets",
         "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
         "expand.start": "Start",
@@ -5518,6 +5567,9 @@
       setT("prime-th-score", "recent.th.score");
       setT("prime-th-wrong", "recent.th.wrong");
       setT("prime-recent-history-empty", "recent.empty");
+      setT("perfect-square-lbl-mode", "game.status.currentMode");
+      setT("perfect-square-mode-name", "home.mode.perfectSquare");
+      setT("perfect-square-idle-hint", "perfectSquare.comingSoon");
       const avH = document.querySelector("#avatar-picker-section .ranking-title");
       if (avH) avH.textContent = t("avatar.pageTitle");
       if (byId("avatar-picker-section")) {
@@ -5647,6 +5699,7 @@
       setHomeModeLabel("mode-survival", "home.mode.survival");
       setHomeModeLabel("mode-expand-brackets", "home.mode.expandBrackets");
       setHomeModeLabel("mode-prime-composite", "home.mode.primeComposite");
+      setHomeModeLabel("mode-perfect-square", "home.mode.perfectSquare");
       setHomeModeLabel("mode-gcd", "home.mode.gcd");
       setHomeModeLabel("mode-lcm", "home.mode.lcm");
       setHomeModeLabel("mode-wrongbook", "home.mode.wrongbook");
@@ -7555,6 +7608,7 @@
         primeSection.style.display = "none";
         primeSection.classList.remove("visible");
       }
+      hidePerfectSquareSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       primeCompositeResetToIdle();
@@ -7591,6 +7645,7 @@
         primeSection.style.display = "none";
         primeSection.classList.remove("visible");
       }
+      hidePerfectSquareSection();
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
@@ -7621,6 +7676,7 @@
       if (statsSection) statsSection.classList.remove("visible");
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
+      hidePerfectSquareSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "flex";
@@ -7629,6 +7685,43 @@
       setPrimePlayBodyPhase("idle");
       void renderPrimeRecentRuns();
       scheduleSyncAllRuleHints();
+    }
+
+    function hidePerfectSquareSection() {
+      const sec = document.getElementById("perfect-square-section");
+      if (sec) {
+        sec.style.display = "none";
+        sec.classList.remove("visible");
+      }
+    }
+
+    function showPerfectSquareView() {
+      setTopActionsVisible(false);
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.expandSection) {
+        dom.expandSection.classList.remove("visible");
+        dom.expandSection.style.display = "none";
+      }
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
+      primeCompositeResetToIdle();
+      const avatarPickerSec = document.getElementById("avatar-picker-section");
+      if (avatarPickerSec) avatarPickerSec.style.display = "none";
+      const sec = document.getElementById("perfect-square-section");
+      if (sec) {
+        sec.style.display = "flex";
+        sec.classList.add("visible");
+      }
+      updateTopTitleForCurrentView(false);
     }
 
     function hidePrimeCompositePlaceholder() {
@@ -8444,6 +8537,7 @@
         primeSection.style.display = "none";
         primeSection.classList.remove("visible");
       }
+      hidePerfectSquareSection();
       sec.style.display = "block";
       renderAvatarPicker();
     }
@@ -8813,6 +8907,7 @@
         primeSectionStats.style.display = "none";
         primeSectionStats.classList.remove("visible");
       }
+      hidePerfectSquareSection();
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
       const empty = document.getElementById("stats-level-empty");
@@ -8968,6 +9063,7 @@
         primeSection.style.display = "none";
         primeSection.classList.remove("visible");
       }
+      hidePerfectSquareSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       if (dom.expandSection) {
@@ -9019,6 +9115,7 @@
         dom.expandSection.style.display = "none";
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
+      hidePerfectSquareSection();
       renderWrongbookList();
       const name = loadCurrentUsername();
       if (!name || !getApiBase()) return;
@@ -9856,6 +9953,8 @@
 
       const modePrimeComposite = document.getElementById("mode-prime-composite");
       if (modePrimeComposite) modePrimeComposite.addEventListener("click", showPrimeCompositePlaceholder);
+      const modePerfectSquare = document.getElementById("mode-perfect-square");
+      if (modePerfectSquare) modePerfectSquare.addEventListener("click", showPerfectSquareView);
       const modeExpandBrackets = document.getElementById("mode-expand-brackets");
       if (modeExpandBrackets) modeExpandBrackets.addEventListener("click", handleModeExpandBrackets);
       const primeStartBtn = document.getElementById("prime-composite-start-btn");
