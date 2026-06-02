@@ -227,11 +227,19 @@
   function renderPsRecentRunsTable(runs) {
     if (!dom().psHistoryBody || !dom().psHistoryEmpty) return;
     const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
+    const table = dom().psHistoryBody.closest ? dom().psHistoryBody.closest("table") : null;
+    const thead = table && table.querySelector ? table.querySelector("thead") : null;
     dom().psHistoryBody.innerHTML = "";
     if (!list.length) {
-      dom().psHistoryEmpty.style.display = "block";
+      dom().psHistoryEmpty.style.display = "none";
+      if (thead) thead.style.display = "none";
+      dom().psHistoryBody.innerHTML =
+        '<tr><td colspan="4" class="recent-empty-row">' +
+        deps.escapeHtml(t("recent.empty")) +
+        "</td></tr>";
       return;
     }
+    if (thead) thead.style.display = "";
     dom().psHistoryEmpty.style.display = "none";
     dom().psHistoryBody.innerHTML = list
       .map(function (r) {

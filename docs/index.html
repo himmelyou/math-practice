@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=22"></script>
-  <script src="shared/app-version.js?v=22"></script>
+  <script src="config.js?v=25"></script>
+  <script src="shared/app-version.js?v=25"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1661,6 +1661,15 @@
       margin-top: 4px;
       font-size: 0.78rem;
       color: var(--muted);
+    }
+
+    .recent-table td.recent-empty-row {
+      text-align: center;
+      border-bottom: none;
+      padding: 8px 2px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      white-space: normal;
     }
 
     .game-over-panel {
@@ -3510,7 +3519,7 @@
       <main class="card game-card--prestart" id="ps-game-card">
         <div class="question-header">
           <div class="question-label">
-            <span class="status-label" id="ps-lbl-difficulty">当前难度：</span>
+            <span class="status-label" id="ps-lbl-difficulty">難度：</span>
             <span class="status-value" id="ps-current-level-name">L1</span>
             <select class="expand-level-select" id="ps-level-select" style="display:none;" aria-label="选择平方数难度"></select>
           </div>
@@ -3652,15 +3661,15 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=22"></script>
-  <script src="shared/stats-i18n-pack.js?v=22"></script>
-  <script src="stats-heatmap-browser.js?v=22"></script>
-  <script src="stats-aggregate-browser.js?v=22"></script>
-  <script src="stats-chart-browser.js?v=22"></script>
-  <script src="shared/arithmetic-questions.js?v=22"></script>
-  <script src="shared/expand-brackets-questions.js?v=22"></script>
-  <script src="shared/perfect-square-questions.js?v=22"></script>
-  <script src="perfect-square-page.js?v=22"></script>
+  <script src="prime-composite-logic.js?v=25"></script>
+  <script src="shared/stats-i18n-pack.js?v=25"></script>
+  <script src="stats-heatmap-browser.js?v=25"></script>
+  <script src="stats-aggregate-browser.js?v=25"></script>
+  <script src="stats-chart-browser.js?v=25"></script>
+  <script src="shared/arithmetic-questions.js?v=25"></script>
+  <script src="shared/expand-brackets-questions.js?v=25"></script>
+  <script src="shared/perfect-square-questions.js?v=25"></script>
+  <script src="perfect-square-page.js?v=25"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5216,6 +5225,7 @@
         "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
         "mode.running.perfectSquare": "平方數",
         "ps.subtitle": "全對升級；錯 2 題降級。",
+        "ps.difficultyLabel": "難度：",
         "ps.level.L1": "2～11 的平方",
         "ps.level.L2": "2～20 的平方",
         "ps.level.L3": "2～30 的平方",
@@ -5524,6 +5534,7 @@
         "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
         "mode.running.perfectSquare": "Squares",
         "ps.subtitle": "Perfect = level up; 2 wrong = level down.",
+        "ps.difficultyLabel": "Difficulty:",
         "ps.level.L1": "Squares 2–11",
         "ps.level.L2": "Squares 2–20",
         "ps.level.L3": "Squares 2–30",
@@ -5957,17 +5968,17 @@
       setT("ps-lbl-score", "game.status.scoreThisRun");
       setT("ps-lbl-level", "game.status.expandLevel");
       setT("ps-lbl-wrong", "game.status.expandWrong");
-      setT("ps-lbl-difficulty", "game.status.difficulty");
+      setT("ps-lbl-difficulty", "ps.difficultyLabel");
       setT("ps-start-btn", "game.btn.startChallenge");
       setT("ps-go-duration-label", "ps.end.time");
       setT("ps-go-score-label", "ps.end.level");
       setT("ps-go-wrong-label", "ps.end.wrong");
       setT("ps-go-result-label", "ps.end.result");
       setT("ps-play-again-btn", "game.btn.playAgain");
-      setT("ps-th-dt", "recent.th.datetime");
-      setT("ps-th-time", "recent.th.time");
-      setT("ps-th-wrong", "recent.th.wrong");
-      setT("ps-th-level", "recent.th.level");
+      setT("ps-th-dt", "expand.th.datetime");
+      setT("ps-th-time", "expand.th.time");
+      setT("ps-th-wrong", "expand.th.wrong");
+      setT("ps-th-level", "expand.th.level");
       setT("ps-history-empty", "recent.empty");
       const psRecentTitle = document.getElementById("ps-recent-title");
       if (psRecentTitle) psRecentTitle.textContent = t("ps.recentTitle");
