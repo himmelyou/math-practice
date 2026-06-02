@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=25"></script>
-  <script src="shared/app-version.js?v=25"></script>
+  <script src="config.js?v=26"></script>
+  <script src="shared/app-version.js?v=26"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1619,7 +1619,8 @@
       text-overflow: ellipsis;
       text-align: center !important;
     }
-    #soft-kbd-card .feedback.soft-kbd-feedback:empty {
+    #soft-kbd-card .feedback.soft-kbd-feedback:empty,
+    #ps-soft-kbd-card .feedback.soft-kbd-feedback:empty {
       color: transparent !important;
     }
     .feedback.soft-kbd-feedback.correct {
@@ -1630,7 +1631,8 @@
       background: #ffebee !important;
       color: #c62828 !important;
     }
-    #soft-kbd-card .feedback {
+    #soft-kbd-card .feedback,
+    #ps-soft-kbd-card .feedback {
       text-align: center !important;
     }
 
@@ -1661,15 +1663,7 @@
       margin-top: 4px;
       font-size: 0.78rem;
       color: var(--muted);
-    }
-
-    .recent-table td.recent-empty-row {
       text-align: center;
-      border-bottom: none;
-      padding: 8px 2px;
-      color: var(--muted);
-      font-size: 0.78rem;
-      white-space: normal;
     }
 
     .game-over-panel {
@@ -3150,7 +3144,7 @@
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
         <div class="game-card-action-anchor">
           <div class="input-row" id="answer-input-row" style="display:none">
-            <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly />
+            <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="decimal" />
           </div>
           <div class="button-row" id="start-row">
             <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
@@ -3203,25 +3197,7 @@
     </section>
     <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;">
       <div class="feedback" id="feedback"></div>
-      <div class="soft-kbd" id="soft-kbd" aria-label="数字键盘">
-        <div class="soft-kbd-grid">
-          <button type="button" class="soft-kbd-key" data-key="1">1</button>
-          <button type="button" class="soft-kbd-key" data-key="2">2</button>
-          <button type="button" class="soft-kbd-key" data-key="3">3</button>
-          <button type="button" class="soft-kbd-key" data-key="4">4</button>
-          <button type="button" class="soft-kbd-key" data-key="5">5</button>
-          <button type="button" class="soft-kbd-key" data-key="6">6</button>
-          <button type="button" class="soft-kbd-key" data-key="7">7</button>
-          <button type="button" class="soft-kbd-key" data-key="8">8</button>
-          <button type="button" class="soft-kbd-key" data-key="9">9</button>
-          <button type="button" class="soft-kbd-key" data-key=".">.</button>
-          <button type="button" class="soft-kbd-key" data-key="0">0</button>
-          <button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back">删除</button>
-        </div>
-        <div class="soft-kbd-enter-row">
-          <button type="button" class="soft-kbd-enter" data-key="enter">确认</button>
-        </div>
-      </div>
+      <div class="soft-kbd" id="soft-kbd" data-jml-soft-kbd-layout="decimal"></div>
     </section>
       <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
       </div>
@@ -3533,7 +3509,7 @@
         <form id="ps-answer-form" class="answer-form" action="javascript:void(0);">
           <div class="game-card-action-anchor">
             <div class="input-row" id="ps-answer-input-row" style="display:none;">
-              <input id="ps-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly />
+              <input id="ps-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
             </div>
             <div class="button-row" id="ps-start-row">
               <button type="button" class="btn-primary" id="ps-start-btn">开始挑战</button>
@@ -3579,24 +3555,7 @@
 
       <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;">
         <div class="feedback" id="ps-feedback"></div>
-        <div class="soft-kbd" id="ps-soft-kbd" aria-label="数字键盘">
-          <div class="soft-kbd-grid">
-            <button type="button" class="soft-kbd-key" data-key="1">1</button>
-            <button type="button" class="soft-kbd-key" data-key="2">2</button>
-            <button type="button" class="soft-kbd-key" data-key="3">3</button>
-            <button type="button" class="soft-kbd-key" data-key="4">4</button>
-            <button type="button" class="soft-kbd-key" data-key="5">5</button>
-            <button type="button" class="soft-kbd-key" data-key="6">6</button>
-            <button type="button" class="soft-kbd-key" data-key="7">7</button>
-            <button type="button" class="soft-kbd-key" data-key="8">8</button>
-            <button type="button" class="soft-kbd-key" data-key="9">9</button>
-            <button type="button" class="soft-kbd-key" data-key="0">0</button>
-            <button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back">删除</button>
-          </div>
-          <div class="soft-kbd-enter-row">
-            <button type="button" class="soft-kbd-enter" data-key="enter">确认</button>
-          </div>
-        </div>
+        <div class="soft-kbd" id="ps-soft-kbd" data-jml-soft-kbd-layout="integer"></div>
       </section>
       <div class="game-play-tail" id="ps-play-tail" aria-hidden="true"></div>
       </div>
@@ -3661,15 +3620,17 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=25"></script>
-  <script src="shared/stats-i18n-pack.js?v=25"></script>
-  <script src="stats-heatmap-browser.js?v=25"></script>
-  <script src="stats-aggregate-browser.js?v=25"></script>
-  <script src="stats-chart-browser.js?v=25"></script>
-  <script src="shared/arithmetic-questions.js?v=25"></script>
-  <script src="shared/expand-brackets-questions.js?v=25"></script>
-  <script src="shared/perfect-square-questions.js?v=25"></script>
-  <script src="perfect-square-page.js?v=25"></script>
+  <script src="prime-composite-logic.js?v=26"></script>
+  <script src="shared/stats-i18n-pack.js?v=26"></script>
+  <script src="stats-heatmap-browser.js?v=26"></script>
+  <script src="stats-aggregate-browser.js?v=26"></script>
+  <script src="stats-chart-browser.js?v=26"></script>
+  <script src="shared/arithmetic-questions.js?v=26"></script>
+  <script src="shared/expand-brackets-questions.js?v=26"></script>
+  <script src="shared/soft-keyboard.js?v=26"></script>
+  <script src="shared/answer-input.js?v=26"></script>
+  <script src="shared/perfect-square-questions.js?v=26"></script>
+  <script src="perfect-square-page.js?v=26"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -4152,75 +4113,51 @@
     }
 
     function shouldLockAnswerInputForSoftKeyboard() {
-      try {
-        if (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) return true;
-      } catch (e) {}
-      try {
-        if (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints) > 0) return true;
-      } catch (e) {}
-      return false;
+      return window.JmlSoftKeyboard
+        ? window.JmlSoftKeyboard.shouldLockForTouch()
+        : false;
     }
 
     function syncAnswerInputInteractionMode() {
-      if (!dom.answerInput) return;
-      const lockForTouch = shouldLockAnswerInputForSoftKeyboard();
-      if (lockForTouch) {
-        dom.answerInput.setAttribute("readonly", "readonly");
-        dom.answerInput.setAttribute("inputmode", "none");
-      } else {
-        dom.answerInput.removeAttribute("readonly");
-        dom.answerInput.setAttribute("inputmode", "decimal");
+      if (window.JmlAnswerInput) {
+        window.JmlAnswerInput.refreshAll(document, t);
       }
     }
 
     function softKeyboardBackspace(s) {
-      if (!s) return "";
-      return s.slice(0, -1);
+      return window.JmlSoftKeyboard
+        ? window.JmlSoftKeyboard.backspace(s)
+        : String(s || "").slice(0, -1);
     }
 
     function softKeyboardAppend(current, ch) {
-      current = String(current || "");
-      if (ch === ".") {
-        if (current.includes(".")) return current;
-        if (current === "" || current === "-") return (current === "-" ? "-0." : "0.");
+      if (window.JmlSoftKeyboard) {
+        return window.JmlSoftKeyboard.append(current, ch, true);
       }
-      return current + ch;
+      return String(current || "") + ch;
     }
 
     function initSoftKeyboardIfNeeded() {
-      if (!dom.softKbd || dom.softKbd.__bound) return;
-      dom.softKbd.__bound = true;
-
-      // 仅触屏设备阻止 input 聚焦，避免弹出系统键盘
-      if (dom.answerInput) {
-        dom.answerInput.addEventListener("focus", function () {
-          if (!shouldLockAnswerInputForSoftKeyboard()) return;
-          try { dom.answerInput.blur(); } catch (e) {}
-        });
-        dom.answerInput.addEventListener("click", function (e) {
-          if (!shouldLockAnswerInputForSoftKeyboard()) return;
-          e.preventDefault();
-          try { dom.answerInput.blur(); } catch (err) {}
+      if (!window.JmlSoftKeyboard || !dom.softKbd) return;
+      window.JmlSoftKeyboard.ensureMounted(dom.softKbd, "decimal");
+      window.JmlSoftKeyboard.bind({
+        kbdEl: dom.softKbd,
+        inputEl: dom.answerInput,
+        onEnter: handleSubmit,
+        layout: "decimal",
+      });
+      if (dom.answerInput && window.JmlAnswerInput) {
+        window.JmlAnswerInput.bind({
+          inputEl: dom.answerInput,
+          t: t,
+          inputModeWhenUnlocked: "decimal",
+          onSubmit: handleSubmit,
+          getShouldLock: shouldLockAnswerInputForSoftKeyboard,
         });
       }
-
-      dom.softKbd.addEventListener("click", function (e) {
-        var btn = e.target && e.target.closest ? e.target.closest("button[data-key]") : null;
-        if (!btn) return;
-        var k = btn.getAttribute("data-key");
-        if (!dom.answerInput) return;
-        if (k === "back") {
-          dom.answerInput.value = softKeyboardBackspace(dom.answerInput.value);
-          return;
-        }
-        if (k === "enter") {
-          handleSubmit();
-          return;
-        }
-        if (/^[0-9]$/.test(k) || k === ".") {
-          dom.answerInput.value = softKeyboardAppend(dom.answerInput.value, k);
-        }
-      });
+      if (dom.psSoftKbd) {
+        window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbd, "integer");
+      }
     }
 
     function getModeTitle() {
@@ -5221,23 +5158,14 @@
         "home.soon.gcd": "公因數：功能即將上線",
         "home.soon.lcm": "公倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
-        "perfectSquare.comingSoon": "功能開發中，敬請期待。",
         "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
         "mode.running.perfectSquare": "平方數",
         "ps.subtitle": "全對升級；錯 2 題降級。",
         "ps.difficultyLabel": "難度：",
+        "ps.levelSelectAria": "選擇平方數難度",
         "ps.level.L1": "2～11 的平方",
         "ps.level.L2": "2～20 的平方",
         "ps.level.L3": "2～30 的平方",
-        "ps.end.title": "本局結束",
-        "ps.end.time": "用時：",
-        "ps.end.level": "等級：",
-        "ps.end.wrong": "錯題：",
-        "ps.end.result": "結果：",
-        "ps.result.upTo": "升級到 L{n}",
-        "ps.result.downTo": "降級到 L{n}",
-        "ps.result.stayAt": "保持 L{n}",
-        "ps.go.abandoned": "已放棄",
         "ps.recentTitle": "最近十次平方數",
         "expand.title": "拆括號",
         "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
@@ -5530,23 +5458,14 @@
         "home.soon.gcd": "Common Factors: coming soon",
         "home.soon.lcm": "Common Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
-        "perfectSquare.comingSoon": "Coming soon.",
         "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
         "mode.running.perfectSquare": "Squares",
         "ps.subtitle": "Perfect = level up; 2 wrong = level down.",
         "ps.difficultyLabel": "Difficulty:",
+        "ps.levelSelectAria": "Perfect squares level",
         "ps.level.L1": "Squares 2–11",
         "ps.level.L2": "Squares 2–20",
         "ps.level.L3": "Squares 2–30",
-        "ps.end.title": "Session Complete",
-        "ps.end.time": "Time:",
-        "ps.end.level": "Level:",
-        "ps.end.wrong": "Wrong:",
-        "ps.end.result": "Result:",
-        "ps.result.upTo": "Up to L{n}",
-        "ps.result.downTo": "Down to L{n}",
-        "ps.result.stayAt": "Stay at L{n}",
-        "ps.go.abandoned": "Abandoned",
         "ps.recentTitle": "Last 10 square runs",
         "expand.title": "Expand Brackets",
         "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
@@ -5875,7 +5794,11 @@
         else sub.textContent = t("game.subtitle.survival");
       }
       const ai = byId("answer-input");
-      if (ai) ai.placeholder = t("game.answer.placeholder");
+      if (window.JmlAnswerInput) {
+        window.JmlAnswerInput.refreshAll(document, t);
+      } else if (ai) {
+        ai.placeholder = t("game.answer.placeholder");
+      }
       setT("start-game-btn", "game.btn.startGame");
       setT("abandon-game-btn", "game.btn.abandon");
       setT("play-again-btn", "game.btn.playAgain");
@@ -5891,12 +5814,7 @@
       setT("recent-col-level", "recent.th.maxLevel");
       setT("recent-th-cleared", "recent.th.cleared");
       setT("recent-history-empty", "recent.empty");
-      const sk = byId("soft-kbd");
-      if (sk) sk.setAttribute("aria-label", t("softkbd.aria"));
-      const skBack = document.querySelector('.soft-kbd-key[data-key="back"]');
-      if (skBack) skBack.textContent = t("softkbd.delete");
-      const skEnter = document.querySelector('.soft-kbd-enter[data-key="enter"]');
-      if (skEnter) skEnter.textContent = t("softkbd.confirm");
+      if (window.JmlSoftKeyboard) window.JmlSoftKeyboard.applyI18nAll(t);
       setT("wrongbook-empty", "wrongbook.empty");
       const rSel = byId("ranking-mode-select");
       if (rSel) rSel.setAttribute("aria-label", t("ranking.selectAria"));
@@ -5960,8 +5878,6 @@
       setT("prime-th-score", "recent.th.score");
       setT("prime-th-wrong", "recent.th.wrong");
       setT("prime-recent-history-empty", "recent.empty");
-      setT("perfect-square-lbl-mode", "game.status.currentMode");
-      setT("perfect-square-mode-name", "home.mode.perfectSquare");
       setT("ps-lbl-mode", "game.status.currentMode");
       setT("ps-mode-name", "home.mode.perfectSquare");
       setT("ps-lbl-progress", "game.status.progress");
@@ -5970,16 +5886,19 @@
       setT("ps-lbl-wrong", "game.status.expandWrong");
       setT("ps-lbl-difficulty", "ps.difficultyLabel");
       setT("ps-start-btn", "game.btn.startChallenge");
-      setT("ps-go-duration-label", "ps.end.time");
-      setT("ps-go-score-label", "ps.end.level");
-      setT("ps-go-wrong-label", "ps.end.wrong");
-      setT("ps-go-result-label", "ps.end.result");
+      setT("ps-game-over-title", "expand.end.title");
+      setT("ps-go-duration-label", "expand.end.time");
+      setT("ps-go-score-label", "expand.end.level");
+      setT("ps-go-wrong-label", "expand.end.wrong");
+      setT("ps-go-result-label", "expand.end.result");
       setT("ps-play-again-btn", "game.btn.playAgain");
       setT("ps-th-dt", "expand.th.datetime");
       setT("ps-th-time", "expand.th.time");
       setT("ps-th-wrong", "expand.th.wrong");
       setT("ps-th-level", "expand.th.level");
       setT("ps-history-empty", "recent.empty");
+      const psLevelSelect = byId("ps-level-select");
+      if (psLevelSelect) psLevelSelect.setAttribute("aria-label", t("ps.levelSelectAria"));
       const psRecentTitle = document.getElementById("ps-recent-title");
       if (psRecentTitle) psRecentTitle.textContent = t("ps.recentTitle");
       const avH = document.querySelector("#avatar-picker-section .ranking-title");

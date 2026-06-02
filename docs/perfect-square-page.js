@@ -61,6 +61,10 @@
   }
 
   function setPsFeedback(message, type) {
+    if (global.JmlSoftKeyboard) {
+      global.JmlSoftKeyboard.setFeedback(dom().psFeedback, message, type);
+      return;
+    }
     const el = dom().psFeedback;
     if (!el) return;
     el.textContent = "";
@@ -80,15 +84,15 @@
   }
 
   function syncPsAnswerInputMode() {
-    const input = dom().psAnswerInput;
-    if (!input || !deps.shouldLockAnswerInputForSoftKeyboard) return;
-    const lock = deps.shouldLockAnswerInputForSoftKeyboard();
-    if (lock) {
-      input.setAttribute("readonly", "readonly");
-      input.setAttribute("inputmode", "none");
-    } else {
-      input.removeAttribute("readonly");
-      input.setAttribute("inputmode", "numeric");
+    if (global.JmlAnswerInput && dom().psAnswerInput) {
+      global.JmlAnswerInput.syncInteractionMode(dom().psAnswerInput, {
+        t: t,
+        inputModeWhenUnlocked: "numeric",
+        getShouldLock: function () {
+          return global.JmlSoftKeyboard ? global.JmlSoftKeyboard.shouldLockForTouch() : false;
+        },
+      });
+      global.JmlAnswerInput.syncPlaceholder(dom().psAnswerInput, t);
     }
   }
 
@@ -227,19 +231,11 @@
   function renderPsRecentRunsTable(runs) {
     if (!dom().psHistoryBody || !dom().psHistoryEmpty) return;
     const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
-    const table = dom().psHistoryBody.closest ? dom().psHistoryBody.closest("table") : null;
-    const thead = table && table.querySelector ? table.querySelector("thead") : null;
     dom().psHistoryBody.innerHTML = "";
     if (!list.length) {
-      dom().psHistoryEmpty.style.display = "none";
-      if (thead) thead.style.display = "none";
-      dom().psHistoryBody.innerHTML =
-        '<tr><td colspan="4" class="recent-empty-row">' +
-        deps.escapeHtml(t("recent.empty")) +
-        "</td></tr>";
+      dom().psHistoryEmpty.style.display = "block";
       return;
     }
-    if (thead) thead.style.display = "";
     dom().psHistoryEmpty.style.display = "none";
     dom().psHistoryBody.innerHTML = list
       .map(function (r) {
@@ -483,21 +479,21 @@
     }
     hidePsQuestionSubtext();
     if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
-    if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("ps.end.title");
-    if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("ps.end.time");
+    if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
+    if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
     if (dom().psGoDuration) dom().psGoDuration.textContent = deps.formatCompactRunTime(durationSec);
-    if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("ps.end.level");
+    if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");
     if (dom().psGoScore) dom().psGoScore.textContent = "L" + (startLevel + 1);
-    if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("ps.end.wrong");
+    if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
     if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
-    if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("ps.end.result");
+    if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
     if (dom().psGoResult) {
       dom().psGoResult.textContent =
         psWrongCount === 0
-          ? tf("ps.result.upTo", { n: nextLevel + 1 })
+          ? tf("expand.result.upTo", { n: nextLevel + 1 })
           : psWrongCount >= 2
-            ? tf("ps.result.downTo", { n: nextLevel + 1 })
-            : tf("ps.result.stayAt", { n: nextLevel + 1 });
+            ? tf("expand.result.downTo", { n: nextLevel + 1 })
+            : tf("expand.result.stayAt", { n: nextLevel + 1 });
     }
     if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
     if (deps.getCachedUser()) deps.getCachedUser().levelPerfectSquareCurrentLevel = nextLevel;
@@ -524,15 +520,15 @@
     hidePsQuestionSubtext();
     setPsHistoryVisible(true);
     if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
-    if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("ps.end.title");
-    if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("ps.end.time");
+    if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
+    if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
     if (dom().psGoDuration) dom().psGoDuration.textContent = "-";
-    if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("ps.end.level");
+    if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");
     if (dom().psGoScore) dom().psGoScore.textContent = "L" + (psLevel + 1);
-    if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("ps.end.wrong");
+    if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
     if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
-    if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("ps.end.result");
-    if (dom().psGoResult) dom().psGoResult.textContent = t("ps.go.abandoned");
+    if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
+    if (dom().psGoResult) dom().psGoResult.textContent = t("expand.go.abandoned");
     if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
     deps.updateGlobalBackButtonState();
     renderPerfectSquareRecentRuns();
@@ -593,47 +589,27 @@
 
   function initPsSoftKeyboardIfNeeded() {
     const kbd = dom().psSoftKbd;
-    if (!kbd || kbd.__bound) return;
-    kbd.__bound = true;
-    syncPsAnswerInputMode();
     const input = dom().psAnswerInput;
-    if (input) {
-      input.addEventListener("focus", function () {
-        if (!deps.shouldLockAnswerInputForSoftKeyboard || !deps.shouldLockAnswerInputForSoftKeyboard()) return;
-        try {
-          input.blur();
-        } catch (e) {}
-      });
-      input.addEventListener("click", function (e) {
-        if (!deps.shouldLockAnswerInputForSoftKeyboard || !deps.shouldLockAnswerInputForSoftKeyboard()) return;
-        e.preventDefault();
-        try {
-          input.blur();
-        } catch (err) {}
-      });
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          handlePsSubmit();
-        }
+    if (!kbd || !global.JmlSoftKeyboard) return;
+    global.JmlSoftKeyboard.ensureMounted(kbd, "integer");
+    global.JmlSoftKeyboard.bind({
+      kbdEl: kbd,
+      inputEl: input,
+      onEnter: handlePsSubmit,
+      layout: "integer",
+    });
+    if (input && global.JmlAnswerInput) {
+      global.JmlAnswerInput.bind({
+        inputEl: input,
+        t: t,
+        inputModeWhenUnlocked: "numeric",
+        onSubmit: handlePsSubmit,
+        getShouldLock: function () {
+          return global.JmlSoftKeyboard ? global.JmlSoftKeyboard.shouldLockForTouch() : false;
+        },
       });
     }
-    kbd.addEventListener("click", function (e) {
-      const btn = e.target && e.target.closest ? e.target.closest("button[data-key]") : null;
-      if (!btn || !input) return;
-      const k = btn.getAttribute("data-key");
-      if (k === "back") {
-        input.value = deps.softKeyboardBackspace(input.value);
-        return;
-      }
-      if (k === "enter") {
-        handlePsSubmit();
-        return;
-      }
-      if (/^[0-9]$/.test(k)) {
-        input.value = deps.softKeyboardAppend(input.value, k);
-      }
-    });
+    syncPsAnswerInputMode();
   }
 
   function bindEvents() {
