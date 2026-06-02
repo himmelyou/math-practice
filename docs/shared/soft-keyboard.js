@@ -4,7 +4,7 @@
 (function (global) {
   var LAYOUT_KEYS = {
     decimal: ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "back"],
-    integer: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "back"],
+    integer: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "spacer", "0", "back"],
   };
 
   function shouldLockForTouch() {
@@ -32,31 +32,55 @@
     return current + ch;
   }
 
+  function resolveT(explicitT) {
+    if (typeof explicitT === "function") return explicitT;
+    if (typeof global.__JML_EXPAND_T__ === "function") return global.__JML_EXPAND_T__;
+    return null;
+  }
+
   function resolveLayout(kbdEl, explicitLayout) {
     if (explicitLayout && LAYOUT_KEYS[explicitLayout]) return explicitLayout;
     var fromAttr = kbdEl && kbdEl.getAttribute("data-jml-soft-kbd-layout");
     if (fromAttr && LAYOUT_KEYS[fromAttr]) return fromAttr;
-    return "decimal";
+    return "integer";
   }
 
-  function ensureMounted(kbdEl, layout) {
-    if (!kbdEl || kbdEl.getAttribute("data-jml-soft-kbd-mounted") === "1") return;
+  function renderKey(k) {
+    if (k === "back") {
+      return '<button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back"></button>';
+    }
+    if (k === "spacer") {
+      return '<span class="soft-kbd-key-spacer" aria-hidden="true"></span>';
+    }
+    return '<button type="button" class="soft-kbd-key" data-key="' + k + '">' + k + "</button>";
+  }
+
+  function applyI18nAfterMount(kbdEl, t) {
+    t = resolveT(t);
+    if (t) applyI18n(kbdEl, t);
+  }
+
+  function ensureMounted(kbdEl, layout, t) {
+    if (!kbdEl) return;
     layout = resolveLayout(kbdEl, layout);
-    var keys = LAYOUT_KEYS[layout] || LAYOUT_KEYS.decimal;
-    var gridHtml = keys
-      .map(function (k) {
-        if (k === "back") {
-          return '<button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back"></button>';
-        }
-        return '<button type="button" class="soft-kbd-key" data-key="' + k + '">' + k + "</button>";
-      })
-      .join("");
+    var mounted = kbdEl.getAttribute("data-jml-soft-kbd-mounted") === "1";
+    var mountedLayout = kbdEl.getAttribute("data-jml-soft-kbd-layout");
+    if (mounted && mountedLayout === layout) {
+      applyI18nAfterMount(kbdEl, t);
+      return;
+    }
+    if (mounted && mountedLayout !== layout) {
+      kbdEl.removeAttribute("data-jml-soft-kbd-mounted");
+    }
+    var keys = LAYOUT_KEYS[layout] || LAYOUT_KEYS.integer;
+    var gridHtml = keys.map(renderKey).join("");
     kbdEl.innerHTML =
       '<div class="soft-kbd-grid">' +
       gridHtml +
       '</div><div class="soft-kbd-enter-row"><button type="button" class="soft-kbd-enter" data-key="enter"></button></div>';
     kbdEl.setAttribute("data-jml-soft-kbd-mounted", "1");
     kbdEl.setAttribute("data-jml-soft-kbd-layout", layout);
+    applyI18nAfterMount(kbdEl, t);
   }
 
   function applyI18n(kbdEl, t) {
@@ -93,7 +117,7 @@
     var inputEl = options.inputEl;
     var onEnter = options.onEnter;
     if (!kbdEl || kbdEl.__jmlSoftKbdBound) return kbdEl;
-    ensureMounted(kbdEl, options.layout);
+    ensureMounted(kbdEl, options.layout, options.t);
     var layout = resolveLayout(kbdEl, options.layout);
     var allowDecimal = layout === "decimal" && options.allowDecimal !== false;
 

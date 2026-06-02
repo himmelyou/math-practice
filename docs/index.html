@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=26"></script>
-  <script src="shared/app-version.js?v=26"></script>
+  <script src="config.js?v=27"></script>
+  <script src="shared/app-version.js?v=27"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1581,6 +1581,11 @@
       color: #c62828;
       border-color: rgba(198, 40, 40, 0.18);
     }
+    .soft-kbd-key-spacer {
+      display: block;
+      height: 45px;
+      min-height: 45px;
+    }
     .soft-kbd-enter-row {
       margin-top: 6px;
     }
@@ -3144,7 +3149,7 @@
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
         <div class="game-card-action-anchor">
           <div class="input-row" id="answer-input-row" style="display:none">
-            <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="decimal" />
+            <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="numeric" />
           </div>
           <div class="button-row" id="start-row">
             <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
@@ -3197,7 +3202,7 @@
     </section>
     <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;">
       <div class="feedback" id="feedback"></div>
-      <div class="soft-kbd" id="soft-kbd" data-jml-soft-kbd-layout="decimal"></div>
+      <div class="soft-kbd" id="soft-kbd" data-jml-soft-kbd-layout="integer"></div>
     </section>
       <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
       </div>
@@ -3620,17 +3625,17 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=26"></script>
-  <script src="shared/stats-i18n-pack.js?v=26"></script>
-  <script src="stats-heatmap-browser.js?v=26"></script>
-  <script src="stats-aggregate-browser.js?v=26"></script>
-  <script src="stats-chart-browser.js?v=26"></script>
-  <script src="shared/arithmetic-questions.js?v=26"></script>
-  <script src="shared/expand-brackets-questions.js?v=26"></script>
-  <script src="shared/soft-keyboard.js?v=26"></script>
-  <script src="shared/answer-input.js?v=26"></script>
-  <script src="shared/perfect-square-questions.js?v=26"></script>
-  <script src="perfect-square-page.js?v=26"></script>
+  <script src="prime-composite-logic.js?v=27"></script>
+  <script src="shared/stats-i18n-pack.js?v=27"></script>
+  <script src="stats-heatmap-browser.js?v=27"></script>
+  <script src="stats-aggregate-browser.js?v=27"></script>
+  <script src="stats-chart-browser.js?v=27"></script>
+  <script src="shared/arithmetic-questions.js?v=27"></script>
+  <script src="shared/expand-brackets-questions.js?v=27"></script>
+  <script src="shared/soft-keyboard.js?v=27"></script>
+  <script src="shared/answer-input.js?v=27"></script>
+  <script src="shared/perfect-square-questions.js?v=27"></script>
+  <script src="perfect-square-page.js?v=27"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -4132,31 +4137,32 @@
 
     function softKeyboardAppend(current, ch) {
       if (window.JmlSoftKeyboard) {
-        return window.JmlSoftKeyboard.append(current, ch, true);
+        return window.JmlSoftKeyboard.append(current, ch, false);
       }
       return String(current || "") + ch;
     }
 
     function initSoftKeyboardIfNeeded() {
       if (!window.JmlSoftKeyboard || !dom.softKbd) return;
-      window.JmlSoftKeyboard.ensureMounted(dom.softKbd, "decimal");
+      window.JmlSoftKeyboard.ensureMounted(dom.softKbd, "integer", t);
       window.JmlSoftKeyboard.bind({
         kbdEl: dom.softKbd,
         inputEl: dom.answerInput,
         onEnter: handleSubmit,
-        layout: "decimal",
+        layout: "integer",
+        t: t,
       });
       if (dom.answerInput && window.JmlAnswerInput) {
         window.JmlAnswerInput.bind({
           inputEl: dom.answerInput,
           t: t,
-          inputModeWhenUnlocked: "decimal",
+          inputModeWhenUnlocked: "numeric",
           onSubmit: handleSubmit,
           getShouldLock: shouldLockAnswerInputForSoftKeyboard,
         });
       }
       if (dom.psSoftKbd) {
-        window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbd, "integer");
+        window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbd, "integer", t);
       }
     }
 

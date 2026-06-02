@@ -591,12 +591,13 @@
     const kbd = dom().psSoftKbd;
     const input = dom().psAnswerInput;
     if (!kbd || !global.JmlSoftKeyboard) return;
-    global.JmlSoftKeyboard.ensureMounted(kbd, "integer");
+    global.JmlSoftKeyboard.ensureMounted(kbd, "integer", t);
     global.JmlSoftKeyboard.bind({
       kbdEl: kbd,
       inputEl: input,
       onEnter: handlePsSubmit,
       layout: "integer",
+      t: t,
     });
     if (input && global.JmlAnswerInput) {
       global.JmlAnswerInput.bind({
