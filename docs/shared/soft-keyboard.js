@@ -1,5 +1,5 @@
 /**
- * 标准软键盘：布局挂载、按键绑定、i18n、反馈区
+ * 标准软键盘卡片：反馈区 + 按键区、布局挂载、绑定、i18n
  */
 (function (global) {
   var LAYOUT_KEYS = {
@@ -38,11 +38,35 @@
     return null;
   }
 
-  function resolveLayout(kbdEl, explicitLayout) {
+  function resolveLayout(cardEl, explicitLayout) {
     if (explicitLayout && LAYOUT_KEYS[explicitLayout]) return explicitLayout;
-    var fromAttr = kbdEl && kbdEl.getAttribute("data-jml-soft-kbd-layout");
+    var fromAttr = cardEl && cardEl.getAttribute("data-jml-soft-kbd-layout");
     if (fromAttr && LAYOUT_KEYS[fromAttr]) return fromAttr;
     return "integer";
+  }
+
+  function resolveCard(el) {
+    if (!el) return null;
+    if (el.classList && el.classList.contains("soft-kbd-card")) return el;
+    if (el.closest) {
+      var card = el.closest(".soft-kbd-card");
+      if (card) return card;
+    }
+    if (el.classList && el.classList.contains("soft-kbd")) {
+      var parent = el.parentElement;
+      if (parent && parent.classList && parent.classList.contains("soft-kbd-card")) return parent;
+    }
+    return null;
+  }
+
+  function getFeedbackEl(cardEl) {
+    var card = resolveCard(cardEl);
+    return card ? card.querySelector("[data-jml-soft-kbd-feedback]") : null;
+  }
+
+  function getKeysEl(cardEl) {
+    var card = resolveCard(cardEl);
+    return card ? card.querySelector("[data-jml-soft-kbd-keys]") : null;
   }
 
   function renderKey(k) {
@@ -55,36 +79,23 @@
     return '<button type="button" class="soft-kbd-key" data-key="' + k + '">' + k + "</button>";
   }
 
-  function applyI18nAfterMount(kbdEl, t) {
-    t = resolveT(t);
-    if (t) applyI18n(kbdEl, t);
-  }
-
-  function ensureMounted(kbdEl, layout, t) {
-    if (!kbdEl) return;
-    layout = resolveLayout(kbdEl, layout);
-    var mounted = kbdEl.getAttribute("data-jml-soft-kbd-mounted") === "1";
-    var mountedLayout = kbdEl.getAttribute("data-jml-soft-kbd-layout");
-    if (mounted && mountedLayout === layout) {
-      applyI18nAfterMount(kbdEl, t);
-      return;
-    }
-    if (mounted && mountedLayout !== layout) {
-      kbdEl.removeAttribute("data-jml-soft-kbd-mounted");
-    }
+  function renderKeysHtml(layout) {
     var keys = LAYOUT_KEYS[layout] || LAYOUT_KEYS.integer;
     var gridHtml = keys.map(renderKey).join("");
-    kbdEl.innerHTML =
+    return (
+      '<div class="soft-kbd" data-jml-soft-kbd-keys>' +
       '<div class="soft-kbd-grid">' +
       gridHtml +
-      '</div><div class="soft-kbd-enter-row"><button type="button" class="soft-kbd-enter" data-key="enter"></button></div>';
-    kbdEl.setAttribute("data-jml-soft-kbd-mounted", "1");
-    kbdEl.setAttribute("data-jml-soft-kbd-layout", layout);
-    applyI18nAfterMount(kbdEl, t);
+      '</div><div class="soft-kbd-enter-row"><button type="button" class="soft-kbd-enter" data-key="enter"></button></div>' +
+      "</div>"
+    );
   }
 
-  function applyI18n(kbdEl, t) {
-    if (!kbdEl || typeof t !== "function") return;
+  function applyI18n(cardEl, t) {
+    var card = resolveCard(cardEl);
+    if (!card || typeof t !== "function") return;
+    var kbdEl = getKeysEl(card);
+    if (!kbdEl) return;
     kbdEl.setAttribute("aria-label", t("softkbd.aria"));
     var back = kbdEl.querySelector('.soft-kbd-key[data-key="back"]');
     if (back) back.textContent = t("softkbd.delete");
@@ -92,34 +103,65 @@
     if (enter) enter.textContent = t("softkbd.confirm");
   }
 
+  function applyI18nAfterMount(cardEl, t) {
+    applyI18n(cardEl, resolveT(t));
+  }
+
+  function ensureMounted(cardEl, layout, t) {
+    var card = resolveCard(cardEl);
+    if (!card) return;
+    layout = resolveLayout(card, layout);
+    var mounted = card.getAttribute("data-jml-soft-kbd-mounted") === "1";
+    var mountedLayout = card.getAttribute("data-jml-soft-kbd-layout");
+    if (mounted && mountedLayout === layout) {
+      applyI18nAfterMount(card, t);
+      return;
+    }
+    card.innerHTML =
+      '<div class="soft-kbd-feedback" data-jml-soft-kbd-feedback role="status" aria-live="polite"></div>' +
+      renderKeysHtml(layout);
+    card.setAttribute("data-jml-soft-kbd-mounted", "1");
+    card.setAttribute("data-jml-soft-kbd-layout", layout);
+    card.__jmlSoftKbdBound = false;
+    applyI18nAfterMount(card, t);
+  }
+
   function applyI18nAll(t) {
     if (typeof t !== "function") return;
-    var list = global.document ? global.document.querySelectorAll(".soft-kbd") : [];
+    var list = global.document ? global.document.querySelectorAll(".soft-kbd-card[data-jml-soft-kbd-mounted='1']") : [];
     for (var i = 0; i < list.length; i += 1) {
       applyI18n(list[i], t);
     }
   }
 
-  function setFeedback(el, message, type) {
+  function setCardVisible(cardEl, visible) {
+    var card = resolveCard(cardEl);
+    if (!card) return;
+    card.style.display = visible ? "flex" : "none";
+  }
+
+  function setFeedback(cardEl, message, type) {
+    var el = getFeedbackEl(cardEl);
     if (!el) return;
     el.textContent = "";
     el.classList.remove("correct", "incorrect");
     if (!message) return;
     el.innerHTML = message;
-    el.classList.add("soft-kbd-feedback");
     if (type === "correct") el.classList.add("correct");
     if (type === "incorrect") el.classList.add("incorrect");
   }
 
   function bind(options) {
     options = options || {};
-    var kbdEl = options.kbdEl;
+    var cardEl = resolveCard(options.cardEl || options.kbdEl);
     var inputEl = options.inputEl;
     var onEnter = options.onEnter;
-    if (!kbdEl || kbdEl.__jmlSoftKbdBound) return kbdEl;
-    ensureMounted(kbdEl, options.layout, options.t);
-    var layout = resolveLayout(kbdEl, options.layout);
+    if (!cardEl || cardEl.__jmlSoftKbdBound) return cardEl;
+    ensureMounted(cardEl, options.layout, options.t);
+    var layout = resolveLayout(cardEl, options.layout);
     var allowDecimal = layout === "decimal" && options.allowDecimal !== false;
+    var kbdEl = getKeysEl(cardEl);
+    if (!kbdEl) return cardEl;
 
     kbdEl.addEventListener("click", function (e) {
       var btn = e.target && e.target.closest ? e.target.closest("button[data-key]") : null;
@@ -137,8 +179,8 @@
         inputEl.value = append(inputEl.value, k, allowDecimal);
       }
     });
-    kbdEl.__jmlSoftKbdBound = true;
-    return kbdEl;
+    cardEl.__jmlSoftKbdBound = true;
+    return cardEl;
   }
 
   global.JmlSoftKeyboard = {
@@ -146,7 +188,10 @@
     shouldLockForTouch: shouldLockForTouch,
     backspace: backspace,
     append: append,
+    resolveCard: resolveCard,
+    getFeedbackEl: getFeedbackEl,
     ensureMounted: ensureMounted,
+    setCardVisible: setCardVisible,
     applyI18n: applyI18n,
     applyI18nAll: applyI18nAll,
     setFeedback: setFeedback,

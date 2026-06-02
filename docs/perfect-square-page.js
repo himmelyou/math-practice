@@ -62,23 +62,17 @@
 
   function setPsFeedback(message, type) {
     if (global.JmlSoftKeyboard) {
-      global.JmlSoftKeyboard.setFeedback(dom().psFeedback, message, type);
-      return;
+      global.JmlSoftKeyboard.setFeedback(dom().psSoftKbdCard, message, type);
     }
-    const el = dom().psFeedback;
-    if (!el) return;
-    el.textContent = "";
-    el.classList.remove("correct", "incorrect");
-    if (!message) return;
-    el.innerHTML = message;
-    el.classList.add("soft-kbd-feedback");
-    if (type === "correct") el.classList.add("correct");
-    if (type === "incorrect") el.classList.add("incorrect");
   }
 
   function setPsSoftKeyboardVisible(visible) {
     const body = document.getElementById("ps-play-body");
-    if (dom().psSoftKbdCard) dom().psSoftKbdCard.style.display = visible ? "flex" : "none";
+    if (global.JmlSoftKeyboard) {
+      global.JmlSoftKeyboard.setCardVisible(dom().psSoftKbdCard, visible);
+    } else if (dom().psSoftKbdCard) {
+      dom().psSoftKbdCard.style.display = visible ? "flex" : "none";
+    }
     if (dom().psRecentCard) dom().psRecentCard.style.display = visible ? "none" : "flex";
     if (body) body.classList.toggle("game-play-body--kbd", !!visible);
   }
@@ -588,12 +582,12 @@
   }
 
   function initPsSoftKeyboardIfNeeded() {
-    const kbd = dom().psSoftKbd;
+    const card = dom().psSoftKbdCard;
     const input = dom().psAnswerInput;
-    if (!kbd || !global.JmlSoftKeyboard) return;
-    global.JmlSoftKeyboard.ensureMounted(kbd, "integer", t);
+    if (!card || !global.JmlSoftKeyboard) return;
+    global.JmlSoftKeyboard.ensureMounted(card, "integer", t);
     global.JmlSoftKeyboard.bind({
-      kbdEl: kbd,
+      cardEl: card,
       inputEl: input,
       onEnter: handlePsSubmit,
       layout: "integer",

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=27"></script>
-  <script src="shared/app-version.js?v=27"></script>
+  <script src="config.js?v=28"></script>
+  <script src="shared/app-version.js?v=28"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1605,40 +1605,35 @@
       touch-action: manipulation;
     }
 
-    .feedback.soft-kbd-feedback {
+    .soft-kbd-card .soft-kbd-feedback {
       flex-shrink: 0;
       box-sizing: border-box;
-      min-height: calc(0.82rem * 1.25 + 6px) !important;
-      margin-top: 0 !important;
-      margin-bottom: 6px !important;
-      padding: 3px 8px !important;
-      font-size: 0.82rem !important;
-      line-height: 1.25 !important;
-      border-radius: 10px !important;
-      background: #f7fbff !important;
-      border: 1px solid rgba(25, 118, 210, 0.12) !important;
-      box-shadow: none !important;
-      color: #607d8b !important;
+      min-height: calc(0.82rem * 1.25 + 6px);
+      margin-top: 0;
+      margin-bottom: 6px;
+      padding: 3px 8px;
+      font-size: 0.82rem;
+      line-height: 1.25;
+      border-radius: 10px;
+      background: #f7fbff;
+      border: 1px solid rgba(25, 118, 210, 0.12);
+      box-shadow: none;
+      color: #607d8b;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      text-align: center !important;
+      text-align: center;
     }
-    #soft-kbd-card .feedback.soft-kbd-feedback:empty,
-    #ps-soft-kbd-card .feedback.soft-kbd-feedback:empty {
-      color: transparent !important;
+    .soft-kbd-card .soft-kbd-feedback:empty {
+      color: transparent;
     }
-    .feedback.soft-kbd-feedback.correct {
-      background: #e8f5e9 !important;
-      color: #2e7d32 !important;
+    .soft-kbd-card .soft-kbd-feedback.correct {
+      background: #e8f5e9;
+      color: #2e7d32;
     }
-    .feedback.soft-kbd-feedback.incorrect {
-      background: #ffebee !important;
-      color: #c62828 !important;
-    }
-    #soft-kbd-card .feedback,
-    #ps-soft-kbd-card .feedback {
-      text-align: center !important;
+    .soft-kbd-card .soft-kbd-feedback.incorrect {
+      background: #ffebee;
+      color: #c62828;
     }
 
     .recent-table td:first-child {
@@ -3200,10 +3195,7 @@
         </div>
       </div>
     </section>
-    <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;">
-      <div class="feedback" id="feedback"></div>
-      <div class="soft-kbd" id="soft-kbd" data-jml-soft-kbd-layout="integer"></div>
-    </section>
+    <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
       <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
       </div>
     </div>
@@ -3558,10 +3550,7 @@
         </div>
       </section>
 
-      <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;">
-        <div class="feedback" id="ps-feedback"></div>
-        <div class="soft-kbd" id="ps-soft-kbd" data-jml-soft-kbd-layout="integer"></div>
-      </section>
+      <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
       <div class="game-play-tail" id="ps-play-tail" aria-hidden="true"></div>
       </div>
     </section>
@@ -3625,17 +3614,17 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=27"></script>
-  <script src="shared/stats-i18n-pack.js?v=27"></script>
-  <script src="stats-heatmap-browser.js?v=27"></script>
-  <script src="stats-aggregate-browser.js?v=27"></script>
-  <script src="stats-chart-browser.js?v=27"></script>
-  <script src="shared/arithmetic-questions.js?v=27"></script>
-  <script src="shared/expand-brackets-questions.js?v=27"></script>
-  <script src="shared/soft-keyboard.js?v=27"></script>
-  <script src="shared/answer-input.js?v=27"></script>
-  <script src="shared/perfect-square-questions.js?v=27"></script>
-  <script src="perfect-square-page.js?v=27"></script>
+  <script src="prime-composite-logic.js?v=28"></script>
+  <script src="shared/stats-i18n-pack.js?v=28"></script>
+  <script src="stats-heatmap-browser.js?v=28"></script>
+  <script src="stats-aggregate-browser.js?v=28"></script>
+  <script src="stats-chart-browser.js?v=28"></script>
+  <script src="shared/arithmetic-questions.js?v=28"></script>
+  <script src="shared/expand-brackets-questions.js?v=28"></script>
+  <script src="shared/soft-keyboard.js?v=28"></script>
+  <script src="shared/answer-input.js?v=28"></script>
+  <script src="shared/perfect-square-questions.js?v=28"></script>
+  <script src="perfect-square-page.js?v=28"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -3985,7 +3974,6 @@
       dom.submitBtn = document.getElementById("submit-btn");
       dom.startGameBtn = document.getElementById("start-game-btn");
       dom.startRow = document.getElementById("start-row");
-      dom.feedback = document.getElementById("feedback");
       dom.batchSummary = document.getElementById("batch-summary");
       dom.gameOverPanel = document.getElementById("game-over-panel");
       dom.playAgainBtn = document.getElementById("play-again-btn");
@@ -3996,7 +3984,6 @@
       dom.recentCard = document.querySelector("#game-section .recent-card");
       dom.softKbdCard = document.getElementById("soft-kbd-card");
       dom.gamePlayBody = document.getElementById("game-play-body");
-      dom.softKbd = document.getElementById("soft-kbd");
       dom.wrongbookSection = document.getElementById("wrongbook-section");
       dom.wrongbookList = document.getElementById("wrongbook-list");
       dom.wrongbookEmpty = document.getElementById("wrongbook-empty");
@@ -4063,8 +4050,6 @@
       dom.psHistoryBody = document.getElementById("ps-history-body");
       dom.psHistoryEmpty = document.getElementById("ps-history-empty");
       dom.psSoftKbdCard = document.getElementById("ps-soft-kbd-card");
-      dom.psSoftKbd = document.getElementById("ps-soft-kbd");
-      dom.psFeedback = document.getElementById("ps-feedback");
       syncAnswerInputInteractionMode();
     }
 
@@ -4111,10 +4096,13 @@
     }
 
     function setSoftKeyboardVisible(visible) {
-      if (dom.softKbdCard) dom.softKbdCard.style.display = visible ? "flex" : "none";
+      if (window.JmlSoftKeyboard) {
+        window.JmlSoftKeyboard.setCardVisible(dom.softKbdCard, visible);
+      } else if (dom.softKbdCard) {
+        dom.softKbdCard.style.display = visible ? "flex" : "none";
+      }
       if (dom.recentCard) dom.recentCard.style.display = visible ? "none" : "flex";
       if (dom.gamePlayBody) dom.gamePlayBody.classList.toggle("game-play-body--kbd", !!visible);
-      if (dom.feedback) dom.feedback.classList.toggle("soft-kbd-feedback", !!visible);
     }
 
     function shouldLockAnswerInputForSoftKeyboard() {
@@ -4143,10 +4131,10 @@
     }
 
     function initSoftKeyboardIfNeeded() {
-      if (!window.JmlSoftKeyboard || !dom.softKbd) return;
-      window.JmlSoftKeyboard.ensureMounted(dom.softKbd, "integer", t);
+      if (!window.JmlSoftKeyboard || !dom.softKbdCard) return;
+      window.JmlSoftKeyboard.ensureMounted(dom.softKbdCard, "integer", t);
       window.JmlSoftKeyboard.bind({
-        kbdEl: dom.softKbd,
+        cardEl: dom.softKbdCard,
         inputEl: dom.answerInput,
         onEnter: handleSubmit,
         layout: "integer",
@@ -4161,8 +4149,8 @@
           getShouldLock: shouldLockAnswerInputForSoftKeyboard,
         });
       }
-      if (dom.psSoftKbd) {
-        window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbd, "integer", t);
+      if (dom.psSoftKbdCard) {
+        window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbdCard, "integer", t);
       }
     }
 
@@ -6934,12 +6922,9 @@
     }
 
     function setFeedback(message, type) {
-      dom.feedback.textContent = "";
-      dom.feedback.classList.remove("correct", "incorrect");
-      if (!message) return;
-      dom.feedback.innerHTML = message;
-      if (type === "correct") dom.feedback.classList.add("correct");
-      if (type === "incorrect") dom.feedback.classList.add("incorrect");
+      if (window.JmlSoftKeyboard) {
+        window.JmlSoftKeyboard.setFeedback(dom.softKbdCard, message, type);
+      }
     }
 
     function setBatchSummary(text) {
