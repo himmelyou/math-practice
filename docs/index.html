@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=20"></script>
-  <script src="shared/app-version.js?v=20"></script>
+  <script src="config.js?v=21"></script>
+  <script src="shared/app-version.js?v=21"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -2525,22 +2525,44 @@
       flex-direction: column;
       flex: 1;
       min-height: 0;
+      overflow: hidden;
       margin-top: 8px;
-      gap: 12px;
     }
 
-    .perfect-square-page .perfect-square-idle-card {
-      min-height: clamp(160px, 28vh, 220px);
+    .perfect-square-page #ps-play-body {
+      flex: 1;
+      min-height: 0;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px 16px;
+      flex-direction: column;
+      overflow: hidden;
     }
 
-    .perfect-square-page .perfect-square-idle-card .question-text {
-      margin: 0;
+    .perfect-square-page #ps-play-body > .recent-card {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .perfect-square-page #ps-play-body.ps-play-body--playing > .recent-card {
+      display: none;
+    }
+
+    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-text {
+      font-size: clamp(1.25rem, 5vw, 1.75rem);
+      font-weight: 700;
       text-align: center;
-      color: var(--muted);
+    }
+
+    .perfect-square-page #ps-soft-kbd-card {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .perfect-square-page #ps-play-body.game-play-body--kbd > #ps-soft-kbd-card {
+      flex: 0 0 auto;
+      overflow: hidden;
     }
 
     .prime-composite-page #prime-status-grid {
@@ -3322,17 +3344,119 @@
       </div>
     </section>
 
-    <!-- 平方数（占位入口，玩法待接） -->
+    <!-- 平方数：L1–L3，20 题/局，键盘输入 -->
     <section class="game-section perfect-square-page" id="perfect-square-section" style="display:none;">
-      <div class="status-grid" id="perfect-square-status-grid">
+      <div class="status-grid" id="ps-status-grid">
+        <div class="timer-chip" id="ps-timer-chip">
+          <span id="ps-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="ps-timer-value">0:00</span>
+        </div>
         <div class="status-item status-item-full">
-          <span class="status-label" id="perfect-square-lbl-mode">当前模式：</span>
-          <span class="status-value" id="perfect-square-mode-name">平方数</span>
+          <span class="status-label" id="ps-lbl-mode">当前模式：</span>
+          <span class="status-value" id="ps-mode-name">平方数</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="ps-lbl-progress">进度：</span>
+          <span class="status-value" id="ps-progress-text">0 / 20</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="ps-lbl-score">本局得分：</span>
+          <span class="status-value" id="ps-score-text">0</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="ps-lbl-level">当前等级：</span>
+          <span class="status-value" id="ps-level-text">L1</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="ps-lbl-wrong">错题：</span>
+          <span class="status-value" id="ps-wrong-text">0</span>
         </div>
       </div>
-      <main class="card perfect-square-idle-card">
-        <div class="question-text rule-hint" id="perfect-square-idle-hint">功能开发中，敬请期待。</div>
+
+      <div class="game-play-body" id="ps-play-body">
+      <main class="card game-card--prestart" id="ps-game-card">
+        <div class="question-header">
+          <div class="question-label">
+            <span class="status-label" id="ps-lbl-difficulty">当前难度：</span>
+            <span class="status-value" id="ps-current-level-name">L1</span>
+            <select class="expand-level-select" id="ps-level-select" style="display:none;" aria-label="选择平方数难度"></select>
+          </div>
+        </div>
+
+        <div class="question-body">
+          <div class="question-subtext" id="ps-question-subtext"></div>
+          <div class="question-text" id="ps-question-text"></div>
+        </div>
+
+        <form id="ps-answer-form" class="answer-form" action="javascript:void(0);">
+          <div class="game-card-action-anchor">
+            <div class="input-row" id="ps-answer-input-row" style="display:none;">
+              <input id="ps-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly />
+            </div>
+            <div class="button-row" id="ps-start-row">
+              <button type="button" class="btn-primary" id="ps-start-btn">开始挑战</button>
+            </div>
+          </div>
+        </form>
+
+        <div id="ps-game-over-panel" class="game-over-panel training-summary" style="display:none;">
+          <h2 class="game-over-title" id="ps-game-over-title">本局结束</h2>
+          <div class="game-over-stats-grid">
+            <p class="game-over-line"><span id="ps-go-duration-label">本局用时：</span><strong id="ps-go-duration">-</strong></p>
+            <p class="game-over-line"><span id="ps-go-score-label">本局等级：</span><strong id="ps-go-score">L1</strong></p>
+            <p class="game-over-line"><span id="ps-go-wrong-label">本局错题：</span><strong id="ps-go-wrong">0</strong></p>
+            <p class="game-over-line"><span id="ps-go-result-label">结算结果：</span><strong id="ps-go-result">-</strong></p>
+          </div>
+          <div class="game-over-buttons">
+            <button class="btn-primary" id="ps-play-again-btn">再玩一局</button>
+          </div>
+        </div>
       </main>
+
+      <section class="recent-card" id="ps-recent-card" style="display:none;">
+        <div class="recent-header">
+          <span class="recent-title" id="ps-recent-title">最近十次平方数</span>
+        </div>
+        <div class="recent-body">
+          <div id="ps-history-wrap">
+            <table class="recent-table">
+              <thead>
+                <tr>
+                  <th id="ps-th-dt">日期时间</th>
+                  <th id="ps-th-time">用时</th>
+                  <th id="ps-th-wrong">错题</th>
+                  <th id="ps-th-level">等级</th>
+                </tr>
+              </thead>
+              <tbody id="ps-history-body"></tbody>
+            </table>
+            <div id="ps-history-empty" class="recent-empty">当前还没有练习记录。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;">
+        <div class="feedback" id="ps-feedback"></div>
+        <div class="soft-kbd" id="ps-soft-kbd" aria-label="数字键盘">
+          <div class="soft-kbd-grid">
+            <button type="button" class="soft-kbd-key" data-key="1">1</button>
+            <button type="button" class="soft-kbd-key" data-key="2">2</button>
+            <button type="button" class="soft-kbd-key" data-key="3">3</button>
+            <button type="button" class="soft-kbd-key" data-key="4">4</button>
+            <button type="button" class="soft-kbd-key" data-key="5">5</button>
+            <button type="button" class="soft-kbd-key" data-key="6">6</button>
+            <button type="button" class="soft-kbd-key" data-key="7">7</button>
+            <button type="button" class="soft-kbd-key" data-key="8">8</button>
+            <button type="button" class="soft-kbd-key" data-key="9">9</button>
+            <button type="button" class="soft-kbd-key" data-key="0">0</button>
+            <button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back">删除</button>
+          </div>
+          <div class="soft-kbd-enter-row">
+            <button type="button" class="soft-kbd-enter" data-key="enter">确认</button>
+          </div>
+        </div>
+      </section>
+      <div class="game-play-tail" id="ps-play-tail" aria-hidden="true"></div>
+      </div>
     </section>
 
     <!-- 选择头像：单独页面（对齐小程序） -->
@@ -3394,13 +3518,15 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=20"></script>
-  <script src="shared/stats-i18n-pack.js?v=20"></script>
-  <script src="stats-heatmap-browser.js?v=20"></script>
-  <script src="stats-aggregate-browser.js?v=20"></script>
-  <script src="stats-chart-browser.js?v=20"></script>
-  <script src="shared/arithmetic-questions.js?v=20"></script>
-  <script src="shared/expand-brackets-questions.js?v=20"></script>
+  <script src="prime-composite-logic.js?v=21"></script>
+  <script src="shared/stats-i18n-pack.js?v=21"></script>
+  <script src="stats-heatmap-browser.js?v=21"></script>
+  <script src="stats-aggregate-browser.js?v=21"></script>
+  <script src="stats-chart-browser.js?v=21"></script>
+  <script src="shared/arithmetic-questions.js?v=21"></script>
+  <script src="shared/expand-brackets-questions.js?v=21"></script>
+  <script src="shared/perfect-square-questions.js?v=21"></script>
+  <script src="perfect-square-page.js?v=21"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -3799,7 +3925,80 @@
       dom.expandGoResultLabel = document.getElementById("expand-go-result-label");
       dom.expandGoResult = document.getElementById("expand-go-result");
       dom.expandPlayAgainBtn = document.getElementById("expand-play-again-btn");
+      dom.psTimerValue = document.getElementById("ps-timer-value");
+      dom.psProgressText = document.getElementById("ps-progress-text");
+      dom.psScoreText = document.getElementById("ps-score-text");
+      dom.psLevelText = document.getElementById("ps-level-text");
+      dom.psWrongText = document.getElementById("ps-wrong-text");
+      dom.psCurrentLevelName = document.getElementById("ps-current-level-name");
+      dom.psLevelSelect = document.getElementById("ps-level-select");
+      dom.psQuestionSubtext = document.getElementById("ps-question-subtext");
+      dom.psQuestionText = document.getElementById("ps-question-text");
+      dom.psAnswerForm = document.getElementById("ps-answer-form");
+      dom.psAnswerInputRow = document.getElementById("ps-answer-input-row");
+      dom.psAnswerInput = document.getElementById("ps-answer-input");
+      dom.psStartRow = document.getElementById("ps-start-row");
+      dom.psStartBtn = document.getElementById("ps-start-btn");
+      dom.psGameOverPanel = document.getElementById("ps-game-over-panel");
+      dom.psGameOverTitle = document.getElementById("ps-game-over-title");
+      dom.psGoDurationLabel = document.getElementById("ps-go-duration-label");
+      dom.psGoDuration = document.getElementById("ps-go-duration");
+      dom.psGoScoreLabel = document.getElementById("ps-go-score-label");
+      dom.psGoScore = document.getElementById("ps-go-score");
+      dom.psGoWrongLabel = document.getElementById("ps-go-wrong-label");
+      dom.psGoWrong = document.getElementById("ps-go-wrong");
+      dom.psGoResultLabel = document.getElementById("ps-go-result-label");
+      dom.psGoResult = document.getElementById("ps-go-result");
+      dom.psPlayAgainBtn = document.getElementById("ps-play-again-btn");
+      dom.psRecentCard = document.getElementById("ps-recent-card");
+      dom.psHistoryBody = document.getElementById("ps-history-body");
+      dom.psHistoryEmpty = document.getElementById("ps-history-empty");
+      dom.psSoftKbdCard = document.getElementById("ps-soft-kbd-card");
+      dom.psSoftKbd = document.getElementById("ps-soft-kbd");
+      dom.psFeedback = document.getElementById("ps-feedback");
       syncAnswerInputInteractionMode();
+    }
+
+    function initPerfectSquarePage() {
+      if (!window.JmlPerfectSquarePage) return;
+      JmlPerfectSquarePage.init({
+        dom: dom,
+        t: t,
+        tf: tf,
+        getCurrentUser: getCurrentUser,
+        getCachedUser: function () { return cachedUser; },
+        ensureUserProgressDefault: ensureUserProgressDefault,
+        loadCurrentUsername: loadCurrentUsername,
+        apiPutUser: apiPutUser,
+        isGuestMode: isGuestMode,
+        showToast: showToast,
+        setTopActionsVisible: setTopActionsVisible,
+        updateTopTitleForCurrentView: updateTopTitleForCurrentView,
+        updateGlobalBackButtonState: updateGlobalBackButtonState,
+        appendRun: appendRun,
+        recordWrongAnswer: recordWrongAnswer,
+        formatCompactRunTime: formatCompactRunTime,
+        escapeHtml: escapeHtml,
+        shouldLockAnswerInputForSoftKeyboard: shouldLockAnswerInputForSoftKeyboard,
+        softKeyboardBackspace: softKeyboardBackspace,
+        softKeyboardAppend: softKeyboardAppend,
+        scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
+        primeCompositeResetToIdle: primeCompositeResetToIdle,
+        getGameMode: function () { return gameMode; },
+        setGameMode: function (m) { gameMode = m; },
+        getIsPlaying: function () { return isPlaying; },
+        setIsPlaying: function (v) { isPlaying = v; },
+        getGameOver: function () { return gameOver; },
+        setGameOver: function (v) { gameOver = v; },
+      });
+    }
+
+    function hidePerfectSquareSection() {
+      if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.hidePerfectSquareSection();
+    }
+
+    function isPerfectSquarePlayingNow() {
+      return window.JmlPerfectSquarePage && JmlPerfectSquarePage.isPerfectSquarePlayingNow();
     }
 
     function setSoftKeyboardVisible(visible) {
@@ -3886,6 +4085,7 @@
       if (gameMode === "training") return t("home.mode.training");
       if (gameMode === "wrong") return t("mode.running.wrongPractice");
       if (gameMode === "expandBrackets") return t("mode.running.expandBrackets");
+      if (gameMode === "perfectSquare") return t("mode.running.perfectSquare");
       return t("home.mode.survival");
     }
 
@@ -3923,11 +4123,16 @@
     function updateGlobalBackButtonState() {
       const globalBackBtn = document.getElementById("global-back-home-btn");
       if (!globalBackBtn) return;
-      const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow();
+      const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow();
       globalBackBtn.textContent = inProgress ? t("game.btn.abandon") : t("home.btn.backHome");
     }
 
     function globalBackToHome() {
+      if (isPerfectSquarePlayingNow()) {
+        JmlPerfectSquarePage.abandonPerfectSquareGame();
+        updateGlobalBackButtonState();
+        return;
+      }
       if (isPrimeCompositePlayingNow()) {
         primeCompositeAbandon();
         updateGlobalBackButtonState();
@@ -4863,6 +5068,22 @@
         "home.soon.lcm": "公倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "perfectSquare.comingSoon": "功能開發中，敬請期待。",
+        "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
+        "mode.running.perfectSquare": "平方數",
+        "ps.subtitle": "20 題：全對升級；錯 2 題降級。",
+        "ps.level.L1": "L1：平方數（入門）",
+        "ps.level.L2": "L2：平方數（進階）",
+        "ps.level.L3": "L3：平方數（挑戰）",
+        "ps.end.title": "本局結束",
+        "ps.end.time": "用時：",
+        "ps.end.level": "等級：",
+        "ps.end.wrong": "錯題：",
+        "ps.end.result": "結果：",
+        "ps.result.upTo": "升級到 L{n}",
+        "ps.result.downTo": "降級到 L{n}",
+        "ps.result.stayAt": "保持 L{n}",
+        "ps.go.abandoned": "已放棄",
+        "ps.recentTitle": "最近十次平方數",
         "expand.title": "拆括號",
         "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
         "expand.start": "開始挑戰",
@@ -5155,6 +5376,22 @@
         "home.soon.lcm": "Common Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "perfectSquare.comingSoon": "Coming soon.",
+        "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
+        "mode.running.perfectSquare": "Squares",
+        "ps.subtitle": "20 questions: perfect = level up; 2 wrong = level down.",
+        "ps.level.L1": "L1: Perfect squares (intro)",
+        "ps.level.L2": "L2: Perfect squares (intermediate)",
+        "ps.level.L3": "L3: Perfect squares (challenge)",
+        "ps.end.title": "Session Complete",
+        "ps.end.time": "Time:",
+        "ps.end.level": "Level:",
+        "ps.end.wrong": "Wrong:",
+        "ps.end.result": "Result:",
+        "ps.result.upTo": "Up to L{n}",
+        "ps.result.downTo": "Down to L{n}",
+        "ps.result.stayAt": "Stay at L{n}",
+        "ps.go.abandoned": "Abandoned",
+        "ps.recentTitle": "Last 10 square runs",
         "expand.title": "Expand Brackets",
         "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
         "expand.start": "Start",
@@ -5569,7 +5806,26 @@
       setT("prime-recent-history-empty", "recent.empty");
       setT("perfect-square-lbl-mode", "game.status.currentMode");
       setT("perfect-square-mode-name", "home.mode.perfectSquare");
-      setT("perfect-square-idle-hint", "perfectSquare.comingSoon");
+      setT("ps-lbl-mode", "game.status.currentMode");
+      setT("ps-mode-name", "home.mode.perfectSquare");
+      setT("ps-lbl-progress", "game.status.progress");
+      setT("ps-lbl-score", "game.status.scoreThisRun");
+      setT("ps-lbl-level", "game.status.expandLevel");
+      setT("ps-lbl-wrong", "game.status.expandWrong");
+      setT("ps-lbl-difficulty", "game.status.difficulty");
+      setT("ps-start-btn", "game.btn.startChallenge");
+      setT("ps-go-duration-label", "ps.end.time");
+      setT("ps-go-score-label", "ps.end.level");
+      setT("ps-go-wrong-label", "ps.end.wrong");
+      setT("ps-go-result-label", "ps.end.result");
+      setT("ps-play-again-btn", "game.btn.playAgain");
+      setT("ps-th-dt", "recent.th.datetime");
+      setT("ps-th-time", "recent.th.time");
+      setT("ps-th-wrong", "recent.th.wrong");
+      setT("ps-th-level", "recent.th.level");
+      setT("ps-history-empty", "recent.empty");
+      const psRecentTitle = document.getElementById("ps-recent-title");
+      if (psRecentTitle) psRecentTitle.textContent = t("ps.recentTitle");
       const avH = document.querySelector("#avatar-picker-section .ranking-title");
       if (avH) avH.textContent = t("avatar.pageTitle");
       if (byId("avatar-picker-section")) {
@@ -5831,6 +6087,7 @@
       if (sync.recentTrainingRuns) cachedUser.recentTrainingRuns = sync.recentTrainingRuns;
       if (sync.recentPrimeCompositeRuns) cachedUser.recentPrimeCompositeRuns = sync.recentPrimeCompositeRuns;
       if (sync.recentExpandBracketsRuns) cachedUser.recentExpandBracketsRuns = sync.recentExpandBracketsRuns;
+      if (sync.recentPerfectSquareRuns) cachedUser.recentPerfectSquareRuns = sync.recentPerfectSquareRuns;
       if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
       if (sync.bestSurvivalSec != null) cachedUser.bestSurvivalSec = sync.bestSurvivalSec;
       if (sync.bestScore != null) cachedUser.bestScore = sync.bestScore;
@@ -5971,6 +6228,7 @@
           renderRecentRuns();
           renderPrimeRecentRuns();
           renderExpandBracketsRecentRuns();
+          if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
           updateHomeTotalScore();
           return true;
         }
@@ -5979,17 +6237,12 @@
           renderRecentRuns();
           renderPrimeRecentRuns();
           renderExpandBracketsRecentRuns();
+          if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
           updateHomeTotalScore();
           return true;
         }
         const u = cachedUser || {};
-        const mode = runEntry.mode === "level"
-          ? "level"
-          : (runEntry.mode === "training"
-            ? "training"
-            : (runEntry.mode === "primeComposite"
-              ? "primeComposite"
-              : (runEntry.mode === "expandBrackets" ? "expandBrackets" : "survival")));
+        const mode = normalizeAppendRunMode(runEntry.mode);
         u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
         if (mode === "level") {
           if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
@@ -6007,6 +6260,10 @@
           if (!Array.isArray(u.recentExpandBracketsRuns)) u.recentExpandBracketsRuns = [];
           u.recentExpandBracketsRuns.unshift(runEntry);
           if (u.recentExpandBracketsRuns.length > 10) u.recentExpandBracketsRuns = u.recentExpandBracketsRuns.slice(0, 10);
+        } else if (mode === "perfectSquare") {
+          if (!Array.isArray(u.recentPerfectSquareRuns)) u.recentPerfectSquareRuns = [];
+          u.recentPerfectSquareRuns.unshift(runEntry);
+          if (u.recentPerfectSquareRuns.length > 10) u.recentPerfectSquareRuns = u.recentPerfectSquareRuns.slice(0, 10);
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -6023,17 +6280,22 @@
           ? { recentPrimeCompositeRuns: u.recentPrimeCompositeRuns, totalScore: u.totalScore }
           : mode === "expandBrackets"
           ? { recentExpandBracketsRuns: u.recentExpandBracketsRuns, totalScore: u.totalScore }
+          : mode === "perfectSquare"
+          ? { recentPerfectSquareRuns: u.recentPerfectSquareRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
         renderRecentRuns();
         renderPrimeRecentRuns();
         renderExpandBracketsRecentRuns();
+        if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
         return !!updated;
       } catch (e) {
         console.warn("同步记录到服务器失败", e);
       }
-      if (gameMode !== "expandBrackets") {
+      if (gameMode === "perfectSquare") {
+        if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+      } else if (gameMode !== "expandBrackets") {
         renderRecentRuns();
       } else {
         renderExpandBracketsRecentRuns();
@@ -6172,12 +6434,14 @@
       if (!Array.isArray(user.recentTrainingRuns)) user.recentTrainingRuns = [];
       if (!Array.isArray(user.recentPrimeCompositeRuns)) user.recentPrimeCompositeRuns = [];
       if (!Array.isArray(user.recentExpandBracketsRuns)) user.recentExpandBracketsRuns = [];
+      if (!Array.isArray(user.recentPerfectSquareRuns)) user.recentPerfectSquareRuns = [];
       if (typeof user.comboCurrent !== "number") user.comboCurrent = 0;
       if (typeof user.comboBest !== "number") user.comboBest = 0;
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
       if (typeof user.levelChallengeBestLevel !== "number") user.levelChallengeBestLevel = 0;
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
+      if (typeof user.levelPerfectSquareCurrentLevel !== "number") user.levelPerfectSquareCurrentLevel = 0;
       if (typeof user.survivalUnlocked !== "boolean") user.survivalUnlocked = false;
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
       if (typeof user.heatmapL16Passed !== "boolean") user.heatmapL16Passed = false;
@@ -6195,19 +6459,22 @@
       return formatSeconds(sec);
     }
 
+    function normalizeAppendRunMode(mode) {
+      if (mode === "level") return "level";
+      if (mode === "training") return "training";
+      if (mode === "primeComposite") return "primeComposite";
+      if (mode === "expandBrackets") return "expandBrackets";
+      if (mode === "perfectSquare") return "perfectSquare";
+      return "survival";
+    }
+
     function formatCompactRunTime(sec) {
       return formatSeconds(sec);
     }
 
     function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, runCleared, comboOnly) {
       wrongCount = wrongCount ?? 0;
-      mode = mode === "level"
-        ? "level"
-        : (mode === "training"
-          ? "training"
-          : (mode === "primeComposite"
-            ? "primeComposite"
-            : (mode === "expandBrackets" ? "expandBrackets" : "survival")));
+      mode = normalizeAppendRunMode(mode);
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
       if (runCleared === true) runEntry.cleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
@@ -6217,6 +6484,7 @@
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
         else if (mode === "primeComposite") { /* 游客不记录质数合数 */ }
         else if (mode === "expandBrackets") { /* 游客不记拆括号（与训练一致：需登录才写 runs） */ }
+        else if (mode === "perfectSquare") { /* 游客不记平方数 */ }
         else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, runCleared);
         return Promise.resolve();
       }
@@ -6377,6 +6645,10 @@
     }
 
     function abandonCurrentRun() {
+      if (gameMode === "perfectSquare") {
+        if (isPlaying && !gameOver) JmlPerfectSquarePage.abandonPerfectSquareGame();
+        return;
+      }
       if (!isPlaying || gameOver) return;
       if (gameMode === "expandBrackets") {
         // 放弃：不写 runs，但进入结算态并只显示结算卡
@@ -7685,43 +7957,6 @@
       setPrimePlayBodyPhase("idle");
       void renderPrimeRecentRuns();
       scheduleSyncAllRuleHints();
-    }
-
-    function hidePerfectSquareSection() {
-      const sec = document.getElementById("perfect-square-section");
-      if (sec) {
-        sec.style.display = "none";
-        sec.classList.remove("visible");
-      }
-    }
-
-    function showPerfectSquareView() {
-      setTopActionsVisible(false);
-      if (dom.homeSection) dom.homeSection.classList.add("hidden");
-      if (dom.gameSection) dom.gameSection.classList.remove("visible");
-      if (dom.expandSection) {
-        dom.expandSection.classList.remove("visible");
-        dom.expandSection.style.display = "none";
-      }
-      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
-      const statsSection = document.getElementById("stats-section");
-      if (statsSection) statsSection.classList.remove("visible");
-      const rankingSection = document.getElementById("ranking-section");
-      if (rankingSection) rankingSection.style.display = "none";
-      const primeSection = document.getElementById("prime-composite-section");
-      if (primeSection) {
-        primeSection.style.display = "none";
-        primeSection.classList.remove("visible");
-      }
-      primeCompositeResetToIdle();
-      const avatarPickerSec = document.getElementById("avatar-picker-section");
-      if (avatarPickerSec) avatarPickerSec.style.display = "none";
-      const sec = document.getElementById("perfect-square-section");
-      if (sec) {
-        sec.style.display = "flex";
-        sec.classList.add("visible");
-      }
-      updateTopTitleForCurrentView(false);
     }
 
     function hidePrimeCompositePlaceholder() {
@@ -9954,7 +10189,9 @@
       const modePrimeComposite = document.getElementById("mode-prime-composite");
       if (modePrimeComposite) modePrimeComposite.addEventListener("click", showPrimeCompositePlaceholder);
       const modePerfectSquare = document.getElementById("mode-perfect-square");
-      if (modePerfectSquare) modePerfectSquare.addEventListener("click", showPerfectSquareView);
+      if (modePerfectSquare) modePerfectSquare.addEventListener("click", function () {
+        if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.handleModePerfectSquare();
+      });
       const modeExpandBrackets = document.getElementById("mode-expand-brackets");
       if (modeExpandBrackets) modeExpandBrackets.addEventListener("click", handleModeExpandBrackets);
       const primeStartBtn = document.getElementById("prime-composite-start-btn");
@@ -10099,6 +10336,7 @@
       saveLang(getSavedLang());
       await loadI18nFromServer();
       initDomRefs();
+      initPerfectSquarePage();
       initStatusGridIcons();
       applyI18nToLoginView();
       applyI18nToMainView();

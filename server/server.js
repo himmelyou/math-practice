@@ -52,6 +52,8 @@ function buildRunSyncForStudent(u, mode) {
     sync.recentPrimeCompositeRuns = Array.isArray(u.recentPrimeCompositeRuns) ? u.recentPrimeCompositeRuns : [];
   } else if (m === "expandBrackets") {
     sync.recentExpandBracketsRuns = Array.isArray(u.recentExpandBracketsRuns) ? u.recentExpandBracketsRuns : [];
+  } else if (m === "perfectSquare") {
+    sync.recentPerfectSquareRuns = Array.isArray(u.recentPerfectSquareRuns) ? u.recentPerfectSquareRuns : [];
   } else {
     sync.recentSurvivalRuns = Array.isArray(u.recentSurvivalRuns) ? u.recentSurvivalRuns : [];
     sync.bestSurvivalSec = typeof u.bestSurvivalSec === "number" ? u.bestSurvivalSec : 0;
@@ -98,6 +100,7 @@ function normalizeRunMode(mode) {
   if (mode === "training") return "training";
   if (mode === "primeComposite") return "primeComposite";
   if (mode === "expandBrackets") return "expandBrackets";
+  if (mode === "perfectSquare") return "perfectSquare";
   return "survival";
 }
 
@@ -262,7 +265,7 @@ function toChinaDateKey(ts) {
 }
 
 function getStreakStatsFromRuns(runs) {
-  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets"]);
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets", "perfectSquare"]);
   const daySet = new Set();
   (runs || []).forEach((r) => {
     if (!r) return;
@@ -309,7 +312,7 @@ function bumpUserComboFromAttempts(user, attempts) {
 }
 
 function getComboStatsFromRuns(runs) {
-  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets"]);
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets", "perfectSquare"]);
   const seq = (runs || [])
     .filter((r) => r && allowedModes.has(normalizeRunMode(r.mode)) && Array.isArray(r.attempts) && r.attempts.length > 0)
     .slice()
@@ -934,6 +937,7 @@ app.post("/api/register", async (req, res) => {
     recentTrainingRuns: [],
     recentPrimeCompositeRuns: [],
     recentExpandBracketsRuns: [],
+    recentPerfectSquareRuns: [],
     streakCurrent: 0,
     streakBest: 0,
     streakLastDate: "",
@@ -943,6 +947,7 @@ app.post("/api/register", async (req, res) => {
     levelChallengeBestLevel: 0,
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
+    levelPerfectSquareCurrentLevel: 0,
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
@@ -1116,7 +1121,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelPerfectSquareCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -1291,6 +1296,10 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentExpandBracketsRuns)) u.recentExpandBracketsRuns = [];
       u.recentExpandBracketsRuns.unshift(runEntry);
       if (u.recentExpandBracketsRuns.length > 10) u.recentExpandBracketsRuns = u.recentExpandBracketsRuns.slice(0, 10);
+    } else if (!comboOnly && runEntry.mode === "perfectSquare") {
+      if (!Array.isArray(u.recentPerfectSquareRuns)) u.recentPerfectSquareRuns = [];
+      u.recentPerfectSquareRuns.unshift(runEntry);
+      if (u.recentPerfectSquareRuns.length > 10) u.recentPerfectSquareRuns = u.recentPerfectSquareRuns.slice(0, 10);
     }
     if (!comboOnly && runEntry.mode === "level") {
       const ml = Math.min(SURVIVAL_UNLOCK_L16_INDEX, Math.max(0, Number(runEntry.maxLevel) || 0));
@@ -1618,7 +1627,9 @@ app.post("/api/admin/users", async (req, res) => {
     levelChallengeBestLevel: 0,
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
+    levelPerfectSquareCurrentLevel: 0,
     recentExpandBracketsRuns: [],
+    recentPerfectSquareRuns: [],
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
     survivalUnlocked: false,

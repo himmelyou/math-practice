@@ -17,7 +17,7 @@
   function filterArithmeticRuns(runs) {
     return (runs || []).filter(function (r) {
       var m = String(r && r.mode ? r.mode : 'survival').toLowerCase();
-      if (m === 'expandbrackets' || m === 'primecomposite') return false;
+      if (m === 'expandbrackets' || m === 'primecomposite' || m === 'perfectsquare') return false;
       return m === 'survival' || m === 'level' || m === 'training';
     });
   }
