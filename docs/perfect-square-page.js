@@ -2,12 +2,11 @@
  * 平方数模式页面逻辑（由 docs/index.html 在 DOM 就绪后调用 JmlPerfectSquarePage.init(deps)）
  */
 (function (global) {
-  const PS_QUESTIONS_PER_RUN = 20;
   const PS_SCORE_PER_CORRECT = 5;
-  const PS_MAX_LEVEL = 2;
 
   let deps = null;
   let psLevel = 0;
+  let psRunDeck = [];
   let psQuestionIndex = 0;
   let psWrongCount = 0;
   let psScore = 0;
@@ -34,8 +33,24 @@
     return deps.tf(key, vars);
   }
 
-  function buildQuestion(level) {
-    return global.JmlPerfectSquare.buildQuestion(level);
+  function psMaxLevel() {
+    const m = global.JmlPerfectSquare && global.JmlPerfectSquare.PS_MAX_LEVEL;
+    return typeof m === "number" ? m : 2;
+  }
+
+  function psQuestionsTotal() {
+    if (global.JmlPerfectSquare && global.JmlPerfectSquare.questionsPerRun) {
+      return global.JmlPerfectSquare.questionsPerRun(psLevel);
+    }
+    return 20;
+  }
+
+  function buildRunForLevel(level) {
+    return global.JmlPerfectSquare.buildRun(level);
+  }
+
+  function formatPsProgress(index) {
+    return index + " / " + psQuestionsTotal();
   }
 
   function formatElapsedSec(sec) {
@@ -82,7 +97,7 @@
     if (!user) return 0;
     deps.ensureUserProgressDefault(user);
     const v = user.levelPerfectSquareCurrentLevel;
-    return typeof v === "number" && Number.isFinite(v) ? Math.min(PS_MAX_LEVEL, Math.max(0, Math.floor(v))) : 0;
+    return typeof v === "number" && Number.isFinite(v) ? Math.min(psMaxLevel(), Math.max(0, Math.floor(v))) : 0;
   }
 
   function getPerfectSquareUnlockedMaxLevel() {
@@ -96,11 +111,11 @@
       const lv = Number(r && (r.maxLevel != null ? r.maxLevel : r.level));
       if (Number.isFinite(lv)) maxRun = Math.max(maxRun, Math.floor(lv));
     });
-    return Math.max(0, Math.min(PS_MAX_LEVEL, Math.max(current, maxRun)));
+    return Math.max(0, Math.min(psMaxLevel(), Math.max(current, maxRun)));
   }
 
   async function savePerfectSquareCurrentLevel(level) {
-    level = Math.min(PS_MAX_LEVEL, Math.max(0, Math.floor(Number(level) || 0)));
+    level = Math.min(psMaxLevel(), Math.max(0, Math.floor(Number(level) || 0)));
     if (deps.isGuestMode) return;
     const name = deps.loadCurrentUsername();
     if (!name) return;
@@ -270,9 +285,9 @@
     opts = opts || {};
     const keepLevel = opts.keepLevel === true;
     if (!keepLevel) {
-      psLevel = Math.min(Math.max(getPerfectSquareCurrentLevel(), 0), PS_MAX_LEVEL);
+      psLevel = Math.min(Math.max(getPerfectSquareCurrentLevel(), 0), psMaxLevel());
     } else {
-      psLevel = Math.min(Math.max(psLevel, 0), PS_MAX_LEVEL);
+      psLevel = Math.min(Math.max(psLevel, 0), psMaxLevel());
     }
     deps.setGameOver(false);
     deps.setIsPlaying(false);
@@ -280,6 +295,7 @@
     psWrongCount = 0;
     psScore = 0;
     psAttempts = [];
+    psRunDeck = [];
     psCurrent = null;
     psInputLocked = false;
     psStartTs = 0;
@@ -290,7 +306,7 @@
     renderPsLevelSelect();
     if (dom().psLevelSelect) dom().psLevelSelect.disabled = false;
     setPsLevelPickerVisible(true);
-    if (dom().psProgressText) dom().psProgressText.textContent = "0 / " + PS_QUESTIONS_PER_RUN;
+    if (dom().psProgressText) dom().psProgressText.textContent = formatPsProgress(0);
     if (dom().psScoreText) dom().psScoreText.textContent = "0";
     if (dom().psWrongText) dom().psWrongText.textContent = "0";
     if (dom().psAnswerInput) {
@@ -315,11 +331,16 @@
   }
 
   function nextPsQuestion() {
-    if (psQuestionIndex >= PS_QUESTIONS_PER_RUN) {
+    const total = psQuestionsTotal();
+    if (psQuestionIndex >= total) {
       void endPerfectSquareGame();
       return;
     }
-    psCurrent = buildQuestion(psLevel);
+    psCurrent = psRunDeck[psQuestionIndex] || null;
+    if (!psCurrent) {
+      void endPerfectSquareGame();
+      return;
+    }
     psQuestionShownAt = Date.now();
     if (dom().psQuestionText) {
       dom().psQuestionText.style.display = "";
@@ -328,7 +349,7 @@
     }
     hidePsQuestionSubtext();
     if (dom().psProgressText) {
-      dom().psProgressText.textContent = psQuestionIndex + 1 + " / " + PS_QUESTIONS_PER_RUN;
+      dom().psProgressText.textContent = formatPsProgress(psQuestionIndex + 1);
     }
     if (dom().psAnswerInput) {
       dom().psAnswerInput.value = "";
@@ -340,7 +361,7 @@
 
   function advancePsAfterAnswer() {
     psQuestionIndex += 1;
-    if (psQuestionIndex >= PS_QUESTIONS_PER_RUN) {
+    if (psQuestionIndex >= psQuestionsTotal()) {
       void endPerfectSquareGame();
       return;
     }
@@ -404,7 +425,7 @@
     if (deps.getGameMode() !== "perfectSquare") return;
     if (dom().psLevelSelect && dom().psLevelSelect.value !== "") {
       const picked = Number(dom().psLevelSelect.value);
-      if (Number.isFinite(picked)) psLevel = Math.max(0, Math.min(PS_MAX_LEVEL, Math.floor(picked)));
+      if (Number.isFinite(picked)) psLevel = Math.max(0, Math.min(psMaxLevel(), Math.floor(picked)));
     }
     setPsGameCardGameOver(false);
     deps.setIsPlaying(true);
@@ -413,6 +434,7 @@
     psWrongCount = 0;
     psScore = 0;
     psAttempts = [];
+    psRunDeck = buildRunForLevel(psLevel);
     psCurrent = null;
     psInputLocked = false;
 
@@ -420,7 +442,7 @@
     if (dom().psLevelSelect) dom().psLevelSelect.disabled = true;
     setPsLevelPickerVisible(false);
     syncPsLevelTexts();
-    if (dom().psProgressText) dom().psProgressText.textContent = "0 / " + PS_QUESTIONS_PER_RUN;
+    if (dom().psProgressText) dom().psProgressText.textContent = formatPsProgress(0);
     if (dom().psScoreText) dom().psScoreText.textContent = "0";
     if (dom().psWrongText) dom().psWrongText.textContent = "0";
     setPsHistoryVisible(false);
@@ -439,7 +461,7 @@
     let nextLevel = startLevel;
     if (psWrongCount === 0) nextLevel = startLevel + 1;
     else if (psWrongCount >= 2) nextLevel = startLevel - 1;
-    nextLevel = Math.max(0, Math.min(PS_MAX_LEVEL, nextLevel));
+    nextLevel = Math.max(0, Math.min(psMaxLevel(), nextLevel));
     psLevel = nextLevel;
 
     await deps.appendRun(durationSec, psScore, startLevel, psWrongCount, "perfectSquare", psAttempts.slice());
@@ -618,7 +640,10 @@
         if (deps.getIsPlaying && deps.getIsPlaying()) return;
         const v = Number(dom().psLevelSelect.value);
         if (!Number.isFinite(v)) return;
-        psLevel = Math.max(0, Math.min(PS_MAX_LEVEL, Math.floor(v)));
+        psLevel = Math.max(0, Math.min(psMaxLevel(), Math.floor(v)));
+        if (dom().psProgressText && !(deps.getIsPlaying && deps.getIsPlaying())) {
+          dom().psProgressText.textContent = formatPsProgress(0);
+        }
         syncPsLevelTexts();
       });
     }
