@@ -961,72 +961,18 @@
     }
   }
 
-  async function migrateRunClearedFields() {
+  async function backfillLastGameTs() {
     try {
-      var msg = '将把全部 runs 中的 survivalCleared 迁移为 cleared，并删除旧字段；同时重算 hasClearedSurvival。\n\n'
+      var msg = '将按每位学员 runs.json 中最新入库局的 ts 写回 lastGameTs，'
+        + '与 report 挑战记录第一行对齐。\n\n'
         + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
       if (!confirm(msg)) return;
-      setStatus('cleared 字段迁移中…', '');
-      var data = await apiFetch('/api/admin/maintenance/migrate-run-cleared', { method: 'POST' });
-      var runsChanged = Number(data && data.runsRecordsChanged) || 0;
-      var recentChanged = Number(data && data.userRecentRecordsChanged) || 0;
-      var flagChanged = Number(data && data.usersHasClearedSurvivalUpdated) || 0;
-      var total = Number(data && data.totalUsers) || 0;
-      setStatus(
-        '迁移完成：runs 改动 ' + runsChanged + ' 条，用户 recent 改动 ' + recentChanged
-          + ' 条，hasClearedSurvival 更新 ' + flagChanged + ' 人（共 ' + total + ' 人）',
-        'ok',
-      );
-    } catch (e) {
-      setStatus(e.message || '迁移失败', 'err');
-    }
-  }
-
-  async function backfillSurvivalUnlockFlags() {
-    try {
-      var msg = '将从全部 runs 重算并写回学员的生存解锁标记：\n'
-        + 'trainingL16Cleared、heatmapL16Passed、levelChallengeBestLevel。\n\n'
-        + '路径 C（热图）依赖已缓存的全体常模；请先确认常模已刷新。\n\n'
-        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('生存解锁标记回填中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-survival-unlock-flags', { method: 'POST' });
-      var total = Number(data && data.totalUsers) || 0;
-      var updated = Number(data && data.updatedUsers) || 0;
-      var training = Number(data && data.trainingL16ClearedSet) || 0;
-      var heatmap = Number(data && data.heatmapL16PassedSet) || 0;
-      var levelBest = Number(data && data.levelChallengeBestLevelUpdated) || 0;
-      setStatus(
-        '回填完成：共 ' + total + ' 人，更新 ' + updated + ' 人'
-          + '（训练L16 ' + training + '，热图L16 ' + heatmap + '，闯关最高 ' + levelBest + '）',
-        'ok',
-      );
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
-    }
-  }
-
-  async function backfillStreakFields() {
-    try {
-      if (!confirm('将从 runs 重算并写回所有学员的 streakBest/streakCurrent/streakLastDate，确认继续？')) return;
-      setStatus('回填耐力字段中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-streak', { method: 'POST' });
+      setStatus('回填最后挑战时间中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-last-game-ts', { method: 'POST' });
       var total = Number(data && data.totalUsers) || 0;
       var updated = Number(data && data.updatedUsers) || 0;
       setStatus('回填完成：共 ' + total + ' 人，更新 ' + updated + ' 人', 'ok');
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
-    }
-  }
-
-  async function backfillComboFields() {
-    try {
-      if (!confirm('将从 runs 重算并写回所有学员的 comboBest/comboCurrent，确认继续？')) return;
-      setStatus('回填连击字段中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-combo', { method: 'POST' });
-      var total = Number(data && data.totalUsers) || 0;
-      var updated = Number(data && data.updatedUsers) || 0;
-      setStatus('回填完成：共 ' + total + ' 人，更新 ' + updated + ' 人', 'ok');
+      loadUsers();
     } catch (e) {
       setStatus(e.message || '回填失败', 'err');
     }
@@ -1158,14 +1104,8 @@
       });
     }
 
-    var migrateRunClearedBtn = document.getElementById('jml-btn-migrate-run-cleared');
-    if (migrateRunClearedBtn) migrateRunClearedBtn.addEventListener('click', migrateRunClearedFields);
-    var backfillSurvivalUnlockBtn = document.getElementById('jml-btn-backfill-survival-unlock');
-    if (backfillSurvivalUnlockBtn) backfillSurvivalUnlockBtn.addEventListener('click', backfillSurvivalUnlockFlags);
-    var backfillStreakBtn = document.getElementById('jml-btn-backfill-streak');
-    if (backfillStreakBtn) backfillStreakBtn.addEventListener('click', backfillStreakFields);
-    var backfillComboBtn = document.getElementById('jml-btn-backfill-combo');
-    if (backfillComboBtn) backfillComboBtn.addEventListener('click', backfillComboFields);
+    var backfillLastGameTsBtn = document.getElementById('jml-btn-backfill-last-game-ts');
+    if (backfillLastGameTsBtn) backfillLastGameTsBtn.addEventListener('click', backfillLastGameTs);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');

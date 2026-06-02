@@ -189,6 +189,11 @@
   letter-spacing: 0.02em;
 }
 
+.jml-ws-prompt-compact {
+  font-size: 10pt;
+  letter-spacing: 0;
+}
+
 .jml-ws-qline .jml-ws-num,
 .jml-ws-qline .jml-ws-prompt,
 .jml-ws-qline .jml-ws-ans {
@@ -222,6 +227,10 @@
 .jml-ws-page.jml-ws-answers .jml-ws-prompt {
   font-size: 10pt;
   font-weight: 500;
+}
+
+.jml-ws-page.jml-ws-answers .jml-ws-prompt-compact {
+  font-size: 9pt;
 }
 
 .jml-ws-ans {

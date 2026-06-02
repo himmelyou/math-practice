@@ -18,7 +18,7 @@
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
   <link rel="stylesheet" href="admin-panel.css" />
-  <link rel="stylesheet" href="admin-worksheet.css?v=19" />
+  <link rel="stylesheet" href="admin-worksheet.css?v=20" />
 </head>
 <body>
   <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">—</p>
@@ -62,7 +62,7 @@
                 <th class="sortable" data-sort="username" data-label="用户名">用户名</th>
                 <th>密码</th>
                 <th>昵称</th>
-                <th class="sortable" data-sort="lastGameTs" data-label="最后训练时间">最后训练时间</th>
+                <th class="sortable" data-sort="lastGameTs" data-label="最后挑战时间">最后挑战时间</th>
                 <th class="sortable" data-sort="totalScore" data-label="总积分">总积分</th>
                 <th class="jml-col-tester" title="测试员在拆括号内测时可看到错误选项后的错因编号">测试员</th>
                 <th style="width:100px;">操作</th>
@@ -139,9 +139,16 @@
 
       <div id="panel-worksheet" class="jml-tab-panel hidden" data-panel="worksheet" role="tabpanel">
         <p class="jml-worksheet-hint">
-          按主站拆括号规则随机出题，每页 A4、20 题、左右两列；题间留白供书写过程。可先填姓名再打印，或打印后手写。
+          按主站四则运算 / 拆括号规则随机出题，每页 A4、20 题、左右两列；题间留白供书写过程。可先填姓名再打印，或打印后手写。
         </p>
         <div class="jml-worksheet-controls">
+          <div class="jml-worksheet-field">
+            <label for="jml-ws-mode">题型</label>
+            <select id="jml-ws-mode" aria-label="题型">
+              <option value="arithmetic">四则运算（L1–L16）</option>
+              <option value="expandBrackets">拆括号（L1–L5）</option>
+            </select>
+          </div>
           <div class="jml-worksheet-field">
             <label for="jml-ws-level">难度</label>
             <select id="jml-ws-level" aria-label="难度"></select>
@@ -165,7 +172,7 @@
         </div>
         <div class="jml-worksheet-preview-wrap">
           <div id="jml-worksheet-preview" class="jml-worksheet-preview">
-            <div class="jml-worksheet-preview-empty">设置难度后点击「生成预览」。</div>
+            <div class="jml-worksheet-preview-empty">设置题型与难度后点击「生成预览」。</div>
           </div>
         </div>
       </div>
@@ -178,37 +185,22 @@
         </div>
         <div class="jml-placeholder-panel">
           <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置与文案到本地 JSON 文件。</p>
-          <p>在执行「初始化/维护」里的数据迁移或回填前，<strong>请先在此 Tab 备份</strong>。恢复会覆盖线上数据，请谨慎操作。</p>
+          <p>在执行「初始化/维护」里的数据回填前，<strong>请先在此 Tab 备份</strong>。恢复会覆盖线上数据，请谨慎操作。</p>
         </div>
       </div>
 
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
-          <button type="button" id="jml-btn-migrate-run-cleared" class="jml-btn jml-btn-primary">迁移 runs：survivalCleared → cleared</button>
-          <button type="button" id="jml-btn-backfill-survival-unlock" class="jml-btn jml-btn-primary">回填生存解锁标记</button>
-          <button type="button" id="jml-btn-backfill-streak" class="jml-btn">回填耐力字段（best/current）</button>
-          <button type="button" id="jml-btn-backfill-combo" class="jml-btn">回填连击字段（best/current）</button>
+          <button type="button" id="jml-btn-backfill-last-game-ts" class="jml-btn jml-btn-primary">回填最后挑战时间</button>
         </div>
         <div class="jml-placeholder-panel">
-          <p><strong>cleared 字段迁移（推荐顺序）</strong></p>
+          <p><strong>最后挑战时间（lastGameTs）</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>部署最新前后端代码并重启服务</li>
-            <li>打开「系统备份」Tab → 点击「下载全部备份」</li>
-            <li>回到本 Tab → 点击「迁移 runs：survivalCleared → cleared」</li>
-            <li>完成后抽查：runs 中不应再有 <code>survivalCleared</code>；生存通关局应有 <code>cleared: true</code></li>
+            <li>学员管理列表与 report 挑战记录均以 <code>runs.json</code> 最新入库局的 <code>ts</code> 为准</li>
+            <li>生存放弃（comboOnly）不入库，不会刷新该时间</li>
+            <li>若历史数据曾受 comboOnly 污染，部署后请备份 → 点击「回填最后挑战时间」写回 <code>users.json</code></li>
           </ol>
-          <p class="muted" style="margin:0;">说明：仅将旧 <code>survivalCleared</code> 迁入 <code>cleared</code> 并删除旧键；历史闯关不会按 maxLevel 回填 cleared。新局规则：闯关仅通全关写 cleared，答错/放弃不写。</p>
-          <hr style="margin:14px 0;border:none;border-top:1px solid rgba(0,0,0,.08);" />
-          <p><strong>生存解锁标记回填（cleared 迁移后执行）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>部署最新前后端并重启服务</li>
-            <li>确认管理员后台已刷新过「全体常模」（路径 C 热图需常模缓存）</li>
-            <li>「系统备份」Tab 下载备份</li>
-            <li>点击「回填生存解锁标记」：从 runs 写入 <code>trainingL16Cleared</code>、<code>heatmapL16Passed</code>、<code>levelChallengeBestLevel</code></li>
-          </ol>
-          <p class="muted" style="margin:0;">解锁规则：训练 L16 达标（cleared + maxLevel≥15）/ 闯关到过 L16 / L16 热图加权准确率 ≥95%。已写入 <code>survivalUnlocked</code> 的用户不受影响。</p>
-          <hr style="margin:14px 0;border:none;border-top:1px solid rgba(0,0,0,.08);" />
-          <p style="margin:0;">耐力/连击回填会从 runs 重算并写回学员字段；建议同样先备份。</p>
+          <p class="muted" style="margin:0;">说明：新记局仅在写入 runs 时更新 lastGameTs；列表展示始终按 runs 最大 ts 计算，与 report 第一行一致。</p>
         </div>
       </div>
     </div>
@@ -241,9 +233,10 @@
     })();
   </script>
   <script src="../shared/admin-auth.js?v=19"></script>
-  <script src="../shared/expand-brackets-questions.js?v=19"></script>
-  <script src="admin-panel.js?v=21"></script>
-  <script src="admin-worksheet.js?v=19"></script>
+  <script src="../shared/arithmetic-questions.js?v=20"></script>
+  <script src="../shared/expand-brackets-questions.js?v=20"></script>
+  <script src="admin-panel.js?v=22"></script>
+  <script src="admin-worksheet.js?v=20"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

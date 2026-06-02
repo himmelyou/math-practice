@@ -1,5 +1,5 @@
 /**
- * 管理端：去括号习题纸生成与打印
+ * 管理端：四则 / 拆括号习题纸生成与打印
  */
 (function () {
   var QUESTIONS_PER_PAGE = 20;
@@ -14,15 +14,34 @@
       .replace(/"/g, '&quot;');
   }
 
-  function buildQuestion(level) {
+  function getWorksheetMode() {
+    var el = document.getElementById('jml-ws-mode');
+    var mode = el ? String(el.value || 'expandBrackets') : 'expandBrackets';
+    return mode === 'arithmetic' ? 'arithmetic' : 'expandBrackets';
+  }
+
+  function buildQuestion(mode, level) {
+    if (mode === 'arithmetic') {
+      var ar = window.JmlArithmetic;
+      if (!ar || typeof ar.buildQuestion !== 'function') {
+        throw new Error('未加载出题模块 arithmetic-questions.js');
+      }
+      var q = ar.buildQuestion(level);
+      return {
+        prompt: q.text || '',
+        answer: q.answer != null ? String(q.answer) : '',
+        compact: level >= 14,
+      };
+    }
     var eng = window.JmlExpandBrackets;
     if (!eng || typeof eng.buildQuestion !== 'function') {
       throw new Error('未加载出题模块 expand-brackets-questions.js');
     }
-    var q = eng.buildQuestion(level);
+    var eb = eng.buildQuestion(level);
     return {
-      prompt: q.prompt || '',
-      answer: q.correctText != null ? q.correctText : '',
+      prompt: eb.prompt || '',
+      answer: eb.correctText != null ? eb.correctText : '',
+      compact: false,
     };
   }
 
@@ -37,13 +56,16 @@
     for (var i = 0; i < items.length; i += 1) {
       var q = items[i];
       var n = startIndex + i;
+      var promptClass = 'jml-ws-prompt' + (q.compact ? ' jml-ws-prompt-compact' : '');
       html +=
         '<li class="jml-ws-item">' +
         '<div class="jml-ws-qline">' +
         '<span class="jml-ws-num">' +
         n +
         ')</span> ' +
-        '<span class="jml-ws-prompt">' +
+        '<span class="' +
+        promptClass +
+        '">' +
         escapeHtml(q.prompt) +
         '</span>';
       if (showAnswers) {
@@ -94,7 +116,31 @@
     );
   }
 
+  function clampLevel(mode, level) {
+    if (mode === 'arithmetic') {
+      var maxA = (window.JmlArithmetic && window.JmlArithmetic.LEVEL_COUNT) || 16;
+      return Math.min(maxA - 1, Math.max(0, Math.floor(level)));
+    }
+    return Math.min(4, Math.max(0, Math.floor(level)));
+  }
+
+  function getLevelLabels(mode) {
+    if (mode === 'arithmetic') {
+      return (window.JmlArithmetic && window.JmlArithmetic.LEVEL_LABELS) || [];
+    }
+    return (
+      (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [
+        'L1 · 一层括号（整数）',
+        'L2 · 乘除去括号',
+        'L3 · 分配并算积',
+        'L4 · 分配并算积（进阶）',
+        'L5 · 两括号相乘',
+      ]
+    );
+  }
+
   function generateWorksheet() {
+    var mode = getWorksheetMode();
     var levelEl = document.getElementById('jml-ws-level');
     var pagesEl = document.getElementById('jml-ws-pages');
     var nameEl = document.getElementById('jml-ws-student-name');
@@ -104,7 +150,7 @@
 
     var level = levelEl ? Number(levelEl.value) : 0;
     if (!Number.isFinite(level)) level = 0;
-    level = Math.min(4, Math.max(0, Math.floor(level)));
+    level = clampLevel(mode, level);
 
     var pages = pagesEl ? Number(pagesEl.value) : 1;
     if (!Number.isFinite(pages) || pages < 1) pages = 1;
@@ -113,16 +159,19 @@
     var studentName = nameEl ? String(nameEl.value || '').trim() : '';
     var includeAnswers = answersEl ? !!answersEl.checked : false;
 
-    var labels = (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [];
-    var levelLabel = labels[level] || '去括号 L' + (level + 1);
-    var title = '去括号练习 · ' + levelLabel;
+    var labels = getLevelLabels(mode);
+    var levelLabel = labels[level] || (mode === 'arithmetic' ? 'L' + (level + 1) : '去括号 L' + (level + 1));
+    var title =
+      mode === 'arithmetic'
+        ? '四则运算 · ' + levelLabel
+        : '去括号练习 · ' + levelLabel;
 
     var html = '';
     try {
       for (var p = 0; p < pages; p += 1) {
         var batch = [];
         for (var i = 0; i < QUESTIONS_PER_PAGE; i += 1) {
-          batch.push(buildQuestion(level));
+          batch.push(buildQuestion(mode, level));
         }
         html += renderPageHtml({
           title: title,
@@ -166,16 +215,10 @@
     }, 50);
   }
 
-  function fillLevelSelect() {
+  function fillLevelSelect(mode) {
     var sel = document.getElementById('jml-ws-level');
     if (!sel) return;
-    var labels = (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [
-      'L1 · 一层括号（整数）',
-      'L2 · 乘除去括号',
-      'L3 · 分配并算积',
-      'L4 · 分配并算积（进阶）',
-      'L5 · 两括号相乘',
-    ];
+    var labels = getLevelLabels(mode);
     sel.innerHTML = '';
     labels.forEach(function (label, idx) {
       var opt = document.createElement('option');
@@ -186,6 +229,15 @@
     sel.value = '0';
   }
 
+  function onModeChange() {
+    fillLevelSelect(getWorksheetMode());
+    var preview = document.getElementById('jml-worksheet-preview');
+    if (preview) {
+      preview.innerHTML =
+        '<div class="jml-worksheet-preview-empty">设置题型与难度后点击「生成预览」。</div>';
+    }
+  }
+
   var inited = false;
 
   function bindEvents() {
@@ -193,13 +245,15 @@
     inited = true;
     var genBtn = document.getElementById('jml-ws-generate');
     var printBtn = document.getElementById('jml-ws-print');
+    var modeEl = document.getElementById('jml-ws-mode');
     if (genBtn) genBtn.addEventListener('click', generateWorksheet);
     if (printBtn) printBtn.addEventListener('click', printWorksheet);
+    if (modeEl) modeEl.addEventListener('change', onModeChange);
   }
 
   window.JmlAdminWorksheet = {
     init: function () {
-      fillLevelSelect();
+      fillLevelSelect(getWorksheetMode());
       bindEvents();
     },
     generate: generateWorksheet,

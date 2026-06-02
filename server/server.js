@@ -188,105 +188,35 @@ function userEligibleForSurvivalUnlock(u, runs) {
   return false;
 }
 
-function backfillSurvivalUnlockFlagsForAllUsers() {
+/** runs.json 中该学员已入库局的最大 ts（与 report 挑战记录最新一行一致） */
+function latestRunTsFromRuns(runs) {
+  if (!Array.isArray(runs) || runs.length === 0) return 0;
+  let max = 0;
+  runs.forEach((r) => {
+    const t = Number(r && r.ts) || 0;
+    if (t > max) max = t;
+  });
+  return max;
+}
+
+function backfillLastGameTsForAllUsers() {
   const usersData = readJson(USERS_FILE, { users: [] });
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const users = Array.isArray(usersData.users) ? usersData.users : [];
   let updatedUsers = 0;
-  let trainingL16ClearedSet = 0;
-  let heatmapL16PassedSet = 0;
-  let levelChallengeBestLevelUpdated = 0;
   users.forEach((u) => {
     if (!u || !u.username) return;
     const runs = runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
-    const before = {
-      training: u.trainingL16Cleared === true,
-      heatmap: u.heatmapL16Passed === true,
-      best: typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0,
-    };
-    const changed = recomputeSurvivalUnlockFlags(u, runs);
-    if (changed) {
+    const next = latestRunTsFromRuns(runs);
+    const old = Number(u.lastGameTs) || 0;
+    if (next !== old) {
+      if (next > 0) u.lastGameTs = next;
+      else delete u.lastGameTs;
       updatedUsers += 1;
-      if (!before.training && u.trainingL16Cleared === true) trainingL16ClearedSet += 1;
-      if (!before.heatmap && u.heatmapL16Passed === true) heatmapL16PassedSet += 1;
-      if ((u.levelChallengeBestLevel || 0) > before.best) levelChallengeBestLevelUpdated += 1;
     }
   });
   writeJson(USERS_FILE, { users });
-  return {
-    totalUsers: users.length,
-    updatedUsers,
-    trainingL16ClearedSet,
-    heatmapL16PassedSet,
-    levelChallengeBestLevelUpdated,
-  };
-}
-
-/** 将旧 survivalCleared 迁入 cleared 并删除旧键；返回是否改动 */
-function migrateRunRecordInPlace(run) {
-  if (!run || typeof run !== "object") return false;
-  let changed = false;
-  if (run.survivalCleared === true) {
-    if (run.cleared !== true) {
-      run.cleared = true;
-      changed = true;
-    }
-  }
-  if (Object.prototype.hasOwnProperty.call(run, "survivalCleared")) {
-    delete run.survivalCleared;
-    changed = true;
-  }
-  return changed;
-}
-
-const USER_RECENT_RUN_KEYS = [
-  "recentSurvivalRuns",
-  "recentLevelRuns",
-  "recentTrainingRuns",
-  "recentPrimeCompositeRuns",
-  "recentExpandBracketsRuns",
-];
-
-function migrateAllRunsClearedData() {
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const usersData = readJson(USERS_FILE, { users: [] });
-  let runsChanged = 0;
-  let userRunsChanged = 0;
-  let usersFlagChanged = 0;
-
-  const allRuns = runsData.runs && typeof runsData.runs === "object" ? runsData.runs : {};
-  Object.keys(allRuns).forEach((username) => {
-    const list = Array.isArray(allRuns[username]) ? allRuns[username] : [];
-    list.forEach((run) => {
-      if (migrateRunRecordInPlace(run)) runsChanged += 1;
-    });
-  });
-
-  const users = Array.isArray(usersData.users) ? usersData.users : [];
-  users.forEach((u) => {
-    if (!u || !u.username) return;
-    USER_RECENT_RUN_KEYS.forEach((key) => {
-      if (!Array.isArray(u[key])) return;
-      u[key].forEach((run) => {
-        if (migrateRunRecordInPlace(run)) userRunsChanged += 1;
-      });
-    });
-    const runs = Array.isArray(allRuns[u.username]) ? allRuns[u.username] : [];
-    const nextFlag = userHasClearedSurvivalFromRuns(runs);
-    if (u.hasClearedSurvival !== nextFlag) {
-      u.hasClearedSurvival = nextFlag;
-      usersFlagChanged += 1;
-    }
-  });
-
-  writeJson(RUNS_FILE, runsData);
-  writeJson(USERS_FILE, usersData);
-  return {
-    runsRecordsChanged: runsChanged,
-    userRecentRecordsChanged: userRunsChanged,
-    usersHasClearedSurvivalUpdated: usersFlagChanged,
-    totalUsers: users.length,
-  };
+  return { totalUsers: users.length, updatedUsers };
 }
 
 function buildScoreRankingRowUser(u, req) {
@@ -1331,10 +1261,10 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   const uIdx = userData.users.findIndex((u) => u.username === username);
   if (uIdx >= 0) {
     const u = userData.users[uIdx];
-    u.lastGameTs = runEntry.ts;
     // 增量维护连击：放弃局（comboOnly）也计入
     bumpUserComboFromAttempts(u, runEntry.attempts);
     if (!comboOnly) {
+      u.lastGameTs = runEntry.ts;
       u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
       // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
       bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));
@@ -1645,9 +1575,8 @@ app.get("/api/admin/users", (req, res) => {
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const users = data.users.map((u) => {
     const out = { ...u };
-    if (!out.lastGameTs && runsData.runs[u.username] && runsData.runs[u.username].length > 0) {
-      out.lastGameTs = runsData.runs[u.username][0].ts;
-    }
+    const userRuns = runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    out.lastGameTs = latestRunTsFromRuns(userRuns);
     return safeUser(out);
   });
   res.json({ ok: true, users });
@@ -2103,74 +2032,17 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
   }
 });
 
-// ========== 管理员：一次性迁移 survivalCleared → cleared ==========
-app.post("/api/admin/maintenance/migrate-run-cleared", (req, res) => {
+// ========== 管理员：回填 lastGameTs（与 runs.json 最新入库局对齐） ==========
+app.post("/api/admin/maintenance/backfill-last-game-ts", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   try {
-    const stats = migrateAllRunsClearedData();
+    const stats = backfillLastGameTsForAllUsers();
     return res.json({ ok: true, ...stats });
   } catch (e) {
-    return res.status(500).json({ ok: false, error: "迁移失败：" + (e.message || String(e)) });
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
   }
-});
-
-// ========== 管理员：一次性回填耐力字段（streakCurrent/streakBest/streakLastDate） ==========
-app.post("/api/admin/maintenance/backfill-streak", (req, res) => {
-  if (!checkAdminPin(req)) {
-    return res.status(403).json({ ok: false, error: "需要管理员口令" });
-  }
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const users = Array.isArray(usersData.users) ? usersData.users : [];
-  let changed = 0;
-  users.forEach((u) => {
-    if (!u || !u.username) return;
-    const runs = (runsData.runs && Array.isArray(runsData.runs[u.username])) ? runsData.runs[u.username] : [];
-    const stats = getStreakStatsFromRuns(runs);
-    const nextCurrent = Number(stats.streakCurrent) || 0;
-    const nextBest = Number(stats.streakBest) || 0;
-    const nextLast = normalizeDateKey(stats.lastActiveDate || "");
-    const oldCurrent = Number(u.streakCurrent) || 0;
-    const oldBest = Number(u.streakBest) || 0;
-    const oldLast = normalizeDateKey(u.streakLastDate || "");
-    if (oldCurrent !== nextCurrent || oldBest !== nextBest || oldLast !== nextLast) {
-      changed += 1;
-      u.streakCurrent = nextCurrent;
-      u.streakBest = nextBest;
-      u.streakLastDate = nextLast;
-    }
-  });
-  writeJson(USERS_FILE, { users });
-  return res.json({ ok: true, totalUsers: users.length, updatedUsers: changed });
-});
-
-// ========== 管理员：一次性回填连击字段（comboCurrent/comboBest） ==========
-app.post("/api/admin/maintenance/backfill-combo", (req, res) => {
-  if (!checkAdminPin(req)) {
-    return res.status(403).json({ ok: false, error: "需要管理员口令" });
-  }
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const users = Array.isArray(usersData.users) ? usersData.users : [];
-  let changed = 0;
-  users.forEach((u) => {
-    if (!u || !u.username) return;
-    const runs = (runsData.runs && Array.isArray(runsData.runs[u.username])) ? runsData.runs[u.username] : [];
-    const stats = getComboStatsFromRuns(runs);
-    const nextCurrent = Number(stats.comboCurrent) || 0;
-    const nextBest = Number(stats.comboBest) || 0;
-    const oldCurrent = Number(u.comboCurrent) || 0;
-    const oldBest = Number(u.comboBest) || 0;
-    if (oldCurrent !== nextCurrent || oldBest !== nextBest) {
-      changed += 1;
-      u.comboCurrent = nextCurrent;
-      u.comboBest = nextBest;
-    }
-  });
-  writeJson(USERS_FILE, { users });
-  return res.json({ ok: true, totalUsers: users.length, updatedUsers: changed });
 });
 
 // ========== 学员：刷新生存解锁资格（从 runs 重算标记） ==========
@@ -2194,19 +2066,6 @@ app.get("/api/user/:username/survival-eligibility", requireStudentAuth, ensureOw
     levelChallengeBestLevel: typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0,
     eligible: userEligibleForSurvivalUnlock(u),
   });
-});
-
-// ========== 管理员：回填生存解锁标记（trainingL16 / heatmapL16 / levelBest） ==========
-app.post("/api/admin/maintenance/backfill-survival-unlock-flags", (req, res) => {
-  if (!checkAdminPin(req)) {
-    return res.status(403).json({ ok: false, error: "需要管理员口令" });
-  }
-  try {
-    const stats = backfillSurvivalUnlockFlagsForAllUsers();
-    return res.json({ ok: true, ...stats });
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
-  }
 });
 
 // ========== 头像：学员端获取头像列表（用于解锁/选择，先预留） ==========
