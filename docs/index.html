@@ -7735,14 +7735,14 @@
           if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = "0";
-          if (wrongEl) wrongEl.textContent = "—";
-          if (maxLevelEl) maxLevelEl.textContent = "—";
+          if (wrongEl) wrongEl.textContent = String(runWrongCount);
+          if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(currentLevelIndex);
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
-        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, true);
+        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false);
         renderRecentRuns();
         return;
       }
@@ -7863,7 +7863,7 @@
         // 放弃：按进度结算 runs，不写错题本（全程不调用 recordWrongAnswer）
         saveLevelChallengeLastLevel(persistIdx);
         saveLevelChallengeBestLevel(persistIdx);
-        appendRun(survivalTimeSec, runScore, persistIdx, 0, "level", currentRunAttempts.slice(), false, false);
+        appendRun(survivalTimeSec, runScore, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false);
         renderRecentRuns();
         updateTrainingButtonLabel();
         if (dom.gameOverPanel) {
@@ -7885,7 +7885,7 @@
           if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
           if (scoreEl) scoreEl.textContent = String(runScore);
-          if (wrongEl) wrongEl.textContent = "0";
+          if (wrongEl) wrongEl.textContent = String(runWrongCount);
           if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
         }
         setGameCardActionSlot("hidden");
