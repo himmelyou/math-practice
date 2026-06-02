@@ -1437,6 +1437,11 @@
     .expand-choice-btn:hover { background: #f7fbff; }
     .expand-choice-btn.correct { border-color: rgba(21, 128, 61, 0.35); color: #15803d; }
     .expand-choice-btn.wrong { border-color: rgba(185, 28, 28, 0.3); color: #b91c1c; }
+    .expand-choice-btn.selected:not(.correct):not(.wrong) {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    }
     .expand-choice-btn.expand-choice-noop {
       cursor: default;
       opacity: 0.38;
@@ -3254,9 +3259,9 @@
           <div class="expand-choices" id="expand-choices"></div>
           <div class="expand-explain" id="expand-explain" style="display:none;">
             <div class="expand-explain-body" id="expand-explain-body"></div>
-            <div class="expand-next-row">
-              <button type="button" class="btn-primary" id="expand-next-btn">下一题</button>
-            </div>
+          </div>
+          <div class="expand-next-row" id="expand-action-row" style="display:none;">
+            <button type="button" class="btn-primary" id="expand-next-btn" disabled>确认</button>
           </div>
         </div>
 
@@ -3947,6 +3952,7 @@
     let expandTimerId = null;
     let expandLocked = false;
     let expandPendingNext = false;
+    let expandSelectedIdx = null;
     let expandCurrent = null;
 
     // ========= DOM引用 =========
@@ -3994,6 +4000,7 @@
       dom.expandChoices = document.getElementById("expand-choices");
       dom.expandExplain = document.getElementById("expand-explain");
       dom.expandExplainBody = document.getElementById("expand-explain-body");
+      dom.expandActionRow = document.getElementById("expand-action-row");
       dom.expandNextBtn = document.getElementById("expand-next-btn");
       dom.expandStartBtn = document.getElementById("expand-start-btn");
       dom.expandStartRow = document.getElementById("expand-start-row");
@@ -4482,6 +4489,33 @@
           return `<button type="button" class="${cls}" data-idx="${idx}"${label}>${isNoop ? "" : `${escapeHtml(txt)}${causeHtml}`}</button>`;
         })
         .join("");
+      expandSelectedIdx = null;
+      syncExpandActionButton();
+    }
+
+    function resetExpandChoiceSelection() {
+      expandSelectedIdx = null;
+      if (dom.expandChoices) {
+        dom.expandChoices.querySelectorAll("button.expand-choice-btn").forEach((b) => {
+          b.classList.remove("selected");
+        });
+      }
+      syncExpandActionButton();
+    }
+
+    function syncExpandActionButton() {
+      if (!dom.expandNextBtn) return;
+      const showRow =
+        gameMode === "expandBrackets" && isPlaying && !gameOver && dom.expandPanel && dom.expandPanel.style.display !== "none";
+      if (dom.expandActionRow) dom.expandActionRow.style.display = showRow ? "flex" : "none";
+      if (!showRow) return;
+      if (expandPendingNext) {
+        dom.expandNextBtn.textContent = t("expand.next");
+        dom.expandNextBtn.disabled = false;
+        return;
+      }
+      dom.expandNextBtn.textContent = t("expand.confirm");
+      dom.expandNextBtn.disabled = expandLocked || expandSelectedIdx == null;
     }
 
     function showExpandExplain(selectedIdx) {
@@ -4490,11 +4524,13 @@
       dom.expandExplainBody.innerHTML = `<div>${escapeHtml(why)}</div>`;
       dom.expandExplain.style.display = "block";
       expandPendingNext = true;
+      syncExpandActionButton();
     }
 
     function hideExpandExplain() {
       if (dom.expandExplain) dom.expandExplain.style.display = "none";
       expandPendingNext = false;
+      syncExpandActionButton();
     }
 
     const EXPAND_QUESTION_FONT_MAX_PX = 20;
@@ -4711,6 +4747,7 @@
       dom.expandChoices.querySelectorAll("button.expand-choice-btn").forEach((b) => {
         b.disabled = !!lock;
       });
+      syncExpandActionButton();
     }
 
     function expandCanonicalAnswer(q) {
@@ -4720,9 +4757,24 @@
       return "";
     }
 
-    function handleExpandChoiceClick(idx) {
-      if (!expandCurrent || expandLocked) return;
+    function handleExpandChoiceSelect(idx) {
+      if (!expandCurrent || expandLocked || expandPendingNext) return;
       const selectedIdx = Number(idx);
+      if (expandCurrent.choiceKinds && expandCurrent.choiceKinds[selectedIdx] === "noop") return;
+      expandSelectedIdx = selectedIdx;
+      if (!dom.expandChoices) return;
+      const btns = dom.expandChoices.querySelectorAll("button.expand-choice-btn");
+      btns.forEach((b, i) => {
+        const isNoop = expandCurrent.choiceKinds && expandCurrent.choiceKinds[i] === "noop";
+        b.classList.toggle("selected", !isNoop && i === selectedIdx);
+      });
+      syncExpandActionButton();
+    }
+
+    function submitExpandAnswer() {
+      if (!expandCurrent || expandLocked || expandPendingNext) return;
+      if (expandSelectedIdx == null) return;
+      const selectedIdx = expandSelectedIdx;
       if (expandCurrent.choiceKinds && expandCurrent.choiceKinds[selectedIdx] === "noop") return;
       const canonical = String(expandCanonicalAnswer(expandCurrent) || "").replace(/\s+/g, " ").trim();
       const picked =
@@ -4739,11 +4791,14 @@
       if (!dom.expandChoices) return;
       const btns = Array.from(dom.expandChoices.querySelectorAll("button.expand-choice-btn"));
       const markCorrect = correctIdx >= 0 ? correctIdx : expandCurrent.correctIndex;
+      expandLocked = true;
       btns.forEach((b, i) => {
+        b.classList.remove("selected");
         b.classList.toggle("correct", i === markCorrect);
         if (!ok && i === selectedIdx) b.classList.toggle("wrong", true);
         b.disabled = true;
       });
+      syncExpandActionButton();
       if (ok) {
         expandScore += EXPAND_SCORE_PER_CORRECT;
         if (dom.expandScoreText) dom.expandScoreText.textContent = String(expandScore);
@@ -4760,12 +4815,12 @@
           : (dom.expandQuestionText ? String(dom.expandQuestionText.textContent || "") : "");
       recordExpandBracketsWrongAnswer(promptText, canonical, pickedNorm);
       showExpandExplain(selectedIdx);
-      lockExpandChoices(true);
     }
 
     function nextExpandQuestion() {
       hideExpandExplain();
       lockExpandChoices(false);
+      resetExpandChoiceSelection();
       if (expandQuestionIndex >= 20) {
         endExpandBracketsGame();
         return;
@@ -4800,6 +4855,7 @@
       expandScore = 0;
       expandAttempts = [];
       expandPendingNext = false;
+      expandSelectedIdx = null;
       expandCurrent = null;
 
       // 避免其他模式的计时器残留
@@ -4894,6 +4950,7 @@
       expandAttempts = [];
       expandLocked = false;
       expandPendingNext = false;
+      expandSelectedIdx = null;
       expandCurrent = null;
       expandStartTs = 0;
       stopExpandTimer();
@@ -5165,6 +5222,7 @@
         "expand.title": "拆括號",
         "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
         "expand.start": "開始挑戰",
+        "expand.confirm": "確認",
         "expand.next": "下一題",
         "expand.explain": "解析",
         "expand.recent": "最近十次拆括號",
@@ -5465,6 +5523,7 @@
         "expand.title": "Expand Brackets",
         "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
         "expand.start": "Start",
+        "expand.confirm": "Confirm",
         "expand.next": "Next",
         "expand.explain": "Explanation",
         "expand.recent": "Last 10 Runs",
@@ -6069,7 +6128,7 @@
 
       setTextById("expand-start-btn", "expand.start");
       setTextById("expand-play-again-btn", "game.btn.playAgain");
-      setTextById("expand-next-btn", "expand.next");
+      syncExpandActionButton();
       setTextById("expand-explain-title", "expand.explain");
       setTextById("expand-recent-title", "expand.recent");
       setTextById("expand-th-dt", "expand.th.datetime");
@@ -10301,13 +10360,16 @@
           if (!btn) return;
           e.preventDefault();
           const idx = btn.getAttribute("data-idx");
-          handleExpandChoiceClick(idx);
+          handleExpandChoiceSelect(idx);
         });
       }
       if (dom.expandNextBtn) {
         dom.expandNextBtn.addEventListener("click", function () {
-          if (!expandPendingNext) return;
-          nextExpandQuestion();
+          if (expandPendingNext) {
+            nextExpandQuestion();
+            return;
+          }
+          submitExpandAnswer();
         });
       }
       if (dom.expandStartBtn) {
