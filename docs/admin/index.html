@@ -192,6 +192,7 @@
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-backfill-last-game-ts" class="jml-btn jml-btn-primary">回填最后挑战时间</button>
+          <button type="button" id="jml-btn-backfill-expand-score" class="jml-btn jml-btn-primary">回填拆括号得分（×5）</button>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>最后挑战时间（lastGameTs）</strong></p>
@@ -201,6 +202,15 @@
             <li>若历史数据曾受 comboOnly 污染，部署后请备份 → 点击「回填最后挑战时间」写回 <code>users.json</code></li>
           </ol>
           <p class="muted" style="margin:0;">说明：新记局仅在写入 runs 时更新 lastGameTs；列表展示始终按 runs 最大 ts 计算，与 report 第一行一致。</p>
+        </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>拆括号得分（5 分/题）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>旧版拆括号 <code>runs.score</code> 按「答对 1 题 +1 分」写入；新版与其它模式一致为 <strong>5 分/题</strong></li>
+            <li>回填会更新 <code>runs.json</code> 中 <code>mode=expandBrackets</code> 的历史局、同步 <code>recentExpandBracketsRuns</code>，并按 runs 重算 <code>totalScore</code></li>
+            <li>已回填过的局带 <code>expandScorePerCorrect: 5</code> 标记，重复点击不会二次乘算</li>
+          </ol>
+          <p class="muted" style="margin:0;">部署新版主站后，请先备份再点击「回填拆括号得分（×5）」。</p>
         </div>
       </div>
     </div>

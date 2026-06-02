@@ -222,6 +222,95 @@ function backfillLastGameTsForAllUsers() {
   return { totalUsers: users.length, updatedUsers };
 }
 
+const EXPAND_SCORE_PER_CORRECT = 5;
+
+function countCorrectAttempts(attempts) {
+  if (!Array.isArray(attempts)) return null;
+  return attempts.filter((a) => a && a.correct === true).length;
+}
+
+/** 拆括号旧版：score 存的是答对题数（1 分/题）；新版为答对数×5 */
+function expandRunNeedsScoreBackfill(run) {
+  if (!run || normalizeRunMode(run.mode) !== "expandBrackets") return false;
+  if (run.expandScorePerCorrect === EXPAND_SCORE_PER_CORRECT) return false;
+  const correct = countCorrectAttempts(run.attempts);
+  const score = Number(run.score) || 0;
+  if (correct != null) {
+    if (score === correct * EXPAND_SCORE_PER_CORRECT) return false;
+    if (correct > 0 && score === correct) return true;
+    return false;
+  }
+  if (score > 0 && score <= 20 && score % EXPAND_SCORE_PER_CORRECT !== 0) return true;
+  return false;
+}
+
+function applyExpandBracketsScoreBackfill(run) {
+  const correct = countCorrectAttempts(run.attempts);
+  const oldScore = Number(run.score) || 0;
+  const newScore =
+    correct != null ? correct * EXPAND_SCORE_PER_CORRECT : oldScore * EXPAND_SCORE_PER_CORRECT;
+  run.score = newScore;
+  run.expandScorePerCorrect = EXPAND_SCORE_PER_CORRECT;
+  return { oldScore, newScore, delta: newScore - oldScore };
+}
+
+function sumNonComboRunScores(runs) {
+  if (!Array.isArray(runs)) return 0;
+  return runs.reduce((sum, r) => {
+    if (!r || r.comboOnly === true) return sum;
+    return sum + (Number(r.score) || 0);
+  }, 0);
+}
+
+function backfillExpandBracketsScoresForAllUsers() {
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  let updatedRuns = 0;
+  let updatedUsers = 0;
+  let totalScoreDelta = 0;
+
+  const patchRun = (run) => {
+    if (!expandRunNeedsScoreBackfill(run)) return 0;
+    const { delta } = applyExpandBracketsScoreBackfill(run);
+    updatedRuns += 1;
+    return delta;
+  };
+
+  Object.keys(runsData.runs || {}).forEach((username) => {
+    const arr = runsData.runs[username];
+    if (!Array.isArray(arr)) return;
+    arr.forEach((run) => {
+      totalScoreDelta += patchRun(run);
+    });
+  });
+
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    if (Array.isArray(u.recentExpandBracketsRuns)) {
+      u.recentExpandBracketsRuns.forEach((run) => {
+        patchRun(run);
+      });
+    }
+    const runs = runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    const nextTotal = sumNonComboRunScores(runs);
+    const oldTotal = Number(u.totalScore) || 0;
+    if (nextTotal !== oldTotal) {
+      u.totalScore = nextTotal;
+      updatedUsers += 1;
+    }
+  });
+
+  writeJson(RUNS_FILE, runsData);
+  writeJson(USERS_FILE, usersData);
+  return {
+    totalUsers: users.length,
+    updatedRuns,
+    updatedUsers,
+    totalScoreDelta,
+  };
+}
+
 function buildScoreRankingRowUser(u, req) {
   if (!u || !u.username) return null;
   const displayName = (u.nickname || "").trim() ? String(u.nickname).trim() : "新人";
@@ -2050,6 +2139,19 @@ app.post("/api/admin/maintenance/backfill-last-game-ts", (req, res) => {
   }
   try {
     const stats = backfillLastGameTsForAllUsers();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：拆括号 runs 得分 1 分/题 → 5 分/题 ==========
+app.post("/api/admin/maintenance/backfill-expand-brackets-score", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const stats = backfillExpandBracketsScoresForAllUsers();
     return res.json({ ok: true, ...stats });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });

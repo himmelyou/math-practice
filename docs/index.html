@@ -3941,6 +3941,7 @@
     let expandQuestionIndex = 0;
     let expandWrongCount = 0;
     let expandScore = 0;
+    const EXPAND_SCORE_PER_CORRECT = 5;
     let expandAttempts = [];
     let expandStartTs = 0;
     let expandTimerId = null;
@@ -4744,7 +4745,7 @@
         b.disabled = true;
       });
       if (ok) {
-        expandScore += 1;
+        expandScore += EXPAND_SCORE_PER_CORRECT;
         if (dom.expandScoreText) dom.expandScoreText.textContent = String(expandScore);
         setTimeout(() => {
           nextExpandQuestion();

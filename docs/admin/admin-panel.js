@@ -978,6 +978,27 @@
     }
   }
 
+  async function backfillExpandBracketsScore() {
+    try {
+      var msg = '将把历史拆括号局中 score=答对题数 的记录改为 5 分/题，'
+        + '并同步 recentExpandBracketsRuns、按 runs 重算 totalScore。\n\n'
+        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('回填拆括号得分中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-expand-brackets-score', { method: 'POST' });
+      var runs = Number(data && data.updatedRuns) || 0;
+      var users = Number(data && data.updatedUsers) || 0;
+      var delta = Number(data && data.totalScoreDelta) || 0;
+      setStatus(
+        '回填完成：更新 ' + runs + ' 局，重算 ' + users + ' 人总积分（runs 得分增量合计 +' + delta + '）',
+        'ok'
+      );
+      loadUsers();
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   function i18nTextareaValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || "") : "";
@@ -1106,6 +1127,8 @@
 
     var backfillLastGameTsBtn = document.getElementById('jml-btn-backfill-last-game-ts');
     if (backfillLastGameTsBtn) backfillLastGameTsBtn.addEventListener('click', backfillLastGameTs);
+    var backfillExpandScoreBtn = document.getElementById('jml-btn-backfill-expand-score');
+    if (backfillExpandScoreBtn) backfillExpandScoreBtn.addEventListener('click', backfillExpandBracketsScore);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');
