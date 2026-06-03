@@ -766,16 +766,26 @@
     .ranking-header { margin: 8px 0 10px; }
     .ranking-title { margin: 0; font-size: 1.1rem; color: #263238; }
     .ranking-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .ranking-mode-select { display: block; flex: 0 0 auto; }
-    .ranking-mode-select select {
-      border: 1px solid rgba(25, 118, 210, 0.18);
-      border-radius: 12px;
-      padding: 9px 10px;
-      font-weight: 700;
-      font-size: 0.86rem;
-      color: #0d47a1;
-      background: linear-gradient(135deg, #e3f2fd, #f5f9ff);
+    .ranking-mode-select {
+      display: block;
+      flex: 0 0 auto;
+    }
+    .ranking-mode-trigger {
+      font-size: 0.8125rem;
+      font-weight: 500;
       max-width: min(52vw, 220px);
+    }
+    .ranking-mode-trigger span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ranking-mode-menu {
+      max-width: calc(100vw - 24px);
+    }
+    .home-settings-menu-item.ranking-mode-menu-item--active {
+      background: #e8f1ff;
+      color: #0d47a1;
+      font-weight: 600;
     }
     .ranking-subtitle { margin: 6px 0 0; font-size: 0.86rem; color: var(--muted); }
     .ranking-main-row {
@@ -3407,14 +3417,35 @@
       <div class="ranking-header">
         <div class="ranking-title-row">
           <h2 class="ranking-title" id="ranking-title-main">排行榜</h2>
-          <div class="ranking-mode-select">
-            <select id="ranking-mode-select" aria-label="选择榜单">
-              <option value="score">总积分榜</option>
-              <option value="survival">生存榜</option>
-              <option value="primePerfect">质数达人</option>
-              <option value="streak">耐力榜</option>
-              <option value="combo">连击榜</option>
-            </select>
+          <div class="ranking-mode-select home-settings-wrap" id="ranking-mode-wrap">
+            <button
+              type="button"
+              id="ranking-mode-trigger"
+              class="home-settings-trigger home-pill-btn ranking-mode-trigger"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="ranking-mode-menu"
+              aria-label="选择榜单"
+            >
+              <span id="ranking-mode-trigger-label">总积分榜</span>
+            </button>
+            <div id="ranking-mode-menu" class="home-settings-menu ranking-mode-menu" role="menu" hidden>
+              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="score">
+                <span id="ranking-mode-label-score">总积分榜</span>
+              </button>
+              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="survival">
+                <span id="ranking-mode-label-survival">生存榜</span>
+              </button>
+              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="primePerfect">
+                <span id="ranking-mode-label-primePerfect">质数达人</span>
+              </button>
+              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="streak">
+                <span id="ranking-mode-label-streak">耐力榜</span>
+              </button>
+              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="combo">
+                <span id="ranking-mode-label-combo">连击榜</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -4273,6 +4304,7 @@
     }
 
     function openHomeSettingsMenu() {
+      closeRankingModeMenu();
       const menu = document.getElementById("home-settings-menu");
       const btn = document.getElementById("home-settings-btn");
       if (!menu || !btn) return;
@@ -4285,6 +4317,65 @@
       if (!menu) return;
       if (menu.hidden) openHomeSettingsMenu();
       else closeHomeSettingsMenu();
+    }
+
+    const RANKING_TAB_I18N = {
+      score: "ranking.score",
+      survival: "ranking.survival",
+      primePerfect: "ranking.primePerfect",
+      streak: "ranking.streak",
+      combo: "ranking.combo",
+    };
+
+    function getRankingTabLabel(tab) {
+      const key = RANKING_TAB_I18N[tab] || RANKING_TAB_I18N.score;
+      return t(key);
+    }
+
+    function closeRankingModeMenu() {
+      const menu = document.getElementById("ranking-mode-menu");
+      const btn = document.getElementById("ranking-mode-trigger");
+      if (menu) menu.hidden = true;
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    }
+
+    function openRankingModeMenu() {
+      closeHomeSettingsMenu();
+      const menu = document.getElementById("ranking-mode-menu");
+      const btn = document.getElementById("ranking-mode-trigger");
+      if (!menu || !btn) return;
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+    }
+
+    function toggleRankingModeMenu() {
+      const menu = document.getElementById("ranking-mode-menu");
+      if (!menu) return;
+      if (menu.hidden) openRankingModeMenu();
+      else closeRankingModeMenu();
+    }
+
+    function syncRankingModeMenuActiveState(tab) {
+      const menu = document.getElementById("ranking-mode-menu");
+      if (!menu) return;
+      menu.querySelectorAll("[data-ranking-tab]").forEach((btn) => {
+        const active = btn.getAttribute("data-ranking-tab") === tab;
+        btn.classList.toggle("ranking-mode-menu-item--active", active);
+        btn.setAttribute("aria-current", active ? "true" : "false");
+      });
+    }
+
+    function updateRankingModeDropdownI18n() {
+      const trigger = document.getElementById("ranking-mode-trigger");
+      if (trigger) trigger.setAttribute("aria-label", t("ranking.selectAria"));
+      setTextById("ranking-mode-label-score", "ranking.score");
+      setTextById("ranking-mode-label-survival", "ranking.survival");
+      setTextById("ranking-mode-label-primePerfect", "ranking.primePerfect");
+      setTextById("ranking-mode-label-streak", "ranking.streak");
+      setTextById("ranking-mode-label-combo", "ranking.combo");
+      const labelEl = document.getElementById("ranking-mode-trigger-label");
+      if (labelEl) labelEl.textContent = getRankingTabLabel(lastRankingTab);
+      syncRankingModeMenuActiveState(lastRankingTab);
     }
 
     function syncHomeSettingsAuthItems() {
@@ -6022,8 +6113,7 @@
       setT("recent-history-empty", "recent.empty");
       if (window.JmlSoftKeyboard) window.JmlSoftKeyboard.applyI18nAll(t);
       setT("wrongbook-empty", "wrongbook.empty");
-      const rSel = byId("ranking-mode-select");
-      if (rSel) rSel.setAttribute("aria-label", t("ranking.selectAria"));
+      updateRankingModeDropdownI18n();
       setT("ranking-gate-title", "ranking.gate.survivalTitle");
       setT("ranking-gate-body-1", "ranking.gate.survivalBody1");
       setT("ranking-gate-body-2", "ranking.gate.survivalBody2");
@@ -6244,14 +6334,7 @@
       setHomeModeLabel("mode-achievement-wall", "home.mode.achievementWall");
 
       setTextById("ranking-title-main", "ranking.title");
-      const rankingSelect = document.getElementById("ranking-mode-select");
-      if (rankingSelect && rankingSelect.options && rankingSelect.options.length >= 5) {
-        rankingSelect.options[0].textContent = t("ranking.score");
-        rankingSelect.options[1].textContent = t("ranking.survival");
-        rankingSelect.options[2].textContent = t("ranking.primePerfect");
-        rankingSelect.options[3].textContent = t("ranking.streak");
-        rankingSelect.options[4].textContent = t("ranking.combo");
-      }
+      updateRankingModeDropdownI18n();
 
       setTextById("stats-subtitle-hint", "stats.subtitle");
 
@@ -8202,6 +8285,7 @@
     }
 
     function hideRankingView() {
+      closeRankingModeMenu();
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
@@ -8540,13 +8624,24 @@
     function initRankingUiSkeletonIfNeeded() {
       if (rankingUiInited) return;
       rankingUiInited = true;
-      const sel = document.getElementById("ranking-mode-select");
-      if (sel) {
-        sel.addEventListener("change", () => {
-          const tab = sel.value || "score";
-          setRankingActiveTab(tab);
+      const trigger = document.getElementById("ranking-mode-trigger");
+      if (trigger) {
+        trigger.addEventListener("click", function (e) {
+          e.stopPropagation();
+          toggleRankingModeMenu();
         });
       }
+      const menu = document.getElementById("ranking-mode-menu");
+      if (menu) {
+        menu.querySelectorAll("[data-ranking-tab]").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const tab = btn.getAttribute("data-ranking-tab") || "score";
+            closeRankingModeMenu();
+            setRankingActiveTab(tab);
+          });
+        });
+      }
+      updateRankingModeDropdownI18n();
     }
 
     function getAvatarPlaceholderLetter(displayName) {
@@ -8900,8 +8995,9 @@
     function setRankingActiveTab(tab) {
       const next = (tab === "score" || tab === "survival" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
       lastRankingTab = next;
-      const sel = document.getElementById("ranking-mode-select");
-      if (sel && sel.value !== next) sel.value = next;
+      const labelEl = document.getElementById("ranking-mode-trigger-label");
+      if (labelEl) labelEl.textContent = getRankingTabLabel(next);
+      syncRankingModeMenuActiveState(next);
 
       const hint = document.getElementById("ranking-panel-hint");
       const thead = document.getElementById("ranking-thead-v2");
@@ -10627,11 +10723,15 @@
       document.addEventListener("click", function (e) {
         const wrap = document.getElementById("home-settings-wrap");
         const menu = document.getElementById("home-settings-menu");
-        if (!wrap || !menu || menu.hidden) return;
-        if (!wrap.contains(e.target)) closeHomeSettingsMenu();
+        if (wrap && menu && !menu.hidden && !wrap.contains(e.target)) closeHomeSettingsMenu();
+        const rankWrap = document.getElementById("ranking-mode-wrap");
+        const rankMenu = document.getElementById("ranking-mode-menu");
+        if (rankWrap && rankMenu && !rankMenu.hidden && !rankWrap.contains(e.target)) closeRankingModeMenu();
       });
       document.addEventListener("keydown", function (e) {
-        if (e.key === "Escape") closeHomeSettingsMenu();
+        if (e.key !== "Escape") return;
+        closeHomeSettingsMenu();
+        closeRankingModeMenu();
       });
       bindHomeTopBreatheListeners();
     }
