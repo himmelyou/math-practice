@@ -388,8 +388,10 @@
       position: absolute;
       right: 0;
       top: calc(100% + 6px);
-      min-width: 10.5em;
-      padding: 6px 0;
+      width: max-content;
+      min-width: 0;
+      max-width: min(calc(100vw - 24px), 9.5rem);
+      padding: 4px 0;
       margin: 0;
       border-radius: 10px;
       border: 1px solid rgba(25, 118, 210, 0.18);
@@ -405,7 +407,7 @@
       align-items: center;
       width: 100%;
       box-sizing: border-box;
-      padding: 10px 14px;
+      padding: 7px 9px;
       border: none;
       background: transparent;
       font: inherit;
