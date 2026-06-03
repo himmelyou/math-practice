@@ -45,6 +45,7 @@
         <button type="button" class="jml-tab" data-tab="levels" role="tab">等级设置</button>
         <button type="button" class="jml-tab" data-tab="avatars" role="tab">头像管理</button>
         <button type="button" class="jml-tab" data-tab="i18n" role="tab">文字管理</button>
+        <button type="button" class="jml-tab" data-tab="feedback" role="tab">用户反馈</button>
         <button type="button" class="jml-tab" data-tab="worksheet" role="tab">出题打印</button>
         <button type="button" class="jml-tab" data-tab="backup" role="tab">系统备份</button>
         <button type="button" class="jml-tab" data-tab="maintenance" role="tab">初始化/维护</button>
@@ -137,6 +138,33 @@
         </div>
       </div>
 
+      <div id="panel-feedback" class="jml-tab-panel hidden" data-panel="feedback" role="tabpanel">
+        <div class="jml-panel-head">
+          <button type="button" id="jml-btn-refresh-feedback" class="jml-btn">刷新列表</button>
+          <label class="jml-feedback-filter">
+            <input type="checkbox" id="jml-feedback-unread-only" />
+            仅显示未读
+          </label>
+        </div>
+        <p class="muted jml-levels-hint">学员在设置 →「联系我们」提交；须已登录。联系邮箱选填，可点击「回复」用默认邮件客户端发送。</p>
+        <div class="jml-table-wrap">
+          <table class="jml-user-table jml-feedback-table">
+            <thead>
+              <tr>
+                <th style="width:140px;">时间</th>
+                <th style="width:100px;">用户名</th>
+                <th style="width:80px;">类型</th>
+                <th>内容</th>
+                <th style="width:160px;">联系邮箱</th>
+                <th style="width:72px;">状态</th>
+                <th style="width:120px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="jml-feedback-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div id="panel-worksheet" class="jml-tab-panel hidden" data-panel="worksheet" role="tabpanel">
         <p class="jml-worksheet-hint">
           按主站四则运算 / 拆括号规则随机出题。四则每页 30 题（左列 1–15、右列 16–30），拆括号每页 20 题（左列 1–10、右列 11–20）；题间留白供书写。可先填姓名再打印，或打印后手写。
@@ -184,7 +212,7 @@
           <input type="file" id="jml-restore-file" accept=".json" style="display:none;" />
         </div>
         <div class="jml-placeholder-panel">
-          <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置与文案到本地 JSON 文件。</p>
+          <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置、文案与用户反馈到本地 JSON 文件。</p>
           <p>在执行「初始化/维护」里的数据回填前，<strong>请先在此 Tab 备份</strong>。恢复会覆盖线上数据，请谨慎操作。</p>
         </div>
       </div>

@@ -94,6 +94,48 @@
   margin-bottom: 14px;
 }
 
+.jml-feedback-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+}
+
+.jml-feedback-table .jml-feedback-message {
+  max-width: 360px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.jml-feedback-table tr.jml-feedback-unread td {
+  background: #fffbeb;
+}
+
+.jml-feedback-mail {
+  color: #2563eb;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.jml-feedback-mail:hover {
+  text-decoration: underline;
+}
+
+.jml-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jml-btn-sm {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
 .jml-btn {
   padding: 8px 16px;
   border-radius: 8px;

@@ -9,6 +9,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const heatmapStats = require("./stats-heatmap");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
@@ -90,6 +91,12 @@ const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.js
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
 const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
+const FEEDBACK_FILE = path.join(DATA_DIR, "feedback.json");
+const FEEDBACK_CATEGORIES = new Set(["bug", "suggestion", "account", "other"]);
+const FEEDBACK_MESSAGE_MAX_LEN = 2000;
+const FEEDBACK_RATE_WINDOW_MS = 60 * 60 * 1000;
+const FEEDBACK_RATE_MAX_PER_HOUR = 10;
+const feedbackSubmitTimestamps = new Map();
 const SURVIVAL_RANKING_MAX = 50;
 const SCORE_RANKING_MAX = 50;
 const STREAK_RANKING_MAX = 50;
@@ -2136,6 +2143,100 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   });
 });
 
+function readFeedbackStore() {
+  const data = readJson(FEEDBACK_FILE, { items: [] });
+  return Array.isArray(data.items) ? data : { items: [] };
+}
+
+function writeFeedbackStore(data) {
+  writeJson(FEEDBACK_FILE, { items: Array.isArray(data.items) ? data.items : [] });
+}
+
+function isValidFeedbackEmail(email) {
+  if (!email) return true;
+  if (email.length > 120) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function checkFeedbackRateLimit(username) {
+  const now = Date.now();
+  let stamps = feedbackSubmitTimestamps.get(username) || [];
+  stamps = stamps.filter((t) => now - t < FEEDBACK_RATE_WINDOW_MS);
+  if (stamps.length >= FEEDBACK_RATE_MAX_PER_HOUR) return false;
+  stamps.push(now);
+  feedbackSubmitTimestamps.set(username, stamps);
+  return true;
+}
+
+// ========== 学员：提交反馈（须登录） ==========
+app.post("/api/feedback", requireStudentAuth, (req, res) => {
+  const username = req.user && req.user.username;
+  if (!username) {
+    return res.status(401).json({ ok: false, error: "请先登录" });
+  }
+  if (!checkFeedbackRateLimit(username)) {
+    return res.status(429).json({ ok: false, error: "提交过于频繁，请稍后再试" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const category = String(body.category || "").trim();
+  if (!FEEDBACK_CATEGORIES.has(category)) {
+    return res.json({ ok: false, error: "无效的类型" });
+  }
+  const message = String(body.message || "").trim();
+  if (!message) {
+    return res.json({ ok: false, error: "请填写反馈内容" });
+  }
+  if (message.length > FEEDBACK_MESSAGE_MAX_LEN) {
+    return res.json({ ok: false, error: "内容过长（最多 " + FEEDBACK_MESSAGE_MAX_LEN + " 字）" });
+  }
+  const contactEmail = String(body.contactEmail || "").trim();
+  if (!isValidFeedbackEmail(contactEmail)) {
+    return res.json({ ok: false, error: "邮箱格式不正确" });
+  }
+  const store = readFeedbackStore();
+  const item = {
+    id: crypto.randomUUID(),
+    username,
+    category,
+    message,
+    contactEmail,
+    createdAt: Date.now(),
+    read: false,
+  };
+  store.items.unshift(item);
+  if (store.items.length > 5000) store.items.length = 5000;
+  writeFeedbackStore(store);
+  return res.json({ ok: true, id: item.id });
+});
+
+// ========== 管理员：用户反馈 ==========
+app.get("/api/admin/feedback", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const store = readFeedbackStore();
+  const items = store.items.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return res.json({ ok: true, items });
+});
+
+app.put("/api/admin/feedback/:id", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const id = String(req.params.id || "").trim();
+  if (!id) return res.json({ ok: false, error: "无效 ID" });
+  const store = readFeedbackStore();
+  const idx = store.items.findIndex((x) => x.id === id);
+  if (idx < 0) {
+    return res.status(404).json({ ok: false, error: "未找到该反馈" });
+  }
+  if (req.body && typeof req.body.read === "boolean") {
+    store.items[idx].read = req.body.read;
+  }
+  writeFeedbackStore(store);
+  return res.json({ ok: true, item: store.items[idx] });
+});
+
 // ========== 管理员：备份全部数据 ==========
 app.get("/api/admin/backup", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -2145,7 +2246,8 @@ app.get("/api/admin/backup", (req, res) => {
   const runs = readJson(RUNS_FILE, { runs: {} });
   const settings = readJson(SETTINGS_FILE, { levels: [] });
   const i18n = readJson(I18N_FILE, defaultI18nPayload());
-  const backup = { users, runs, settings, i18n, ts: Date.now() };
+  const feedback = readFeedbackStore();
+  const backup = { users, runs, settings, i18n, feedback, ts: Date.now() };
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Content-Disposition", "attachment; filename=jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json");
   res.send(JSON.stringify(backup, null, 2));
@@ -2180,6 +2282,10 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
     }
     if (body.i18n && typeof body.i18n === "object") {
       writeJson(I18N_FILE, normalizeI18nPayload(body.i18n));
+    }
+    if (body.feedback && typeof body.feedback === "object") {
+      const fb = body.feedback;
+      writeFeedbackStore(Array.isArray(fb.items) ? fb : { items: Array.isArray(fb) ? fb : [] });
     }
     res.json({ ok: true, msg: "数据已恢复" });
   } catch (e) {

@@ -54,6 +54,15 @@
     selectedAvatarId: '',
     avatarDragFrom: -1,
     i18n: null,
+    feedback: [],
+    feedbackUnreadOnly: false,
+  };
+
+  var FEEDBACK_CATEGORY_LABELS = {
+    bug: 'Bug',
+    suggestion: '建议',
+    account: '账号',
+    other: '其他',
   };
 
   function apiBase() {
@@ -287,6 +296,141 @@
       renderUsersTable();
     } catch (e) {
       setStatus(e.message || '加载失败', 'err');
+    }
+  }
+
+  function feedbackCategoryLabel(cat) {
+    return FEEDBACK_CATEGORY_LABELS[cat] || cat || '-';
+  }
+
+  function truncateFeedbackMessage(msg, maxLen) {
+    var s = String(msg || '');
+    if (s.length <= maxLen) return s;
+    return s.slice(0, maxLen) + '…';
+  }
+
+  function renderFeedbackTable() {
+    var tbody = document.getElementById('jml-feedback-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    var list = (state.feedback || []).slice();
+    if (state.feedbackUnreadOnly) {
+      list = list.filter(function (x) { return !x.read; });
+    }
+    if (!list.length) {
+      var trEmpty = document.createElement('tr');
+      var tdEmpty = document.createElement('td');
+      tdEmpty.colSpan = 7;
+      tdEmpty.textContent = state.feedbackUnreadOnly ? '暂无未读反馈。' : '暂无用户反馈。';
+      trEmpty.appendChild(tdEmpty);
+      tbody.appendChild(trEmpty);
+      return;
+    }
+    list.forEach(function (item) {
+      var tr = document.createElement('tr');
+      if (!item.read) tr.className = 'jml-feedback-unread';
+      var tdTime = document.createElement('td');
+      tdTime.textContent = formatDateTime(item.createdAt);
+      tr.appendChild(tdTime);
+      var tdUser = document.createElement('td');
+      tdUser.textContent = item.username || '-';
+      tr.appendChild(tdUser);
+      var tdCat = document.createElement('td');
+      tdCat.textContent = feedbackCategoryLabel(item.category);
+      tr.appendChild(tdCat);
+      var tdMsg = document.createElement('td');
+      tdMsg.className = 'jml-feedback-message';
+      tdMsg.title = item.message || '';
+      tdMsg.textContent = truncateFeedbackMessage(item.message, 120);
+      tr.appendChild(tdMsg);
+      var tdEmail = document.createElement('td');
+      var email = String(item.contactEmail || '').trim();
+      if (email) {
+        var mailLink = document.createElement('a');
+        mailLink.href = 'mailto:' + encodeURIComponent(email)
+          + '?subject=' + encodeURIComponent('Re: Jarvis Math Lab 用户反馈')
+          + '&body=' + encodeURIComponent('您好，\n\n关于您提交的反馈：\n\n');
+        mailLink.textContent = email;
+        mailLink.className = 'jml-feedback-mail';
+        tdEmail.appendChild(mailLink);
+      } else {
+        tdEmail.textContent = '-';
+      }
+      tr.appendChild(tdEmail);
+      var tdRead = document.createElement('td');
+      tdRead.textContent = item.read ? '已读' : '未读';
+      tr.appendChild(tdRead);
+      var tdAct = document.createElement('td');
+      var actWrap = document.createElement('div');
+      actWrap.className = 'jml-feedback-actions';
+      if (email) {
+        var replyBtn = document.createElement('a');
+        replyBtn.href = 'mailto:' + encodeURIComponent(email)
+          + '?subject=' + encodeURIComponent('Re: Jarvis Math Lab 用户反馈')
+          + '&body=' + encodeURIComponent('您好，\n\n关于您提交的反馈：\n\n');
+        replyBtn.className = 'jml-btn jml-btn-sm';
+        replyBtn.textContent = '回复';
+        actWrap.appendChild(replyBtn);
+      }
+      if (!item.read) {
+        var readBtn = document.createElement('button');
+        readBtn.type = 'button';
+        readBtn.className = 'jml-btn jml-btn-sm';
+        readBtn.textContent = '标已读';
+        readBtn.addEventListener('click', function () {
+          markFeedbackRead(item.id, true);
+        });
+        actWrap.appendChild(readBtn);
+      } else {
+        var unreadBtn = document.createElement('button');
+        unreadBtn.type = 'button';
+        unreadBtn.className = 'jml-btn jml-btn-sm';
+        unreadBtn.textContent = '标未读';
+        unreadBtn.addEventListener('click', function () {
+          markFeedbackRead(item.id, false);
+        });
+        actWrap.appendChild(unreadBtn);
+      }
+      tdAct.appendChild(actWrap);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function loadFeedback() {
+    showApiWarning();
+    if (!apiBase()) {
+      setStatus('请先配置 API 地址（docs/config.js）。', 'err');
+      return;
+    }
+    setStatus('加载反馈中…', '');
+    try {
+      var data = await apiFetch('/api/admin/feedback', { method: 'GET' });
+      state.feedback = Array.isArray(data.items) ? data.items : [];
+      var unread = state.feedback.filter(function (x) { return !x.read; }).length;
+      setStatus('已加载 ' + state.feedback.length + ' 条反馈（未读 ' + unread + '）', 'ok');
+      renderFeedbackTable();
+    } catch (e) {
+      setStatus(e.message || '加载失败', 'err');
+    }
+  }
+
+  async function markFeedbackRead(id, read) {
+    if (!id) return;
+    try {
+      await apiFetch('/api/admin/feedback/' + encodeURIComponent(id), {
+        method: 'PUT',
+        body: JSON.stringify({ read: !!read }),
+      });
+      state.feedback = (state.feedback || []).map(function (x) {
+        if (x.id === id) return Object.assign({}, x, { read: !!read });
+        return x;
+      });
+      renderFeedbackTable();
+      var unread = state.feedback.filter(function (x) { return !x.read; }).length;
+      setStatus(read ? '已标记为已读（未读 ' + unread + '）' : '已标记为未读', 'ok');
+    } catch (e) {
+      setStatus(e.message || '更新失败', 'err');
     }
   }
 
@@ -1071,6 +1215,7 @@
         if (id === 'levels') loadLevels();
         if (id === 'avatars') loadAvatars();
         if (id === 'i18n') loadI18n();
+        if (id === 'feedback') loadFeedback();
         if (id === 'worksheet' && typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
       });
     });
@@ -1079,6 +1224,15 @@
     if (createBtn) createBtn.addEventListener('click', openCreateUserModal);
     var refreshBtn = document.getElementById('jml-btn-refresh-users');
     if (refreshBtn) refreshBtn.addEventListener('click', loadUsers);
+    var refreshFeedbackBtn = document.getElementById('jml-btn-refresh-feedback');
+    if (refreshFeedbackBtn) refreshFeedbackBtn.addEventListener('click', loadFeedback);
+    var feedbackUnreadOnly = document.getElementById('jml-feedback-unread-only');
+    if (feedbackUnreadOnly) {
+      feedbackUnreadOnly.addEventListener('change', function () {
+        state.feedbackUnreadOnly = !!feedbackUnreadOnly.checked;
+        renderFeedbackTable();
+      });
+    }
 
     document.querySelectorAll('.jml-user-table th.sortable').forEach(function (th) {
       th.addEventListener('click', function () {

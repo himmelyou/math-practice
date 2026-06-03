@@ -1110,7 +1110,10 @@
       margin-bottom: 12px;
     }
     .change-password-modal .login-field input,
-    #change-nickname-modal-overlay .login-field input {
+    #change-nickname-modal-overlay .login-field input,
+    #contact-modal-overlay .login-field input,
+    #contact-modal-overlay .login-field select,
+    #contact-modal-overlay .login-field textarea {
       width: 100%;
       padding: 9px 12px;
       border-radius: 10px;
@@ -1120,19 +1123,24 @@
       box-sizing: border-box;
     }
     .change-password-modal .login-field input:focus,
-    #change-nickname-modal-overlay .login-field input:focus {
+    #change-nickname-modal-overlay .login-field input:focus,
+    #contact-modal-overlay .login-field input:focus,
+    #contact-modal-overlay .login-field select:focus,
+    #contact-modal-overlay .login-field textarea:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.16);
     }
     .change-password-modal .modal-actions,
-    #change-nickname-modal-overlay .modal-actions {
+    #change-nickname-modal-overlay .modal-actions,
+    #contact-modal-overlay .modal-actions {
       display: flex;
       gap: 10px;
       margin-top: 16px;
       justify-content: flex-end;
     }
     .change-password-modal .modal-actions .login-btn,
-    #change-nickname-modal-overlay .modal-actions .login-btn {
+    #change-nickname-modal-overlay .modal-actions .login-btn,
+    #contact-modal-overlay .modal-actions .login-btn {
       width: auto;
       min-width: 72px;
       margin-top: 0;
@@ -1149,7 +1157,8 @@
       color: #fff;
     }
     .change-password-modal .modal-actions .login-btn.btn-secondary,
-    #change-nickname-modal-overlay .modal-actions .login-btn.btn-secondary {
+    #change-nickname-modal-overlay .modal-actions .login-btn.btn-secondary,
+    #contact-modal-overlay .modal-actions .login-btn.btn-secondary {
       background: #f1f6ff;
       color: var(--primary);
       border: 1px solid rgba(25, 118, 210, 0.25);
@@ -3865,6 +3874,32 @@
     </div>
   </div>
 
+  <div id="contact-modal-overlay" class="change-password-modal-overlay">
+    <div class="change-password-modal">
+      <h3>联系我们</h3>
+      <p class="stats-subtitle" id="contact-modal-hint" style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);">我们会尽快处理您的反馈。</p>
+      <div class="login-field">
+        <select id="contact-category" aria-label="反馈类型">
+          <option value="bug">Bug 反馈</option>
+          <option value="suggestion">功能建议</option>
+          <option value="account">账号问题</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+      <div class="login-field">
+        <textarea id="contact-message" rows="5" maxlength="2000" placeholder="请描述您的问题或建议（必填）"></textarea>
+      </div>
+      <div class="login-field">
+        <input id="contact-email" type="email" autocomplete="email" placeholder="联系邮箱（选填，如需回复请填写）" maxlength="120" />
+      </div>
+      <div id="contact-modal-error" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="login-btn btn-secondary" id="contact-cancel-btn">取消</button>
+        <button type="button" class="login-btn" id="contact-submit-btn">提交</button>
+      </div>
+    </div>
+  </div>
+
   <script src="prime-composite-logic.js?v=34"></script>
   <script src="shared/stats-i18n-pack.js?v=34"></script>
   <script src="stats-heatmap-browser.js?v=34"></script>
@@ -4590,7 +4625,99 @@
 
     function handleHomeSettingsContact() {
       closeHomeSettingsMenu();
-      showToast(t("home.contact.comingSoon"));
+      if (isGuestMode || !loadCurrentUsername()) {
+        showToast(t("home.contact.needLogin"));
+        return;
+      }
+      showContactModal();
+    }
+
+    function showContactModal() {
+      const overlay = document.getElementById("contact-modal-overlay");
+      if (!overlay) return;
+      const category = document.getElementById("contact-category");
+      const message = document.getElementById("contact-message");
+      const email = document.getElementById("contact-email");
+      const errEl = document.getElementById("contact-modal-error");
+      if (category) category.value = "bug";
+      if (message) message.value = "";
+      if (email) email.value = "";
+      if (errEl) errEl.textContent = "";
+      overlay.classList.add("active");
+      if (message) message.focus();
+    }
+
+    function hideContactModal() {
+      const overlay = document.getElementById("contact-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    function isValidContactEmailLocal(s) {
+      if (!s) return true;
+      if (s.length > 120) return false;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+    }
+
+    async function apiSubmitFeedback(payload) {
+      const base = getApiBase();
+      if (!base) return { ok: false, error: t("home.contact.needNet") };
+      const res = await fetch(base + "/api/feedback", {
+        method: "POST",
+        headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (res.status === 401) {
+        handleAuthRequired();
+        return { ok: false, error: t("error.relogin") };
+      }
+      return data;
+    }
+
+    async function handleContactSubmit() {
+      if (isGuestMode || !loadCurrentUsername()) {
+        showToast(t("home.contact.needLogin"));
+        hideContactModal();
+        return;
+      }
+      const categoryEl = document.getElementById("contact-category");
+      const messageEl = document.getElementById("contact-message");
+      const emailEl = document.getElementById("contact-email");
+      const errEl = document.getElementById("contact-modal-error");
+      const category = categoryEl ? String(categoryEl.value || "other").trim() : "other";
+      const message = messageEl ? String(messageEl.value || "").trim() : "";
+      const contactEmail = emailEl ? String(emailEl.value || "").trim() : "";
+      if (errEl) errEl.textContent = "";
+      if (!message) {
+        if (errEl) errEl.textContent = t("home.contact.messageRequired");
+        return;
+      }
+      if (message.length > 2000) {
+        if (errEl) errEl.textContent = t("home.contact.messageTooLong");
+        return;
+      }
+      if (!isValidContactEmailLocal(contactEmail)) {
+        if (errEl) errEl.textContent = t("home.contact.emailInvalid");
+        return;
+      }
+      if (!getApiBase()) {
+        if (errEl) errEl.textContent = t("home.contact.needNet");
+        return;
+      }
+      const submitBtn = document.getElementById("contact-submit-btn");
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        const data = await apiSubmitFeedback({ category, message, contactEmail });
+        if (!data || !data.ok) {
+          if (errEl) errEl.textContent = (data && data.error) ? data.error : t("home.contact.submitFail");
+          return;
+        }
+        hideContactModal();
+        showToast(t("home.contact.submitSuccess"));
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
     }
 
     function setTopActionsVisible(visible) {
@@ -5690,6 +5817,22 @@
         "home.btn.settings": "設置",
         "home.menu.switchLang": "切換語言",
         "home.menu.contactUs": "聯繫我們",
+        "home.contact.needLogin": "請先登入後再聯繫我們。",
+        "home.contact.title": "聯繫我們",
+        "home.contact.hint": "我們會盡快處理您的反饋。",
+        "home.contact.category.bug": "Bug 反饋",
+        "home.contact.category.suggestion": "功能建議",
+        "home.contact.category.account": "帳號問題",
+        "home.contact.category.other": "其他",
+        "home.contact.messagePh": "請描述您的問題或建議（必填）",
+        "home.contact.emailPh": "聯繫郵箱（選填，如需回覆請填寫）",
+        "home.contact.messageRequired": "請填寫反饋內容",
+        "home.contact.messageTooLong": "內容過長（最多 2000 字）",
+        "home.contact.emailInvalid": "郵箱格式不正確",
+        "home.contact.submitSuccess": "感謝您的反饋，我們已收到。",
+        "home.contact.submitFail": "提交失敗，請稍後再試。",
+        "home.contact.needNet": "需要連網才能提交。",
+        "home.contact.submit": "提交",
         "home.contact.comingSoon": "聯繫方式即將公布，敬請期待。",
         "home.btn.changePassword": "修改密碼",
         "home.btn.logout": "登出",
@@ -5995,6 +6138,22 @@
         "home.btn.settings": "Settings",
         "home.menu.switchLang": "Language",
         "home.menu.contactUs": "Contact us",
+        "home.contact.needLogin": "Please sign in before contacting us.",
+        "home.contact.title": "Contact us",
+        "home.contact.hint": "We will review your feedback as soon as we can.",
+        "home.contact.category.bug": "Bug report",
+        "home.contact.category.suggestion": "Feature suggestion",
+        "home.contact.category.account": "Account issue",
+        "home.contact.category.other": "Other",
+        "home.contact.messagePh": "Describe your issue or suggestion (required)",
+        "home.contact.emailPh": "Email (optional, for a reply)",
+        "home.contact.messageRequired": "Please enter your feedback.",
+        "home.contact.messageTooLong": "Too long (max 2000 characters).",
+        "home.contact.emailInvalid": "Invalid email address.",
+        "home.contact.submitSuccess": "Thank you — we received your feedback.",
+        "home.contact.submitFail": "Could not submit. Please try again later.",
+        "home.contact.needNet": "An internet connection is required to submit.",
+        "home.contact.submit": "Submit",
         "home.contact.comingSoon": "Contact details coming soon.",
         "home.btn.changePassword": "Password",
         "home.btn.logout": "Logout",
@@ -6425,6 +6584,27 @@
       if (nnIn) nnIn.placeholder = t("modal.nickname.placeholder");
       setT("change-nickname-cancel-btn", "modal.cancel");
       setT("change-nickname-submit-btn", "modal.ok");
+      const contactTitle = document.querySelector("#contact-modal-overlay h3");
+      if (contactTitle) contactTitle.textContent = t("home.contact.title");
+      const contactHint = document.getElementById("contact-modal-hint");
+      if (contactHint) contactHint.textContent = t("home.contact.hint");
+      const contactCat = document.getElementById("contact-category");
+      if (contactCat) {
+        contactCat.setAttribute("aria-label", t("home.contact.title"));
+        const opts = contactCat.options;
+        if (opts && opts.length >= 4) {
+          opts[0].textContent = t("home.contact.category.bug");
+          opts[1].textContent = t("home.contact.category.suggestion");
+          opts[2].textContent = t("home.contact.category.account");
+          opts[3].textContent = t("home.contact.category.other");
+        }
+      }
+      const contactMsg = document.getElementById("contact-message");
+      if (contactMsg) contactMsg.placeholder = t("home.contact.messagePh");
+      const contactEmail = document.getElementById("contact-email");
+      if (contactEmail) contactEmail.placeholder = t("home.contact.emailPh");
+      setT("contact-cancel-btn", "modal.cancel");
+      setT("contact-submit-btn", "home.contact.submit");
       const avBtn = byId("home-avatar-btn");
       if (avBtn) avBtn.setAttribute("title", t("home.avatar.title"));
       const nickBtn = byId("change-nickname-btn");
@@ -11100,6 +11280,15 @@
       const changeNickOverlay = document.getElementById("change-nickname-modal-overlay");
       if (changeNickOverlay) changeNickOverlay.addEventListener("click", (e) => {
         if (e.target === changeNickOverlay) hideNicknameModal();
+      });
+
+      const contactCancel = document.getElementById("contact-cancel-btn");
+      if (contactCancel) contactCancel.addEventListener("click", hideContactModal);
+      const contactSubmit = document.getElementById("contact-submit-btn");
+      if (contactSubmit) contactSubmit.addEventListener("click", handleContactSubmit);
+      const contactOverlay = document.getElementById("contact-modal-overlay");
+      if (contactOverlay) contactOverlay.addEventListener("click", (e) => {
+        if (e.target === contactOverlay) hideContactModal();
       });
 
       const logoutBtn = document.getElementById("logout-btn");
