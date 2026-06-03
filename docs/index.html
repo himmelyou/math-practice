@@ -7614,6 +7614,68 @@
       if (dom.questionSubtext) dom.questionSubtext.textContent = tf("game.training.questionProgress", { n: trainingQuestionIndex + 1, total: TRAINING_QUESTIONS });
     }
 
+    /** 生存 / 闯关：结算后回到开局前（规则 + 开始按钮），与首次进入一致 */
+    function showMainGamePrestart() {
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      isPlaying = false;
+      gameOver = false;
+      runScore = 0;
+      runWrongCount = 0;
+      consecutiveCorrect = 0;
+      currentRunAttempts = [];
+      gameStartTime = 0;
+      currentQuestion = null;
+      maxLevelThisRun = 0;
+      setTrainingSummaryLayout(false);
+      setGameOverLayout(false);
+      setFeedback("", null);
+      setBatchSummary("");
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      setSoftKeyboardVisible(false);
+      if (dom.submitBtn) dom.submitBtn.style.display = "none";
+      setGameCardActionSlot("hidden");
+      const abandonRow = document.getElementById("abandon-row");
+      if (abandonRow) abandonRow.style.display = "none";
+      dom.answerInput.disabled = true;
+      dom.answerInput.value = "";
+
+      currentLevelIndex = 0;
+      if (gameMode !== "level") survivalTimeLeft = SURVIVAL_INITIAL_SEC;
+
+      if (dom.timerChip) dom.timerChip.style.display = "";
+      const statusGrid = document.getElementById("status-grid");
+      if (statusGrid) statusGrid.style.display = "";
+      const subtitle = document.getElementById("game-subtitle");
+      if (subtitle) subtitle.style.display = "";
+
+      if (dom.questionText) {
+        const sub = document.getElementById("game-subtitle");
+        const hint = sub ? String(sub.textContent || "").trim() : "";
+        dom.questionText.textContent = hint || "";
+        dom.questionText.classList.toggle("rule-hint", !!hint);
+        dom.questionText.classList.remove("question-refresh-hidden");
+        dom.questionText.style.display = "";
+      }
+      if (dom.questionSubtext) {
+        dom.questionSubtext.textContent = "";
+        dom.questionSubtext.style.display = "none";
+      }
+
+      if (gameMode === "level") updateLevelStatusUI();
+      else updateSurvivalStatusUI();
+      renderRecentRuns();
+
+      if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
+      setGameCardActionSlot("start");
+      if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      updateGlobalBackButtonState();
+      scheduleSyncAllRuleHints();
+    }
+
     /** 训练模式：结算后回到开局前（规则 + 当前难度 + 开始按钮），与首次进入一致 */
     async function showTrainingPrestart() {
       if (survivalTimerId) {
@@ -8554,6 +8616,90 @@
       updateGlobalBackButtonState();
     }
 
+    function resetPrimeCompositeSessionState() {
+      primeCompositeIndex = 0;
+      primeCompositeStartTs = 0;
+      primeCompositeSessionScore = 0;
+      primeCompositeCorrectCount = 0;
+      primeCompositeWrongCount = 0;
+      primeCompositeWrongItems = [];
+      primeCompositeAttempts = [];
+      primeCompositeQuestions = [];
+    }
+
+    /** 质数合数：结算后回到 idle 开始页（不直接开局） */
+    function showPrimeCompositePrestart() {
+      primeCompositeCleanup();
+      if (primeCompositeTimerId) {
+        clearInterval(primeCompositeTimerId);
+        primeCompositeTimerId = null;
+      }
+      resetPrimeCompositeSessionState();
+      primeCompositeResetStatusStrip();
+      const elapsedEl = document.getElementById("prime-elapsed");
+      if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(0);
+      setPrimePlayBodyPhase("idle");
+      setPrimeRecentVisible(true);
+      const idle = document.getElementById("prime-panel-idle");
+      const playing = document.getElementById("prime-panel-playing");
+      const finished = document.getElementById("prime-panel-finished");
+      if (idle) idle.style.display = "block";
+      if (playing) playing.style.display = "none";
+      if (finished) finished.style.display = "none";
+      updateGlobalBackButtonState();
+      scheduleSyncAllRuleHints();
+    }
+
+    function primeCompositeShowFinishedPanel(opts) {
+      opts = opts || {};
+      const abandoned = opts.abandoned === true;
+      const elapsedSec =
+        typeof opts.elapsedSec === "number"
+          ? opts.elapsedSec
+          : Math.max(0, Math.floor((Date.now() - primeCompositeStartTs) / 1000));
+      const idle = document.getElementById("prime-panel-idle");
+      const playing = document.getElementById("prime-panel-playing");
+      const finished = document.getElementById("prime-panel-finished");
+      if (idle) idle.style.display = "none";
+      if (playing) playing.style.display = "none";
+      if (finished) finished.style.display = "block";
+      setPrimePlayBodyPhase("idle");
+      setPrimeRecentVisible(true);
+      updateGlobalBackButtonState();
+
+      const syncOk = document.getElementById("prime-finished-sync-ok");
+      const syncFail = document.getElementById("prime-finished-sync-fail");
+      const syncLocal = document.getElementById("prime-finished-sync-local");
+      if (syncOk) syncOk.style.display = "none";
+      if (syncFail) syncFail.style.display = "none";
+      if (syncLocal) syncLocal.style.display = "none";
+
+      const titleEl = document.getElementById("prime-finish-title");
+      if (titleEl) {
+        titleEl.textContent = abandoned ? t("game.over.abandonedTitle") : t("prime.finishTitle");
+      }
+      const fc = document.getElementById("prime-finish-correct");
+      const fw = document.getElementById("prime-finish-wrong");
+      const ft = document.getElementById("prime-finish-time");
+      const fs = document.getElementById("prime-finish-session");
+      if (fc) fc.textContent = String(primeCompositeCorrectCount);
+      if (fw) fw.textContent = String(primeCompositeWrongCount);
+      if (ft) ft.textContent = formatGameElapsedClock(elapsedSec);
+      if (fs) fs.textContent = abandoned ? "0" : String(primeCompositeSessionScore);
+
+      const listEl = document.getElementById("prime-finish-wrong-list");
+      if (listEl) {
+        if (primeCompositeWrongItems.length === 0) {
+          listEl.innerHTML = "<div class=\"stats-empty-msg\">" + escapeHtml(t("prime.noWrongThisRun")) + "</div>";
+        } else {
+          listEl.innerHTML = primeCompositeWrongItems.map((w) => {
+            const answer = primeKindLabel(w.kind);
+            return "<div class=\"prime-wrong-row\">" + escapeHtml(tf("prime.wrongRow", { n: w.n, answer })) + "</div>";
+          }).join("");
+        }
+      }
+    }
+
     function primeCompositeAbandon() {
       const playing = document.getElementById("prime-panel-playing");
       if (!playing || playing.style.display === "none") return;
@@ -8564,18 +8710,9 @@
         clearInterval(primeCompositeTimerId);
         primeCompositeTimerId = null;
       }
-      const elapsedEl = document.getElementById("prime-elapsed");
-      if (elapsedEl) elapsedEl.textContent = formatGameElapsedClock(0);
-      primeCompositeResetStatusStrip();
-      setPrimePlayBodyPhase("idle");
-      setPrimeRecentVisible(true);
-      const idle = document.getElementById("prime-panel-idle");
-      const finished = document.getElementById("prime-panel-finished");
-      if (idle) idle.style.display = "block";
-      if (playing) playing.style.display = "none";
-      if (finished) finished.style.display = "none";
+      primeCompositeShowFinishedPanel({ elapsedSec, abandoned: true });
       appendRun(elapsedSec, 0, -1, primeCompositeWrongCount, "primeComposite", primeCompositeAttempts.slice(), false, true);
-      renderPrimeRecentRuns();
+      void renderPrimeRecentRuns();
       updateHomeTotalScore();
     }
 
@@ -8698,40 +8835,10 @@
         primeCompositeTimerId = null;
       }
       const elapsedSec = Math.max(0, Math.floor((Date.now() - primeCompositeStartTs) / 1000));
-      const idle = document.getElementById("prime-panel-idle");
-      const playing = document.getElementById("prime-panel-playing");
-      const finished = document.getElementById("prime-panel-finished");
-      if (idle) idle.style.display = "none";
-      if (playing) playing.style.display = "none";
-      if (finished) finished.style.display = "block";
-      setPrimePlayBodyPhase("idle");
-      setPrimeRecentVisible(true);
-      updateGlobalBackButtonState();
+      primeCompositeShowFinishedPanel({ elapsedSec, abandoned: false });
       const syncOk = document.getElementById("prime-finished-sync-ok");
       const syncFail = document.getElementById("prime-finished-sync-fail");
       const syncLocal = document.getElementById("prime-finished-sync-local");
-      if (syncOk) syncOk.style.display = "none";
-      if (syncFail) syncFail.style.display = "none";
-      if (syncLocal) syncLocal.style.display = "none";
-      const fc = document.getElementById("prime-finish-correct");
-      const fw = document.getElementById("prime-finish-wrong");
-      const ft = document.getElementById("prime-finish-time");
-      const fs = document.getElementById("prime-finish-session");
-      if (fc) fc.textContent = String(primeCompositeCorrectCount);
-      if (fw) fw.textContent = String(primeCompositeWrongCount);
-      if (ft) ft.textContent = formatGameElapsedClock(elapsedSec);
-      if (fs) fs.textContent = String(primeCompositeSessionScore);
-      const listEl = document.getElementById("prime-finish-wrong-list");
-      if (listEl) {
-        if (primeCompositeWrongItems.length === 0) {
-          listEl.innerHTML = "<div class=\"stats-empty-msg\">" + escapeHtml(t("prime.noWrongThisRun")) + "</div>";
-        } else {
-          listEl.innerHTML = primeCompositeWrongItems.map((w) => {
-            const answer = primeKindLabel(w.kind);
-            return "<div class=\"prime-wrong-row\">" + escapeHtml(tf("prime.wrongRow", { n: w.n, answer })) + "</div>";
-          }).join("");
-        }
-      }
       const name = loadCurrentUsername();
       const sessionScore = primeCompositeSessionScore;
       const baseUrl = getApiBase();
@@ -10671,8 +10778,7 @@
       if (dom.playAgainBtn) dom.playAgainBtn.addEventListener("click", () => {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
         if (gameMode === "training") void showTrainingPrestart();
-        else if (gameMode === "level") startLevelGame();
-        else startSurvivalGame();
+        else showMainGamePrestart();
       });
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.addEventListener("click", () => {
         showExpandBracketsPrestart({ keepLevel: true });
@@ -10715,7 +10821,7 @@
       const primeStartBtn = document.getElementById("prime-composite-start-btn");
       if (primeStartBtn) primeStartBtn.addEventListener("click", primeCompositeStart);
       const primeAgainBtn = document.getElementById("prime-composite-again-btn");
-      if (primeAgainBtn) primeAgainBtn.addEventListener("click", primeCompositeStart);
+      if (primeAgainBtn) primeAgainBtn.addEventListener("click", showPrimeCompositePrestart);
       const primeBtnP = document.getElementById("prime-btn-prime");
       const primeBtnC = document.getElementById("prime-btn-composite");
       if (primeBtnP) primeBtnP.addEventListener("click", () => primeCompositeChoose("prime"));
