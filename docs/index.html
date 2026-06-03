@@ -778,13 +778,29 @@
       --ranking-mode-text-w: 4em;
       --ranking-mode-gap: 5px;
       --ranking-mode-slot: 0.6875rem;
+      --ranking-mode-control-width: calc(
+        var(--ranking-mode-pad-x) * 2 + var(--ranking-mode-text-w) + var(--ranking-mode-gap) + var(--ranking-mode-slot)
+      );
       font-size: 0.8125rem;
       display: block;
       flex: 0 0 auto;
-      width: max-content;
+      width: var(--ranking-mode-control-width);
+      max-width: calc(100vw - 24px);
+      position: relative;
+    }
+    .ranking-mode-measure {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      visibility: hidden;
+      white-space: nowrap;
+      font-size: inherit;
+      font-weight: 500;
+      font-family: inherit;
+      pointer-events: none;
     }
     .ranking-mode-trigger {
-      width: max-content;
+      width: 100%;
       box-sizing: border-box;
       font-size: inherit;
       font-weight: 500;
@@ -794,7 +810,7 @@
     .ranking-mode-row {
       display: flex;
       align-items: center;
-      width: max-content;
+      width: 100%;
       gap: var(--ranking-mode-gap);
     }
     .ranking-mode-text {
@@ -3531,6 +3547,7 @@
                 </span>
               </button>
             </div>
+            <span id="ranking-mode-measure" class="ranking-mode-measure" aria-hidden="true"></span>
           </div>
         </div>
       </div>
@@ -4449,6 +4466,18 @@
       });
     }
 
+    function syncRankingModeControlWidth() {
+      const wrap = document.getElementById("ranking-mode-wrap");
+      const probe = document.getElementById("ranking-mode-measure");
+      if (!wrap || !probe) return;
+      let maxW = 0;
+      Object.keys(RANKING_TAB_I18N).forEach((tab) => {
+        probe.textContent = getRankingTabLabel(tab);
+        maxW = Math.max(maxW, probe.offsetWidth);
+      });
+      wrap.style.setProperty("--ranking-mode-text-w", Math.ceil(maxW) + "px");
+    }
+
     function syncRankingModeMenuActiveState(tab) {
       const menu = document.getElementById("ranking-mode-menu");
       if (!menu) return;
@@ -4469,6 +4498,7 @@
       setTextById("ranking-mode-label-combo", "ranking.combo");
       const labelEl = document.getElementById("ranking-mode-trigger-label");
       if (labelEl) labelEl.textContent = getRankingTabLabel(lastRankingTab);
+      syncRankingModeControlWidth();
       syncRankingModeMenuActiveState(lastRankingTab);
       syncRankingModeTextAlign();
     }
