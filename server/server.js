@@ -472,17 +472,48 @@ function getAdminPin() {
   return "";
 }
 
+/** 从源码中按大括号匹配提取 JS 对象字面量（跳过字符串内的括号）。 */
+function extractJsObjectLiteralAfterMarker(source, marker) {
+  const start = source.indexOf(marker);
+  if (start < 0) return null;
+  let i = start + marker.length;
+  while (i < source.length && source[i] !== "{") i += 1;
+  if (i >= source.length) return null;
+  let depth = 0;
+  const objStart = i;
+  for (; i < source.length; i += 1) {
+    const ch = source[i];
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i += 1;
+      while (i < source.length) {
+        if (source[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (source[i] === q) break;
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(objStart, i + 1);
+    }
+  }
+  return null;
+}
+
 /** 与前端 docs/index.html 内 I18N_FALLBACK 同步；优先从该文件解析，避免维护两套键表。 */
 function readI18nFallbackFromClientHtml() {
   try {
     const htmlPath = path.join(__dirname, "..", "docs", "index.html");
     if (!fs.existsSync(htmlPath)) return null;
     const html = fs.readFileSync(htmlPath, "utf8");
-    const m = html.match(
-      /const I18N_FALLBACK = (\{[\s\S]*\})\s*;\s*\r?\n\s*let currentLang =/
-    );
-    if (!m) return null;
-    const parsed = Function('"use strict"; return (' + m[1] + ");")();
+    const objStr = extractJsObjectLiteralAfterMarker(html, "const I18N_FALLBACK = ");
+    if (!objStr) return null;
+    const parsed = Function('"use strict"; return (' + objStr + ");")();
     if (
       !parsed ||
       typeof parsed !== "object" ||
@@ -605,12 +636,22 @@ function legacyDefaultI18nPayload() {
       "expand.end.level": "等級：",
       "expand.end.wrong": "錯題：",
       "expand.end.result": "結果：",
+      "expand.result.unlockNew": "解鎖新等級",
+      "expand.result.perfect": "完美",
+      "expand.result.keepGoing": "繼續加油",
       "expand.choice.cannotRemoveBrackets": "此類情況無法去除括號",
       "expand.level.L1": "一層括號、整數加減去括號（括號外為「+」或「−」，括號內兩項）。",
       "expand.level.L2": "乘除去括號；括號與數字 k 之間僅「×」或「÷」，括號內兩數可為 +、−、×、÷。",
       "expand.level.L3": "兩個括號並排（段間為「+」或「−」）；可含 a、b、x、y 與整數，只展開不計算。",
       "expand.level.L4": "一層括號前係數 k，或雙係數兩段括號（±k1(…)±k2(…)）；分配與段間變號。",
       "expand.level.L5": "單項×括號、(…)÷A、兩括號相乘三型（約 1∶1∶2）；可出現 xy 項。",
+      "ps.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
+      "ps.difficultyLabel": "難度：",
+      "ps.levelSelectAria": "選擇平方數難度",
+      "ps.level.L1": "2～11 的平方",
+      "ps.level.L2": "2～20 的平方",
+      "ps.level.L3": "2～30 的平方",
+      "ps.recentTitle": "最近十次平方數",
     },
     en: {
       "lang.label": "Language",
@@ -681,12 +722,22 @@ function legacyDefaultI18nPayload() {
       "expand.end.level": "Level:",
       "expand.end.wrong": "Wrong:",
       "expand.end.result": "Result:",
+      "expand.result.unlockNew": "New level unlocked",
+      "expand.result.perfect": "Perfect",
+      "expand.result.keepGoing": "Keep going",
       "expand.choice.cannotRemoveBrackets": "This type cannot remove brackets.",
       "expand.level.L1": "One layer of parentheses; integers only (+/− outside; two terms inside).",
       "expand.level.L2": "×/÷ outside parentheses only; inner pair uses +, −, ×, or ÷.",
       "expand.level.L3": "Two groups side by side (+/− between); a, b, x, y and integers; expand only.",
       "expand.level.L4": "Coefficient k before one group, or k1/k2 on two groups; distribute and sign rules.",
       "expand.level.L5": "Three types: A×(…), (…)÷A, (…)×(…); about 1:1:2; xy terms allowed.",
+      "ps.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
+      "ps.difficultyLabel": "Difficulty:",
+      "ps.levelSelectAria": "Perfect squares level",
+      "ps.level.L1": "Squares 2–11",
+      "ps.level.L2": "Squares 2–20",
+      "ps.level.L3": "Squares 2–30",
+      "ps.recentTitle": "Last 10 square runs",
     },
   };
 }
