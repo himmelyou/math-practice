@@ -1709,8 +1709,9 @@
     /* 软键盘（方案B）：独立卡片，开局后替换最近记录区域 */
     .soft-kbd-card {
       margin-top: 8px;
-      padding: 4px 10px 6px;
-      padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+      padding: 8px 10px;
+      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+      gap: 6px;
       background: #ffffff;
       border-radius: var(--border-radius);
       box-shadow: var(--shadow-soft);
@@ -1723,7 +1724,6 @@
     }
     .soft-kbd {
       width: 100%;
-      padding-bottom: 6px;
       box-sizing: border-box;
       flex-shrink: 0;
     }
@@ -1785,8 +1785,6 @@
       flex-shrink: 0;
       box-sizing: border-box;
       min-height: calc(0.82rem * 1.25 + 6px);
-      margin-top: 0;
-      margin-bottom: 6px;
       padding: 3px 8px;
       font-size: 0.82rem;
       line-height: 1.25;
@@ -2708,7 +2706,8 @@
       }
 
       .soft-kbd-card {
-        padding: 4px 8px 4px;
+        padding: 6px 8px;
+        padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
       }
 
       .soft-kbd-grid {
