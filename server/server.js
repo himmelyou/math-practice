@@ -591,7 +591,7 @@ function legacyDefaultI18nPayload() {
       "home.soon.lcm": "公倍數：功能即將上線",
       "home.soon.achievementWall": "成就牆：功能即將上線",
       "expand.title": "拆括號",
-      "expand.subtitle": "20 題選擇題：全對升級；錯 2 題降級。",
+      "expand.subtitle": "20 題選擇題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
       "expand.start": "開始挑戰",
       "expand.next": "下一題",
       "expand.explain": "解析",
@@ -667,7 +667,7 @@ function legacyDefaultI18nPayload() {
       "home.soon.lcm": "Common Multiples: coming soon",
       "home.soon.achievementWall": "Achievement Wall: coming soon",
       "expand.title": "Expand Brackets",
-      "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
+      "expand.subtitle": "20 multiple-choice questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
       "expand.start": "Start",
       "expand.next": "Next",
       "expand.explain": "Explanation",
@@ -1036,7 +1036,9 @@ app.post("/api/register", async (req, res) => {
     levelChallengeBestLevel: 0,
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
+    levelExpandBracketsUnlockedMax: 0,
     levelPerfectSquareCurrentLevel: 0,
+    levelPerfectSquareUnlockedMax: 0,
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
     survivalUnlocked: false,
@@ -1210,7 +1212,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelPerfectSquareCurrentLevel", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -1716,7 +1718,9 @@ app.post("/api/admin/users", async (req, res) => {
     levelChallengeBestLevel: 0,
     levelTrainingCurrentLevel: -1,
     levelExpandBracketsCurrentLevel: 0,
+    levelExpandBracketsUnlockedMax: 0,
     levelPerfectSquareCurrentLevel: 0,
+    levelPerfectSquareUnlockedMax: 0,
     recentExpandBracketsRuns: [],
     recentPerfectSquareRuns: [],
     wrongAnswers: [],

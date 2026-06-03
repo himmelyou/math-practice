@@ -6,6 +6,9 @@
 
   let deps = null;
   let psLevel = 0;
+  let psRunStartLevel = 0;
+  let psUnlockedMaxBeforeRun = 0;
+  let psPrestartLevel = 0;
   let psRunDeck = [];
   let psQuestionIndex = 0;
   let psWrongCount = 0;
@@ -103,26 +106,52 @@
     if (!user) return 0;
     deps.ensureUserProgressDefault(user);
     const current = getPerfectSquareCurrentLevel();
-    const runs = Array.isArray(user.recentPerfectSquareRuns) ? user.recentPerfectSquareRuns : [];
-    let maxRun = 0;
-    runs.forEach(function (r) {
-      const lv = Number(r && (r.maxLevel != null ? r.maxLevel : r.level));
-      if (Number.isFinite(lv)) maxRun = Math.max(maxRun, Math.floor(lv));
-    });
-    return Math.max(0, Math.min(psMaxLevel(), Math.max(current, maxRun)));
+    const stored =
+      typeof user.levelPerfectSquareUnlockedMax === "number" && Number.isFinite(user.levelPerfectSquareUnlockedMax)
+        ? Math.min(psMaxLevel(), Math.max(0, Math.floor(user.levelPerfectSquareUnlockedMax)))
+        : current;
+    return Math.max(current, stored);
   }
 
-  async function savePerfectSquareCurrentLevel(level) {
-    level = Math.min(psMaxLevel(), Math.max(0, Math.floor(Number(level) || 0)));
+  function resolvePsRunOutcome(startLevel, wrongCount, unlockedMaxBefore) {
+    const R = global.JmlSpecialModeRunOutcome;
+    if (!R || typeof R.resolve !== "function") {
+      return {
+        resultKey: "keepGoing",
+        savedCurrent: startLevel,
+        savedUnlockedMax: unlockedMaxBefore,
+        playAgainLevel: startLevel,
+      };
+    }
+    return R.resolve({
+      startLevel: startLevel,
+      wrongCount: wrongCount,
+      unlockedMaxBefore: unlockedMaxBefore,
+      maxLevel: psMaxLevel(),
+    });
+  }
+
+  async function savePerfectSquareProgress(currentLevel, unlockedMax) {
+    currentLevel = Math.min(psMaxLevel(), Math.max(0, Math.floor(Number(currentLevel) || 0)));
+    unlockedMax = Math.min(psMaxLevel(), Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
     if (deps.isGuestMode) return;
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
-      await deps.apiPutUser(name, { levelPerfectSquareCurrentLevel: level });
-      if (deps.getCachedUser()) deps.getCachedUser().levelPerfectSquareCurrentLevel = level;
+      await deps.apiPutUser(name, {
+        levelPerfectSquareCurrentLevel: currentLevel,
+        levelPerfectSquareUnlockedMax: unlockedMax,
+      });
+      if (deps.getCachedUser()) {
+        deps.getCachedUser().levelPerfectSquareCurrentLevel = currentLevel;
+        deps.getCachedUser().levelPerfectSquareUnlockedMax = unlockedMax;
+      }
     } catch (e) {
       console.warn("同步平方数等级失败", e);
-      if (deps.getCachedUser()) deps.getCachedUser().levelPerfectSquareCurrentLevel = level;
+      if (deps.getCachedUser()) {
+        deps.getCachedUser().levelPerfectSquareCurrentLevel = currentLevel;
+        deps.getCachedUser().levelPerfectSquareUnlockedMax = unlockedMax;
+      }
     }
   }
 
@@ -285,7 +314,10 @@
     if (!keepLevel) {
       psLevel = Math.min(Math.max(getPerfectSquareCurrentLevel(), 0), psMaxLevel());
     } else {
-      psLevel = Math.min(Math.max(psLevel, 0), psMaxLevel());
+      psLevel = Math.min(
+        Math.max(typeof psPrestartLevel === "number" ? psPrestartLevel : psLevel, 0),
+        psMaxLevel()
+      );
     }
     deps.setGameOver(false);
     deps.setIsPlaying(false);
@@ -425,6 +457,8 @@
       const picked = Number(dom().psLevelSelect.value);
       if (Number.isFinite(picked)) psLevel = Math.max(0, Math.min(psMaxLevel(), Math.floor(picked)));
     }
+    psRunStartLevel = psLevel;
+    psUnlockedMaxBeforeRun = getPerfectSquareUnlockedMaxLevel();
     setPsGameCardGameOver(false);
     deps.setIsPlaying(true);
     deps.setGameOver(false);
@@ -455,15 +489,13 @@
     deps.setIsPlaying(false);
     stopPsTimer();
     const durationSec = Math.floor((Date.now() - (psStartTs || Date.now())) / 1000);
-    const startLevel = psLevel;
-    let nextLevel = startLevel;
-    if (psWrongCount === 0) nextLevel = startLevel + 1;
-    else if (psWrongCount >= 2) nextLevel = startLevel - 1;
-    nextLevel = Math.max(0, Math.min(psMaxLevel(), nextLevel));
-    psLevel = nextLevel;
+    const startLevel = psRunStartLevel;
+    const outcome = resolvePsRunOutcome(startLevel, psWrongCount, psUnlockedMaxBeforeRun);
+    psPrestartLevel = outcome.playAgainLevel;
+    psLevel = outcome.playAgainLevel;
 
     await deps.appendRun(durationSec, psScore, startLevel, psWrongCount, "perfectSquare", psAttempts.slice());
-    savePerfectSquareCurrentLevel(nextLevel);
+    savePerfectSquareProgress(outcome.savedCurrent, outcome.savedUnlockedMax);
 
     setPsSoftKeyboardVisible(false);
     setPsGameCardGameOver(true);
@@ -482,15 +514,13 @@
     if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
     if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
     if (dom().psGoResult) {
-      dom().psGoResult.textContent =
-        psWrongCount === 0
-          ? tf("expand.result.upTo", { n: nextLevel + 1 })
-          : psWrongCount >= 2
-            ? tf("expand.result.downTo", { n: nextLevel + 1 })
-            : tf("expand.result.stayAt", { n: nextLevel + 1 });
+      dom().psGoResult.textContent = t("expand.result." + outcome.resultKey);
     }
     if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
-    if (deps.getCachedUser()) deps.getCachedUser().levelPerfectSquareCurrentLevel = nextLevel;
+    if (deps.getCachedUser()) {
+      deps.getCachedUser().levelPerfectSquareCurrentLevel = outcome.savedCurrent;
+      deps.getCachedUser().levelPerfectSquareUnlockedMax = outcome.savedUnlockedMax;
+    }
     renderPsLevelSelect();
     syncPsLevelTexts();
     setPsHistoryVisible(true);

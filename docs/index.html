@@ -3874,8 +3874,9 @@
   <script src="shared/expand-brackets-questions.js?v=34"></script>
   <script src="shared/soft-keyboard.js?v=34"></script>
   <script src="shared/answer-input.js?v=34"></script>
-  <script src="shared/perfect-square-questions.js?v=34"></script>
-  <script src="perfect-square-page.js?v=34"></script>
+  <script src="shared/perfect-square-questions.js?v=35"></script>
+  <script src="shared/special-mode-run-outcome.js?v=35"></script>
+  <script src="perfect-square-page.js?v=35"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -4190,7 +4191,11 @@
     let trainingHeatSnapshot = null;
 
     // ========= 拆括号（选择题）模式状态 =========
+    const EXPAND_BRACKETS_MAX_LEVEL = 4;
     let expandLevel = 0; // 0-based
+    let expandRunStartLevel = 0;
+    let expandUnlockedMaxBeforeRun = 0;
+    let expandPrestartLevel = 0;
     let expandQuestionIndex = 0;
     let expandWrongCount = 0;
     let expandScore = 0;
@@ -5103,14 +5108,15 @@
       const user = getCurrentUser();
       if (!user) return 0;
       ensureUserProgressDefault(user);
-      const current = getExpandBracketsCurrentLevel();
-      const runs = Array.isArray(user.recentExpandBracketsRuns) ? user.recentExpandBracketsRuns : [];
-      let maxRun = 0;
-      runs.forEach((r) => {
-        const lv = Number(r && (r.maxLevel != null ? r.maxLevel : r.level));
-        if (Number.isFinite(lv)) maxRun = Math.max(maxRun, Math.floor(lv));
-      });
-      return Math.max(0, Math.min(4, Math.max(current, maxRun)));
+      const current =
+        typeof user.levelExpandBracketsCurrentLevel === "number" && Number.isFinite(user.levelExpandBracketsCurrentLevel)
+          ? Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(user.levelExpandBracketsCurrentLevel)))
+          : 0;
+      const stored =
+        typeof user.levelExpandBracketsUnlockedMax === "number" && Number.isFinite(user.levelExpandBracketsUnlockedMax)
+          ? Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(user.levelExpandBracketsUnlockedMax)))
+          : current;
+      return Math.max(current, stored);
     }
 
     function hideExpandQuestionSubtext() {
@@ -5149,6 +5155,24 @@
       dom.expandLevelSelect.value = String(expandLevel);
       dom.expandLevelSelect.disabled = !!isPlaying;
       syncExpandLevelTexts();
+    }
+
+    function resolveExpandRunOutcome(startLevel, wrongCount, unlockedMaxBefore) {
+      const R = window.JmlSpecialModeRunOutcome;
+      if (!R || typeof R.resolve !== "function") {
+        return {
+          resultKey: "keepGoing",
+          savedCurrent: startLevel,
+          savedUnlockedMax: unlockedMaxBefore,
+          playAgainLevel: startLevel,
+        };
+      }
+      return R.resolve({
+        startLevel: startLevel,
+        wrongCount: wrongCount,
+        unlockedMaxBefore: unlockedMaxBefore,
+        maxLevel: EXPAND_BRACKETS_MAX_LEVEL,
+      });
     }
 
     function lockExpandChoices(lock) {
@@ -5253,8 +5277,10 @@
       if (gameMode !== "expandBrackets") return;
       if (dom.expandLevelSelect && dom.expandLevelSelect.value !== "") {
         const picked = Number(dom.expandLevelSelect.value);
-        if (Number.isFinite(picked)) expandLevel = Math.max(0, Math.min(4, Math.floor(picked)));
+        if (Number.isFinite(picked)) expandLevel = Math.max(0, Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.floor(picked)));
       }
+      expandRunStartLevel = expandLevel;
+      expandUnlockedMaxBeforeRun = getExpandBracketsUnlockedMaxLevel();
       setExpandGameCardGameOver(false);
       isPlaying = true;
       gameOver = false;
@@ -5300,16 +5326,14 @@
       stopExpandTimer();
       const durationSec = Math.floor((Date.now() - (expandStartTs || Date.now())) / 1000);
 
-      const startLevel = expandLevel;
-      let nextLevel = startLevel;
-      if (expandWrongCount === 0) nextLevel = startLevel + 1;
-      else if (expandWrongCount >= 2) nextLevel = startLevel - 1;
-      nextLevel = Math.max(0, Math.min(4, nextLevel));
-      expandLevel = nextLevel;
+      const startLevel = expandRunStartLevel;
+      const outcome = resolveExpandRunOutcome(startLevel, expandWrongCount, expandUnlockedMaxBeforeRun);
+      expandPrestartLevel = outcome.playAgainLevel;
+      expandLevel = outcome.playAgainLevel;
 
-      // 写入 runs（服务端 apiAppendRun 已维护 recentExpandBracketsRuns，与训练模式一致不再本地重复 unshift）
+      // 写入 runs（仅记本局实际等级 startLevel；解锁不写 runs）
       await appendRun(durationSec, expandScore, startLevel, expandWrongCount, "expandBrackets", expandAttempts.slice());
-      saveExpandBracketsCurrentLevel(nextLevel);
+      await saveExpandBracketsProgress(outcome.savedCurrent, outcome.savedUnlockedMax);
 
       // 结算展示：隐藏选项/解析/题面（与训练模式结算态一致，避免选项占位把结算卡顶下去）
       hideExpandExplain();
@@ -5329,12 +5353,13 @@
       if (dom.expandGoWrong) dom.expandGoWrong.textContent = String(expandWrongCount);
       if (dom.expandGoResultLabel) dom.expandGoResultLabel.textContent = t("expand.end.result");
       if (dom.expandGoResult) {
-        dom.expandGoResult.textContent = expandWrongCount === 0
-          ? tf("expand.result.upTo", { n: nextLevel + 1 })
-          : (expandWrongCount >= 2 ? tf("expand.result.downTo", { n: nextLevel + 1 }) : tf("expand.result.stayAt", { n: nextLevel + 1 }));
+        dom.expandGoResult.textContent = t("expand.result." + outcome.resultKey);
       }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
-      if (cachedUser) cachedUser.levelExpandBracketsCurrentLevel = nextLevel;
+      if (cachedUser) {
+        cachedUser.levelExpandBracketsCurrentLevel = outcome.savedCurrent;
+        cachedUser.levelExpandBracketsUnlockedMax = outcome.savedUnlockedMax;
+      }
       renderExpandLevelSelect();
       syncExpandLevelTexts();
       setExpandHistoryVisible(true);
@@ -5348,9 +5373,12 @@
       opts = opts || {};
       const keepLevel = opts.keepLevel === true;
       if (!keepLevel) {
-        expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), 4);
+        expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), EXPAND_BRACKETS_MAX_LEVEL);
       } else {
-        expandLevel = Math.min(Math.max(expandLevel, 0), 4);
+        expandLevel = Math.min(
+          Math.max(typeof expandPrestartLevel === "number" ? expandPrestartLevel : expandLevel, 0),
+          EXPAND_BRACKETS_MAX_LEVEL
+        );
       }
       isPlaying = false;
       gameOver = false;
@@ -5622,7 +5650,7 @@
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
         "mode.running.perfectSquare": "平方數",
-        "ps.subtitle": "全對升級；錯 2 題降級。",
+        "ps.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
         "ps.difficultyLabel": "難度：",
         "ps.levelSelectAria": "選擇平方數難度",
         "ps.level.L1": "2～11 的平方",
@@ -5630,7 +5658,7 @@
         "ps.level.L3": "2～30 的平方",
         "ps.recentTitle": "最近十次平方數",
         "expand.title": "拆括號",
-        "expand.subtitle": "20題選擇題：全對升級；錯2題降級。",
+        "expand.subtitle": "20 題選擇題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
         "expand.start": "開始挑戰",
         "expand.confirm": "確認",
         "expand.next": "下一題",
@@ -5645,9 +5673,9 @@
         "expand.end.level": "等級：",
         "expand.end.wrong": "錯題：",
         "expand.end.result": "結果：",
-        "expand.result.upTo": "升級到 L{n}",
-        "expand.result.downTo": "降級到 L{n}",
-        "expand.result.stayAt": "保持 L{n}",
+        "expand.result.unlockNew": "解鎖新等級",
+        "expand.result.perfect": "完美",
+        "expand.result.keepGoing": "繼續加油",
         "expand.choice.cannotRemoveBrackets": "此類情況無法去除括號",
         "expand.level.L1": "一層括號、整數加減去括號；括號外為「+」或「−」，括號內兩項（減括號須變號）。",
         "expand.level.L2": "乘除去括號；括號外僅「×」「÷」；括號內兩項可為 +、−、×、÷（六類題型）。",
@@ -5927,7 +5955,7 @@
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
         "mode.running.perfectSquare": "Squares",
-        "ps.subtitle": "Perfect = level up; 2 wrong = level down.",
+        "ps.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
         "ps.difficultyLabel": "Difficulty:",
         "ps.levelSelectAria": "Perfect squares level",
         "ps.level.L1": "Squares 2–11",
@@ -5935,7 +5963,7 @@
         "ps.level.L3": "Squares 2–30",
         "ps.recentTitle": "Last 10 square runs",
         "expand.title": "Expand Brackets",
-        "expand.subtitle": "20 multiple-choice questions: perfect = level up; 2 wrong = level down.",
+        "expand.subtitle": "20 multiple-choice questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
         "expand.start": "Start",
         "expand.confirm": "Confirm",
         "expand.next": "Next",
@@ -5950,9 +5978,9 @@
         "expand.end.level": "Level:",
         "expand.end.wrong": "Wrong:",
         "expand.end.result": "Result:",
-        "expand.result.upTo": "Up to L{n}",
-        "expand.result.downTo": "Down to L{n}",
-        "expand.result.stayAt": "Stay at L{n}",
+        "expand.result.unlockNew": "New level unlocked",
+        "expand.result.perfect": "Perfect",
+        "expand.result.keepGoing": "Keep going",
         "expand.choice.cannotRemoveBrackets": "This type cannot remove brackets.",
         "expand.level.L1": "One layer of parentheses; integers only; +/− outside, two terms inside (minus flips signs).",
         "expand.level.L2": "×/÷ outside parentheses; inner pair may use +, −, ×, or ÷ (six question types).",
@@ -6979,7 +7007,13 @@
       if (typeof user.levelChallengeBestLevel !== "number") user.levelChallengeBestLevel = 0;
       if (typeof user.levelTrainingCurrentLevel !== "number") user.levelTrainingCurrentLevel = -1;
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
+      if (typeof user.levelExpandBracketsUnlockedMax !== "number") {
+        user.levelExpandBracketsUnlockedMax = user.levelExpandBracketsCurrentLevel;
+      }
       if (typeof user.levelPerfectSquareCurrentLevel !== "number") user.levelPerfectSquareCurrentLevel = 0;
+      if (typeof user.levelPerfectSquareUnlockedMax !== "number") {
+        user.levelPerfectSquareUnlockedMax = user.levelPerfectSquareCurrentLevel;
+      }
       if (typeof user.survivalUnlocked !== "boolean") user.survivalUnlocked = false;
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
       if (typeof user.heatmapL16Passed !== "boolean") user.heatmapL16Passed = false;
@@ -10518,17 +10552,27 @@
       return typeof v === "number" && Number.isFinite(v) ? Math.min(4, Math.max(0, Math.floor(v))) : 0;
     }
 
-    async function saveExpandBracketsCurrentLevel(level) {
-      level = Math.min(4, Math.max(0, Math.floor(Number(level) || 0)));
+    async function saveExpandBracketsProgress(currentLevel, unlockedMax) {
+      currentLevel = Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(Number(currentLevel) || 0)));
+      unlockedMax = Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
       if (isGuestMode) return;
       const name = loadCurrentUsername();
       if (!name) return;
       try {
-        await apiPutUser(name, { levelExpandBracketsCurrentLevel: level });
-        if (cachedUser) cachedUser.levelExpandBracketsCurrentLevel = level;
+        await apiPutUser(name, {
+          levelExpandBracketsCurrentLevel: currentLevel,
+          levelExpandBracketsUnlockedMax: unlockedMax,
+        });
+        if (cachedUser) {
+          cachedUser.levelExpandBracketsCurrentLevel = currentLevel;
+          cachedUser.levelExpandBracketsUnlockedMax = unlockedMax;
+        }
       } catch (e) {
         console.warn("同步拆括号等级失败", e);
-        if (cachedUser) cachedUser.levelExpandBracketsCurrentLevel = level;
+        if (cachedUser) {
+          cachedUser.levelExpandBracketsCurrentLevel = currentLevel;
+          cachedUser.levelExpandBracketsUnlockedMax = unlockedMax;
+        }
       }
     }
 
