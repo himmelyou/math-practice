@@ -353,6 +353,30 @@
       });
   }
 
+  function formatTrainingRunPickCell(r) {
+    if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
+      return '<span class="jml-runs-pick-muted">—</span>';
+    }
+    var m = r.trainingMeta;
+    if (!m || typeof m !== 'object') {
+      return '<span class="jml-runs-pick-muted" title="旧记录无选关诊断">—</span>';
+    }
+    var parts = [];
+    var lv = Number(m.pickedLevel);
+    if (Number.isFinite(lv) && lv >= 0) parts.push('L' + (lv + 1));
+    parts.push(m.runBrushMode ? '刷热图' : '闯关');
+    if (m.pickReason) parts.push(String(m.pickReason));
+    if (m.entrySource) parts.push(String(m.entrySource));
+    var title = JSON.stringify(m, null, 2);
+    return (
+      '<span class="jml-runs-pick" title="' +
+      escapeHtml(title) +
+      '">' +
+      escapeHtml(parts.join(' · ')) +
+      '</span>'
+    );
+  }
+
   function renderRunsTable() {
     var wrap = document.getElementById('jml-report-runs-body');
     if (!wrap) return;
@@ -401,6 +425,9 @@
           '<td class="num jml-runs-col-level">' +
           escapeHtml(maxDisplay) +
           '</td>' +
+          '<td class="jml-runs-col-pick">' +
+          formatTrainingRunPickCell(r) +
+          '</td>' +
           '</tr>'
         );
       })
@@ -408,7 +435,7 @@
 
     wrap.innerHTML =
       '<div class="jml-report-table-wrap"><table class="jml-report-table jml-report-runs-table">' +
-      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th></tr></thead>' +
+      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th>选关诊断</th></tr></thead>' +
       '<tbody>' +
       rows +
       '</tbody></table></div>';
@@ -589,14 +616,11 @@
       return y + '-' + m + '-' + day;
     })();
     var dayState = null;
-    try {
-      var lsPrefix =
-        HM.TRAINING_FLOW_STORAGE_PREFIX || 'jml_training_flow_v3:';
-      var uname = state.selectedUsername || '';
-      var raw = localStorage.getItem(lsPrefix + (uname || 'anon'));
-      if (raw) dayState = JSON.parse(raw);
-    } catch (e) {
-      dayState = null;
+    if (HM.reconstructTrainingDayStateFromRuns) {
+      dayState = HM.reconstructTrainingDayStateFromRuns(state.runs, todayKey, {
+        cohort: cohort && cohort.ok ? cohort : null,
+        maxTimeSpentMs: capMs,
+      });
     }
     var trainingNext = HM.computeTrainingNextLevel
       ? HM.computeTrainingNextLevel(heat, dayState, todayKey)

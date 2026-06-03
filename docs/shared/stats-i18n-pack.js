@@ -38,7 +38,7 @@
       "stats.heat.legend.cohortRebuilt": "本次已重算並寫盤。",
       "stats.heat.legend.recommend": "推薦下一練（與訓練同一邏輯）：",
       "stats.heat.legend.recommendDetail":
-        "L{level}（{mode} · {reason}；狀態 brushMode={brush}；刷新本頁或重選學員後與訓練對齊。放棄局不改變當日狀態。）",
+        "L{level}（{mode} · {reason}；brushMode={brush}；當日狀態由該學員 runs 反推，與學員端 localStorage 無關。）",
       "stats.heat.mode.brush": "刷熱圖",
       "stats.heat.mode.daily": "當日闖關",
       "stats.heat.cohortWarn": "全體常模未加載。",
@@ -93,7 +93,7 @@
       "stats.heat.legend.cohortRebuilt": "Rebuilt and saved.",
       "stats.heat.legend.recommend": "Recommended next (training logic):",
       "stats.heat.legend.recommendDetail":
-        "L{level} ({mode} · {reason}; brushMode={brush}; refresh page to sync with training; abandon does not reset day state.)",
+        "L{level} ({mode} · {reason}; brushMode={brush}; day state inferred from this student's runs, not admin browser storage.)",
       "stats.heat.mode.brush": "Brush heatmap",
       "stats.heat.mode.daily": "Daily level",
       "stats.heat.cohortWarn": "Cohort norms not loaded.",

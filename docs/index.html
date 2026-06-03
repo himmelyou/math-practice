@@ -4224,6 +4224,12 @@
     let trainingEntryRefreshGen = 0;
     /** 最近一次训练热图（prestart 刷热图展示准确率/均时） */
     let trainingHeatSnapshot = null;
+    /** 最近一次热图选关结果（写入 runs.trainingMeta 便于 Report 排查） */
+    let lastTrainingPickResult = null;
+    /** 当前 prestart 关卡来源：heatmap | fallback */
+    let lastTrainingEntrySource = "fallback";
+    /** 本局开局时选关快照（startTrainingGame 时写入） */
+    let trainingRunStartMeta = null;
 
     // ========= 拆括号（选择题）模式状态 =========
     const EXPAND_BRACKETS_MAX_LEVEL = 4;
@@ -7224,13 +7230,16 @@
       return formatSeconds(sec);
     }
 
-    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, runCleared, comboOnly) {
+    function appendRun(survivalTimeSec, score, maxLevel, wrongCount, mode, attempts, runCleared, comboOnly, opts) {
       wrongCount = wrongCount ?? 0;
       mode = normalizeAppendRunMode(mode);
       const runEntry = { survivalTimeSec, score, maxLevel, wrongCount, ts: Date.now(), mode };
       if (runCleared === true) runEntry.cleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
       if (comboOnly === true) runEntry.comboOnly = true;
+      if (opts && typeof opts === "object" && opts.trainingMeta && typeof opts.trainingMeta === "object") {
+        runEntry.trainingMeta = opts.trainingMeta;
+      }
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
         else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
@@ -7842,6 +7851,7 @@
 
     async function startTrainingGame() {
       if (survivalTimerId) clearInterval(survivalTimerId);
+      trainingRunStartMeta = snapshotTrainingRunStartMeta();
       // 档位已在「开始前」画面（进训练 / 再玩一局）算好，此处不重算
       trainingRunBrushMode = trainingSessionBrushMode;
       trainingQuestionIndex = 0;
@@ -8416,7 +8426,9 @@
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
-        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false);
+        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
+          trainingMeta: buildTrainingRunMeta({ abandoned: true }),
+        });
         renderRecentRuns();
         return;
       }
@@ -8428,7 +8440,9 @@
 
       if (trainingRunBrushMode) {
         recordTrainingLastRun(levelThisRun, runPass, 0);
-        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass);
+        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
+          trainingMeta: buildTrainingRunMeta({ runPass, failCount: 0, runBrushMode: true }),
+        });
         renderRecentRuns();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
@@ -8485,11 +8499,18 @@
         });
       }
 
-      await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass);
       const brushSync = await syncTrainingBrushModeAfterDailyRun();
       if (brushSync && brushSync.enterBrush) {
         trainingSessionBrushMode = true;
       }
+      await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
+        trainingMeta: buildTrainingRunMeta({
+          runPass,
+          failCount,
+          runBrushMode: false,
+          enterBrushAfter: !!(brushSync && brushSync.enterBrush),
+        }),
+      });
       renderRecentRuns();
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
@@ -10479,6 +10500,48 @@
       return st;
     }
 
+    function snapshotTrainingRunStartMeta() {
+      const st = loadTrainingFlowState();
+      const pick = lastTrainingPickResult;
+      return {
+        pickedLevel: currentLevelIndex,
+        pickMode: trainingSessionBrushMode ? "brush" : "daily",
+        pickReason: pick && pick.reason ? String(pick.reason) : "",
+        brushMode: !!st.brushMode,
+        runBrushMode: !!trainingSessionBrushMode,
+        lastRunBefore: st.lastRun
+          ? {
+              levelIndex: st.lastRun.levelIndex,
+              passed: !!st.lastRun.passed,
+              failCount: st.lastRun.failCount || 0,
+            }
+          : null,
+        dayKey: getLocalTrainingDayKey(),
+        heatReady: !!(trainingHeatSnapshot && trainingHeatSnapshot.cells),
+        entrySource: lastTrainingEntrySource || "unknown",
+        buildId: typeof window.JML_BUILD_ID === "string" ? window.JML_BUILD_ID : "",
+      };
+    }
+
+    function buildTrainingRunMeta(extra) {
+      const st = loadTrainingFlowState();
+      const base = trainingRunStartMeta ? Object.assign({}, trainingRunStartMeta) : snapshotTrainingRunStartMeta();
+      const meta = Object.assign({}, base, extra || {}, {
+        dayStateAfter: {
+          dayKey: st.dayKey,
+          brushMode: !!st.brushMode,
+          lastRun: st.lastRun
+            ? {
+                levelIndex: st.lastRun.levelIndex,
+                passed: !!st.lastRun.passed,
+                failCount: st.lastRun.failCount || 0,
+              }
+            : null,
+        },
+      });
+      return meta;
+    }
+
     function recordTrainingLastRun(levelIndex, passed, failCount) {
       const st = loadTrainingFlowState();
       st.dayKey = getLocalTrainingDayKey();
@@ -10570,11 +10633,15 @@
       const today = getLocalTrainingDayKey();
       let st = loadTrainingFlowState();
       if (!HM || typeof HM.computeTrainingNextLevel !== "function" || !heat) {
+        lastTrainingPickResult = null;
+        lastTrainingEntrySource = "fallback";
         const fb = st.brushMode ? 0 : 0;
         console.log("[JML 训练选关]", JSON.stringify({ reason: "no_heat_or_compute", brushMode: st.brushMode, fallbackL: fb + 1 }, null, 2));
         return { levelIndex: fb, brushMode: !!st.brushMode };
       }
+      lastTrainingEntrySource = "heatmap";
       const result = HM.computeTrainingNextLevel(heat, st, today);
+      lastTrainingPickResult = result;
       st = applyTrainingNextLevelResult(st, result);
       if (result.enterBrush) saveTrainingFlowState(st);
       trainingSessionBrushMode = !!(result.brushMode || result.mode === "brush");
@@ -10618,6 +10685,7 @@
     /** 不拉 runs：用本地已同步等级 / 闯关进度 / 刷热图状态先展示 */
     function getTrainingEntryLevelFallback() {
       refreshTrainingDayLocalState();
+      lastTrainingEntrySource = "fallback";
       const st = loadTrainingFlowState();
       trainingSessionBrushMode = !!st.brushMode;
       const saved = getLevelTrainingCurrentLevel();

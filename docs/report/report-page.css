@@ -191,7 +191,26 @@
 
 .jml-report-runs-table th:nth-child(6),
 .jml-report-runs-table td.jml-runs-col-level {
-  width: 12%;
+  width: 10%;
+}
+
+.jml-report-runs-table th:nth-child(7),
+.jml-report-runs-table td.jml-runs-col-pick {
+  width: 18%;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.jml-runs-pick {
+  cursor: help;
+  color: #334155;
+}
+
+.jml-runs-pick-muted {
+  color: #94a3b8;
+  text-align: center;
+  display: block;
 }
 
 .jml-wrong-list {

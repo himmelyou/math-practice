@@ -512,6 +512,95 @@
     return pool;
   }
 
+  function localDayKeyFromTs(ts) {
+    var d = new Date(ts || 0);
+    if (Number.isNaN(d.getTime())) return '';
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+
+  /**
+   * 从服务端 runs 反推当日训练流程状态（Report 建议下一关；不依赖浏览器 localStorage）。
+   * buildHeatOpts: { cohort, maxTimeSpentMs }
+   */
+  function reconstructTrainingDayStateFromRuns(runs, todayKey, buildHeatOpts) {
+    var st = { dayKey: todayKey, brushMode: false, lastRun: null };
+    if (!todayKey) return normalizeTrainingDayState(st, todayKey);
+    var trainingToday = (runs || [])
+      .filter(function (r) {
+        return String(r && r.mode ? r.mode : '').toLowerCase() === 'training';
+      })
+      .filter(function (r) {
+        return localDayKeyFromTs(r.ts) === todayKey;
+      })
+      .sort(function (a, b) {
+        return (a.ts || 0) - (b.ts || 0);
+      });
+    var arith = filterArithmeticRuns(runs || []);
+    var capMs =
+      buildHeatOpts && Number(buildHeatOpts.maxTimeSpentMs)
+        ? Number(buildHeatOpts.maxTimeSpentMs)
+        : 60 * 1000;
+    var cohort = buildHeatOpts && buildHeatOpts.cohort ? buildHeatOpts.cohort : null;
+
+    for (var i = 0; i < trainingToday.length; i++) {
+      var run = trainingToday[i];
+      if (run.trainingMeta && run.trainingMeta.dayStateAfter) {
+        var da = run.trainingMeta.dayStateAfter;
+        st = {
+          dayKey: todayKey,
+          brushMode: !!da.brushMode,
+          lastRun: da.lastRun && typeof da.lastRun === 'object' ? da.lastRun : null,
+        };
+        continue;
+      }
+      var levelIndex = Math.min(15, Math.max(0, Math.floor(Number(run.maxLevel) || 0)));
+      var runPass = run.cleared === true;
+      var runBrush = !!(run.trainingMeta && run.trainingMeta.runBrushMode);
+
+      if (runBrush) {
+        st.lastRun = { levelIndex: levelIndex, passed: runPass, failCount: 0 };
+        continue;
+      }
+
+      var failCount = 0;
+      if (!runPass) {
+        if (
+          st.lastRun &&
+          st.lastRun.levelIndex === levelIndex &&
+          st.lastRun.passed === false
+        ) {
+          failCount = Math.min(
+            TRAINING_FAILS_BEFORE_BRUSH,
+            (st.lastRun.failCount || 0) + 1
+          );
+        } else {
+          failCount = 1;
+        }
+      }
+      st.lastRun = { levelIndex: levelIndex, passed: runPass, failCount: failCount };
+
+      if (typeof buildHeatmapCells === 'function' && typeof computeTrainingNextLevel === 'function') {
+        var runsUpTo = arith.filter(function (r) {
+          return (r.ts || 0) <= (run.ts || 0);
+        });
+        var heat = buildHeatmapCells({
+          runs: runsUpTo,
+          cohort: cohort,
+          maxTimeSpentMs: capMs,
+        });
+        var result = computeTrainingNextLevel(heat, st, todayKey);
+        if (result && result.enterBrush) {
+          st.brushMode = true;
+          st.lastRun = null;
+        }
+      }
+    }
+    return normalizeTrainingDayState(st, todayKey);
+  }
+
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
     fullLevelPoolIndices: fullLevelPoolIndices,
@@ -526,6 +615,8 @@
     recommendTrainingBrushSlowAmongPass: recommendTrainingBrushSlowAmongPass,
     computeTrainingNextLevel: computeTrainingNextLevel,
     normalizeTrainingDayState: normalizeTrainingDayState,
+    reconstructTrainingDayStateFromRuns: reconstructTrainingDayStateFromRuns,
+    localDayKeyFromTs: localDayKeyFromTs,
     trainingNextLevelReasonText: trainingNextLevelReasonText,
     TRAINING_BRUSH_PASS_ACCURACY: TRAINING_BRUSH_PASS_ACCURACY,
     TRAINING_DAY_PASS_ACCURACY: TRAINING_DAY_PASS_ACCURACY,

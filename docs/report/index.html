@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css" />
+  <link rel="stylesheet" href="report-page.css?v=22" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -47,7 +47,7 @@
           <option value="">加载中…</option>
         </select>
       </div>
-      <p class="jml-report-hint">挑战记录按时间降序；数据分析含四则难度热图（全体常模 + 调试 JSON）与按日曲线。</p>
+      <p class="jml-report-hint">挑战记录按时间降序；训练模式含「选关诊断」列（悬停可看完整 JSON）。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。</p>
 
       <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
 
@@ -83,11 +83,11 @@
     })();
   </script>
   <script src="../shared/admin-auth.js?v=21"></script>
-  <script src="../shared/stats-i18n-pack.js?v=21"></script>
-  <script src="../stats-aggregate-browser.js?v=21"></script>
-  <script src="../stats-heatmap-browser.js?v=21"></script>
-  <script src="../stats-chart-browser.js?v=21"></script>
-  <script src="report-page.js?v=21"></script>
+  <script src="../shared/stats-i18n-pack.js?v=22"></script>
+  <script src="../stats-aggregate-browser.js?v=22"></script>
+  <script src="../stats-heatmap-browser.js?v=22"></script>
+  <script src="../stats-chart-browser.js?v=22"></script>
+  <script src="report-page.js?v=22"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

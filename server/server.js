@@ -1377,6 +1377,9 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   if (comboOnly) runEntry.comboOnly = true;
   if (run.cleared === true) runEntry.cleared = true;
   if (Array.isArray(run.attempts)) runEntry.attempts = run.attempts;
+  if (run.trainingMeta && typeof run.trainingMeta === "object") {
+    runEntry.trainingMeta = run.trainingMeta;
+  }
   if (!comboOnly) {
     runsData.runs[username].unshift(runEntry);
     if (runsData.runs[username].length > 500) {
