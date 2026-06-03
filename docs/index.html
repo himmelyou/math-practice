@@ -2425,6 +2425,27 @@
       gap: 8px;
     }
 
+    .game-section.training-prestart #game-card.game-card--prestart.training-brush-prestart > .question-body {
+      justify-content: center;
+    }
+
+    .game-section.training-prestart #game-card.game-card--prestart .question-text.training-brush-stat,
+    .game-section.training-prestart #game-card.game-card--prestart .question-subtext.training-brush-stat {
+      text-align: center;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #37474f;
+      display: block;
+      overflow: visible;
+      padding: 4px 6px;
+      line-height: 1.4;
+    }
+
+    .game-section.training-prestart #game-card.game-card--prestart .question-text.training-brush-stat {
+      flex: 0 1 auto;
+      margin-top: 0;
+    }
+
     .game-play-body > .recent-card .recent-body {
       flex: 1;
       min-height: 0;
@@ -4165,6 +4186,8 @@
     let trainingRunBrushMode = false;
     /** 取消进行中的后台训练选关刷新 */
     let trainingEntryRefreshGen = 0;
+    /** 最近一次训练热图（prestart 刷热图展示准确率/均时） */
+    let trainingHeatSnapshot = null;
 
     // ========= 拆括号（选择题）模式状态 =========
     let expandLevel = 0; // 0-based
@@ -5003,10 +5026,14 @@
     function refreshVisibleRuleHintTexts() {
       const gameCard = document.getElementById("game-card");
       if (dom.gameSection && dom.gameSection.classList.contains("visible") && gameCard && gameCard.classList.contains("game-card--prestart") && dom.questionText) {
-        const sub = document.getElementById("game-subtitle");
-        const hint = sub ? String(sub.textContent || "").trim() : "";
-        dom.questionText.textContent = hint || "";
-        dom.questionText.classList.toggle("rule-hint", !!hint);
+        if (gameMode === "training" && trainingSessionBrushMode) {
+          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+        } else {
+          const sub = document.getElementById("game-subtitle");
+          const hint = sub ? String(sub.textContent || "").trim() : "";
+          dom.questionText.textContent = hint || "";
+          dom.questionText.classList.toggle("rule-hint", !!hint);
+        }
       }
       const expandCard = document.getElementById("expand-game-card");
       if (dom.expandSection && dom.expandSection.classList.contains("visible") && expandCard && expandCard.classList.contains("game-card--prestart") && dom.expandQuestionText) {
@@ -7594,6 +7621,10 @@
       gameOver = false;
       isPlaying = true;
       if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
+      const gameCard = document.getElementById("game-card");
+      if (gameCard) gameCard.classList.remove("training-brush-prestart");
+      if (dom.questionText) dom.questionText.classList.remove("training-brush-stat");
+      if (dom.questionSubtext) dom.questionSubtext.classList.remove("training-brush-stat");
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       setGameCardActionSlot("input");
@@ -7716,18 +7747,7 @@
       const subtitle = document.getElementById("game-subtitle");
       if (subtitle) subtitle.style.display = "";
 
-      if (dom.questionText) {
-        const sub = document.getElementById("game-subtitle");
-        const hint = sub ? String(sub.textContent || "").trim() : "";
-        dom.questionText.textContent = hint || "";
-        dom.questionText.classList.toggle("rule-hint", !!hint);
-        dom.questionText.classList.remove("question-refresh-hidden");
-        dom.questionText.style.display = "";
-      }
-      if (dom.questionSubtext) {
-        dom.questionSubtext.textContent = "";
-        dom.questionSubtext.style.display = "none";
-      }
+      syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
 
       updateTrainingStatusUI();
       renderRecentRuns();
@@ -9859,10 +9879,14 @@
       })();
       // 开始前在题目区显示规则；开始后 renderQuestion 会覆盖为题目
       if (dom.questionText) {
-        const sub = document.getElementById("game-subtitle");
-        const hint = sub ? String(sub.textContent || "").trim() : "";
-        dom.questionText.textContent = hint || "";
-        dom.questionText.classList.toggle("rule-hint", !!hint);
+        if (gameMode === "training") {
+          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+        } else {
+          const sub = document.getElementById("game-subtitle");
+          const hint = sub ? String(sub.textContent || "").trim() : "";
+          dom.questionText.textContent = hint || "";
+          dom.questionText.classList.toggle("rule-hint", !!hint);
+        }
       }
       // 进入模式时重置状态栏为新一局的初始值，避免显示上一局遗留数据
       if (gameMode === "training") {
@@ -10353,6 +10377,7 @@
     async function resolveTrainingEntryLevelAsync() {
       refreshTrainingDayLocalState();
       const { heat } = await buildTrainingHeatmapAsync();
+      trainingHeatSnapshot = heat;
       const entry = computeTrainingEntryFromHeat(heat);
       return entry.levelIndex;
     }
@@ -10381,11 +10406,8 @@
         currentLevelIndex = idx;
         setTrainingPracticeSubtitle();
         updateTrainingStatusUI();
-        if (dom.gameSection && dom.gameSection.classList.contains("training-prestart") && dom.questionText) {
-          const sub = document.getElementById("game-subtitle");
-          const hint = sub ? String(sub.textContent || "").trim() : "";
-          dom.questionText.textContent = hint || "";
-          dom.questionText.classList.toggle("rule-hint", !!hint);
+        if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
+          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
           scheduleSyncAllRuleHints();
         }
       } catch (e) {
@@ -10393,14 +10415,67 @@
       }
     }
 
+    function getHeatCellForLevel(heat, levelIndex) {
+      if (!heat || !Array.isArray(heat.cells)) return null;
+      for (let i = 0; i < heat.cells.length; i++) {
+        if (heat.cells[i].levelIndex === levelIndex) return heat.cells[i];
+      }
+      return heat.cells[levelIndex] || null;
+    }
+
+    function syncTrainingPrestartQuestionArea(heat) {
+      const gameCard = document.getElementById("game-card");
+      if (
+        gameMode !== "training" ||
+        isPlaying ||
+        gameOver ||
+        !dom.gameSection ||
+        !dom.gameSection.classList.contains("visible") ||
+        !dom.questionText
+      ) {
+        return;
+      }
+      if (trainingSessionBrushMode) {
+        const cell = getHeatCellForLevel(heat != null ? heat : trainingHeatSnapshot, currentLevelIndex);
+        const p = cell && cell.pText != null ? String(cell.pText) : "—";
+        const sec = cell && cell.avgSecText != null ? String(cell.avgSecText) : "—";
+        dom.questionText.textContent = t("stats.heat.accuracy") + " " + p;
+        dom.questionText.classList.remove("rule-hint", "question-refresh-hidden");
+        dom.questionText.classList.add("training-brush-stat");
+        dom.questionText.style.display = "";
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = t("stats.heat.avgTimeCorrect") + " " + sec;
+          dom.questionSubtext.classList.add("training-brush-stat");
+          dom.questionSubtext.classList.remove("question-refresh-hidden");
+          dom.questionSubtext.style.display = "";
+        }
+        if (gameCard) gameCard.classList.add("training-brush-prestart");
+        return;
+      }
+      if (gameCard) gameCard.classList.remove("training-brush-prestart");
+      const sub = document.getElementById("game-subtitle");
+      const hint = sub ? String(sub.textContent || "").trim() : "";
+      dom.questionText.textContent = hint || "";
+      dom.questionText.classList.toggle("rule-hint", !!hint);
+      dom.questionText.classList.remove("training-brush-stat");
+      dom.questionText.classList.remove("question-refresh-hidden");
+      dom.questionText.style.display = "";
+      if (dom.questionSubtext) {
+        dom.questionSubtext.textContent = "";
+        dom.questionSubtext.style.display = "none";
+        dom.questionSubtext.classList.remove("training-brush-stat");
+      }
+    }
+
     function setTrainingPracticeSubtitle() {
       const sub = document.getElementById("game-subtitle");
       if (!sub) return;
       if (trainingSessionBrushMode) {
-        sub.textContent = t("game.training.subtitle.encourage");
+        sub.textContent = "";
       } else {
         sub.textContent = tf("game.training.subtitle.dailyRules", { n: TRAINING_QUESTIONS });
       }
+      syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
     }
 
     function getTrainingStartLevel() {
