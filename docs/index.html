@@ -2162,7 +2162,33 @@
     .stats-heat-metric { font-size: 9px; line-height: 1.25; color: var(--muted); }
     .stats-heat-metric-lbl { font-weight: 600; color: #546e7a; }
     .stats-heat-num { font-size: 10px; }
-    .stats-chart-title { margin: 6px 0 6px; font-size: 0.9rem; font-weight: 600; color: #37474f; }
+    .stats-chart-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 6px 6px 6px;
+      box-sizing: border-box;
+    }
+    .stats-chart-title {
+      margin: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #37474f;
+      flex: 0 0 auto;
+    }
+    .stats-chart-level-name {
+      margin: 0;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #546e7a;
+      text-align: right;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    #stats-chart-block .stats-level-chart-wrap {
+      margin: 0 6px 8px;
+    }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .stats-level-chart-row label { white-space: nowrap; }
     .stats-level-chart-row select {
@@ -3827,7 +3853,10 @@
       <p class="stats-subtitle" id="stats-subtitle-hint" style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);"></p>
       <div id="stats-heatmap-host" style="display:none;"></div>
       <div id="stats-chart-block" style="display:none;">
-        <h3 class="stats-chart-title" id="stats-chart-title"></h3>
+        <div class="stats-chart-head">
+          <h3 class="stats-chart-title" id="stats-chart-title"></h3>
+          <p class="stats-chart-level-name" id="stats-chart-level-name"></p>
+        </div>
         <div class="stats-level-chart-wrap" id="stats-level-chart-wrap">
           <canvas id="stats-level-canvas"></canvas>
         </div>
@@ -5763,8 +5792,7 @@
         "ranking.streak": "耐力榜",
         "ranking.combo": "連擊榜",
         "stats.subtitle": "點格切換下方曲線。",
-        "stats.chartPrefix": "按日曲線（",
-        "stats.chartSuffix": "）",
+        "stats.chart.dailyTitle": "按日曲線",
         "stats.level.select": "選擇難度：",
         "stats.th.level": "難度",
         "stats.th.attempts": "答題數",
@@ -5888,7 +5916,6 @@
         "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
         "game.display.percent": "{pct}%",
         "game.training.subtitle.encourage": "加油！",
-        "game.training.subtitle.promotionRules": "晉級：每局 {n} 題；準確率不低於通關線則升級（第 {maxLevel} 級達標即全通關），否則本級保持、不降級、不限時。",
         "game.over.titleGeneric": "遊戲結束",
         "recent.title.survivalLast10": "最近十次生存挑戰",
         "recent.title.levelLast10": "最近十次闖關挑戰",
@@ -6084,8 +6111,7 @@
         "ranking.streak": "Streak",
         "ranking.combo": "Combo",
         "stats.subtitle": "Tap a cell to change the chart below.",
-        "stats.chartPrefix": "Daily (",
-        "stats.chartSuffix": ")",
+        "stats.chart.dailyTitle": "Daily chart",
         "stats.level.select": "Level:",
         "stats.th.level": "Level",
         "stats.th.attempts": "Attempts",
@@ -6337,7 +6363,6 @@
         "game.over.levelRunBestTitle": "Best this run: level {n}",
         "game.display.percent": "{pct}%",
         "game.training.subtitle.encourage": "Keep going!",
-        "game.training.subtitle.promotionRules": "Promotion: {n} questions per run; meet the clear accuracy to level up (reaching level {maxLevel} clears all), otherwise stay at this level—no demotion, no time limit.",
         "wrongPractice.resultSummary": "Results: {correct} / {total} correct",
         "wrongPractice.qLabel": "Question:",
         "wrongPractice.studentAnswer": "Your answer:",
@@ -6452,11 +6477,8 @@
       };
       setT("status-label-current-mode", "game.status.currentMode");
       setT("status-label-difficulty", "game.status.currentDifficulty");
-      const sub = byId("game-subtitle");
-      if (sub) {
-        if (gameMode === "training") setTrainingPracticeSubtitle();
-        else sub.textContent = t("game.subtitle.survival");
-      }
+      writeGameSubtitleForMode(gameMode);
+      if (gameMode === "training") syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
       const ai = byId("answer-input");
       if (window.JmlAnswerInput) {
         window.JmlAnswerInput.refreshAll(document, t);
@@ -8699,6 +8721,8 @@
 
     function showHome() {
       cancelTrainingEntryRefresh();
+      isPlaying = false;
+      gameOver = false;
       setTopActionsVisible(true);
       setGameOverLayout(false);
       setFeedback("", null);
@@ -9865,10 +9889,11 @@
     }
 
     function updateStudentStatsChartTitle() {
-      const h = document.getElementById("stats-chart-title");
-      if (!h) return;
+      const titleEl = document.getElementById("stats-chart-title");
+      const nameEl = document.getElementById("stats-chart-level-name");
       const i = studentStatsState.statsLevelIndex;
-      h.textContent = t("stats.chartPrefix") + "L" + (i + 1) + t("stats.chartSuffix");
+      if (titleEl) titleEl.textContent = t("stats.chart.dailyTitle");
+      if (nameEl) nameEl.textContent = getLevelDisplayName(i);
     }
 
     function drawStudentStatsChart() {
@@ -10329,8 +10354,7 @@
         console.warn("同步解锁状态失败", e);
       }
       gameMode = "survival";
-      const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = t("game.subtitle.survival");
+      writeGameSubtitleForMode("survival");
       showGameSection();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
@@ -10339,8 +10363,7 @@
     function handleModeSurvival() {
       if (isGuestMode) {
         gameMode = "survival";
-        const sub = document.getElementById("game-subtitle");
-        if (sub) sub.textContent = t("game.subtitle.survival");
+        writeGameSubtitleForMode("survival");
         showGameSection();
         return;
       }
@@ -10354,8 +10377,7 @@
         return;
       }
       gameMode = "survival";
-      const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = t("game.subtitle.survival");
+      writeGameSubtitleForMode("survival");
       showGameSection();
     }
 
@@ -10723,12 +10745,28 @@
       return heat.cells[levelIndex] || null;
     }
 
+    function writeGameSubtitleForMode(mode) {
+      const sub = document.getElementById("game-subtitle");
+      if (!sub) return;
+      const m = mode || gameMode;
+      if (m === "training") {
+        sub.textContent = trainingSessionBrushMode
+          ? ""
+          : tf("game.training.subtitle.dailyRules", { n: TRAINING_QUESTIONS });
+      } else if (m === "level") {
+        sub.textContent = t("game.subtitle.level");
+      } else if (m === "expandBrackets") {
+        sub.textContent = t("expand.subtitle");
+      } else {
+        sub.textContent = t("game.subtitle.survival");
+      }
+    }
+
     function syncTrainingPrestartQuestionArea(heat) {
       const gameCard = document.getElementById("game-card");
       if (
         gameMode !== "training" ||
         isPlaying ||
-        gameOver ||
         !dom.gameSection ||
         !dom.gameSection.classList.contains("visible") ||
         !dom.questionText
@@ -10768,13 +10806,7 @@
     }
 
     function setTrainingPracticeSubtitle() {
-      const sub = document.getElementById("game-subtitle");
-      if (!sub) return;
-      if (trainingSessionBrushMode) {
-        sub.textContent = "";
-      } else {
-        sub.textContent = tf("game.training.subtitle.dailyRules", { n: TRAINING_QUESTIONS });
-      }
+      writeGameSubtitleForMode("training");
       syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
     }
 
@@ -10841,8 +10873,7 @@
         return;
       }
       gameMode = "level";
-      const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = t("game.subtitle.level");
+      writeGameSubtitleForMode("level");
       showGameSection();
     }
 
@@ -10874,17 +10905,16 @@
         showToast(t("toast.trainingNeedLevelOnce"));
         return;
       }
-      currentLevelIndex = getTrainingEntryLevelFallback();
-      setTrainingPracticeSubtitle();
       gameMode = "training";
+      currentLevelIndex = getTrainingEntryLevelFallback();
+      writeGameSubtitleForMode("training");
       showGameSection();
       void refreshTrainingEntryLevelInBackground();
     }
 
     function handleModeExpandBrackets() {
       gameMode = "expandBrackets";
-      const sub = document.getElementById("game-subtitle");
-      if (sub) sub.textContent = t("expand.subtitle");
+      writeGameSubtitleForMode("expandBrackets");
       showGameSection();
     }
 
