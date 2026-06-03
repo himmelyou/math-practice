@@ -10,21 +10,10 @@
         {
           id: "L1",
           name: "第 1 级 · 一位数加法入门",
-          description: "9 以内一位数加法，无进位为主，适合作为热身。",
+          description: "9 以内一位数加法，无进位与进位各半，适合作为热身。",
           operations: ["+"],
           min: 1,
           max: 9,
-          generateQuestion() {
-            const a = randomInt(this.min, this.max);
-            let bMax = this.max;
-            if (Math.random() < 0.7) {
-              bMax = Math.min(this.max, 9 - a);
-            }
-            const b = randomInt(this.min, Math.max(this.min, bMax));
-            const answer = a + b;
-            const text = `${a} + ${b} = ?`;
-            return { a, b, op: "+", text, answer, baseLevelId: this.id };
-          }
         },
         {
           id: "L2",
@@ -479,8 +468,13 @@
     return Math.max(0, Math.min(LEVEL_DEFS.length - 1, Math.floor(Number(i) || 0)));
   }
 
+  var L1_LEVEL_INDEX = 0;
+  var L1_NO_CARRY_POOL_SIZE = 20;
+  var L1_CARRY_POOL_SIZE = 25;
   var L10_LEVEL_INDEX = 9;
   var L10_POOL_SIZE = 36;
+  var l1Deck = [];
+  var l1SegmentCount = 30;
   var l10Deck = [];
   var lastBuiltLevelIndex = null;
 
@@ -493,6 +487,48 @@
       a[j] = tmp;
     }
     return a;
+  }
+
+  function buildL1Pool(carry) {
+    var pool = [];
+    for (var i = 1; i <= 9; i += 1) {
+      for (var j = i; j <= 9; j += 1) {
+        var sum = i + j;
+        if (carry) {
+          if (sum >= 10) pool.push({ a: i, b: j, answer: sum });
+        } else if (sum <= 9) {
+          pool.push({ a: i, b: j, answer: sum });
+        }
+      }
+    }
+    return pool;
+  }
+
+  function buildL1RunDeck(count) {
+    count = Math.max(0, Math.floor(Number(count) || 0));
+    var noCarryCount = Math.floor(count / 2);
+    var carryCount = count - noCarryCount;
+    var noCarry = shuffleArray(buildL1Pool(false)).slice(0, noCarryCount);
+    var carry = shuffleArray(buildL1Pool(true)).slice(0, carryCount);
+    return shuffleArray(noCarry.concat(carry));
+  }
+
+  function materializeL1Question(item) {
+    var a = item.a;
+    var b = item.b;
+    if (Math.random() < 0.5) {
+      var swap = a;
+      a = b;
+      b = swap;
+    }
+    return {
+      a: a,
+      b: b,
+      op: "+",
+      text: a + " + " + b + " = ?",
+      answer: item.answer,
+      baseLevelId: "L1",
+    };
   }
 
   function buildL10Pool() {
@@ -523,11 +559,27 @@
     };
   }
 
-  function resetLevelDeck(levelIndex) {
+  function resetLevelDeck(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
-    if (levelIndex !== L10_LEVEL_INDEX) return;
-    l10Deck = shuffleArray(buildL10Pool());
-    lastBuiltLevelIndex = L10_LEVEL_INDEX;
+    if (levelIndex === L1_LEVEL_INDEX) {
+      if (count != null && !Number.isNaN(Number(count))) {
+        l1SegmentCount = Math.max(0, Math.floor(Number(count)));
+      }
+      l1Deck = buildL1RunDeck(l1SegmentCount);
+      lastBuiltLevelIndex = L1_LEVEL_INDEX;
+      return;
+    }
+    if (levelIndex === L10_LEVEL_INDEX) {
+      l10Deck = shuffleArray(buildL10Pool());
+      lastBuiltLevelIndex = L10_LEVEL_INDEX;
+    }
+  }
+
+  function buildL1Question() {
+    if (l1Deck.length === 0) {
+      l1Deck = buildL1RunDeck(l1SegmentCount);
+    }
+    return materializeL1Question(l1Deck.pop());
   }
 
   function buildL10Question() {
@@ -539,6 +591,13 @@
 
   function buildQuestion(levelIndex) {
     levelIndex = clampLevelIndex(levelIndex);
+    if (levelIndex === L1_LEVEL_INDEX) {
+      if (lastBuiltLevelIndex !== L1_LEVEL_INDEX) {
+        resetLevelDeck(L1_LEVEL_INDEX);
+      }
+      lastBuiltLevelIndex = levelIndex;
+      return buildL1Question();
+    }
     if (levelIndex === L10_LEVEL_INDEX) {
       if (lastBuiltLevelIndex !== L10_LEVEL_INDEX) {
         resetLevelDeck(L10_LEVEL_INDEX);
@@ -554,6 +613,15 @@
   function buildRun(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
     count = Math.max(0, Math.floor(Number(count) || 0));
+    if (levelIndex === L1_LEVEL_INDEX) {
+      resetLevelDeck(levelIndex, count);
+      lastBuiltLevelIndex = levelIndex;
+      var l1Run = [];
+      for (var k = 0; k < count; k += 1) {
+        l1Run.push(buildL1Question());
+      }
+      return l1Run;
+    }
     if (levelIndex === L10_LEVEL_INDEX) {
       resetLevelDeck(levelIndex);
       lastBuiltLevelIndex = levelIndex;
@@ -584,6 +652,9 @@
   global.JmlArithmetic = {
     LEVEL_COUNT: LEVEL_DEFS.length,
     LEVEL_LABELS: LEVEL_LABELS,
+    L1_LEVEL_INDEX: L1_LEVEL_INDEX,
+    L1_NO_CARRY_POOL_SIZE: L1_NO_CARRY_POOL_SIZE,
+    L1_CARRY_POOL_SIZE: L1_CARRY_POOL_SIZE,
     L10_LEVEL_INDEX: L10_LEVEL_INDEX,
     L10_POOL_SIZE: L10_POOL_SIZE,
     buildQuestion: buildQuestion,

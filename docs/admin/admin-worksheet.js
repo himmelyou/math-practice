@@ -177,8 +177,12 @@
     try {
       for (var p = 0; p < pages; p += 1) {
         var batch = [];
-        if (mode === 'arithmetic' && level === 9 && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
-          window.JmlArithmetic.resetLevelDeck(level);
+        if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
+          if (level === 0) {
+            window.JmlArithmetic.resetLevelDeck(level, layout.questionsPerPage);
+          } else if (level === 9) {
+            window.JmlArithmetic.resetLevelDeck(level);
+          }
         }
         for (var i = 0; i < layout.questionsPerPage; i += 1) {
           batch.push(buildQuestion(mode, level));
