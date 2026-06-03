@@ -765,31 +765,36 @@
     /* ===== 排行榜：标题行下拉切换 + 表格 ===== */
     .ranking-header { margin: 8px 0 10px; }
     .ranking-title { margin: 0; font-size: 1.1rem; color: #263238; }
-    .ranking-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .ranking-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 12px;
+      box-sizing: border-box;
+    }
     .ranking-mode-select.home-settings-wrap {
-      --ranking-mode-pad-x: 10px;
+      --ranking-mode-pad-x: 8px;
       --ranking-mode-text-w: 4em;
       --ranking-mode-gap: 5px;
       --ranking-mode-slot: 0.6875rem;
-      --ranking-mode-control-width: calc(
-        var(--ranking-mode-pad-x) * 2 + var(--ranking-mode-text-w) + var(--ranking-mode-gap) + var(--ranking-mode-slot)
-      );
+      font-size: 0.8125rem;
       display: block;
       flex: 0 0 auto;
-      width: var(--ranking-mode-control-width);
+      width: max-content;
     }
     .ranking-mode-trigger {
-      width: 100%;
+      width: max-content;
       box-sizing: border-box;
-      font-size: 0.8125rem;
+      font-size: inherit;
       font-weight: 500;
       padding: 5px var(--ranking-mode-pad-x);
-      justify-content: center;
+      justify-content: flex-start;
     }
     .ranking-mode-row {
       display: flex;
       align-items: center;
-      width: 100%;
+      width: max-content;
       gap: var(--ranking-mode-gap);
     }
     .ranking-mode-text {
