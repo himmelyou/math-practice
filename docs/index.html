@@ -2122,6 +2122,8 @@
       gap: 4px;
       max-width: 100%;
       margin-bottom: 8px;
+      padding: 4px 6px;
+      box-sizing: border-box;
     }
     .stats-heat-cell {
       cursor: pointer;
@@ -3843,7 +3845,7 @@
   </div>
 
   <script src="prime-composite-logic.js?v=28"></script>
-  <script src="shared/stats-i18n-pack.js?v=28"></script>
+  <script src="shared/stats-i18n-pack.js?v=29"></script>
   <script src="stats-heatmap-browser.js?v=28"></script>
   <script src="stats-aggregate-browser.js?v=28"></script>
   <script src="stats-chart-browser.js?v=28"></script>
@@ -9536,7 +9538,6 @@
       if (!heat || !Array.isArray(heat.cells)) return "";
       const lblAcc = t("stats.heat.accuracy");
       const lblTime = t("stats.heat.avgTimeCorrect");
-      const lblW = t("stats.heat.weighted");
       return heat.cells
         .map(function (c) {
           const label = "L" + (c.levelIndex + 1);
@@ -9568,18 +9569,14 @@
             "</div>" +
             '<div class="stats-heat-metric"><span class="stats-heat-metric-lbl">' +
             escapeHtml(lblAcc) +
-            '</span> ' +
+            "</span> " +
             pTxt +
-            ' <span class="stats-heat-metric-lbl">' +
-            escapeHtml(lblW) +
-            "</span></div>" +
+            "</div>" +
             '<div class="stats-heat-metric"><span class="stats-heat-metric-lbl">' +
             escapeHtml(lblTime) +
             "</span> " +
             sec +
-            ' <span class="stats-heat-metric-lbl">' +
-            escapeHtml(lblW) +
-            "</span></div></div>"
+            "</div></div>"
           );
         })
         .join("");
