@@ -326,13 +326,6 @@
           operations: ["×"],
           min: 2,
           max: 9,
-          generateQuestion() {
-            const a = randomInt(this.min, this.max);
-            const b = randomInt(this.min, this.max);
-            const answer = a * b;
-            const text = `${a} × ${b} = ?`;
-            return { a, b, op: "×", text, answer, baseLevelId: this.id };
-          }
         },
         {
           id: "L11",
@@ -486,9 +479,97 @@
     return Math.max(0, Math.min(LEVEL_DEFS.length - 1, Math.floor(Number(i) || 0)));
   }
 
+  var L10_LEVEL_INDEX = 9;
+  var L10_POOL_SIZE = 36;
+  var l10Deck = [];
+  var lastBuiltLevelIndex = null;
+
+  function shuffleArray(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i -= 1) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i];
+      a[i] = a[j];
+      a[j] = tmp;
+    }
+    return a;
+  }
+
+  function buildL10Pool() {
+    var pool = [];
+    for (var i = 2; i <= 9; i += 1) {
+      for (var j = i; j <= 9; j += 1) {
+        pool.push({ a: i, b: j, answer: i * j });
+      }
+    }
+    return pool;
+  }
+
+  function materializeL10Question(item) {
+    var a = item.a;
+    var b = item.b;
+    if (Math.random() < 0.5) {
+      var swap = a;
+      a = b;
+      b = swap;
+    }
+    return {
+      a: a,
+      b: b,
+      op: "×",
+      text: a + " × " + b + " = ?",
+      answer: item.answer,
+      baseLevelId: "L10",
+    };
+  }
+
+  function resetLevelDeck(levelIndex) {
+    levelIndex = clampLevelIndex(levelIndex);
+    if (levelIndex !== L10_LEVEL_INDEX) return;
+    l10Deck = shuffleArray(buildL10Pool());
+    lastBuiltLevelIndex = L10_LEVEL_INDEX;
+  }
+
+  function buildL10Question() {
+    if (l10Deck.length === 0) {
+      l10Deck = shuffleArray(buildL10Pool());
+    }
+    return materializeL10Question(l10Deck.pop());
+  }
+
   function buildQuestion(levelIndex) {
-    var level = LEVEL_DEFS[clampLevelIndex(levelIndex)];
+    levelIndex = clampLevelIndex(levelIndex);
+    if (levelIndex === L10_LEVEL_INDEX) {
+      if (lastBuiltLevelIndex !== L10_LEVEL_INDEX) {
+        resetLevelDeck(L10_LEVEL_INDEX);
+      }
+      lastBuiltLevelIndex = levelIndex;
+      return buildL10Question();
+    }
+    lastBuiltLevelIndex = levelIndex;
+    var level = LEVEL_DEFS[levelIndex];
     return level.generateQuestion.call(level);
+  }
+
+  function buildRun(levelIndex, count) {
+    levelIndex = clampLevelIndex(levelIndex);
+    count = Math.max(0, Math.floor(Number(count) || 0));
+    if (levelIndex === L10_LEVEL_INDEX) {
+      resetLevelDeck(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      var l10Run = [];
+      for (var i = 0; i < count; i += 1) {
+        l10Run.push(buildL10Question());
+      }
+      return l10Run;
+    }
+    var level = LEVEL_DEFS[levelIndex];
+    var run = [];
+    for (var j = 0; j < count; j += 1) {
+      run.push(level.generateQuestion.call(level));
+    }
+    lastBuiltLevelIndex = levelIndex;
+    return run;
   }
 
   function getDifficultyLevels() {
@@ -503,7 +584,11 @@
   global.JmlArithmetic = {
     LEVEL_COUNT: LEVEL_DEFS.length,
     LEVEL_LABELS: LEVEL_LABELS,
+    L10_LEVEL_INDEX: L10_LEVEL_INDEX,
+    L10_POOL_SIZE: L10_POOL_SIZE,
     buildQuestion: buildQuestion,
+    buildRun: buildRun,
+    resetLevelDeck: resetLevelDeck,
     getDifficultyLevels: getDifficultyLevels,
     getLevelMeta: function (levelIndex) {
       return LEVEL_DEFS[clampLevelIndex(levelIndex)];
