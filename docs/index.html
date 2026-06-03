@@ -2123,13 +2123,17 @@
       width: 100%;
       height: 100%;
     }
+    .stats-body {
+      padding: 0 6px;
+      box-sizing: border-box;
+    }
     .stats-heatmap-grid-compact {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 4px;
       max-width: 100%;
       margin-bottom: 8px;
-      padding: 4px 6px;
+      padding: 4px 0;
       box-sizing: border-box;
     }
     .stats-heat-cell {
@@ -2167,7 +2171,7 @@
       align-items: baseline;
       justify-content: space-between;
       gap: 10px;
-      margin: 6px 6px 6px;
+      margin: 6px 0;
       box-sizing: border-box;
     }
     .stats-chart-title {
@@ -2186,8 +2190,8 @@
       min-width: 0;
       flex: 1 1 auto;
     }
-    #stats-chart-block .stats-level-chart-wrap {
-      margin: 0 6px 8px;
+    .stats-body .stats-level-chart-wrap {
+      margin-bottom: 8px;
     }
     .stats-level-chart-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .stats-level-chart-row label { white-space: nowrap; }
@@ -3851,14 +3855,16 @@
 
     <section class="stats-section" id="stats-section">
       <p class="stats-subtitle" id="stats-subtitle-hint" style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);"></p>
-      <div id="stats-heatmap-host" style="display:none;"></div>
-      <div id="stats-chart-block" style="display:none;">
-        <div class="stats-chart-head">
-          <h3 class="stats-chart-title" id="stats-chart-title"></h3>
-          <p class="stats-chart-level-name" id="stats-chart-level-name"></p>
-        </div>
-        <div class="stats-level-chart-wrap" id="stats-level-chart-wrap">
-          <canvas id="stats-level-canvas"></canvas>
+      <div class="stats-body">
+        <div id="stats-heatmap-host" style="display:none;"></div>
+        <div id="stats-chart-block" style="display:none;">
+          <div class="stats-chart-head">
+            <h3 class="stats-chart-title" id="stats-chart-title"></h3>
+            <p class="stats-chart-level-name" id="stats-chart-level-name"></p>
+          </div>
+          <div class="stats-level-chart-wrap" id="stats-level-chart-wrap">
+            <canvas id="stats-level-canvas"></canvas>
+          </div>
         </div>
       </div>
       <div id="stats-level-empty" class="stats-empty-msg" style="display:none;">暂无按题记录的难度数据，多玩几局后查看。</div>
