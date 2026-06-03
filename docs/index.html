@@ -365,9 +365,71 @@
     }
     .home-user-actions {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
       flex-shrink: 0;
+    }
+    .home-settings-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .home-settings-trigger {
+      color: #1a3f8f;
+      background: #eef4ff;
+      border: 1px solid #98b8fa;
+    }
+    .home-settings-trigger[aria-expanded="true"] {
+      background: #dce8ff;
+    }
+    .home-settings-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 6px);
+      min-width: 10.5em;
+      padding: 6px 0;
+      margin: 0;
+      border-radius: 10px;
+      border: 1px solid rgba(25, 118, 210, 0.18);
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(30, 64, 120, 0.14);
+      z-index: 40;
+    }
+    .home-settings-menu[hidden] {
+      display: none;
+    }
+    .home-settings-menu-item {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 14px;
+      border: none;
+      background: transparent;
+      font: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #37474f;
+      text-align: left;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .home-settings-menu-item:hover,
+    .home-settings-menu-item:focus-visible {
+      background: #f0f6ff;
+      outline: none;
+    }
+    .home-settings-menu-item--danger {
+      color: #c62828;
+    }
+    .home-settings-menu-item--danger:hover,
+    .home-settings-menu-item--danger:focus-visible {
+      background: #ffebee;
+    }
+    .home-settings-menu-item[hidden] {
+      display: none;
     }
     .home-pill-btn {
       display: inline-flex;
@@ -2981,13 +3043,33 @@
           </span>
         </div>
         <div class="home-user-actions">
-          <button id="change-password-btn" class="change-pwd-btn home-pill-btn home-pill-btn--primary" type="button">
-            <span id="change-password-btn-label">修改密码</span>
-          </button>
-          <button id="logout-btn" class="logout-btn home-pill-btn home-pill-btn--danger" type="button">
-            <span id="logout-btn-label">注销</span>
-          </button>
-          <button type="button" id="global-back-home-btn" style="display:none;">返回首页</button>
+          <div class="home-settings-wrap" id="home-settings-wrap">
+            <button
+              type="button"
+              id="home-settings-btn"
+              class="home-settings-trigger home-pill-btn"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="home-settings-menu"
+            >
+              <span id="home-settings-btn-label">设置</span>
+            </button>
+            <div id="home-settings-menu" class="home-settings-menu" role="menu" hidden>
+              <button type="button" id="home-settings-lang-btn" class="home-settings-menu-item" role="menuitem">
+                <span id="home-settings-lang-label">切换语言</span>
+              </button>
+              <button type="button" id="change-password-btn" class="home-settings-menu-item" role="menuitem">
+                <span id="change-password-btn-label">修改密码</span>
+              </button>
+              <button type="button" id="home-settings-contact-btn" class="home-settings-menu-item" role="menuitem">
+                <span id="home-settings-contact-label">联系我们</span>
+              </button>
+              <button type="button" id="logout-btn" class="home-settings-menu-item home-settings-menu-item--danger" role="menuitem">
+                <span id="logout-btn-label">登出</span>
+              </button>
+            </div>
+          </div>
+          <button type="button" id="global-back-home-btn" class="home-pill-btn home-pill-btn--primary" style="display:none;">返回首页</button>
         </div>
       </div>
     </header>
@@ -4181,19 +4263,79 @@
       dom.currentModeName.textContent = getModeTitle();
     }
 
-    function setTopActionsVisible(visible) {
-      const changePwdBtn = document.getElementById("change-password-btn");
+    function closeHomeSettingsMenu() {
+      const menu = document.getElementById("home-settings-menu");
+      const btn = document.getElementById("home-settings-btn");
+      if (menu) menu.hidden = true;
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    }
+
+    function openHomeSettingsMenu() {
+      const menu = document.getElementById("home-settings-menu");
+      const btn = document.getElementById("home-settings-btn");
+      if (!menu || !btn) return;
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+    }
+
+    function toggleHomeSettingsMenu() {
+      const menu = document.getElementById("home-settings-menu");
+      if (!menu) return;
+      if (menu.hidden) openHomeSettingsMenu();
+      else closeHomeSettingsMenu();
+    }
+
+    function syncHomeSettingsAuthItems() {
+      const pwd = document.getElementById("change-password-btn");
       const logoutBtn = document.getElementById("logout-btn");
+      if (pwd) pwd.hidden = !!isGuestMode;
+      if (logoutBtn) logoutBtn.hidden = !!isGuestMode;
+    }
+
+    function updateHomeSettingsMenuI18n() {
+      setTextById("home-settings-btn-label", "home.btn.settings");
+      setTextById("home-settings-lang-label", "home.menu.switchLang");
+      setTextById("home-settings-contact-label", "home.menu.contactUs");
+      setTextById("change-password-btn-label", "home.btn.changePassword");
+      setTextById("logout-btn-label", "home.btn.logout");
+      const settingsBtn = document.getElementById("home-settings-btn");
+      if (settingsBtn) {
+        settingsBtn.setAttribute("aria-label", t("home.btn.settings"));
+      }
+      const langBtn = document.getElementById("home-settings-lang-btn");
+      if (langBtn) {
+        langBtn.setAttribute(
+          "aria-label",
+          t("home.menu.switchLang") + " · " + (currentLang === "en" ? t("lang.zhHant") : t("lang.en"))
+        );
+      }
+    }
+
+    function toggleAppLang() {
+      saveLang(currentLang === "en" ? "zhHant" : "en");
+      applyI18nToLoginView();
+      applyI18nToMainView();
+      const rThead = document.getElementById("ranking-thead-v2");
+      if (rThead) rThead.innerHTML = buildRankingTheadHtml(lastRankingTab);
+    }
+
+    function handleHomeSettingsContact() {
+      closeHomeSettingsMenu();
+      showToast(t("home.contact.comingSoon"));
+    }
+
+    function setTopActionsVisible(visible) {
+      const settingsWrap = document.getElementById("home-settings-wrap");
       const globalBackBtn = document.getElementById("global-back-home-btn");
+      closeHomeSettingsMenu();
       if (visible) {
         if (globalBackBtn) globalBackBtn.style.display = "none";
-        if (changePwdBtn) changePwdBtn.style.display = isGuestMode ? "none" : "";
-        if (logoutBtn) logoutBtn.style.display = isGuestMode ? "none" : "";
+        if (settingsWrap) settingsWrap.style.display = "";
+        syncHomeSettingsAuthItems();
         return;
       }
       if (globalBackBtn) globalBackBtn.style.display = "";
-      if (changePwdBtn) changePwdBtn.style.display = "none";
-      if (logoutBtn) logoutBtn.style.display = "none";
+      if (settingsWrap) settingsWrap.style.display = "none";
       updateGlobalBackButtonState();
     }
 
@@ -5249,6 +5391,10 @@
         "home.avatar.placeholderLetter": "頭",
         "home.score.prefix": "總積分：",
         "home.btn.backHome": "返回首頁",
+        "home.btn.settings": "設置",
+        "home.menu.switchLang": "切換語言",
+        "home.menu.contactUs": "聯繫我們",
+        "home.contact.comingSoon": "聯繫方式即將公布，敬請期待。",
         "home.btn.changePassword": "修改密碼",
         "home.btn.logout": "登出",
         "game.subtitle.survival": "生存挑戰：L1 起步，答對 +2 秒 +5 分；5 連對升級，答錯降級。",
@@ -5550,6 +5696,10 @@
         "home.avatar.placeholderLetter": "Me",
         "home.score.prefix": "Score: ",
         "home.btn.backHome": "Home",
+        "home.btn.settings": "Settings",
+        "home.menu.switchLang": "Language",
+        "home.menu.contactUs": "Contact us",
+        "home.contact.comingSoon": "Contact details coming soon.",
         "home.btn.changePassword": "Password",
         "home.btn.logout": "Logout",
         "game.subtitle.survival": "Survival: start at L1; +2s +5pts per correct; level up every 5 in a row; wrong answers level down.",
@@ -5985,8 +6135,7 @@
       const nickBtn = byId("change-nickname-btn");
       if (nickBtn) nickBtn.setAttribute("title", t("modal.nickname.title"));
       setT("global-back-home-btn", "home.btn.backHome");
-      setTextById("change-password-btn-label", "home.btn.changePassword");
-      setTextById("logout-btn-label", "home.btn.logout");
+      updateHomeSettingsMenuI18n();
       updateGlobalBackButtonState();
       refreshVisibleRuleHintTexts();
       scheduleSyncAllRuleHints();
@@ -10042,8 +10191,7 @@
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
-      const changePwdBtn = document.getElementById("change-password-btn");
-      if (changePwdBtn) changePwdBtn.style.display = "";
+      syncHomeSettingsAuthItems();
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "";
       const mr = document.getElementById("mode-ranking");
@@ -10099,8 +10247,7 @@
       errorEl.textContent = "";
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
-      const changePwdBtn = document.getElementById("change-password-btn");
-      if (changePwdBtn) changePwdBtn.style.display = "";
+      syncHomeSettingsAuthItems();
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "";
       const mr = document.getElementById("mode-ranking");
@@ -10125,8 +10272,7 @@
       await refreshGameSettings();
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
-      const changePwdBtn = document.getElementById("change-password-btn");
-      if (changePwdBtn) changePwdBtn.style.display = "none";
+      syncHomeSettingsAuthItems();
       const changeNickBtn = document.getElementById("change-nickname-btn");
       if (changeNickBtn) changeNickBtn.style.display = "none";
       const ms = document.getElementById("mode-stats");
@@ -10387,13 +10533,7 @@
       const loginBtn = document.getElementById("login-btn");
       loginBtn.addEventListener("click", handleLogin);
       const langToggleBtn = document.getElementById("lang-toggle-btn");
-      if (langToggleBtn) langToggleBtn.addEventListener("click", function () {
-        saveLang(currentLang === "en" ? "zhHant" : "en");
-        applyI18nToLoginView();
-        applyI18nToMainView();
-        const rThead = document.getElementById("ranking-thead-v2");
-        if (rThead) rThead.innerHTML = buildRankingTheadHtml(lastRankingTab);
-      });
+      if (langToggleBtn) langToggleBtn.addEventListener("click", toggleAppLang);
       const guestBtn = document.getElementById("guest-btn");
       if (guestBtn) guestBtn.addEventListener("click", handleGuestEnter);
       const loginPassword = document.getElementById("login-password");
@@ -10434,8 +10574,27 @@
         }
       });
 
+      const homeSettingsBtn = document.getElementById("home-settings-btn");
+      if (homeSettingsBtn) homeSettingsBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        toggleHomeSettingsMenu();
+      });
+      const homeSettingsLangBtn = document.getElementById("home-settings-lang-btn");
+      if (homeSettingsLangBtn) {
+        homeSettingsLangBtn.addEventListener("click", function () {
+          closeHomeSettingsMenu();
+          toggleAppLang();
+        });
+      }
+      const homeSettingsContactBtn = document.getElementById("home-settings-contact-btn");
+      if (homeSettingsContactBtn) homeSettingsContactBtn.addEventListener("click", handleHomeSettingsContact);
       const changePwdBtn = document.getElementById("change-password-btn");
-      if (changePwdBtn) changePwdBtn.addEventListener("click", showChangePasswordModal);
+      if (changePwdBtn) {
+        changePwdBtn.addEventListener("click", function () {
+          closeHomeSettingsMenu();
+          showChangePasswordModal();
+        });
+      }
       const changePwdCancel = document.getElementById("change-password-cancel-btn");
       if (changePwdCancel) changePwdCancel.addEventListener("click", hideChangePasswordModal);
       const changePwdSubmit = document.getElementById("change-password-submit-btn");
@@ -10457,7 +10616,21 @@
       });
 
       const logoutBtn = document.getElementById("logout-btn");
-      logoutBtn.addEventListener("click", handleLogout);
+      if (logoutBtn) {
+        logoutBtn.addEventListener("click", function () {
+          closeHomeSettingsMenu();
+          handleLogout();
+        });
+      }
+      document.addEventListener("click", function (e) {
+        const wrap = document.getElementById("home-settings-wrap");
+        const menu = document.getElementById("home-settings-menu");
+        if (!wrap || !menu || menu.hidden) return;
+        if (!wrap.contains(e.target)) closeHomeSettingsMenu();
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") closeHomeSettingsMenu();
+      });
       bindHomeTopBreatheListeners();
     }
 
@@ -10489,8 +10662,7 @@
           ensureUserProgressDefault(cachedUser);
           document.getElementById("login-view").style.display = "none";
           document.getElementById("app-view").style.display = "flex";
-          const cpBtn = document.getElementById("change-password-btn");
-          if (cpBtn) cpBtn.style.display = "";
+          syncHomeSettingsAuthItems();
             loadState();
             updateHomeTotalScore();
             updateSurvivalStatusUI();
