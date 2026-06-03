@@ -180,7 +180,7 @@
         if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
           if (level === 0) {
             window.JmlArithmetic.resetLevelDeck(level, layout.questionsPerPage);
-          } else if (level === 9) {
+          } else if (level === 1 || level === 9 || level === 10) {
             window.JmlArithmetic.resetLevelDeck(level);
           }
         }

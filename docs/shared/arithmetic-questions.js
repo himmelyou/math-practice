@@ -17,24 +17,11 @@
         },
         {
           id: "L2",
-          name: "第 2 级 · 一位数加法进阶",
-          description: "一位数加法，包含进位，熟练 10 以内凑整。",
+          name: "第 2 级 · 20 以内加法",
+          description: "1～10 与 10～19 相加，和不超过 20。",
           operations: ["+"],
-          min: 2,
-          max: 9,
-          generateQuestion() {
-            const a = randomInt(this.min, this.max);
-            let b;
-            if (a <= 4) {
-              b = randomInt(6, this.max);
-            } else {
-              const minB = Math.max(this.min, 10 - a);
-              b = randomInt(minB, this.max);
-            }
-            const answer = a + b;
-            const text = `${a} + ${b} = ?`;
-            return { a, b, op: "+", text, answer, baseLevelId: this.id };
-          }
+          min: 1,
+          max: 19,
         },
         {
           id: "L3",
@@ -323,14 +310,6 @@
           operations: ["÷"],
           min: 2,
           max: 9,
-          generateQuestion() {
-            const divisor = randomInt(this.min, this.max);
-            const quotient = randomInt(2, 9);
-            const dividend = divisor * quotient;
-            const answer = quotient;
-            const text = `${dividend} ÷ ${divisor} = ?`;
-            return { a: dividend, b: divisor, op: "÷", text, answer, baseLevelId: this.id };
-          }
         },
         {
           id: "L12",
@@ -471,11 +450,17 @@
   var L1_LEVEL_INDEX = 0;
   var L1_NO_CARRY_POOL_SIZE = 20;
   var L1_CARRY_POOL_SIZE = 25;
+  var L2_LEVEL_INDEX = 1;
+  var L2_POOL_SIZE = 55;
   var L10_LEVEL_INDEX = 9;
   var L10_POOL_SIZE = 36;
+  var L11_LEVEL_INDEX = 10;
+  var L11_POOL_SIZE = 56;
   var l1Deck = [];
   var l1SegmentCount = 30;
+  var l2Deck = [];
   var l10Deck = [];
+  var l11Deck = [];
   var lastBuiltLevelIndex = null;
 
   function shuffleArray(arr) {
@@ -531,6 +516,58 @@
     };
   }
 
+  function buildL2Pool() {
+    var pool = [];
+    for (var a = 1; a <= 10; a += 1) {
+      for (var b = 10; b <= 19; b += 1) {
+        if (a + b > 20) continue;
+        pool.push({ a: a, b: b, answer: a + b });
+      }
+    }
+    return pool;
+  }
+
+  function materializeL2Question(item) {
+    var a = item.a;
+    var b = item.b;
+    if (a !== b && Math.random() < 0.5) {
+      var swap = a;
+      a = b;
+      b = swap;
+    }
+    return {
+      a: a,
+      b: b,
+      op: "+",
+      text: a + " + " + b + " = ?",
+      answer: item.answer,
+      baseLevelId: "L2",
+    };
+  }
+
+  function buildL11Pool() {
+    var pool = [];
+    for (var divisor = 2; divisor <= 9; divisor += 1) {
+      for (var quotient = 2; quotient <= 9; quotient += 1) {
+        if (divisor === quotient) continue;
+        var dividend = divisor * quotient;
+        pool.push({ dividend: dividend, divisor: divisor, quotient: quotient });
+      }
+    }
+    return pool;
+  }
+
+  function materializeL11Question(item) {
+    return {
+      a: item.dividend,
+      b: item.divisor,
+      op: "÷",
+      text: item.dividend + " ÷ " + item.divisor + " = ?",
+      answer: item.quotient,
+      baseLevelId: "L11",
+    };
+  }
+
   function buildL10Pool() {
     var pool = [];
     for (var i = 2; i <= 9; i += 1) {
@@ -572,6 +609,16 @@
     if (levelIndex === L10_LEVEL_INDEX) {
       l10Deck = shuffleArray(buildL10Pool());
       lastBuiltLevelIndex = L10_LEVEL_INDEX;
+      return;
+    }
+    if (levelIndex === L11_LEVEL_INDEX) {
+      l11Deck = shuffleArray(buildL11Pool());
+      lastBuiltLevelIndex = L11_LEVEL_INDEX;
+      return;
+    }
+    if (levelIndex === L2_LEVEL_INDEX) {
+      l2Deck = shuffleArray(buildL2Pool());
+      lastBuiltLevelIndex = L2_LEVEL_INDEX;
     }
   }
 
@@ -580,6 +627,20 @@
       l1Deck = buildL1RunDeck(l1SegmentCount);
     }
     return materializeL1Question(l1Deck.pop());
+  }
+
+  function buildL2Question() {
+    if (l2Deck.length === 0) {
+      l2Deck = shuffleArray(buildL2Pool());
+    }
+    return materializeL2Question(l2Deck.pop());
+  }
+
+  function buildL11Question() {
+    if (l11Deck.length === 0) {
+      l11Deck = shuffleArray(buildL11Pool());
+    }
+    return materializeL11Question(l11Deck.pop());
   }
 
   function buildL10Question() {
@@ -598,12 +659,26 @@
       lastBuiltLevelIndex = levelIndex;
       return buildL1Question();
     }
+    if (levelIndex === L2_LEVEL_INDEX) {
+      if (lastBuiltLevelIndex !== L2_LEVEL_INDEX) {
+        resetLevelDeck(L2_LEVEL_INDEX);
+      }
+      lastBuiltLevelIndex = levelIndex;
+      return buildL2Question();
+    }
     if (levelIndex === L10_LEVEL_INDEX) {
       if (lastBuiltLevelIndex !== L10_LEVEL_INDEX) {
         resetLevelDeck(L10_LEVEL_INDEX);
       }
       lastBuiltLevelIndex = levelIndex;
       return buildL10Question();
+    }
+    if (levelIndex === L11_LEVEL_INDEX) {
+      if (lastBuiltLevelIndex !== L11_LEVEL_INDEX) {
+        resetLevelDeck(L11_LEVEL_INDEX);
+      }
+      lastBuiltLevelIndex = levelIndex;
+      return buildL11Question();
     }
     lastBuiltLevelIndex = levelIndex;
     var level = LEVEL_DEFS[levelIndex];
@@ -622,6 +697,15 @@
       }
       return l1Run;
     }
+    if (levelIndex === L2_LEVEL_INDEX) {
+      resetLevelDeck(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      var l2Run = [];
+      for (var m = 0; m < count; m += 1) {
+        l2Run.push(buildL2Question());
+      }
+      return l2Run;
+    }
     if (levelIndex === L10_LEVEL_INDEX) {
       resetLevelDeck(levelIndex);
       lastBuiltLevelIndex = levelIndex;
@@ -630,6 +714,15 @@
         l10Run.push(buildL10Question());
       }
       return l10Run;
+    }
+    if (levelIndex === L11_LEVEL_INDEX) {
+      resetLevelDeck(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      var l11Run = [];
+      for (var n = 0; n < count; n += 1) {
+        l11Run.push(buildL11Question());
+      }
+      return l11Run;
     }
     var level = LEVEL_DEFS[levelIndex];
     var run = [];
@@ -655,8 +748,12 @@
     L1_LEVEL_INDEX: L1_LEVEL_INDEX,
     L1_NO_CARRY_POOL_SIZE: L1_NO_CARRY_POOL_SIZE,
     L1_CARRY_POOL_SIZE: L1_CARRY_POOL_SIZE,
+    L2_LEVEL_INDEX: L2_LEVEL_INDEX,
+    L2_POOL_SIZE: L2_POOL_SIZE,
     L10_LEVEL_INDEX: L10_LEVEL_INDEX,
     L10_POOL_SIZE: L10_POOL_SIZE,
+    L11_LEVEL_INDEX: L11_LEVEL_INDEX,
+    L11_POOL_SIZE: L11_POOL_SIZE,
     buildQuestion: buildQuestion,
     buildRun: buildRun,
     resetLevelDeck: resetLevelDeck,
