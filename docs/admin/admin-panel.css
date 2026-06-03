@@ -127,8 +127,14 @@
 
 .jml-feedback-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
+}
+
+.jml-feedback-table td:last-child {
+  white-space: nowrap;
 }
 
 .jml-btn-sm {
