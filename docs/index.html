@@ -774,10 +774,26 @@
       font-size: 0.8125rem;
       font-weight: 500;
       max-width: min(52vw, 220px);
+      gap: 5px;
     }
-    .ranking-mode-trigger span {
+    .ranking-mode-trigger-label {
       overflow: hidden;
       text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .ranking-mode-trigger-caret {
+      flex-shrink: 0;
+      width: 0;
+      height: 0;
+      margin-top: 1px;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid currentColor;
+      opacity: 0.72;
+      transition: transform 0.15s ease;
+    }
+    .ranking-mode-trigger[aria-expanded="true"] .ranking-mode-trigger-caret {
+      transform: rotate(180deg);
     }
     .ranking-mode-menu {
       max-width: calc(100vw - 24px);
@@ -3427,7 +3443,8 @@
               aria-controls="ranking-mode-menu"
               aria-label="选择榜单"
             >
-              <span id="ranking-mode-trigger-label">总积分榜</span>
+              <span id="ranking-mode-trigger-label" class="ranking-mode-trigger-label">总积分榜</span>
+              <span class="ranking-mode-trigger-caret" aria-hidden="true"></span>
             </button>
             <div id="ranking-mode-menu" class="home-settings-menu ranking-mode-menu" role="menu" hidden>
               <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="score">
