@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="admin-panel.css" />
+  <link rel="stylesheet" href="admin-panel.css?v=24" />
   <link rel="stylesheet" href="admin-worksheet.css?v=22" />
 </head>
 <body>
@@ -45,7 +45,10 @@
         <button type="button" class="jml-tab" data-tab="levels" role="tab">等级设置</button>
         <button type="button" class="jml-tab" data-tab="avatars" role="tab">头像管理</button>
         <button type="button" class="jml-tab" data-tab="i18n" role="tab">文字管理</button>
-        <button type="button" class="jml-tab" data-tab="feedback" role="tab">用户反馈</button>
+        <button type="button" class="jml-tab jml-tab--with-badge" data-tab="feedback" role="tab">
+          <span class="jml-tab-label">用户反馈</span>
+          <span id="jml-feedback-tab-badge" class="jml-tab-badge" hidden aria-label="未读反馈数"></span>
+        </button>
         <button type="button" class="jml-tab" data-tab="worksheet" role="tab">出题打印</button>
         <button type="button" class="jml-tab" data-tab="backup" role="tab">系统备份</button>
         <button type="button" class="jml-tab" data-tab="maintenance" role="tab">初始化/维护</button>
@@ -273,7 +276,7 @@
   <script src="../shared/admin-auth.js?v=21"></script>
   <script src="../shared/arithmetic-questions.js?v=34"></script>
   <script src="../shared/expand-brackets-questions.js?v=21"></script>
-  <script src="admin-panel.js?v=23"></script>
+  <script src="admin-panel.js?v=24"></script>
   <script src="admin-worksheet.js?v=22"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {

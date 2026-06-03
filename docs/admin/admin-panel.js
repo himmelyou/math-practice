@@ -397,6 +397,36 @@
     });
   }
 
+  function countFeedbackUnread(list) {
+    return (list || []).filter(function (x) { return !x.read; }).length;
+  }
+
+  function updateFeedbackTabBadge(unread) {
+    var badge = document.getElementById('jml-feedback-tab-badge');
+    if (!badge) return;
+    var n = Number(unread) || 0;
+    if (n <= 0) {
+      badge.hidden = true;
+      badge.textContent = '';
+      badge.removeAttribute('aria-label');
+      return;
+    }
+    badge.hidden = false;
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.setAttribute('aria-label', '未读反馈 ' + n + ' 条');
+  }
+
+  async function refreshFeedbackUnreadBadge() {
+    if (!apiBase()) return;
+    try {
+      var data = await apiFetch('/api/admin/feedback', { method: 'GET' });
+      state.feedback = Array.isArray(data.items) ? data.items : [];
+      updateFeedbackTabBadge(countFeedbackUnread(state.feedback));
+    } catch (e) {
+      /* 角标加载失败时静默，不影响其它 Tab */
+    }
+  }
+
   async function loadFeedback() {
     showApiWarning();
     if (!apiBase()) {
@@ -407,7 +437,8 @@
     try {
       var data = await apiFetch('/api/admin/feedback', { method: 'GET' });
       state.feedback = Array.isArray(data.items) ? data.items : [];
-      var unread = state.feedback.filter(function (x) { return !x.read; }).length;
+      var unread = countFeedbackUnread(state.feedback);
+      updateFeedbackTabBadge(unread);
       setStatus('已加载 ' + state.feedback.length + ' 条反馈（未读 ' + unread + '）', 'ok');
       renderFeedbackTable();
     } catch (e) {
@@ -427,7 +458,8 @@
         return x;
       });
       renderFeedbackTable();
-      var unread = state.feedback.filter(function (x) { return !x.read; }).length;
+      var unread = countFeedbackUnread(state.feedback);
+      updateFeedbackTabBadge(unread);
       setStatus(read ? '已标记为已读（未读 ' + unread + '）' : '已标记为未读', 'ok');
     } catch (e) {
       setStatus(e.message || '更新失败', 'err');
@@ -1304,8 +1336,9 @@
       showApiWarning();
       bindEvents();
       if (typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
-      // 默认加载账号列表
+      // 默认加载账号列表；并行拉取反馈未读角标
       loadUsers();
+      refreshFeedbackUnreadBadge();
     },
   };
 })();
