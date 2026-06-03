@@ -178,11 +178,7 @@
       for (var p = 0; p < pages; p += 1) {
         var batch = [];
         if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
-          if (level === 0) {
-            window.JmlArithmetic.resetLevelDeck(level, layout.questionsPerPage);
-          } else if (level === 1 || level === 9 || level === 10) {
-            window.JmlArithmetic.resetLevelDeck(level);
-          }
+          window.JmlArithmetic.resetLevelDeck(level, layout.questionsPerPage);
         }
         for (var i = 0; i < layout.questionsPerPage; i += 1) {
           batch.push(buildQuestion(mode, level));

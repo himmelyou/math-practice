@@ -454,14 +454,65 @@
   var L2_POOL_SIZE = 55;
   var L10_LEVEL_INDEX = 9;
   var L10_POOL_SIZE = 36;
+  var L3_LEVEL_INDEX = 2;
+  var L3_ADD_POOL_SIZE = 25;
+  var L3_SUB_POOL_SIZE = 39;
+  var L4_LEVEL_INDEX = 3;
+  var L4_ADD_POOL_SIZE = 50;
+  var L4_SUB_POOL_SIZE = 80;
   var L11_LEVEL_INDEX = 10;
   var L11_POOL_SIZE = 56;
+  var L13_LEVEL_INDEX = 12;
+  var L13_POOL_SIZE = 98;
+  var DEDUP_LEVEL_INDICES = [4, 5, 6, 7, 8, 11, 13, 14, 15];
+  var DEDUP_MAX_RETRIES = 100;
+  var DEFAULT_SEGMENT_COUNT = 30;
   var l1Deck = [];
-  var l1SegmentCount = 30;
+  var l1SegmentCount = DEFAULT_SEGMENT_COUNT;
   var l2Deck = [];
+  var l3Deck = [];
+  var l3SegmentCount = DEFAULT_SEGMENT_COUNT;
+  var l4Deck = [];
+  var l4SegmentCount = DEFAULT_SEGMENT_COUNT;
   var l10Deck = [];
   var l11Deck = [];
+  var l13Deck = [];
+  var segmentSeenKeys = null;
+  var segmentLevelIndex = null;
   var lastBuiltLevelIndex = null;
+
+  function isDedupLevel(levelIndex) {
+    return DEDUP_LEVEL_INDICES.indexOf(levelIndex) >= 0;
+  }
+
+  function isDualDeckLevel(levelIndex) {
+    return levelIndex === L1_LEVEL_INDEX || levelIndex === L3_LEVEL_INDEX || levelIndex === L4_LEVEL_INDEX;
+  }
+
+  function resolveSegmentCount(count) {
+    if (count != null && !Number.isNaN(Number(count))) {
+      return Math.max(0, Math.floor(Number(count)));
+    }
+    return DEFAULT_SEGMENT_COUNT;
+  }
+
+  function clearSegmentDedup(levelIndex) {
+    segmentLevelIndex = levelIndex;
+    segmentSeenKeys = new Set();
+  }
+
+  function questionDedupKey(q) {
+    return q && q.text != null ? String(q.text) : "";
+  }
+
+  function buildDualRunDeck(addPoolBuilder, subPoolBuilder, count) {
+    count = Math.max(0, Math.floor(Number(count) || 0));
+    var addCount = Math.floor(count / 2);
+    var subCount = count - addCount;
+    var add = shuffleArray(addPoolBuilder()).slice(0, addCount);
+    var sub = shuffleArray(subPoolBuilder()).slice(0, subCount);
+    return shuffleArray(add.concat(sub));
+  }
 
   function shuffleArray(arr) {
     var a = arr.slice();
@@ -596,14 +647,146 @@
     };
   }
 
+  function buildL3AddPool() {
+    var pool = [];
+    for (var i = 1; i <= 9; i += 1) {
+      for (var j = i; j <= 9; j += 1) {
+        if (i + j >= 10) pool.push({ op: "+", a: i, b: j, answer: i + j });
+      }
+    }
+    return pool;
+  }
+
+  function buildL3SubPool() {
+    var pool = [];
+    for (var a = 4; a <= 9; a += 1) {
+      for (var b = 1; b <= a; b += 1) {
+        pool.push({ op: "-", a: a, b: b, answer: a - b });
+      }
+    }
+    return pool;
+  }
+
+  function materializeL3Question(item) {
+    var op = item.op;
+    var a = item.a;
+    var b = item.b;
+    if (op === "+" && a !== b && Math.random() < 0.5) {
+      var swap = a;
+      a = b;
+      b = swap;
+    }
+    return {
+      a: a,
+      b: b,
+      op: op,
+      text: a + " " + op + " " + b + " = ?",
+      answer: item.answer,
+      baseLevelId: "L3",
+    };
+  }
+
+  function buildL4AddPool() {
+    var pool = [];
+    for (var a = 6; a <= 15; a += 1) {
+      var maxB = Math.min(9, 20 - a);
+      if (maxB < 4) continue;
+      for (var b = 4; b <= maxB; b += 1) {
+        pool.push({ op: "+", a: a, b: b, answer: a + b });
+      }
+    }
+    return pool;
+  }
+
+  function buildL4SubPool() {
+    var pool = [];
+    for (var a = 11; a <= 20; a += 1) {
+      for (var b = 2; b <= 9; b += 1) {
+        pool.push({ op: "-", a: a, b: b, answer: a - b });
+      }
+    }
+    return pool;
+  }
+
+  function materializeL4Question(item) {
+    var op = item.op;
+    var a = item.a;
+    var b = item.b;
+    return {
+      a: a,
+      b: b,
+      op: op,
+      text: a + " " + op + " " + b + " = ?",
+      answer: item.answer,
+      baseLevelId: "L4",
+    };
+  }
+
+  function buildL13Pool() {
+    var pool = [];
+    for (var b = 2; b <= 9; b += 1) {
+      var maxA = Math.floor(99 / b);
+      for (var a = 11; a <= maxA; a += 1) {
+        pool.push({ a: a, b: b, answer: a * b });
+      }
+    }
+    return pool;
+  }
+
+  function materializeL13Question(item) {
+    return {
+      a: item.a,
+      b: item.b,
+      op: "×",
+      text: item.a + " × " + item.b + " = ?",
+      answer: item.answer,
+      baseLevelId: "L13",
+    };
+  }
+
+  function buildQuestionWithDedup(levelIndex) {
+    var level = LEVEL_DEFS[levelIndex];
+    var seen = segmentSeenKeys;
+    for (var i = 0; i < DEDUP_MAX_RETRIES; i += 1) {
+      var q = level.generateQuestion.call(level);
+      var key = questionDedupKey(q);
+      if (!seen || !seen.has(key)) {
+        if (seen) seen.add(key);
+        return q;
+      }
+    }
+    var fallback = level.generateQuestion.call(level);
+    if (seen) seen.add(questionDedupKey(fallback));
+    return fallback;
+  }
+
   function resetLevelDeck(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
+    var segCount = resolveSegmentCount(count);
+    segmentSeenKeys = null;
+    segmentLevelIndex = null;
+
     if (levelIndex === L1_LEVEL_INDEX) {
-      if (count != null && !Number.isNaN(Number(count))) {
-        l1SegmentCount = Math.max(0, Math.floor(Number(count)));
-      }
+      l1SegmentCount = segCount;
       l1Deck = buildL1RunDeck(l1SegmentCount);
       lastBuiltLevelIndex = L1_LEVEL_INDEX;
+      return;
+    }
+    if (levelIndex === L3_LEVEL_INDEX) {
+      l3SegmentCount = segCount;
+      l3Deck = buildDualRunDeck(buildL3AddPool, buildL3SubPool, l3SegmentCount);
+      lastBuiltLevelIndex = L3_LEVEL_INDEX;
+      return;
+    }
+    if (levelIndex === L4_LEVEL_INDEX) {
+      l4SegmentCount = segCount;
+      l4Deck = buildDualRunDeck(buildL4AddPool, buildL4SubPool, l4SegmentCount);
+      lastBuiltLevelIndex = L4_LEVEL_INDEX;
+      return;
+    }
+    if (levelIndex === L2_LEVEL_INDEX) {
+      l2Deck = shuffleArray(buildL2Pool());
+      lastBuiltLevelIndex = L2_LEVEL_INDEX;
       return;
     }
     if (levelIndex === L10_LEVEL_INDEX) {
@@ -616,9 +799,14 @@
       lastBuiltLevelIndex = L11_LEVEL_INDEX;
       return;
     }
-    if (levelIndex === L2_LEVEL_INDEX) {
-      l2Deck = shuffleArray(buildL2Pool());
-      lastBuiltLevelIndex = L2_LEVEL_INDEX;
+    if (levelIndex === L13_LEVEL_INDEX) {
+      l13Deck = shuffleArray(buildL13Pool());
+      lastBuiltLevelIndex = L13_LEVEL_INDEX;
+      return;
+    }
+    if (isDedupLevel(levelIndex)) {
+      clearSegmentDedup(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
     }
   }
 
@@ -627,6 +815,27 @@
       l1Deck = buildL1RunDeck(l1SegmentCount);
     }
     return materializeL1Question(l1Deck.pop());
+  }
+
+  function buildL3Question() {
+    if (l3Deck.length === 0) {
+      l3Deck = buildDualRunDeck(buildL3AddPool, buildL3SubPool, l3SegmentCount);
+    }
+    return materializeL3Question(l3Deck.pop());
+  }
+
+  function buildL4Question() {
+    if (l4Deck.length === 0) {
+      l4Deck = buildDualRunDeck(buildL4AddPool, buildL4SubPool, l4SegmentCount);
+    }
+    return materializeL4Question(l4Deck.pop());
+  }
+
+  function buildL13Question() {
+    if (l13Deck.length === 0) {
+      l13Deck = shuffleArray(buildL13Pool());
+    }
+    return materializeL13Question(l13Deck.pop());
   }
 
   function buildL2Question() {
@@ -650,79 +859,103 @@
     return materializeL10Question(l10Deck.pop());
   }
 
+  function ensureSegmentReady(levelIndex) {
+    if (lastBuiltLevelIndex !== levelIndex) {
+      resetLevelDeck(levelIndex);
+    } else if (isDedupLevel(levelIndex) && (segmentLevelIndex !== levelIndex || !segmentSeenKeys)) {
+      clearSegmentDedup(levelIndex);
+    }
+  }
+
   function buildQuestion(levelIndex) {
     levelIndex = clampLevelIndex(levelIndex);
     if (levelIndex === L1_LEVEL_INDEX) {
-      if (lastBuiltLevelIndex !== L1_LEVEL_INDEX) {
-        resetLevelDeck(L1_LEVEL_INDEX);
-      }
+      ensureSegmentReady(levelIndex);
       lastBuiltLevelIndex = levelIndex;
       return buildL1Question();
     }
     if (levelIndex === L2_LEVEL_INDEX) {
-      if (lastBuiltLevelIndex !== L2_LEVEL_INDEX) {
-        resetLevelDeck(L2_LEVEL_INDEX);
-      }
+      ensureSegmentReady(levelIndex);
       lastBuiltLevelIndex = levelIndex;
       return buildL2Question();
     }
+    if (levelIndex === L3_LEVEL_INDEX) {
+      ensureSegmentReady(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      return buildL3Question();
+    }
+    if (levelIndex === L4_LEVEL_INDEX) {
+      ensureSegmentReady(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      return buildL4Question();
+    }
     if (levelIndex === L10_LEVEL_INDEX) {
-      if (lastBuiltLevelIndex !== L10_LEVEL_INDEX) {
-        resetLevelDeck(L10_LEVEL_INDEX);
-      }
+      ensureSegmentReady(levelIndex);
       lastBuiltLevelIndex = levelIndex;
       return buildL10Question();
     }
     if (levelIndex === L11_LEVEL_INDEX) {
-      if (lastBuiltLevelIndex !== L11_LEVEL_INDEX) {
-        resetLevelDeck(L11_LEVEL_INDEX);
-      }
+      ensureSegmentReady(levelIndex);
       lastBuiltLevelIndex = levelIndex;
       return buildL11Question();
+    }
+    if (levelIndex === L13_LEVEL_INDEX) {
+      ensureSegmentReady(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      return buildL13Question();
+    }
+    if (isDedupLevel(levelIndex)) {
+      ensureSegmentReady(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      return buildQuestionWithDedup(levelIndex);
     }
     lastBuiltLevelIndex = levelIndex;
     var level = LEVEL_DEFS[levelIndex];
     return level.generateQuestion.call(level);
   }
 
+  function buildDeckRun(levelIndex, count, drawFn) {
+    resetLevelDeck(levelIndex, count);
+    lastBuiltLevelIndex = levelIndex;
+    var run = [];
+    for (var i = 0; i < count; i += 1) {
+      run.push(drawFn());
+    }
+    return run;
+  }
+
   function buildRun(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
     count = Math.max(0, Math.floor(Number(count) || 0));
     if (levelIndex === L1_LEVEL_INDEX) {
-      resetLevelDeck(levelIndex, count);
-      lastBuiltLevelIndex = levelIndex;
-      var l1Run = [];
-      for (var k = 0; k < count; k += 1) {
-        l1Run.push(buildL1Question());
-      }
-      return l1Run;
+      return buildDeckRun(levelIndex, count, buildL1Question);
     }
     if (levelIndex === L2_LEVEL_INDEX) {
-      resetLevelDeck(levelIndex);
-      lastBuiltLevelIndex = levelIndex;
-      var l2Run = [];
-      for (var m = 0; m < count; m += 1) {
-        l2Run.push(buildL2Question());
-      }
-      return l2Run;
+      return buildDeckRun(levelIndex, count, buildL2Question);
+    }
+    if (levelIndex === L3_LEVEL_INDEX) {
+      return buildDeckRun(levelIndex, count, buildL3Question);
+    }
+    if (levelIndex === L4_LEVEL_INDEX) {
+      return buildDeckRun(levelIndex, count, buildL4Question);
     }
     if (levelIndex === L10_LEVEL_INDEX) {
-      resetLevelDeck(levelIndex);
-      lastBuiltLevelIndex = levelIndex;
-      var l10Run = [];
-      for (var i = 0; i < count; i += 1) {
-        l10Run.push(buildL10Question());
-      }
-      return l10Run;
+      return buildDeckRun(levelIndex, count, buildL10Question);
     }
     if (levelIndex === L11_LEVEL_INDEX) {
-      resetLevelDeck(levelIndex);
+      return buildDeckRun(levelIndex, count, buildL11Question);
+    }
+    if (levelIndex === L13_LEVEL_INDEX) {
+      return buildDeckRun(levelIndex, count, buildL13Question);
+    }
+    if (isDedupLevel(levelIndex)) {
+      resetLevelDeck(levelIndex, count);
       lastBuiltLevelIndex = levelIndex;
-      var l11Run = [];
-      for (var n = 0; n < count; n += 1) {
-        l11Run.push(buildL11Question());
+      var dedupRun = [];
+      for (var d = 0; d < count; d += 1) {
+        dedupRun.push(buildQuestionWithDedup(levelIndex));
       }
-      return l11Run;
+      return dedupRun;
     }
     var level = LEVEL_DEFS[levelIndex];
     var run = [];
@@ -754,6 +987,17 @@
     L10_POOL_SIZE: L10_POOL_SIZE,
     L11_LEVEL_INDEX: L11_LEVEL_INDEX,
     L11_POOL_SIZE: L11_POOL_SIZE,
+    L3_LEVEL_INDEX: L3_LEVEL_INDEX,
+    L3_ADD_POOL_SIZE: L3_ADD_POOL_SIZE,
+    L3_SUB_POOL_SIZE: L3_SUB_POOL_SIZE,
+    L4_LEVEL_INDEX: L4_LEVEL_INDEX,
+    L4_ADD_POOL_SIZE: L4_ADD_POOL_SIZE,
+    L4_SUB_POOL_SIZE: L4_SUB_POOL_SIZE,
+    L13_LEVEL_INDEX: L13_LEVEL_INDEX,
+    L13_POOL_SIZE: L13_POOL_SIZE,
+    DEDUP_LEVEL_INDICES: DEDUP_LEVEL_INDICES.slice(),
+    isDualDeckLevel: isDualDeckLevel,
+    isDedupLevel: isDedupLevel,
     buildQuestion: buildQuestion,
     buildRun: buildRun,
     resetLevelDeck: resetLevelDeck,
