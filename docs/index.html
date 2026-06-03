@@ -794,7 +794,7 @@
       top: 0;
       visibility: hidden;
       white-space: nowrap;
-      font-size: inherit;
+      font-size: 0.8125rem;
       font-weight: 500;
       font-family: inherit;
       pointer-events: none;
@@ -3547,7 +3547,6 @@
                 </span>
               </button>
             </div>
-            <span id="ranking-mode-measure" class="ranking-mode-measure" aria-hidden="true"></span>
           </div>
         </div>
       </div>
@@ -4466,15 +4465,30 @@
       });
     }
 
+    function getRankingModeMeasureEl() {
+      let probe = document.getElementById("ranking-mode-measure");
+      if (!probe) {
+        probe = document.createElement("span");
+        probe.id = "ranking-mode-measure";
+        probe.className = "ranking-mode-measure";
+        probe.setAttribute("aria-hidden", "true");
+        document.body.appendChild(probe);
+      } else if (probe.parentElement !== document.body) {
+        document.body.appendChild(probe);
+      }
+      return probe;
+    }
+
     function syncRankingModeControlWidth() {
       const wrap = document.getElementById("ranking-mode-wrap");
-      const probe = document.getElementById("ranking-mode-measure");
-      if (!wrap || !probe) return;
+      if (!wrap) return;
+      const probe = getRankingModeMeasureEl();
       let maxW = 0;
       Object.keys(RANKING_TAB_I18N).forEach((tab) => {
         probe.textContent = getRankingTabLabel(tab);
         maxW = Math.max(maxW, probe.offsetWidth);
       });
+      if (maxW < 1) return;
       wrap.style.setProperty("--ranking-mode-text-w", Math.ceil(maxW) + "px");
     }
 
@@ -8407,6 +8421,7 @@
       if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
       setRankingActiveTab("score");
+      updateRankingModeDropdownI18n();
     }
 
     function hideRankingView() {
