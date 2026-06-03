@@ -766,23 +766,51 @@
     .ranking-header { margin: 8px 0 10px; }
     .ranking-title { margin: 0; font-size: 1.1rem; color: #263238; }
     .ranking-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .ranking-mode-select {
+    .ranking-mode-select.home-settings-wrap {
+      --ranking-mode-pad-x: 10px;
+      --ranking-mode-text-w: 4em;
+      --ranking-mode-gap: 5px;
+      --ranking-mode-slot: 0.6875rem;
+      --ranking-mode-control-width: calc(
+        var(--ranking-mode-pad-x) * 2 + var(--ranking-mode-text-w) + var(--ranking-mode-gap) + var(--ranking-mode-slot)
+      );
       display: block;
       flex: 0 0 auto;
+      width: var(--ranking-mode-control-width);
     }
     .ranking-mode-trigger {
+      width: 100%;
+      box-sizing: border-box;
       font-size: 0.8125rem;
       font-weight: 500;
-      max-width: min(52vw, 220px);
-      gap: 5px;
+      padding: 5px var(--ranking-mode-pad-x);
+      justify-content: center;
     }
-    .ranking-mode-trigger-label {
+    .ranking-mode-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: var(--ranking-mode-gap);
+    }
+    .ranking-mode-text {
+      flex: 0 0 var(--ranking-mode-text-w);
+      width: var(--ranking-mode-text-w);
       overflow: hidden;
       text-overflow: ellipsis;
-      min-width: 0;
+      white-space: nowrap;
+      text-align: left;
+    }
+    .ranking-mode-text--center {
+      text-align: center;
+    }
+    .ranking-mode-slot {
+      flex: 0 0 var(--ranking-mode-slot);
+      width: var(--ranking-mode-slot);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .ranking-mode-trigger-caret {
-      flex-shrink: 0;
       width: 0;
       height: 0;
       margin-top: 1px;
@@ -796,12 +824,28 @@
       transform: rotate(180deg);
     }
     .ranking-mode-menu {
-      max-width: calc(100vw - 24px);
+      left: 0;
+      right: auto;
+      width: 100%;
+      min-width: 0;
+      max-width: none;
+      box-sizing: border-box;
+      padding: 4px 0;
     }
-    .home-settings-menu-item.ranking-mode-menu-item--active {
-      background: #e8f1ff;
-      color: #0d47a1;
-      font-weight: 600;
+    .ranking-mode-menu .ranking-mode-menu-item {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 7px var(--ranking-mode-pad-x);
+    }
+    .ranking-mode-check {
+      display: none;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #37474f;
+    }
+    .ranking-mode-menu-item--selected .ranking-mode-check {
+      display: block;
     }
     .ranking-subtitle { margin: 6px 0 0; font-size: 0.86rem; color: var(--muted); }
     .ranking-main-row {
@@ -3443,24 +3487,43 @@
               aria-controls="ranking-mode-menu"
               aria-label="选择榜单"
             >
-              <span id="ranking-mode-trigger-label" class="ranking-mode-trigger-label">总积分榜</span>
-              <span class="ranking-mode-trigger-caret" aria-hidden="true"></span>
+              <span class="ranking-mode-row">
+                <span id="ranking-mode-trigger-label" class="ranking-mode-text">总积分榜</span>
+                <span class="ranking-mode-slot" aria-hidden="true">
+                  <span class="ranking-mode-trigger-caret"></span>
+                </span>
+              </span>
             </button>
             <div id="ranking-mode-menu" class="home-settings-menu ranking-mode-menu" role="menu" hidden>
-              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="score">
-                <span id="ranking-mode-label-score">总积分榜</span>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="score">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-score" class="ranking-mode-text">总积分榜</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
               </button>
-              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="survival">
-                <span id="ranking-mode-label-survival">生存榜</span>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="survival">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-survival" class="ranking-mode-text">生存榜</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
               </button>
-              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="primePerfect">
-                <span id="ranking-mode-label-primePerfect">质数达人</span>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="primePerfect">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-primePerfect" class="ranking-mode-text">质数达人</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
               </button>
-              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="streak">
-                <span id="ranking-mode-label-streak">耐力榜</span>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="streak">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-streak" class="ranking-mode-text">耐力榜</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
               </button>
-              <button type="button" class="home-settings-menu-item" role="menuitem" data-ranking-tab="combo">
-                <span id="ranking-mode-label-combo">连击榜</span>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="combo">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-combo" class="ranking-mode-text">连击榜</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
               </button>
             </div>
           </div>
@@ -4372,13 +4435,22 @@
       else closeRankingModeMenu();
     }
 
+    function syncRankingModeTextAlign() {
+      const wrap = document.getElementById("ranking-mode-wrap");
+      if (!wrap) return;
+      wrap.querySelectorAll(".ranking-mode-text").forEach((el) => {
+        const len = [...String(el.textContent || "").trim()].length;
+        el.classList.toggle("ranking-mode-text--center", len === 3);
+      });
+    }
+
     function syncRankingModeMenuActiveState(tab) {
       const menu = document.getElementById("ranking-mode-menu");
       if (!menu) return;
       menu.querySelectorAll("[data-ranking-tab]").forEach((btn) => {
-        const active = btn.getAttribute("data-ranking-tab") === tab;
-        btn.classList.toggle("ranking-mode-menu-item--active", active);
-        btn.setAttribute("aria-current", active ? "true" : "false");
+        const selected = btn.getAttribute("data-ranking-tab") === tab;
+        btn.classList.toggle("ranking-mode-menu-item--selected", selected);
+        btn.setAttribute("aria-current", selected ? "true" : "false");
       });
     }
 
@@ -4393,6 +4465,7 @@
       const labelEl = document.getElementById("ranking-mode-trigger-label");
       if (labelEl) labelEl.textContent = getRankingTabLabel(lastRankingTab);
       syncRankingModeMenuActiveState(lastRankingTab);
+      syncRankingModeTextAlign();
     }
 
     function syncHomeSettingsAuthItems() {
@@ -9015,6 +9088,7 @@
       const labelEl = document.getElementById("ranking-mode-trigger-label");
       if (labelEl) labelEl.textContent = getRankingTabLabel(next);
       syncRankingModeMenuActiveState(next);
+      syncRankingModeTextAlign();
 
       const hint = document.getElementById("ranking-panel-hint");
       const thead = document.getElementById("ranking-thead-v2");
