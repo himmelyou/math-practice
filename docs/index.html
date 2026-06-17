@@ -4227,7 +4227,7 @@
     const TRAINING_QUESTIONS = 30;
 
     // ========= 错题本存储上限（自愿「错题练习」；全对可清空） =========
-    const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条“错题”，超过后不再写入最新条目
+    const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条；新错题顶替最旧
     const WRONGBOOK_BADGE_MIN = 10; // 主页角标：错题数 ≥ 此值才显示
     const EXPAND_WRONG_MAX_STORE = 20; // 拆括号错题（仅管理端 report），超出则丢弃最旧
 
@@ -7309,8 +7309,10 @@
       try {
         const u = cachedUser || { username };
         if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
-        if (u.wrongAnswers.length >= WRONGBOOK_MAX_STORE) return;
         u.wrongAnswers.unshift(entry);
+        if (u.wrongAnswers.length > WRONGBOOK_MAX_STORE) {
+          u.wrongAnswers = u.wrongAnswers.slice(0, WRONGBOOK_MAX_STORE);
+        }
         cachedUser = u;
         updateWrongbookBadge();
         const result = await apiPostWrongAnswer(username, entry);

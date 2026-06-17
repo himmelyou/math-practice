@@ -1183,15 +1183,15 @@ app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData,
   }
   const u = data.users[idx];
   if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
-  if (u.wrongAnswers.length >= WRONGBOOK_MAX_STORE) {
-    return res.json({ ok: true, wrongAnswers: u.wrongAnswers, skipped: true });
-  }
   const entry = {
     text: String(raw.text || ""),
     answer: Number(raw.answer),
     studentAnswer: Number(raw.studentAnswer),
   };
   u.wrongAnswers.unshift(entry);
+  if (u.wrongAnswers.length > WRONGBOOK_MAX_STORE) {
+    u.wrongAnswers = u.wrongAnswers.slice(0, WRONGBOOK_MAX_STORE);
+  }
   writeJson(USERS_FILE, data);
   res.json({ ok: true, wrongAnswers: u.wrongAnswers });
 });
