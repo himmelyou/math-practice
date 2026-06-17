@@ -57,47 +57,76 @@
     return String(v);
   }
 
-  var D3_MIN = 0.0001;
-  var D3_MAX = 99999;
+  var D3_ANSWER_MAX = 99999;
+
+  var D3_FORM_DEFS = [
+    { id: "dp4", dp: 4 },
+    { id: "dp3", dp: 3 },
+    { id: "dp2", dp: 2 },
+    { id: "dp1", dp: 1 },
+    { id: "int" },
+    { id: "x10" },
+    { id: "x100" },
+  ];
 
   function isD3WholeNumber(val) {
     return Math.abs(val - Math.round(val)) < 1e-9;
   }
 
-  /** D3 题面/答案：整数无小数点；否则最多 4 位小数（去尾零） */
-  function formatD3(val) {
+  /** D3 答案：整数无小数点；否则最多 4 位小数（去尾零）；须 0 < v < 99999 */
+  function formatD3Answer(val) {
     var v = trimFloat(val);
-    if (!(v >= D3_MIN && v <= D3_MAX)) return null;
-    if (v >= 1 && isD3WholeNumber(v)) {
+    if (!(v > 0) || !(v < D3_ANSWER_MAX)) return null;
+    if (isD3WholeNumber(v)) {
       return String(Math.round(v));
     }
     var text = formatDecimalTrim(v, 4);
     if (!text) return null;
     var frac = text.split(".")[1] || "";
     if (frac.length > 4) return null;
+    if (Math.abs(parseFloat(text) - v) > 1e-9) return null;
     return text;
   }
 
-  function makeD3DecimalOperand() {
-    var n = randomInt(1, 99999);
-    var v = n / 10000;
-    if (n % 10000 === 0) {
-      return { value: v, text: String(n / 10000) };
-    }
-    var text = (n / 10000).toFixed(4).replace(/(\.\d*?[1-9])0+$/, "$1");
-    return { value: v, text: text };
+  function d3ValueFromMantAndForm(mant, form) {
+    if (form.id === "int") return mant;
+    if (form.id === "x10") return mant * 10;
+    if (form.id === "x100") return mant * 100;
+    return mant / Math.pow(10, form.dp);
   }
 
-  function makeD3IntegerOperand() {
-    var v = randomInt(1, 99999);
-    return { value: v, text: String(v) };
+  function d3TextFromMantAndForm(mant, form) {
+    if (form.id === "int") return String(mant);
+    if (form.id === "x10") return String(mant * 10);
+    if (form.id === "x100") return String(mant * 100);
+    return formatD4OperandText(mant, form.dp);
   }
 
-  function makeD3Operand() {
-    if (Math.random() < 0.5) {
-      return makeD3DecimalOperand();
+  function makeD3FirstOperand() {
+    var sf = pickD4SigFigs();
+    var form = D3_FORM_DEFS[randomInt(0, D3_FORM_DEFS.length - 1)];
+    var mant = makeD4Mantissa(sf);
+    return {
+      mant: mant,
+      form: form,
+      sf: sf,
+      value: trimFloat(d3ValueFromMantAndForm(mant, form)),
+      text: d3TextFromMantAndForm(mant, form),
+    };
+  }
+
+  function filterD3Powers(first, multiply) {
+    var valid = [];
+    for (var i = 0; i < D3_POWERS.length; i += 1) {
+      var power = D3_POWERS[i];
+      var result = multiply
+        ? trimFloat(first.value * power)
+        : trimFloat(first.value / power);
+      var answerText = formatD3Answer(result);
+      if (!answerText) continue;
+      valid.push({ power: power, result: result, answerText: answerText });
     }
-    return makeD3IntegerOperand();
+    return valid;
   }
 
   function pickWeighted(weights) {
@@ -319,30 +348,23 @@
   }
 
   function buildD3Question() {
-    for (var t = 0; t < 120; t += 1) {
-      var power = D3_POWERS[randomInt(0, D3_POWERS.length - 1)];
+    for (var t = 0; t < 80; t += 1) {
+      var first = makeD3FirstOperand();
       var multiply = Math.random() < 0.5;
-      var baseOp = makeD3Operand();
-      var base = baseOp.value;
-      if (!(base >= D3_MIN && base <= D3_MAX)) continue;
-      if (multiply && base * power > D3_MAX) continue;
-      if (!multiply && base / power < D3_MIN) continue;
-      var answer = multiply ? base * power : base / power;
-      if (!(answer >= D3_MIN && answer <= D3_MAX)) continue;
-      var baseText = formatD3(base);
-      var answerText = formatD3(answer);
-      if (!baseText || !answerText) continue;
+      var valid = filterD3Powers(first, multiply);
+      if (!valid.length) continue;
+      var picked = valid[randomInt(0, valid.length - 1)];
       var op = multiply ? "×" : "÷";
       var text = multiply
-        ? baseText + " × " + power + " = ?"
-        : baseText + " ÷ " + power + " = ?";
+        ? first.text + " × " + picked.power + " = ?"
+        : first.text + " ÷ " + picked.power + " = ?";
       return wrapQuestion({
         text: text,
-        answer: answerText,
+        answer: picked.answerText,
         baseLevelId: "D3",
         op: op,
-        a: base,
-        b: power,
+        a: first.value,
+        b: picked.power,
       });
     }
     return wrapQuestion({
