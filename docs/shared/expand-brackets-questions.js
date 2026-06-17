@@ -477,8 +477,8 @@
         { text: `${k} ÷ ${A} × ${k} ÷ ${B}`, explain: "误用「分别除」式分配。", causeNo: 1 },
         innerTimes
           ? {
-              text: `${k} ÷ ${A} + ${k} ÷ ${B}`,
-              explain: "把内层乘除误当加减分配。",
+              text: `${k} ÷ ${A} × ${B}`,
+              explain: "内层是 A × B 时，× 没去成 ÷。",
               causeNo: 2,
             }
           : {
@@ -486,9 +486,11 @@
               explain: "内层是 A ÷ B 时，÷ 没变 ×。",
               causeNo: 2,
             },
-        innerTimes
-          ? { text: `${k} ÷ ${B} ÷ ${A}`, explain: "内层是 A × B 时项顺序写反。", causeNo: 3 }
-          : { text: `${k} ÷ ${B} × ${A}`, explain: "内层是 A ÷ B 时符号或顺序衔接错误。", causeNo: 3 },
+        {
+          text: L2_CANNOT_REMOVE,
+          explain: "内层是乘除，其实可以去括号。",
+          causeNo: 3,
+        },
       ];
       return { prompt, correctText, fullWrongPool };
     }
@@ -501,22 +503,20 @@
       const t2 = innerPlus ? `${B} ÷ ${k}` : `- ${B} ÷ ${k}`;
       const correctText = ebJoinSum([t1, t2]);
       const fullWrongPool = [
-        { text: `(${A} × ${B}) ÷ ${k}`, explain: "把括号内 ± 看成 ×。", causeNo: 1 },
         {
           text: innerPlus ? ebJoinSum([t1, `- ${B} ÷ ${k}`]) : ebJoinSum([t1, `${B} ÷ ${k}`]),
-          explain: "括号内是 + 却按 − 去分配。",
-          causeNo: 2,
+          explain: "括号内是 + 却按 − 去分配（或反之）。",
+          causeNo: 1,
         },
         {
           text: innerPlus ? `${A} + ${B} ÷ ${k}` : `${A} - ${B} ÷ ${k}`,
           explain: "第一项漏 ÷ k。",
-          causeNo: 3,
+          causeNo: 2,
         },
-        { text: `${A} ÷ ${k} + ${B}`, explain: "第二项漏 ÷ k。", causeNo: 4 },
         {
-          text: innerPlus ? `${A} × ${k} + ${B} × ${k}` : `${A} × ${k} - ${B} × ${k}`,
-          explain: "把括号外 ÷ 当成 ×。",
-          causeNo: 5,
+          text: L2_CANNOT_REMOVE,
+          explain: "除法对括号内加减可以分配，其实可以去括号。",
+          causeNo: 3,
         },
       ];
       return { prompt, correctText, fullWrongPool };
