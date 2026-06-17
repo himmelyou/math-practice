@@ -402,14 +402,116 @@
     return s.slice(0, s.length - dp) + "." + s.slice(s.length - dp);
   }
 
-  function makeD4Operand() {
-    var sf = pickD4SigFigs();
-    var dp = randomInt(1, 3);
-    var mant = makeD4Mantissa(sf);
+  var D4_DP_FORM_DEFS = [
+    { id: "dp3", dp: 3 },
+    { id: "dp2", dp: 2 },
+    { id: "dp1", dp: 1 },
+  ];
+
+  function pickD4DpForm() {
+    return D4_DP_FORM_DEFS[randomInt(0, D4_DP_FORM_DEFS.length - 1)];
+  }
+
+  function makeD4OperandParts(sf, form, mant) {
+    if (mant == null) mant = makeD4Mantissa(sf);
     return {
-      value: trimFloat(mant / Math.pow(10, dp)),
-      text: formatD4OperandText(mant, dp),
+      mant: mant,
+      form: form,
+      sf: sf,
+      value: trimFloat(mant / Math.pow(10, form.dp)),
+      text: formatD4OperandText(mant, form.dp),
     };
+  }
+
+  function makeD4FirstOperand(sf) {
+    return makeD4OperandParts(sf, pickD4DpForm(), null);
+  }
+
+  function d4DivideQuotientOk(first, n) {
+    var result = trimFloat(first.value / n);
+    if (!(result > 0)) return null;
+    if (isD5DivisorNeedSigFigCap(n) && countSigFigs(result) > 4) return null;
+    return result;
+  }
+
+  function refineMantForD4QuotientCap(mant, n, sf, form) {
+    var minM = Math.pow(10, sf - 1);
+    var maxM = Math.pow(10, sf) - 1;
+    var base = adjustMantToMultipleOf(mant, n, sf);
+    var candidates = [base];
+    for (var step = 1; step <= 15; step += 1) {
+      if (base - step * n >= minM) candidates.push(base - step * n);
+      if (base + step * n <= maxM) candidates.push(base + step * n);
+    }
+    for (var i = 0; i < candidates.length; i += 1) {
+      var m = candidates[i];
+      if (!mantissaInSfRange(m, sf)) continue;
+      var first = makeD4OperandParts(sf, form, m);
+      if (d4DivideQuotientOk(first, n) != null) return m;
+    }
+    return base;
+  }
+
+  function buildD4Multiply() {
+    var first = makeD4FirstOperand(pickD5MultiplyFirstSigFigs());
+    var n = randomInt(2, 9);
+    var ans = trimFloat(first.value * n);
+    if (!(ans >= 0)) return null;
+    return wrapQuestion({
+      text: first.text + " × " + n + " = ?",
+      answer: formatAnswer(ans),
+      baseLevelId: "D4",
+      op: "×",
+      a: first.value,
+      b: n,
+    });
+  }
+
+  function buildD4Divide() {
+    var firstDraft = makeD4FirstOperand(pickD4SigFigs());
+    var sf = firstDraft.sf;
+    var form = firstDraft.form;
+    var mant = firstDraft.mant;
+    var n = randomInt(2, 9);
+
+    if (isD5DivisorNeedMultipleAdjust(n)) {
+      mant = adjustMantToMultipleOf(mant, n, sf);
+    }
+
+    var first = makeD4OperandParts(sf, form, mant);
+    var quotient = d4DivideQuotientOk(first, n);
+
+    if (isD5DivisorNeedSigFigCap(n) && quotient == null) {
+      mant = refineMantForD4QuotientCap(mant, n, sf, form);
+      first = makeD4OperandParts(sf, form, mant);
+      quotient = d4DivideQuotientOk(first, n);
+    }
+
+    if (quotient == null) return null;
+
+    return wrapQuestion({
+      text: first.text + " ÷ " + n + " = ?",
+      answer: formatAnswer(quotient),
+      baseLevelId: "D4",
+      op: "÷",
+      a: first.value,
+      b: n,
+    });
+  }
+
+  function buildD4Question() {
+    for (var t = 0; t < 80; t += 1) {
+      var q = Math.random() < 0.5 ? buildD4Multiply() : buildD4Divide();
+      if (q) return q;
+    }
+    return wrapQuestion({
+      text: "2.4 × 3 = ?",
+      answer: "7.2",
+      baseLevelId: "D4",
+      op: "×",
+      a: 2.4,
+      b: 3,
+    });
   }
 
   var D5_MIN = 0.0001;
@@ -439,8 +541,8 @@
     return D5_FORM_DEFS[randomInt(0, D5_FORM_DEFS.length - 1)];
   }
 
-  function pickD5FirstSigFigs() {
-    return Math.random() < 0.5 ? 2 : 3;
+  function pickD5MultiplyFirstSigFigs() {
+    return Math.random() < 0.5 ? 1 : 2;
   }
 
   function makeD5OperandParts(sf, form, mant) {
@@ -454,8 +556,7 @@
     };
   }
 
-  function makeD5FirstOperand() {
-    var sf = pickD5FirstSigFigs();
+  function makeD5FirstOperand(sf) {
     return makeD5OperandParts(sf, pickD5Form(), null);
   }
 
@@ -516,6 +617,7 @@
     var valid = [];
     for (var i = 0; i < D5_FORM_DEFS.length; i += 1) {
       var form = D5_FORM_DEFS[i];
+      if (d === 1 && form.id === "int") continue;
       var second = makeD5SecondOperand(d, form);
       var result = isMultiply
         ? trimFloat(first.value * second.value)
@@ -554,7 +656,7 @@
   }
 
   function buildD5Multiply() {
-    var first = makeD5FirstOperand();
+    var first = makeD5FirstOperand(pickD5MultiplyFirstSigFigs());
     var d = randomInt(1, 9);
     var valid = filterD5SecondForms(first, d, true);
     if (!valid.length) return null;
@@ -570,7 +672,7 @@
   }
 
   function buildD5Divide() {
-    var firstDraft = makeD5FirstOperand();
+    var firstDraft = makeD5FirstOperand(pickD4SigFigs());
     var sf = firstDraft.sf;
     var form = firstDraft.form;
     var mant = firstDraft.mant;
@@ -613,45 +715,6 @@
       op: "×",
       a: 1.2,
       b: 0.3,
-    });
-  }
-
-  function buildD4Question() {
-    for (var t = 0; t < 80; t += 1) {
-      var n = randomInt(2, 9);
-      var operand = makeD4Operand();
-      var multiply = Math.random() < 0.5;
-      if (multiply) {
-        var ansMul = trimFloat(operand.value * n);
-        if (!(ansMul >= 0)) continue;
-        return wrapQuestion({
-          text: operand.text + " × " + n + " = ?",
-          answer: formatAnswer(ansMul),
-          baseLevelId: "D4",
-          op: "×",
-          a: operand.value,
-          b: n,
-        });
-      }
-      var dividend = trimFloat(operand.value * n);
-      if (!(dividend > 0)) continue;
-      if (!isTerminatingQuotient(dividend, n)) continue;
-      return wrapQuestion({
-        text: formatAnswer(dividend) + " ÷ " + n + " = ?",
-        answer: operand.text,
-        baseLevelId: "D4",
-        op: "÷",
-        a: dividend,
-        b: n,
-      });
-    }
-    return wrapQuestion({
-      text: "2.4 × 3 = ?",
-      answer: "7.2",
-      baseLevelId: "D4",
-      op: "×",
-      a: 2.4,
-      b: 3,
     });
   }
 
