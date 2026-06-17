@@ -1,9 +1,9 @@
 /**
- * 管理端：四则 / 拆括号习题纸生成与打印
+ * 管理端：四则 / 拆括号 / 小数习题纸生成与打印
  */
 (function () {
   function getPageLayout(mode) {
-    if (mode === 'arithmetic') {
+    if (mode === 'arithmetic' || mode === 'decimal') {
       return { questionsPerPage: 30, perCol: 15, pageClass: 'jml-ws-page--30' };
     }
     return { questionsPerPage: 20, perCol: 10, pageClass: 'jml-ws-page--20' };
@@ -21,7 +21,9 @@
   function getWorksheetMode() {
     var el = document.getElementById('jml-ws-mode');
     var mode = el ? String(el.value || 'expandBrackets') : 'expandBrackets';
-    return mode === 'arithmetic' ? 'arithmetic' : 'expandBrackets';
+    if (mode === 'arithmetic') return 'arithmetic';
+    if (mode === 'decimal') return 'decimal';
+    return 'expandBrackets';
   }
 
   function buildQuestion(mode, level) {
@@ -35,6 +37,18 @@
         prompt: q.text || '',
         answer: q.answer != null ? String(q.answer) : '',
         compact: level >= 14,
+      };
+    }
+    if (mode === 'decimal') {
+      var dec = window.JmlDecimal;
+      if (!dec || typeof dec.buildQuestion !== 'function') {
+        throw new Error('未加载出题模块 decimal-questions.js');
+      }
+      var dq = dec.buildQuestion(level);
+      return {
+        prompt: dq.text || '',
+        answer: dq.answer != null ? String(dq.answer) : '',
+        compact: false,
       };
     }
     var eng = window.JmlExpandBrackets;
@@ -127,12 +141,19 @@
       var maxA = (window.JmlArithmetic && window.JmlArithmetic.LEVEL_COUNT) || 16;
       return Math.min(maxA - 1, Math.max(0, Math.floor(level)));
     }
+    if (mode === 'decimal') {
+      var maxD = (window.JmlDecimal && window.JmlDecimal.LEVEL_COUNT) || 5;
+      return Math.min(maxD - 1, Math.max(0, Math.floor(level)));
+    }
     return Math.min(4, Math.max(0, Math.floor(level)));
   }
 
   function getLevelLabels(mode) {
     if (mode === 'arithmetic') {
       return (window.JmlArithmetic && window.JmlArithmetic.LEVEL_LABELS) || [];
+    }
+    if (mode === 'decimal') {
+      return (window.JmlDecimal && window.JmlDecimal.LEVEL_LABELS) || [];
     }
     return (
       (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [
@@ -167,11 +188,19 @@
     var includeAnswers = answersEl ? !!answersEl.checked : false;
 
     var labels = getLevelLabels(mode);
-    var levelLabel = labels[level] || (mode === 'arithmetic' ? 'L' + (level + 1) : '去括号 L' + (level + 1));
+    var levelLabel =
+      labels[level] ||
+      (mode === 'arithmetic'
+        ? 'L' + (level + 1)
+        : mode === 'decimal'
+          ? 'D' + (level + 1)
+          : '去括号 L' + (level + 1));
     var title =
       mode === 'arithmetic'
         ? '四则运算 · ' + levelLabel
-        : '去括号练习 · ' + levelLabel;
+        : mode === 'decimal'
+          ? '小数运算 · ' + levelLabel
+          : '去括号练习 · ' + levelLabel;
 
     var html = '';
     try {
@@ -179,6 +208,9 @@
         var batch = [];
         if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
           window.JmlArithmetic.resetLevelDeck(level, layout.questionsPerPage);
+        }
+        if (mode === 'decimal' && window.JmlDecimal && typeof window.JmlDecimal.resetLevelSegment === 'function') {
+          window.JmlDecimal.resetLevelSegment(level, layout.questionsPerPage);
         }
         for (var i = 0; i < layout.questionsPerPage; i += 1) {
           batch.push(buildQuestion(mode, level));
