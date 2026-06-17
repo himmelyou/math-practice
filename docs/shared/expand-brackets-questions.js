@@ -382,6 +382,34 @@
       return L2_TYPE_T6;
     }
 
+    function l2IsInnerPm(questionType) {
+      return (
+        questionType === L2_TYPE_T1 ||
+        questionType === L2_TYPE_T3 ||
+        questionType === L2_TYPE_T5
+      );
+    }
+
+    /** 括号内按数值求值为正整数（减时 A>B；除时 A 被 B 整除） */
+    function l2InnerNumericValid(A, B, innerIsPm, innerPlusOrTimes) {
+      if (innerIsPm) {
+        if (innerPlusOrTimes) return true;
+        return A > B;
+      }
+      if (innerPlusOrTimes) return true;
+      return A % B === 0;
+    }
+
+    function l2PickABForInner(innerIsPm, innerPlusOrTimes) {
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const A = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+        let B = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+        while (B === A) B = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+        if (l2InnerNumericValid(A, B, innerIsPm, innerPlusOrTimes)) return [A, B];
+      }
+      return null;
+    }
+
     function l2PickAB() {
       const A = randomInt(L2_NUM_MIN, L2_NUM_MAX);
       let B = randomInt(L2_NUM_MIN, L2_NUM_MAX);
@@ -393,8 +421,7 @@
       return innerPlus ? `${A} + ${B}` : `${A} - ${B}`;
     }
 
-    function l2BuildT1(k, A, B) {
-      const innerPlus = Math.random() < 0.5;
+    function l2BuildT1(k, A, B, innerPlus) {
       const inner = l2InnerPm(A, B, innerPlus);
       const kLeft = Math.random() < 0.5;
       const prompt = kLeft ? `${k} × (${inner})` : `(${inner}) × ${k}`;
@@ -425,8 +452,7 @@
       return { prompt, correctText, fullWrongPool };
     }
 
-    function l2BuildT2(k, A, B) {
-      const innerTimes = Math.random() < 0.5;
+    function l2BuildT2(k, A, B, innerTimes) {
       const innerOp = innerTimes ? "×" : "÷";
       const inner = `${A} ${innerOp} ${B}`;
       const kLeft = Math.random() < 0.5;
@@ -450,8 +476,7 @@
       return { prompt, correctText, fullWrongPool };
     }
 
-    function l2BuildT3(k, A, B) {
-      const innerPlus = Math.random() < 0.5;
+    function l2BuildT3(k, A, B, innerPlus) {
       const inner = l2InnerPm(A, B, innerPlus);
       const prompt = `${k} ÷ (${inner})`;
       const correctText = L2_CANNOT_REMOVE;
@@ -468,8 +493,7 @@
       return { prompt, correctText, fullWrongPool };
     }
 
-    function l2BuildT4(k, A, B) {
-      const innerTimes = Math.random() < 0.5;
+    function l2BuildT4(k, A, B, innerTimes) {
       const innerOp = innerTimes ? "×" : "÷";
       const prompt = `${k} ÷ (${A} ${innerOp} ${B})`;
       const correctText = innerTimes ? `${k} ÷ ${A} ÷ ${B}` : `${k} ÷ ${A} × ${B}`;
@@ -495,8 +519,7 @@
       return { prompt, correctText, fullWrongPool };
     }
 
-    function l2BuildT5(k, A, B) {
-      const innerPlus = Math.random() < 0.5;
+    function l2BuildT5(k, A, B, innerPlus) {
       const inner = l2InnerPm(A, B, innerPlus);
       const prompt = `(${inner}) ÷ ${k}`;
       const t1 = `${A} ÷ ${k}`;
@@ -522,8 +545,7 @@
       return { prompt, correctText, fullWrongPool };
     }
 
-    function l2BuildT6(k, A, B) {
-      const innerTimes = Math.random() < 0.5;
+    function l2BuildT6(k, A, B, innerTimes) {
       const innerOp = innerTimes ? "×" : "÷";
       const prompt = `(${A} ${innerOp} ${B}) ÷ ${k}`;
       const correctText = innerTimes ? `${A} × ${B} ÷ ${k}` : `${A} ÷ ${B} ÷ ${k}`;
@@ -556,20 +578,44 @@
       return { prompt, correctText, fullWrongPool };
     }
 
-    function l2BuildByType(questionType, k, A, B) {
-      if (questionType === L2_TYPE_T1) return l2BuildT1(k, A, B);
-      if (questionType === L2_TYPE_T2) return l2BuildT2(k, A, B);
-      if (questionType === L2_TYPE_T3) return l2BuildT3(k, A, B);
-      if (questionType === L2_TYPE_T4) return l2BuildT4(k, A, B);
-      if (questionType === L2_TYPE_T5) return l2BuildT5(k, A, B);
-      return l2BuildT6(k, A, B);
+    function l2BuildByType(questionType, k, A, B, innerPlusOrTimes) {
+      if (questionType === L2_TYPE_T1) return l2BuildT1(k, A, B, innerPlusOrTimes);
+      if (questionType === L2_TYPE_T2) return l2BuildT2(k, A, B, innerPlusOrTimes);
+      if (questionType === L2_TYPE_T3) return l2BuildT3(k, A, B, innerPlusOrTimes);
+      if (questionType === L2_TYPE_T4) return l2BuildT4(k, A, B, innerPlusOrTimes);
+      if (questionType === L2_TYPE_T5) return l2BuildT5(k, A, B, innerPlusOrTimes);
+      return l2BuildT6(k, A, B, innerPlusOrTimes);
     }
 
     function buildExpandQuestion_L2() {
-      const questionType = l2PickQuestionType();
-      const k = randomInt(L2_NUM_MIN, L2_NUM_MAX);
-      const [A, B] = l2PickAB();
-      const built = l2BuildByType(questionType, k, A, B);
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const questionType = l2PickQuestionType();
+        const innerIsPm = l2IsInnerPm(questionType);
+        const innerPlusOrTimes = Math.random() < 0.5;
+        const ab = l2PickABForInner(innerIsPm, innerPlusOrTimes);
+        if (!ab) continue;
+        const A = ab[0];
+        const B = ab[1];
+        const k = randomInt(L2_NUM_MIN, L2_NUM_MAX);
+        const built = l2BuildByType(questionType, k, A, B, innerPlusOrTimes);
+        const wrongPool = ebPickWrongPoolEntries(
+          ebDedupeWrongPool(built.correctText, built.fullWrongPool),
+          L2_WRONG_PER_QUESTION
+        );
+        return {
+          expandKind: "L2",
+          questionType,
+          prompt: built.prompt,
+          correctText: built.correctText,
+          wrongPool,
+          presetWrong: [],
+        };
+      }
+      const questionType = L2_TYPE_T1;
+      const k = 6;
+      const A = 8;
+      const B = 3;
+      const built = l2BuildT1(k, A, B, false);
       const wrongPool = ebPickWrongPoolEntries(
         ebDedupeWrongPool(built.correctText, built.fullWrongPool),
         L2_WRONG_PER_QUESTION
