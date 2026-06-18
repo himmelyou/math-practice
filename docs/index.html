@@ -4054,7 +4054,7 @@
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=37"></script>
   <script src="perfect-square-page.js?v=37"></script>
-  <script src="decimal-page.js?v=2"></script>
+  <script src="decimal-page.js?v=3"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -4385,8 +4385,6 @@
     let expandWrongCount = 0;
     let expandScore = 0;
     const EXPAND_SCORE_PER_CORRECT = 5;
-    /** 小数运算首页入口：须完成整数 L10（levelChallengeBestLevel ≥ 9） */
-    const DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX = 9;
     let expandAttempts = [];
     let expandStartTs = 0;
     let expandTimerId = null;
@@ -4576,7 +4574,6 @@
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
         isGuestMode: isGuestMode,
-        isDecimalEntryLocked: isDecimalEntryLocked,
         showToast: showToast,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
@@ -4605,19 +4602,6 @@
 
     function isDecimalPlayingNow() {
       return window.JmlDecimalPage && JmlDecimalPage.isDecimalPlayingNow();
-    }
-
-    function isDecimalEntryLocked() {
-      if (isGuestMode) return true;
-      if (!getCurrentUser()) return true;
-      return getLevelChallengeBestLevel() < DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX;
-    }
-
-    function updateDecimalButtonLabel() {
-      const btn = document.getElementById("mode-decimal");
-      if (!btn) return;
-      setHomeModeLabel("mode-decimal", "home.mode.decimal");
-      btn.classList.toggle("mode-btn-locked", isDecimalEntryLocked());
     }
 
     function hidePerfectSquareSection() {
@@ -6021,7 +6005,6 @@
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
         "toast.decimalNeedLogin": "請登入後使用小數運算",
-        "toast.decimalNeedL10": "完成整數 L10 後解鎖小數運算",
         "mode.running.perfectSquare": "平方數",
         "mode.running.decimal": "小數運算",
         "ps.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
@@ -6352,7 +6335,6 @@
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
         "toast.decimalNeedLogin": "Sign in to use Decimals.",
-        "toast.decimalNeedL10": "Complete integer L10 to unlock Decimals.",
         "mode.running.perfectSquare": "Squares",
         "mode.running.decimal": "Decimals",
         "ps.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
@@ -6994,7 +6976,6 @@
       setHomeModeLabel("mode-prime-composite", "home.mode.primeComposite");
       setHomeModeLabel("mode-perfect-square", "home.mode.perfectSquare");
       setHomeModeLabel("mode-decimal", "home.mode.decimal");
-      updateDecimalButtonLabel();
       setHomeModeLabel("mode-gcd", "home.mode.gcd");
       setHomeModeLabel("mode-lcm", "home.mode.lcm");
       setHomeModeLabel("mode-wrongbook", "home.mode.wrongbook");
@@ -7128,7 +7109,6 @@
       if (sync.heatmapL16Passed != null) cachedUser.heatmapL16Passed = sync.heatmapL16Passed === true;
       if (sync.levelChallengeBestLevel != null) {
         cachedUser.levelChallengeBestLevel = sync.levelChallengeBestLevel;
-        updateDecimalButtonLabel();
       }
       if (sync.survivalEligible === true) updateSurvivalButtonLabel();
     }
@@ -7150,7 +7130,6 @@
         cachedUser.levelChallengeBestLevel = typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0;
         if (data.survivalUnlocked === true) cachedUser.survivalUnlocked = true;
         updateSurvivalButtonLabel();
-        updateDecimalButtonLabel();
       } catch (e) {
         console.warn("刷新生存解锁状态失败", e);
       }
@@ -8870,7 +8849,6 @@
         appendRun(survivalTimeSec, runScore, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false);
         renderRecentRuns();
         updateTrainingButtonLabel();
-        updateDecimalButtonLabel();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -8906,7 +8884,6 @@
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice(), completed === true);
       renderRecentRuns();
       updateLevelStatusUI();
-      updateDecimalButtonLabel();
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -9046,7 +9023,6 @@
       updateHomeAvatarPlaceholder();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
-      updateDecimalButtonLabel();
       updateWrongbookBadge();
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
@@ -10738,14 +10714,12 @@
         } catch (e) {
           console.warn("写入游客闯关历史最高失败。", e);
         }
-        updateDecimalButtonLabel();
         return;
       }
       const name = loadCurrentUsername();
       if (!name) return;
       apiPutUser(name, { levelChallengeBestLevel: idx });
       if (cachedUser) cachedUser.levelChallengeBestLevel = idx;
-      updateDecimalButtonLabel();
     }
 
     function getTrainingFlowLsPrefix() {
@@ -11760,7 +11734,6 @@
             if (mr) mr.style.display = "";
             updateRankingButtonLabel();
             updateTrainingButtonLabel();
-            updateDecimalButtonLabel();
             updateWrongbookBadge();
             applyTesterOnlyHomeModes();
             scheduleHomeTopBreathe();

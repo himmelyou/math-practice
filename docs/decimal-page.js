@@ -618,10 +618,6 @@
       deps.showToast(t("toast.decimalNeedLogin"));
       return;
     }
-    if (typeof deps.isDecimalEntryLocked === "function" && deps.isDecimalEntryLocked()) {
-      deps.showToast(t("toast.decimalNeedL10"));
-      return;
-    }
     deps.setGameMode("decimal");
     showDecimalSection();
   }
