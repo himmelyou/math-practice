@@ -4422,7 +4422,7 @@
     let expandWrongCount = 0;
     let expandScore = 0;
     const EXPAND_SCORE_PER_CORRECT = 5;
-    /** 小数运算首页入口：须完成整数 L10（bestLevelIndex ≥ 9） */
+    /** 小数运算首页入口：须完成整数 L10（levelChallengeBestLevel ≥ 9） */
     const DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX = 9;
     let expandAttempts = [];
     let expandStartTs = 0;
@@ -4646,10 +4646,8 @@
 
     function isDecimalEntryLocked() {
       if (isGuestMode) return true;
-      const u = getCurrentUser();
-      if (!u) return true;
-      ensureUserProgressDefault(u);
-      return (u.bestLevelIndex || 0) < DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX;
+      if (!getCurrentUser()) return true;
+      return getLevelChallengeBestLevel() < DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX;
     }
 
     function updateDecimalButtonLabel() {
@@ -7165,7 +7163,10 @@
       if (sync.bestScore != null) cachedUser.bestScore = sync.bestScore;
       if (sync.trainingL16Cleared != null) cachedUser.trainingL16Cleared = sync.trainingL16Cleared === true;
       if (sync.heatmapL16Passed != null) cachedUser.heatmapL16Passed = sync.heatmapL16Passed === true;
-      if (sync.levelChallengeBestLevel != null) cachedUser.levelChallengeBestLevel = sync.levelChallengeBestLevel;
+      if (sync.levelChallengeBestLevel != null) {
+        cachedUser.levelChallengeBestLevel = sync.levelChallengeBestLevel;
+        updateDecimalButtonLabel();
+      }
       if (sync.survivalEligible === true) updateSurvivalButtonLabel();
     }
 
@@ -7186,6 +7187,7 @@
         cachedUser.levelChallengeBestLevel = typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0;
         if (data.survivalUnlocked === true) cachedUser.survivalUnlocked = true;
         updateSurvivalButtonLabel();
+        updateDecimalButtonLabel();
       } catch (e) {
         console.warn("刷新生存解锁状态失败", e);
       }
@@ -8905,6 +8907,7 @@
         appendRun(survivalTimeSec, runScore, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false);
         renderRecentRuns();
         updateTrainingButtonLabel();
+        updateDecimalButtonLabel();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -8940,6 +8943,7 @@
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice(), completed === true);
       renderRecentRuns();
       updateLevelStatusUI();
+      updateDecimalButtonLabel();
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -10771,12 +10775,14 @@
         } catch (e) {
           console.warn("写入游客闯关历史最高失败。", e);
         }
+        updateDecimalButtonLabel();
         return;
       }
       const name = loadCurrentUsername();
       if (!name) return;
       apiPutUser(name, { levelChallengeBestLevel: idx });
       if (cachedUser) cachedUser.levelChallengeBestLevel = idx;
+      updateDecimalButtonLabel();
     }
 
     function getTrainingFlowLsPrefix() {
@@ -11791,6 +11797,7 @@
             if (mr) mr.style.display = "";
             updateRankingButtonLabel();
             updateTrainingButtonLabel();
+            updateDecimalButtonLabel();
             updateWrongbookBadge();
             applyTesterOnlyHomeModes();
             scheduleHomeTopBreathe();
