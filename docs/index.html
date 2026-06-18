@@ -1397,12 +1397,8 @@
       box-sizing: border-box;
     }
 
-    #game-card .game-card-action-anchor .input-row,
-    #game-card .game-card-action-anchor #start-row,
-    #expand-game-card .game-card-action-anchor #expand-start-row,
-    #ps-game-card .game-card-action-anchor .input-row,
-    #ps-game-card .game-card-action-anchor #ps-start-row,
-    .prime-composite-page .prime-idle-card .game-card-action-anchor #prime-start-row {
+    .game-card-action-anchor .input-row,
+    .game-card-action-anchor .button-row {
       width: 100%;
       margin: 0;
     }
@@ -1414,8 +1410,7 @@
       box-sizing: border-box;
     }
 
-    #answer-input,
-    #ps-answer-input {
+    input[data-jml-answer-input] {
       flex: 1;
       min-width: 0;
       width: 100%;
@@ -1434,8 +1429,7 @@
       appearance: none;
     }
 
-    #answer-input:focus,
-    #ps-answer-input:focus {
+    input[data-jml-answer-input]:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.16);
       background: #f7fbff;
@@ -1462,9 +1456,7 @@
       flex: none !important;
     }
 
-    #start-game-btn,
-    #expand-start-btn,
-    #prime-composite-start-btn {
+    .game-card-action-anchor .btn-primary {
       padding: 8px 12px;
       min-height: 2.25em;
       width: 100% !important;
@@ -1867,9 +1859,9 @@
       display: none !important;
     }
 
-    #ps-game-card.game-over-active .question-header,
-    #ps-game-card.game-over-active .question-body,
-    #ps-game-card.game-over-active .answer-form {
+    .run-mode-game-card.game-over-active .question-header,
+    .run-mode-game-card.game-over-active .question-body,
+    .run-mode-game-card.game-over-active .answer-form {
       display: none !important;
     }
 
@@ -2320,8 +2312,7 @@
     }
 
     .game-play-body--kbd > #game-card.game-card--playing,
-    .game-play-body--kbd > #ps-game-card.game-card--playing,
-    .game-play-body--kbd > #dec-game-card.game-card--playing {
+    .game-play-body--kbd > .run-mode-game-card.game-card--playing {
       flex: 0 1 auto;
       min-height: var(--game-card-playing-min);
       max-height: var(--game-card-playing-max);
@@ -2688,7 +2679,7 @@
         height: clamp(140px, 28vh, 180px);
       }
       .expand-brackets-page,
-      .perfect-square-page {
+      .run-mode-page {
         --expand-card-prestart-height: clamp(140px, 28vh, 180px);
       }
     }
@@ -2747,7 +2738,7 @@
       }
 
       .expand-brackets-page,
-      .perfect-square-page {
+      .run-mode-page {
         --expand-card-prestart-height: clamp(130px, 28vh, 168px);
       }
 
@@ -2779,11 +2770,8 @@
       margin-top: 8px;
     }
 
-    /* 平方数：拆括号壳（prestart/recent/结算）+ 主模式键盘答题 */
-    .perfect-square-page.game-section.visible,
-    #perfect-square-section.visible,
-    .decimal-page.game-section.visible,
-    #decimal-section.visible {
+    /* 平方数/小数：拆括号壳（prestart/recent/结算）+ 主模式键盘答题 */
+    .run-mode-page.game-section.visible {
       display: flex;
       flex-direction: column;
       flex: 1;
@@ -2791,8 +2779,7 @@
       overflow: hidden;
     }
 
-    #ps-play-body,
-    #dec-play-body {
+    .run-mode-play-body {
       flex: 1;
       min-height: 0;
       display: flex;
@@ -2800,20 +2787,17 @@
       overflow: hidden;
     }
 
-    #ps-play-body > #ps-game-card.card,
-    #dec-play-body > #dec-game-card.card {
+    .run-mode-play-body > .run-mode-game-card.card {
       flex: 0 1 auto;
       margin-top: 8px;
     }
 
-    #ps-play-body > #ps-game-card.game-card--prestart,
-    #dec-play-body > #dec-game-card.game-card--prestart {
+    .run-mode-play-body > .run-mode-game-card.game-card--prestart {
       flex-shrink: 0;
       height: var(--expand-card-prestart-height);
     }
 
-    #ps-play-body > #ps-game-card.game-card--playing.game-over-active,
-    #dec-play-body > #dec-game-card.game-card--playing.game-over-active {
+    .run-mode-play-body > .run-mode-game-card.game-card--playing.game-over-active {
       flex: 0 1 auto;
       flex-grow: 0;
       min-height: 0;
@@ -2821,13 +2805,11 @@
       height: auto;
     }
 
-    #ps-play-body.ps-play-body--playing,
-    #dec-play-body.dec-play-body--playing {
+    .run-mode-play-body.run-mode-play-body--playing {
       overflow: hidden;
     }
 
-    #ps-play-body > .recent-card,
-    #dec-play-body > .recent-card {
+    .run-mode-play-body > .recent-card {
       flex: 1;
       min-height: 0;
       overflow: hidden;
@@ -2835,8 +2817,7 @@
       flex-direction: column;
     }
 
-    #ps-play-body > .recent-card .recent-body,
-    #dec-play-body > .recent-card .recent-body {
+    .run-mode-play-body > .recent-card .recent-body {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
@@ -2844,47 +2825,40 @@
       overscroll-behavior: contain;
     }
 
-    #ps-play-body.ps-play-body--playing > .recent-card,
-    #dec-play-body.dec-play-body--playing > .recent-card {
+    .run-mode-play-body.run-mode-play-body--playing > .recent-card {
       display: none;
     }
 
-    #ps-play-body .game-play-tail,
-    #dec-play-body .game-play-tail {
+    .run-mode-play-body .game-play-tail {
       display: none;
       flex: 0 0 0;
       min-height: 0;
     }
 
     @media (max-width: 520px) {
-      #ps-play-body,
-      #dec-play-body {
+      .run-mode-play-body {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
       }
     }
 
-    .perfect-square-page #ps-game-card,
-    .decimal-page #dec-game-card {
+    .run-mode-page .run-mode-game-card {
       flex: 0 0 auto;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
-    .perfect-square-page #ps-game-card > .question-header,
-    .decimal-page #dec-game-card > .question-header {
+    .run-mode-page .run-mode-game-card > .question-header {
       flex-shrink: 0;
     }
 
-    .perfect-square-page #ps-game-card > .question-body,
-    .decimal-page #dec-game-card > .question-body {
+    .run-mode-page .run-mode-game-card > .question-body {
       min-width: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body,
-    .decimal-page #dec-game-card.game-card--prestart > .question-body {
+    .run-mode-page .run-mode-game-card.game-card--prestart > .question-body {
       flex: 1 1 auto;
       min-height: 3.2em;
       min-width: 0;
@@ -2893,8 +2867,7 @@
       flex-direction: column;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-text,
-    .decimal-page #dec-game-card.game-card--prestart > .question-body > .question-text {
+    .run-mode-page .run-mode-game-card.game-card--prestart > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
       width: 100%;
@@ -2902,24 +2875,20 @@
       margin-top: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-text.rule-hint,
-    .decimal-page #dec-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
+    .run-mode-page .run-mode-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
       overflow: hidden;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-subtext,
-    .decimal-page #dec-game-card.game-card--prestart > .question-body > .question-subtext {
+    .run-mode-page .run-mode-game-card.game-card--prestart > .question-body > .question-subtext {
       flex-shrink: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .answer-form,
-    .decimal-page #dec-game-card.game-card--prestart > .answer-form {
+    .run-mode-page .run-mode-game-card.game-card--prestart > .answer-form {
       flex-shrink: 0;
       margin-top: auto;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing,
-    .decimal-page #dec-game-card.game-card--playing {
+    .run-mode-page .run-mode-game-card.game-card--playing {
       height: auto;
       padding: 10px 14px 10px;
       gap: 6px;
@@ -2928,8 +2897,7 @@
       max-height: var(--game-card-playing-max);
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body,
-    .decimal-page #dec-game-card.game-card--playing > .question-body {
+    .run-mode-page .run-mode-game-card.game-card--playing > .question-body {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -2937,19 +2905,16 @@
       overflow: hidden;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-subtext,
-    .decimal-page #dec-game-card.game-card--playing > .question-body > .question-subtext {
+    .run-mode-page .run-mode-game-card.game-card--playing > .question-body > .question-subtext {
       flex-shrink: 0;
       margin: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-subtext:empty,
-    .decimal-page #dec-game-card.game-card--playing > .question-body > .question-subtext:empty {
+    .run-mode-page .run-mode-game-card.game-card--playing > .question-body > .question-subtext:empty {
       display: none;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-text,
-    .decimal-page #dec-game-card.game-card--playing > .question-body > .question-text {
+    .run-mode-page .run-mode-game-card.game-card--playing > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -2965,10 +2930,8 @@
       text-align: center;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-header,
-    .perfect-square-page #ps-game-card.game-card--playing > .answer-form,
-    .decimal-page #dec-game-card.game-card--playing > .question-header,
-    .decimal-page #dec-game-card.game-card--playing > .answer-form {
+    .run-mode-page .run-mode-game-card.game-card--playing > .question-header,
+    .run-mode-page .run-mode-game-card.game-card--playing > .answer-form {
       flex-shrink: 0;
       margin-top: 0;
     }
@@ -3799,7 +3762,7 @@
     </section>
 
     <!-- 平方数：L1–L3，20 题/局，键盘输入 -->
-    <section class="game-section perfect-square-page" id="perfect-square-section" style="display:none;">
+    <section class="game-section run-mode-page perfect-square-page" id="perfect-square-section" style="display:none;">
       <div class="status-grid" id="ps-status-grid">
         <div class="timer-chip" id="ps-timer-chip">
           <span id="ps-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="ps-timer-value">0:00</span>
@@ -3826,8 +3789,8 @@
         </div>
       </div>
 
-      <div class="game-play-body" id="ps-play-body">
-      <main class="card game-card--prestart" id="ps-game-card">
+      <div class="game-play-body run-mode-play-body" id="ps-play-body">
+      <main class="card game-card--prestart run-mode-game-card" id="ps-game-card">
         <div class="question-header">
           <div class="question-label">
             <span class="status-label" id="ps-lbl-difficulty">難度：</span>
@@ -3894,7 +3857,7 @@
     </section>
 
     <!-- 小数运算：L1–L5，20 题/局，小数键盘 -->
-    <section class="game-section decimal-page" id="decimal-section" style="display:none;">
+    <section class="game-section run-mode-page decimal-page" id="decimal-section" style="display:none;">
       <div class="status-grid" id="dec-status-grid">
         <div class="timer-chip" id="dec-timer-chip">
           <span id="dec-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="dec-timer-value">0:00</span>
@@ -3921,8 +3884,8 @@
         </div>
       </div>
 
-      <div class="game-play-body" id="dec-play-body">
-      <main class="card game-card--prestart" id="dec-game-card">
+      <div class="game-play-body run-mode-play-body" id="dec-play-body">
+      <main class="card game-card--prestart run-mode-game-card" id="dec-game-card">
         <div class="question-header">
           <div class="question-label">
             <span class="status-label" id="dec-lbl-difficulty">難度：</span>
@@ -4091,7 +4054,7 @@
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=37"></script>
   <script src="perfect-square-page.js?v=37"></script>
-  <script src="decimal-page.js?v=1"></script>
+  <script src="decimal-page.js?v=2"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部

@@ -210,7 +210,7 @@
   function setDecPlayBodyMode(mode) {
     const body = document.getElementById("dec-play-body");
     if (!body) return;
-    body.classList.toggle("dec-play-body--playing", mode === "playing");
+    body.classList.toggle("run-mode-play-body--playing", mode === "playing");
   }
 
   function setDecCardActionSlot(mode) {

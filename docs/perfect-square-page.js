@@ -210,7 +210,7 @@
   function setPsPlayBodyMode(mode) {
     const body = document.getElementById("ps-play-body");
     if (!body) return;
-    body.classList.toggle("ps-play-body--playing", mode === "playing");
+    body.classList.toggle("run-mode-play-body--playing", mode === "playing");
   }
 
   function setPsCardActionSlot(mode) {
