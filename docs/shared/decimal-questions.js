@@ -6,6 +6,9 @@
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
+  var QUESTIONS_PER_RUN = 20;
+  var DECIMAL_MAX_LEVEL = 4;
+
   var LEVEL_DEFS = [
     { id: "D1", name: "第 1 级 · 一位小数与整数混合加减" },
     { id: "D2", name: "第 2 级 · 一位与两位小数混合加减" },
@@ -747,8 +750,14 @@
     return buildQuestionWithDedup(levelIndex);
   }
 
+  function questionsPerRun(levelIndex) {
+    clampLevelIndex(levelIndex);
+    return QUESTIONS_PER_RUN;
+  }
+
   function buildRun(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
+    if (count == null || count === "") count = QUESTIONS_PER_RUN;
     count = Math.max(0, Math.floor(Number(count) || 0));
     resetLevelSegment(levelIndex, count);
     var run = [];
@@ -765,7 +774,10 @@
 
   global.JmlDecimal = {
     LEVEL_COUNT: LEVEL_DEFS.length,
+    DECIMAL_MAX_LEVEL: DECIMAL_MAX_LEVEL,
+    QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
     LEVEL_LABELS: LEVEL_LABELS,
+    questionsPerRun: questionsPerRun,
     buildQuestion: buildQuestion,
     buildRun: buildRun,
     resetLevelSegment: resetLevelSegment,

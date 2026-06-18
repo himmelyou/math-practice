@@ -294,7 +294,8 @@
     .app:has(.game-section.visible) .app-header,
     .app:has(#expand-brackets-section.visible) .app-header,
     .app:has(#prime-composite-section.visible) .app-header,
-    .app:has(#perfect-square-section.visible) .app-header {
+    .app:has(#perfect-square-section.visible) .app-header,
+    .app:has(#decimal-section.visible) .app-header {
       padding-bottom: 0;
     }
 
@@ -2319,7 +2320,8 @@
     }
 
     .game-play-body--kbd > #game-card.game-card--playing,
-    .game-play-body--kbd > #ps-game-card.game-card--playing {
+    .game-play-body--kbd > #ps-game-card.game-card--playing,
+    .game-play-body--kbd > #dec-game-card.game-card--playing {
       flex: 0 1 auto;
       min-height: var(--game-card-playing-min);
       max-height: var(--game-card-playing-max);
@@ -2779,7 +2781,9 @@
 
     /* 平方数：拆括号壳（prestart/recent/结算）+ 主模式键盘答题 */
     .perfect-square-page.game-section.visible,
-    #perfect-square-section.visible {
+    #perfect-square-section.visible,
+    .decimal-page.game-section.visible,
+    #decimal-section.visible {
       display: flex;
       flex-direction: column;
       flex: 1;
@@ -2787,7 +2791,8 @@
       overflow: hidden;
     }
 
-    #ps-play-body {
+    #ps-play-body,
+    #dec-play-body {
       flex: 1;
       min-height: 0;
       display: flex;
@@ -2795,17 +2800,20 @@
       overflow: hidden;
     }
 
-    #ps-play-body > #ps-game-card.card {
+    #ps-play-body > #ps-game-card.card,
+    #dec-play-body > #dec-game-card.card {
       flex: 0 1 auto;
       margin-top: 8px;
     }
 
-    #ps-play-body > #ps-game-card.game-card--prestart {
+    #ps-play-body > #ps-game-card.game-card--prestart,
+    #dec-play-body > #dec-game-card.game-card--prestart {
       flex-shrink: 0;
       height: var(--expand-card-prestart-height);
     }
 
-    #ps-play-body > #ps-game-card.game-card--playing.game-over-active {
+    #ps-play-body > #ps-game-card.game-card--playing.game-over-active,
+    #dec-play-body > #dec-game-card.game-card--playing.game-over-active {
       flex: 0 1 auto;
       flex-grow: 0;
       min-height: 0;
@@ -2813,11 +2821,13 @@
       height: auto;
     }
 
-    #ps-play-body.ps-play-body--playing {
+    #ps-play-body.ps-play-body--playing,
+    #dec-play-body.dec-play-body--playing {
       overflow: hidden;
     }
 
-    #ps-play-body > .recent-card {
+    #ps-play-body > .recent-card,
+    #dec-play-body > .recent-card {
       flex: 1;
       min-height: 0;
       overflow: hidden;
@@ -2825,7 +2835,8 @@
       flex-direction: column;
     }
 
-    #ps-play-body > .recent-card .recent-body {
+    #ps-play-body > .recent-card .recent-body,
+    #dec-play-body > .recent-card .recent-body {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
@@ -2833,40 +2844,47 @@
       overscroll-behavior: contain;
     }
 
-    #ps-play-body.ps-play-body--playing > .recent-card {
+    #ps-play-body.ps-play-body--playing > .recent-card,
+    #dec-play-body.dec-play-body--playing > .recent-card {
       display: none;
     }
 
-    #ps-play-body .game-play-tail {
+    #ps-play-body .game-play-tail,
+    #dec-play-body .game-play-tail {
       display: none;
       flex: 0 0 0;
       min-height: 0;
     }
 
     @media (max-width: 520px) {
-      #ps-play-body {
+      #ps-play-body,
+      #dec-play-body {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
       }
     }
 
-    .perfect-square-page #ps-game-card {
+    .perfect-square-page #ps-game-card,
+    .decimal-page #dec-game-card {
       flex: 0 0 auto;
       overflow: hidden;
       display: flex;
       flex-direction: column;
     }
 
-    .perfect-square-page #ps-game-card > .question-header {
+    .perfect-square-page #ps-game-card > .question-header,
+    .decimal-page #dec-game-card > .question-header {
       flex-shrink: 0;
     }
 
-    .perfect-square-page #ps-game-card > .question-body {
+    .perfect-square-page #ps-game-card > .question-body,
+    .decimal-page #dec-game-card > .question-body {
       min-width: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body {
+    .perfect-square-page #ps-game-card.game-card--prestart > .question-body,
+    .decimal-page #dec-game-card.game-card--prestart > .question-body {
       flex: 1 1 auto;
       min-height: 3.2em;
       min-width: 0;
@@ -2875,7 +2893,8 @@
       flex-direction: column;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-text {
+    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-text,
+    .decimal-page #dec-game-card.game-card--prestart > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
       width: 100%;
@@ -2883,20 +2902,24 @@
       margin-top: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
+    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-text.rule-hint,
+    .decimal-page #dec-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
       overflow: hidden;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-subtext {
+    .perfect-square-page #ps-game-card.game-card--prestart > .question-body > .question-subtext,
+    .decimal-page #dec-game-card.game-card--prestart > .question-body > .question-subtext {
       flex-shrink: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--prestart > .answer-form {
+    .perfect-square-page #ps-game-card.game-card--prestart > .answer-form,
+    .decimal-page #dec-game-card.game-card--prestart > .answer-form {
       flex-shrink: 0;
       margin-top: auto;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing {
+    .perfect-square-page #ps-game-card.game-card--playing,
+    .decimal-page #dec-game-card.game-card--playing {
       height: auto;
       padding: 10px 14px 10px;
       gap: 6px;
@@ -2905,7 +2928,8 @@
       max-height: var(--game-card-playing-max);
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body {
+    .perfect-square-page #ps-game-card.game-card--playing > .question-body,
+    .decimal-page #dec-game-card.game-card--playing > .question-body {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -2913,16 +2937,19 @@
       overflow: hidden;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-subtext {
+    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-subtext,
+    .decimal-page #dec-game-card.game-card--playing > .question-body > .question-subtext {
       flex-shrink: 0;
       margin: 0;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-subtext:empty {
+    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-subtext:empty,
+    .decimal-page #dec-game-card.game-card--playing > .question-body > .question-subtext:empty {
       display: none;
     }
 
-    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-text {
+    .perfect-square-page #ps-game-card.game-card--playing > .question-body > .question-text,
+    .decimal-page #dec-game-card.game-card--playing > .question-body > .question-text {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -2939,7 +2966,9 @@
     }
 
     .perfect-square-page #ps-game-card.game-card--playing > .question-header,
-    .perfect-square-page #ps-game-card.game-card--playing > .answer-form {
+    .perfect-square-page #ps-game-card.game-card--playing > .answer-form,
+    .decimal-page #dec-game-card.game-card--playing > .question-header,
+    .decimal-page #dec-game-card.game-card--playing > .answer-form {
       flex-shrink: 0;
       margin-top: 0;
     }
@@ -3272,6 +3301,12 @@
             <button type="button" class="mode-btn home-mode-card mode-btn-survival" id="mode-survival">
               <img class="home-mode-icon" src="assets/home/ic_calculator_2.png" width="28" height="28" alt="" />
               <span class="home-mode-label">生存挑战</span>
+              <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
+              <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
+            </button>
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-decimal">
+              <span class="home-mode-icon home-mode-icon--placeholder" aria-hidden="true"></span>
+              <span class="home-mode-label">小数运算</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
@@ -3858,6 +3893,101 @@
       </div>
     </section>
 
+    <!-- 小数运算：L1–L5，20 题/局，小数键盘 -->
+    <section class="game-section decimal-page" id="decimal-section" style="display:none;">
+      <div class="status-grid" id="dec-status-grid">
+        <div class="timer-chip" id="dec-timer-chip">
+          <span id="dec-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="dec-timer-value">0:00</span>
+        </div>
+        <div class="status-item status-item-full">
+          <span class="status-label" id="dec-lbl-mode">当前模式：</span>
+          <span class="status-value" id="dec-mode-name">小数运算</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="dec-lbl-progress">进度：</span>
+          <span class="status-value" id="dec-progress-text">0 / 20</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="dec-lbl-score">本局得分：</span>
+          <span class="status-value" id="dec-score-text">0</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="dec-lbl-level">当前等级：</span>
+          <span class="status-value" id="dec-level-text">L1</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="dec-lbl-wrong">错题：</span>
+          <span class="status-value" id="dec-wrong-text">0</span>
+        </div>
+      </div>
+
+      <div class="game-play-body" id="dec-play-body">
+      <main class="card game-card--prestart" id="dec-game-card">
+        <div class="question-header">
+          <div class="question-label">
+            <span class="status-label" id="dec-lbl-difficulty">難度：</span>
+            <span class="status-value" id="dec-current-level-name">L1</span>
+            <select class="expand-level-select" id="dec-level-select" style="display:none;" aria-label="选择小数运算难度"></select>
+          </div>
+        </div>
+
+        <div class="question-body">
+          <div class="question-subtext" id="dec-question-subtext"></div>
+          <div class="question-text" id="dec-question-text"></div>
+        </div>
+
+        <form id="dec-answer-form" class="answer-form" action="javascript:void(0);">
+          <div class="game-card-action-anchor">
+            <div class="input-row" id="dec-answer-input-row" style="display:none;">
+              <input id="dec-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="decimal" />
+            </div>
+            <div class="button-row" id="dec-start-row">
+              <button type="button" class="btn-primary" id="dec-start-btn">开始挑战</button>
+            </div>
+          </div>
+        </form>
+
+        <div id="dec-game-over-panel" class="game-over-panel training-summary" style="display:none;">
+          <h2 class="game-over-title" id="dec-game-over-title">本局结束</h2>
+          <div class="game-over-stats-grid">
+            <p class="game-over-line"><span id="dec-go-duration-label">本局用时：</span><strong id="dec-go-duration">-</strong></p>
+            <p class="game-over-line"><span id="dec-go-score-label">本局等级：</span><strong id="dec-go-score">L1</strong></p>
+            <p class="game-over-line"><span id="dec-go-wrong-label">本局错题：</span><strong id="dec-go-wrong">0</strong></p>
+            <p class="game-over-line"><span id="dec-go-result-label">结算结果：</span><strong id="dec-go-result">-</strong></p>
+          </div>
+          <div class="game-over-buttons">
+            <button class="btn-primary" id="dec-play-again-btn">再玩一局</button>
+          </div>
+        </div>
+      </main>
+
+      <section class="recent-card" id="dec-recent-card" style="display:none;">
+        <div class="recent-header">
+          <span class="recent-title" id="dec-recent-title">最近十次小数运算</span>
+        </div>
+        <div class="recent-body">
+          <div id="dec-history-wrap">
+            <table class="recent-table">
+              <thead>
+                <tr>
+                  <th id="dec-th-dt">日期时间</th>
+                  <th id="dec-th-time">用时</th>
+                  <th id="dec-th-wrong">错题</th>
+                  <th id="dec-th-level">等级</th>
+                </tr>
+              </thead>
+              <tbody id="dec-history-body"></tbody>
+            </table>
+            <div id="dec-history-empty" class="recent-empty">当前还没有练习记录。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="soft-kbd-card" id="dec-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="decimal"></section>
+      <div class="game-play-tail" id="dec-play-tail" aria-hidden="true"></div>
+      </div>
+    </section>
+
     <!-- 选择头像：单独页面（对齐小程序） -->
     <section class="ranking-section" id="avatar-picker-section" style="display:none;margin-top:12px;">
       <div class="ranking-header">
@@ -3958,8 +4088,10 @@
   <script src="shared/soft-keyboard.js?v=37"></script>
   <script src="shared/answer-input.js?v=37"></script>
   <script src="shared/perfect-square-questions.js?v=37"></script>
+  <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=37"></script>
   <script src="perfect-square-page.js?v=37"></script>
+  <script src="decimal-page.js?v=1"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -4241,6 +4373,7 @@
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
       hidePerfectSquareSection();
+      hideDecimalSection();
       renderWrongbookList();
     }
 
@@ -4289,6 +4422,8 @@
     let expandWrongCount = 0;
     let expandScore = 0;
     const EXPAND_SCORE_PER_CORRECT = 5;
+    /** 小数运算首页入口：须完成整数 L10（bestLevelIndex ≥ 9） */
+    const DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX = 9;
     let expandAttempts = [];
     let expandStartTs = 0;
     let expandTimerId = null;
@@ -4400,6 +4535,35 @@
       dom.psHistoryBody = document.getElementById("ps-history-body");
       dom.psHistoryEmpty = document.getElementById("ps-history-empty");
       dom.psSoftKbdCard = document.getElementById("ps-soft-kbd-card");
+      dom.decTimerValue = document.getElementById("dec-timer-value");
+      dom.decProgressText = document.getElementById("dec-progress-text");
+      dom.decScoreText = document.getElementById("dec-score-text");
+      dom.decLevelText = document.getElementById("dec-level-text");
+      dom.decWrongText = document.getElementById("dec-wrong-text");
+      dom.decCurrentLevelName = document.getElementById("dec-current-level-name");
+      dom.decLevelSelect = document.getElementById("dec-level-select");
+      dom.decQuestionSubtext = document.getElementById("dec-question-subtext");
+      dom.decQuestionText = document.getElementById("dec-question-text");
+      dom.decAnswerForm = document.getElementById("dec-answer-form");
+      dom.decAnswerInputRow = document.getElementById("dec-answer-input-row");
+      dom.decAnswerInput = document.getElementById("dec-answer-input");
+      dom.decStartRow = document.getElementById("dec-start-row");
+      dom.decStartBtn = document.getElementById("dec-start-btn");
+      dom.decGameOverPanel = document.getElementById("dec-game-over-panel");
+      dom.decGameOverTitle = document.getElementById("dec-game-over-title");
+      dom.decGoDurationLabel = document.getElementById("dec-go-duration-label");
+      dom.decGoDuration = document.getElementById("dec-go-duration");
+      dom.decGoScoreLabel = document.getElementById("dec-go-score-label");
+      dom.decGoScore = document.getElementById("dec-go-score");
+      dom.decGoWrongLabel = document.getElementById("dec-go-wrong-label");
+      dom.decGoWrong = document.getElementById("dec-go-wrong");
+      dom.decGoResultLabel = document.getElementById("dec-go-result-label");
+      dom.decGoResult = document.getElementById("dec-go-result");
+      dom.decPlayAgainBtn = document.getElementById("dec-play-again-btn");
+      dom.decRecentCard = document.getElementById("dec-recent-card");
+      dom.decHistoryBody = document.getElementById("dec-history-body");
+      dom.decHistoryEmpty = document.getElementById("dec-history-empty");
+      dom.decSoftKbdCard = document.getElementById("dec-soft-kbd-card");
       syncAnswerInputInteractionMode();
     }
 
@@ -4435,6 +4599,64 @@
         getGameOver: function () { return gameOver; },
         setGameOver: function (v) { gameOver = v; },
       });
+    }
+
+    function initDecimalPage() {
+      if (!window.JmlDecimalPage) return;
+      JmlDecimalPage.init({
+        dom: dom,
+        t: t,
+        tf: tf,
+        getCurrentUser: getCurrentUser,
+        getCachedUser: function () { return cachedUser; },
+        ensureUserProgressDefault: ensureUserProgressDefault,
+        loadCurrentUsername: loadCurrentUsername,
+        apiPutUser: apiPutUser,
+        isGuestMode: isGuestMode,
+        isDecimalEntryLocked: isDecimalEntryLocked,
+        showToast: showToast,
+        setTopActionsVisible: setTopActionsVisible,
+        updateTopTitleForCurrentView: updateTopTitleForCurrentView,
+        updateGlobalBackButtonState: updateGlobalBackButtonState,
+        appendRun: appendRun,
+        recordWrongAnswer: recordWrongAnswer,
+        formatCompactRunTime: formatCompactRunTime,
+        escapeHtml: escapeHtml,
+        shouldLockAnswerInputForSoftKeyboard: shouldLockAnswerInputForSoftKeyboard,
+        softKeyboardBackspace: softKeyboardBackspace,
+        softKeyboardAppend: softKeyboardAppend,
+        scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
+        primeCompositeResetToIdle: primeCompositeResetToIdle,
+        getGameMode: function () { return gameMode; },
+        setGameMode: function (m) { gameMode = m; },
+        getIsPlaying: function () { return isPlaying; },
+        setIsPlaying: function (v) { isPlaying = v; },
+        getGameOver: function () { return gameOver; },
+        setGameOver: function (v) { gameOver = v; },
+      });
+    }
+
+    function hideDecimalSection() {
+      if (window.JmlDecimalPage) JmlDecimalPage.hideDecimalSection();
+    }
+
+    function isDecimalPlayingNow() {
+      return window.JmlDecimalPage && JmlDecimalPage.isDecimalPlayingNow();
+    }
+
+    function isDecimalEntryLocked() {
+      if (isGuestMode) return true;
+      const u = getCurrentUser();
+      if (!u) return true;
+      ensureUserProgressDefault(u);
+      return (u.bestLevelIndex || 0) < DECIMAL_ENTRY_UNLOCK_LEVEL_INDEX;
+    }
+
+    function updateDecimalButtonLabel() {
+      const btn = document.getElementById("mode-decimal");
+      if (!btn) return;
+      setHomeModeLabel("mode-decimal", "home.mode.decimal");
+      btn.classList.toggle("mode-btn-locked", isDecimalEntryLocked());
     }
 
     function hidePerfectSquareSection() {
@@ -4510,6 +4732,7 @@
       if (gameMode === "wrong") return t("mode.running.wrongPractice");
       if (gameMode === "expandBrackets") return t("mode.running.expandBrackets");
       if (gameMode === "perfectSquare") return t("mode.running.perfectSquare");
+      if (gameMode === "decimal") return t("mode.running.decimal");
       return t("home.mode.survival");
     }
 
@@ -4797,13 +5020,18 @@
     function updateGlobalBackButtonState() {
       const globalBackBtn = document.getElementById("global-back-home-btn");
       if (!globalBackBtn) return;
-      const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow();
+      const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow() || isDecimalPlayingNow();
       globalBackBtn.textContent = inProgress ? t("game.btn.abandon") : t("home.btn.backHome");
     }
 
     function globalBackToHome() {
       if (isPerfectSquarePlayingNow()) {
         JmlPerfectSquarePage.abandonPerfectSquareGame();
+        updateGlobalBackButtonState();
+        return;
+      }
+      if (isDecimalPlayingNow()) {
+        JmlDecimalPage.abandonDecimalGame();
         updateGlobalBackButtonState();
         return;
       }
@@ -5237,6 +5465,7 @@
         document.getElementById("game-card"),
         document.getElementById("expand-game-card"),
         document.getElementById("ps-game-card"),
+        document.getElementById("dec-game-card"),
         document.querySelector(".prime-idle-card"),
       ].filter(Boolean);
       if (!targets.length) return;
@@ -5799,6 +6028,7 @@
         "home.mode.expandBrackets": "拆括號",
         "home.mode.primeComposite": "質數合數",
         "home.mode.perfectSquare": "平方數",
+        "home.mode.decimal": "小數運算",
         "home.mode.gcd": "公因數",
         "home.mode.lcm": "公倍數",
         "home.mode.wrongbook": "錯題本",
@@ -5829,13 +6059,24 @@
         "home.soon.lcm": "公倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
+        "toast.decimalNeedLogin": "請登入後使用小數運算",
+        "toast.decimalNeedL10": "完成整數 L10 後解鎖小數運算",
         "mode.running.perfectSquare": "平方數",
+        "mode.running.decimal": "小數運算",
         "ps.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
         "ps.difficultyLabel": "難度：",
         "ps.levelSelectAria": "選擇平方數難度",
         "ps.level.L1": "2～11 的平方",
         "ps.level.L2": "2～20 的平方",
         "ps.level.L3": "2～30 的平方",
+        "dec.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
+        "dec.levelSelectAria": "選擇小數運算難度",
+        "dec.level.L1": "一位小數與整數混合加減",
+        "dec.level.L2": "一位與兩位小數混合加減",
+        "dec.level.L3": "乘或除以 10ⁿ",
+        "dec.level.L4": "小數乘除一位整數",
+        "dec.level.L5": "小數乘除小數",
+        "dec.recentTitle": "最近十次小數運算",
         "ps.recentTitle": "最近十次平方數",
         "expand.title": "拆括號",
         "expand.subtitle": "20 題選擇題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
@@ -6118,6 +6359,7 @@
         "home.mode.expandBrackets": "Brackets",
         "home.mode.primeComposite": "Primes",
         "home.mode.perfectSquare": "Squares",
+        "home.mode.decimal": "Decimals",
         "home.mode.gcd": "GCF",
         "home.mode.lcm": "LCM",
         "home.mode.wrongbook": "Mistakes",
@@ -6148,13 +6390,24 @@
         "home.soon.lcm": "Common Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
+        "toast.decimalNeedLogin": "Sign in to use Decimals.",
+        "toast.decimalNeedL10": "Complete integer L10 to unlock Decimals.",
         "mode.running.perfectSquare": "Squares",
+        "mode.running.decimal": "Decimals",
         "ps.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
         "ps.difficultyLabel": "Difficulty:",
         "ps.levelSelectAria": "Perfect squares level",
         "ps.level.L1": "Squares 2–11",
         "ps.level.L2": "Squares 2–20",
         "ps.level.L3": "Squares 2–30",
+        "dec.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
+        "dec.levelSelectAria": "Decimals level",
+        "dec.level.L1": "One-decimal ± integer",
+        "dec.level.L2": "One- and two-decimal ±",
+        "dec.level.L3": "× or ÷ powers of 10",
+        "dec.level.L4": "Decimal × or ÷ one-digit integer",
+        "dec.level.L5": "Decimal × or ÷ decimal",
+        "dec.recentTitle": "Last 10 decimal runs",
         "ps.recentTitle": "Last 10 square runs",
         "expand.title": "Expand Brackets",
         "expand.subtitle": "20 multiple-choice questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
@@ -6606,6 +6859,29 @@
       if (psLevelSelect) psLevelSelect.setAttribute("aria-label", t("ps.levelSelectAria"));
       const psRecentTitle = document.getElementById("ps-recent-title");
       if (psRecentTitle) psRecentTitle.textContent = t("ps.recentTitle");
+      setT("dec-lbl-mode", "game.status.currentMode");
+      setT("dec-mode-name", "home.mode.decimal");
+      setT("dec-lbl-progress", "game.status.progress");
+      setT("dec-lbl-score", "game.status.scoreThisRun");
+      setT("dec-lbl-level", "game.status.expandLevel");
+      setT("dec-lbl-wrong", "game.status.expandWrong");
+      setT("dec-lbl-difficulty", "ps.difficultyLabel");
+      setT("dec-start-btn", "game.btn.startChallenge");
+      setT("dec-game-over-title", "expand.end.title");
+      setT("dec-go-duration-label", "expand.end.time");
+      setT("dec-go-score-label", "expand.end.level");
+      setT("dec-go-wrong-label", "expand.end.wrong");
+      setT("dec-go-result-label", "expand.end.result");
+      setT("dec-play-again-btn", "game.btn.playAgain");
+      setT("dec-th-dt", "expand.th.datetime");
+      setT("dec-th-time", "expand.th.time");
+      setT("dec-th-wrong", "expand.th.wrong");
+      setT("dec-th-level", "expand.th.level");
+      setT("dec-history-empty", "recent.empty");
+      const decLevelSelect = byId("dec-level-select");
+      if (decLevelSelect) decLevelSelect.setAttribute("aria-label", t("dec.levelSelectAria"));
+      const decRecentTitle = document.getElementById("dec-recent-title");
+      if (decRecentTitle) decRecentTitle.textContent = t("dec.recentTitle");
       const avH = document.querySelector("#avatar-picker-section .ranking-title");
       if (avH) avH.textContent = t("avatar.pageTitle");
       if (byId("avatar-picker-section")) {
@@ -6756,6 +7032,8 @@
       setHomeModeLabel("mode-expand-brackets", "home.mode.expandBrackets");
       setHomeModeLabel("mode-prime-composite", "home.mode.primeComposite");
       setHomeModeLabel("mode-perfect-square", "home.mode.perfectSquare");
+      setHomeModeLabel("mode-decimal", "home.mode.decimal");
+      updateDecimalButtonLabel();
       setHomeModeLabel("mode-gcd", "home.mode.gcd");
       setHomeModeLabel("mode-lcm", "home.mode.lcm");
       setHomeModeLabel("mode-wrongbook", "home.mode.wrongbook");
@@ -6881,6 +7159,7 @@
       if (sync.recentPrimeCompositeRuns) cachedUser.recentPrimeCompositeRuns = sync.recentPrimeCompositeRuns;
       if (sync.recentExpandBracketsRuns) cachedUser.recentExpandBracketsRuns = sync.recentExpandBracketsRuns;
       if (sync.recentPerfectSquareRuns) cachedUser.recentPerfectSquareRuns = sync.recentPerfectSquareRuns;
+      if (sync.recentDecimalRuns) cachedUser.recentDecimalRuns = sync.recentDecimalRuns;
       if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
       if (sync.bestSurvivalSec != null) cachedUser.bestSurvivalSec = sync.bestSurvivalSec;
       if (sync.bestScore != null) cachedUser.bestScore = sync.bestScore;
@@ -7022,6 +7301,7 @@
           renderPrimeRecentRuns();
           renderExpandBracketsRecentRuns();
           if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+          if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
           updateHomeTotalScore();
           return true;
         }
@@ -7031,6 +7311,7 @@
           renderPrimeRecentRuns();
           renderExpandBracketsRecentRuns();
           if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+          if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
           updateHomeTotalScore();
           return true;
         }
@@ -7057,6 +7338,10 @@
           if (!Array.isArray(u.recentPerfectSquareRuns)) u.recentPerfectSquareRuns = [];
           u.recentPerfectSquareRuns.unshift(runEntry);
           if (u.recentPerfectSquareRuns.length > 10) u.recentPerfectSquareRuns = u.recentPerfectSquareRuns.slice(0, 10);
+        } else if (mode === "decimal") {
+          if (!Array.isArray(u.recentDecimalRuns)) u.recentDecimalRuns = [];
+          u.recentDecimalRuns.unshift(runEntry);
+          if (u.recentDecimalRuns.length > 10) u.recentDecimalRuns = u.recentDecimalRuns.slice(0, 10);
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -7075,6 +7360,8 @@
           ? { recentExpandBracketsRuns: u.recentExpandBracketsRuns, totalScore: u.totalScore }
           : mode === "perfectSquare"
           ? { recentPerfectSquareRuns: u.recentPerfectSquareRuns, totalScore: u.totalScore }
+          : mode === "decimal"
+          ? { recentDecimalRuns: u.recentDecimalRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
@@ -7082,12 +7369,15 @@
         renderPrimeRecentRuns();
         renderExpandBracketsRecentRuns();
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+        if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
         return !!updated;
       } catch (e) {
         console.warn("同步记录到服务器失败", e);
       }
       if (gameMode === "perfectSquare") {
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+      } else if (gameMode === "decimal") {
+        if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
       } else if (gameMode !== "expandBrackets") {
         renderRecentRuns();
       } else {
@@ -7228,6 +7518,7 @@
       if (!Array.isArray(user.recentPrimeCompositeRuns)) user.recentPrimeCompositeRuns = [];
       if (!Array.isArray(user.recentExpandBracketsRuns)) user.recentExpandBracketsRuns = [];
       if (!Array.isArray(user.recentPerfectSquareRuns)) user.recentPerfectSquareRuns = [];
+      if (!Array.isArray(user.recentDecimalRuns)) user.recentDecimalRuns = [];
       if (typeof user.comboCurrent !== "number") user.comboCurrent = 0;
       if (typeof user.comboBest !== "number") user.comboBest = 0;
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
@@ -7240,6 +7531,10 @@
       if (typeof user.levelPerfectSquareCurrentLevel !== "number") user.levelPerfectSquareCurrentLevel = 0;
       if (typeof user.levelPerfectSquareUnlockedMax !== "number") {
         user.levelPerfectSquareUnlockedMax = user.levelPerfectSquareCurrentLevel;
+      }
+      if (typeof user.levelDecimalCurrentLevel !== "number") user.levelDecimalCurrentLevel = 0;
+      if (typeof user.levelDecimalUnlockedMax !== "number") {
+        user.levelDecimalUnlockedMax = user.levelDecimalCurrentLevel;
       }
       if (typeof user.survivalUnlocked !== "boolean") user.survivalUnlocked = false;
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
@@ -7264,6 +7559,7 @@
       if (mode === "primeComposite") return "primeComposite";
       if (mode === "expandBrackets") return "expandBrackets";
       if (mode === "perfectSquare") return "perfectSquare";
+      if (mode === "decimal") return "decimal";
       return "survival";
     }
 
@@ -7287,6 +7583,7 @@
         else if (mode === "primeComposite") { /* 游客不记录质数合数 */ }
         else if (mode === "expandBrackets") { /* 游客不记拆括号（与训练一致：需登录才写 runs） */ }
         else if (mode === "perfectSquare") { /* 游客不记平方数 */ }
+        else if (mode === "decimal") { /* 游客不记小数运算 */ }
         else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, runCleared);
         return Promise.resolve();
       }
@@ -7451,6 +7748,10 @@
     function abandonCurrentRun() {
       if (gameMode === "perfectSquare") {
         if (isPlaying && !gameOver) JmlPerfectSquarePage.abandonPerfectSquareGame();
+        return;
+      }
+      if (gameMode === "decimal") {
+        if (isPlaying && !gameOver) JmlDecimalPage.abandonDecimalGame();
         return;
       }
       if (!isPlaying || gameOver) return;
@@ -8770,6 +9071,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDecimalSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       primeCompositeResetToIdle();
@@ -8777,6 +9079,7 @@
       updateHomeAvatarPlaceholder();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
+      updateDecimalButtonLabel();
       updateWrongbookBadge();
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
@@ -8807,6 +9110,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDecimalSection();
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
@@ -8840,6 +9144,7 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       hidePerfectSquareSection();
+      hideDecimalSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "flex";
@@ -9722,6 +10027,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDecimalSection();
       sec.style.display = "block";
       renderAvatarPicker();
     }
@@ -10088,6 +10394,7 @@
         primeSectionStats.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDecimalSection();
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
       const empty = document.getElementById("stats-level-empty");
@@ -10248,6 +10555,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDecimalSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       if (dom.expandSection) {
@@ -10300,6 +10608,7 @@
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
       hidePerfectSquareSection();
+      hideDecimalSection();
       renderWrongbookList();
       const name = loadCurrentUsername();
       if (!name || !getApiBase()) return;
@@ -11250,6 +11559,10 @@
       if (modePerfectSquare) modePerfectSquare.addEventListener("click", function () {
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.handleModePerfectSquare();
       });
+      const modeDecimal = document.getElementById("mode-decimal");
+      if (modeDecimal) modeDecimal.addEventListener("click", function () {
+        if (window.JmlDecimalPage) JmlDecimalPage.handleModeDecimal();
+      });
       const modeExpandBrackets = document.getElementById("mode-expand-brackets");
       if (modeExpandBrackets) modeExpandBrackets.addEventListener("click", handleModeExpandBrackets);
       const primeStartBtn = document.getElementById("prime-composite-start-btn");
@@ -11438,6 +11751,7 @@
       await loadI18nFromServer();
       initDomRefs();
       initPerfectSquarePage();
+      initDecimalPage();
       initStatusGridIcons();
       applyI18nToLoginView();
       applyI18nToMainView();

@@ -589,6 +589,11 @@
     if (deps.primeCompositeResetToIdle) deps.primeCompositeResetToIdle();
     const avatarPickerSec = document.getElementById("avatar-picker-section");
     if (avatarPickerSec) avatarPickerSec.style.display = "none";
+    const decSec = document.getElementById("decimal-section");
+    if (decSec) {
+      decSec.style.display = "none";
+      decSec.classList.remove("visible");
+    }
     const sec = document.getElementById("perfect-square-section");
     if (sec) {
       sec.style.display = "flex";
