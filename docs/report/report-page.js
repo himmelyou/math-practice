@@ -218,6 +218,16 @@
     });
   }
 
+  function getRefreshStudentBtn() {
+    return document.getElementById('jml-report-refresh-student-btn');
+  }
+
+  function syncRefreshStudentBtn(loading) {
+    var btn = getRefreshStudentBtn();
+    if (!btn) return;
+    btn.disabled = !!loading || !state.selectedUsername;
+  }
+
   function populateUserSelect(keepSelection) {
     var sel = getUserSelect();
     if (!sel) return;
@@ -242,6 +252,7 @@
       sel.value = '';
       state.selectedUsername = '';
     }
+    syncRefreshStudentBtn(false);
   }
 
   function showGlobalError() {
@@ -303,6 +314,7 @@
     var u = state.selectedUsername;
     if (!u) {
       clearPanels();
+      syncRefreshStudentBtn(false);
       return;
     }
     var errEl = document.getElementById('jml-report-student-error');
@@ -310,7 +322,7 @@
       errEl.style.display = 'none';
       errEl.textContent = '';
     }
-    Promise.all([
+    return Promise.all([
       apiFetch('/api/admin/records/' + encodeURIComponent(u)),
       apiFetch('/api/admin/user/' + encodeURIComponent(u)),
     ])
@@ -993,7 +1005,34 @@
     if (sel) {
       sel.addEventListener('change', function () {
         state.selectedUsername = sel.value || '';
-        loadStudentData();
+        syncRefreshStudentBtn(true);
+        var p = loadStudentData();
+        if (p && typeof p.finally === 'function') {
+          p.finally(function () {
+            syncRefreshStudentBtn(false);
+          });
+        } else {
+          syncRefreshStudentBtn(false);
+        }
+      });
+    }
+    var refreshStudent = getRefreshStudentBtn();
+    if (refreshStudent) {
+      refreshStudent.addEventListener('click', function () {
+        if (refreshStudent.disabled || !state.selectedUsername) return;
+        var prevLabel = refreshStudent.textContent;
+        refreshStudent.textContent = '刷新中…';
+        syncRefreshStudentBtn(true);
+        var p = loadStudentData();
+        if (!p || typeof p.finally !== 'function') {
+          refreshStudent.textContent = prevLabel;
+          syncRefreshStudentBtn(false);
+          return;
+        }
+        p.finally(function () {
+          refreshStudent.textContent = prevLabel;
+          syncRefreshStudentBtn(false);
+        });
       });
     }
     var statsBody = document.getElementById('jml-report-stats-body');

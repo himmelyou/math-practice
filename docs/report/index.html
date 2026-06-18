@@ -46,6 +46,7 @@
         <select id="jml-report-user-select" class="jml-report-user-select" aria-label="选择学员">
           <option value="">加载中…</option>
         </select>
+        <button type="button" class="jml-btn" id="jml-report-refresh-student-btn" title="重新拉取当前学员最新记录" disabled>刷新</button>
       </div>
       <p class="jml-report-hint">挑战记录按时间降序；训练模式含「选关诊断」列（悬停可看完整 JSON）。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。</p>
 
@@ -87,7 +88,7 @@
   <script src="../stats-aggregate-browser.js?v=22"></script>
   <script src="../stats-heatmap-browser.js?v=22"></script>
   <script src="../stats-chart-browser.js?v=22"></script>
-  <script src="report-page.js?v=22"></script>
+  <script src="report-page.js?v=23"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({
