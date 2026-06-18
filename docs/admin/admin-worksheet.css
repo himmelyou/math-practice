@@ -315,16 +315,11 @@
     overflow: visible !important;
   }
 
-  /* 打印：高度交给 @page，避免 281mm 块高 + 页边距叠出第二页空白 */
+  /* 打印与预览同一套布局：281mm 固定页高 + flex 均分，避免打印专用 min-height 挤到第二页 */
   body.jml-worksheet-printing .jml-ws-page {
     width: 100%;
-    height: auto;
-    min-height: 0;
-    max-height: none;
     margin: 0;
-    padding: var(--ws-pad-y) var(--ws-pad-x);
     box-shadow: none;
-    overflow: visible;
     page-break-after: always;
     break-after: page;
   }
@@ -332,20 +327,6 @@
   body.jml-worksheet-printing .jml-ws-page:last-child {
     page-break-after: auto;
     break-after: auto;
-  }
-
-  body.jml-worksheet-printing .jml-ws-col {
-    height: auto;
-  }
-
-  body.jml-worksheet-printing .jml-ws-page--20 .jml-ws-item {
-    flex: 0 0 auto;
-    min-height: 24mm;
-  }
-
-  body.jml-worksheet-printing .jml-ws-page--30 .jml-ws-item {
-    flex: 0 0 auto;
-    min-height: 16mm;
   }
 
   body.jml-worksheet-printing .jml-worksheet-preview-empty {
