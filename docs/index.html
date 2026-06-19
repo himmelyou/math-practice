@@ -480,6 +480,56 @@
     }
     .home-score-star { flex-shrink: 0; }
 
+    .player-level-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      margin-top: 2px;
+    }
+    .player-level-badge {
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #1565c0;
+      background: #e3f2fd;
+      border-radius: 999px;
+      padding: 2px 8px;
+      line-height: 1.35;
+      border: 1px solid rgba(21, 101, 192, 0.12);
+    }
+    .player-xp-track {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .player-xp-bar {
+      flex: 1;
+      min-width: 0;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(21, 101, 192, 0.14);
+      overflow: hidden;
+    }
+    .player-xp-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-light));
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+    .player-xp-text {
+      flex-shrink: 0;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #546e7a;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+
     .profile-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .avatar-wrap {
       width: 48px;
@@ -3204,10 +3254,15 @@
               <img src="assets/home/ic_edit.png" width="14" height="14" alt="" />
             </button>
           </span>
-          <span class="score-row" id="home-total-score-inline" style="display:none;">
-            <img class="home-score-star" src="assets/home/ic_credits.png" width="14" height="14" alt="" />
-            <span id="home-total-score-text">总积分：0</span>
-          </span>
+          <div class="player-level-row" id="home-player-level-row" style="display:none;">
+            <span class="player-level-badge" id="home-player-level-badge">Lv.1</span>
+            <div class="player-xp-track">
+              <div class="player-xp-bar" id="home-player-xp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="150" aria-valuenow="0">
+                <div class="player-xp-bar-fill" id="home-player-xp-bar-fill"></div>
+              </div>
+              <span class="player-xp-text" id="home-player-xp-text">0/150</span>
+            </div>
+          </div>
         </div>
         <div class="home-user-actions">
           <div class="home-settings-wrap" id="home-settings-wrap">
@@ -3595,7 +3650,7 @@
               aria-label="选择榜单"
             >
               <span class="ranking-mode-row">
-                <span id="ranking-mode-trigger-label" class="ranking-mode-text">总积分榜</span>
+                <span id="ranking-mode-trigger-label" class="ranking-mode-text">等级榜</span>
                 <span class="ranking-mode-slot" aria-hidden="true">
                   <span class="ranking-mode-trigger-caret"></span>
                 </span>
@@ -3604,7 +3659,7 @@
             <div id="ranking-mode-menu" class="home-settings-menu ranking-mode-menu" role="menu" hidden>
               <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="score">
                 <span class="ranking-mode-row">
-                  <span id="ranking-mode-label-score" class="ranking-mode-text">总积分榜</span>
+                  <span id="ranking-mode-label-score" class="ranking-mode-text">等级榜</span>
                   <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
                 </span>
               </button>
@@ -3638,7 +3693,7 @@
       </div>
       <div class="ranking-main-row">
         <div class="ranking-panel" id="ranking-panel">
-          <div class="panel-hint" id="ranking-panel-hint">总积分榜 · 加载中…</div>
+          <div class="panel-hint" id="ranking-panel-hint">等级榜 · 加载中…</div>
 
           <div class="gate-card" id="ranking-survival-gate" style="display:none;">
             <p class="gate-title" id="ranking-gate-title">生存榜</p>
@@ -3961,7 +4016,7 @@
     <section class="ranking-section" id="avatar-picker-section" style="display:none;margin-top:12px;">
       <div class="ranking-header">
         <h2 class="ranking-title">选择头像</h2>
-        <p class="ranking-subtitle">点击头像更换；未解锁头像会显示所需积分。</p>
+        <p class="ranking-subtitle" id="avatar-picker-subtitle">点击头像更换；未解锁头像会显示所需等级。</p>
       </div>
       <div id="avatar-picker-grid" class="avatar-picker-grid"></div>
     </section>
@@ -4048,6 +4103,7 @@
   </div>
 
   <script src="prime-composite-logic.js?v=37"></script>
+  <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=37"></script>
   <script src="stats-heatmap-browser.js?v=37"></script>
   <script src="stats-aggregate-browser.js?v=37"></script>
@@ -5988,7 +6044,7 @@
         "home.mode.ranking": "排行榜",
         "home.mode.achievementWall": "成就牆",
         "ranking.title": "排行榜",
-        "ranking.score": "總積分榜",
+        "ranking.score": "等級榜",
         "ranking.survival": "生存榜",
         "ranking.primePerfect": "質數達人",
         "ranking.streak": "耐力榜",
@@ -6059,6 +6115,8 @@
         "home.avatar.title": "頭像（佔位）",
         "home.avatar.placeholderLetter": "頭",
         "home.score.prefix": "總積分：",
+        "home.playerLevel.badge": "Lv.{level}",
+        "home.playerLevel.barAria": "本級經驗 {current}/{need}",
         "home.btn.backHome": "返回首頁",
         "home.btn.settings": "設置",
         "home.menu.switchLang": "切換語言",
@@ -6149,10 +6207,10 @@
         "wrongbook.empty": "暫無錯題記錄。",
         "ranking.selectAria": "選擇榜單",
         "ranking.tablistAria": "排行榜 Tab",
-        "ranking.hint.score.loading": "總積分榜 · 載入中…",
-        "ranking.hint.score.needNet": "總積分榜 · 需要連接伺服器",
-        "ranking.hint.score.desc": "總積分榜 · 按總積分從高到低（展示前 50 名）",
-        "ranking.hint.score.fail": "總積分榜 · 載入失敗，請稍後重試",
+        "ranking.hint.score.loading": "等級榜 · 載入中…",
+        "ranking.hint.score.needNet": "等級榜 · 需要連接伺服器",
+        "ranking.hint.score.desc": "等級榜 · 按總經驗從高到低（展示前 50 名，顯示等級）",
+        "ranking.hint.score.fail": "等級榜 · 載入失敗，請稍後重試",
         "ranking.hint.survival.loading": "生存榜 · 載入中…",
         "ranking.hint.survival.needNet": "生存榜 · 需要連接伺服器",
         "ranking.hint.survival.desc": "生存榜 · 通關用時越短越好，同用時錯題更少優先（展示前 50 名）",
@@ -6169,7 +6227,7 @@
         "ranking.hint.combo.needNet": "連擊榜 · 需要連接伺服器",
         "ranking.hint.combo.desc": "連擊榜 · 展示最高連對與當前連對（前 50 名）",
         "ranking.hint.combo.fail": "連擊榜 · 載入失敗，請稍後重試",
-        "ranking.hint.tabLoading.score": "總積分榜 · 載入中…",
+        "ranking.hint.tabLoading.score": "等級榜 · 載入中…",
         "ranking.hint.tabLoading.survival": "生存榜 · 載入中…",
         "ranking.hint.tabLoading.prime": "質數達人榜 · 載入中…",
         "ranking.hint.tabLoading.streak": "耐力榜 · 載入中…",
@@ -6183,6 +6241,7 @@
         "ranking.th.rank": "排名",
         "ranking.th.challenger": "挑戰者",
         "ranking.th.totalScore": "總積分",
+        "ranking.th.playerLevel": "等級",
         "ranking.th.time": "用時",
         "ranking.th.wrong": "錯題",
         "ranking.th.date": "日期",
@@ -6215,7 +6274,8 @@
         "prime.noWrongThisRun": "本局無錯題",
         "prime.wrongRow": "數字 {n} · 正確應為「{answer}」",
         "avatar.pageTitle": "選擇頭像",
-        "avatar.pageSubtitle": "點擊頭像更換；未解鎖頭像會顯示所需積分。",
+        "avatar.pageSubtitle": "點擊頭像更換；未解鎖頭像會顯示所需等級。",
+        "avatar.needLevel": "需 Lv.{level}",
         "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
         "stats.scriptNotLoaded": "統計腳本未載入。",
         "stats.needServer": "需連接伺服器才能查看數據統計，請設定 API 後重試。",
@@ -6267,6 +6327,7 @@
         "toast.primeBankLoadFail": "題庫未載入，請重新整理頁面重試",
         "toast.primeGenFail": "出題失敗，請重試",
         "toast.avatarUnlockNeed": "需 {need} 分解鎖",
+        "toast.avatarUnlockNeedLevel": "需 Lv.{level} 解鎖",
         "toast.avatarChanged": "已更換頭像",
         "toast.avatarChangeFail": "更換失敗",
         "toast.survivalNeedLevel9": "生存挑戰尚未解鎖：訓練 L16 達標、闖關到達 L16，或 L16 熱圖準確率 ≥95%",
@@ -6320,7 +6381,7 @@
         "home.mode.ranking": "Ranks",
         "home.mode.achievementWall": "Achievements",
         "ranking.title": "Leaderboard",
-        "ranking.score": "Total Score",
+        "ranking.score": "Level Rank",
         "ranking.survival": "Survival",
         "ranking.primePerfect": "Prime Master",
         "ranking.streak": "Streak",
@@ -6391,6 +6452,8 @@
         "home.avatar.title": "Avatar (placeholder)",
         "home.avatar.placeholderLetter": "Me",
         "home.score.prefix": "Score: ",
+        "home.playerLevel.badge": "Lv.{level}",
+        "home.playerLevel.barAria": "Level XP {current}/{need}",
         "home.btn.backHome": "Home",
         "home.btn.settings": "Settings",
         "home.menu.switchLang": "Language",
@@ -6468,10 +6531,10 @@
         "wrongbook.empty": "No wrong questions yet.",
         "ranking.selectAria": "Select leaderboard",
         "ranking.tablistAria": "Leaderboard tabs",
-        "ranking.hint.score.loading": "Total score · Loading…",
-        "ranking.hint.score.needNet": "Total score · Server required",
-        "ranking.hint.score.desc": "Total score · Top 50 by points",
-        "ranking.hint.score.fail": "Total score · Load failed, try again",
+        "ranking.hint.score.loading": "Level rank · Loading…",
+        "ranking.hint.score.needNet": "Level rank · Server required",
+        "ranking.hint.score.desc": "Level rank · Top 50 by total XP (shows level)",
+        "ranking.hint.score.fail": "Level rank · Load failed, try again",
         "ranking.hint.survival.loading": "Survival · Loading…",
         "ranking.hint.survival.needNet": "Survival · Server required",
         "ranking.hint.survival.desc": "Survival · Faster clear time wins; fewer wrongs tie-break (top 50)",
@@ -6488,7 +6551,7 @@
         "ranking.hint.combo.needNet": "Combo · Server required",
         "ranking.hint.combo.desc": "Combo · Best and current combo (top 50)",
         "ranking.hint.combo.fail": "Combo · Load failed, try again",
-        "ranking.hint.tabLoading.score": "Total score · Loading…",
+        "ranking.hint.tabLoading.score": "Level rank · Loading…",
         "ranking.hint.tabLoading.survival": "Survival · Loading…",
         "ranking.hint.tabLoading.prime": "Prime master · Loading…",
         "ranking.hint.tabLoading.streak": "Streak · Loading…",
@@ -6502,6 +6565,7 @@
         "ranking.th.rank": "Rank",
         "ranking.th.challenger": "Player",
         "ranking.th.totalScore": "Points",
+        "ranking.th.playerLevel": "Level",
         "ranking.th.time": "Time",
         "ranking.th.wrong": "Wrong",
         "ranking.th.date": "Date",
@@ -6534,7 +6598,8 @@
         "prime.noWrongThisRun": "No wrong answers this run",
         "prime.wrongRow": "Number {n} · correct: {answer}",
         "avatar.pageTitle": "Choose avatar",
-        "avatar.pageSubtitle": "Tap to change; locked avatars show required points.",
+        "avatar.pageSubtitle": "Tap to change; locked avatars show required level.",
+        "avatar.needLevel": "Lv.{level} required",
         "stats.levelEmpty": "No per-question stats yet. Play more runs.",
         "stats.scriptNotLoaded": "Stats scripts failed to load.",
         "stats.needServer": "Statistics require a server connection. Configure API and try again.",
@@ -6599,6 +6664,7 @@
         "toast.primeBankLoadFail": "Question bank not loaded. Refresh and try again.",
         "toast.primeGenFail": "Failed to generate question. Retry.",
         "toast.avatarUnlockNeed": "Unlock at {need} pts",
+        "toast.avatarUnlockNeedLevel": "Unlock at Lv.{level}",
         "toast.avatarChanged": "Avatar updated",
         "toast.avatarChangeFail": "Update failed",
         "toast.survivalNeedLevel9": "Survival locked: pass Training L16, reach L16 in Level mode, or L16 heatmap ≥95%.",
@@ -6838,7 +6904,7 @@
       const avH = document.querySelector("#avatar-picker-section .ranking-title");
       if (avH) avH.textContent = t("avatar.pageTitle");
       if (byId("avatar-picker-section")) {
-        const sub = document.querySelector("#avatar-picker-section .ranking-subtitle");
+        const sub = document.getElementById("avatar-picker-subtitle");
         if (sub) sub.textContent = t("avatar.pageSubtitle");
       }
       setT("stats-level-empty", "stats.levelEmpty");
@@ -7032,6 +7098,7 @@
       setTextById("expand-th-level", "expand.th.level");
       refreshLevelDisplayNames();
       applyI18nGlobalChrome();
+      updateHomePlayerLevel();
       const homeSec = document.getElementById("home-section");
       if (homeSec && !homeSec.classList.contains("hidden")) scheduleHomeTopBreathe();
     }
@@ -7257,7 +7324,7 @@
           renderExpandBracketsRecentRuns();
           if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
           if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
-          updateHomeTotalScore();
+          updateHomePlayerLevel();
           return true;
         }
         if (data && data.user) {
@@ -7267,7 +7334,7 @@
           renderExpandBracketsRecentRuns();
           if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
           if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
-          updateHomeTotalScore();
+          updateHomePlayerLevel();
           return true;
         }
         const u = cachedUser || {};
@@ -8939,22 +9006,40 @@
     }
 
     // ===== 首页与模式切换 =====
-    function updateHomeTotalScore() {
-      const inlineEl = document.getElementById("home-total-score-inline");
-      if (!inlineEl) return;
+    function computePlayerLevelFromTotalXp(totalXp) {
+      if (window.JmlPlayerLevel && typeof window.JmlPlayerLevel.computeFromTotalXp === "function") {
+        return window.JmlPlayerLevel.computeFromTotalXp(totalXp);
+      }
+      return { level: 1, xpInLevel: 0, xpToNext: 150, progress: 0, totalXp: 0 };
+    }
+
+    function updateHomePlayerLevel() {
+      const rowEl = document.getElementById("home-player-level-row");
+      if (!rowEl) return;
       if (isGuestMode) {
-        inlineEl.style.display = "none";
+        rowEl.style.display = "none";
         return;
       }
       const user = getCurrentUser();
       if (!user) {
-        inlineEl.style.display = "none";
+        rowEl.style.display = "none";
         return;
       }
-      const score = (user.totalScore != null && typeof user.totalScore === "number") ? user.totalScore : 0;
-      inlineEl.style.display = "inline-flex";
-      const textEl = document.getElementById("home-total-score-text");
-      if (textEl) textEl.textContent = t("home.score.prefix") + score;
+      const totalXp = user.totalScore != null && typeof user.totalScore === "number" ? user.totalScore : 0;
+      const prog = computePlayerLevelFromTotalXp(totalXp);
+      rowEl.style.display = "flex";
+      const badge = document.getElementById("home-player-level-badge");
+      if (badge) badge.textContent = tf("home.playerLevel.badge", { level: prog.level });
+      const fill = document.getElementById("home-player-xp-bar-fill");
+      if (fill) fill.style.width = String(Math.min(100, Math.max(0, prog.progress * 100))) + "%";
+      const text = document.getElementById("home-player-xp-text");
+      if (text) text.textContent = prog.xpInLevel + "/" + prog.xpToNext;
+      const bar = document.getElementById("home-player-xp-bar");
+      if (bar) {
+        bar.setAttribute("aria-valuemax", String(prog.xpToNext));
+        bar.setAttribute("aria-valuenow", String(prog.xpInLevel));
+        bar.setAttribute("aria-label", tf("home.playerLevel.barAria", { current: prog.xpInLevel, need: prog.xpToNext }));
+      }
       scheduleHomeTopBreathe();
     }
 
@@ -9030,7 +9115,7 @@
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       primeCompositeResetToIdle();
-      updateHomeTotalScore();
+      updateHomePlayerLevel();
       updateHomeAvatarPlaceholder();
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
@@ -9293,7 +9378,7 @@
       primeCompositeShowFinishedPanel({ elapsedSec, abandoned: true });
       appendRun(elapsedSec, 0, -1, primeCompositeWrongCount, "primeComposite", primeCompositeAttempts.slice(), false, true);
       void renderPrimeRecentRuns();
-      updateHomeTotalScore();
+      updateHomePlayerLevel();
     }
 
     function primeCompositeRenderQuestion() {
@@ -9428,7 +9513,7 @@
           if (synced === true && syncOk) syncOk.style.display = "block";
           else if (synced === false && syncFail) syncFail.style.display = "block";
         }
-        updateHomeTotalScore();
+        updateHomePlayerLevel();
         await renderPrimeRecentRuns();
       } else if (name && !baseUrl && cachedUser) {
         ensureUserProgressDefault(cachedUser);
@@ -9448,7 +9533,7 @@
           cachedUser = updated;
           if (sessionScore > 0 && syncLocal) syncLocal.style.display = "block";
         } else if (sessionScore > 0 && syncFail) syncFail.style.display = "block";
-        updateHomeTotalScore();
+        updateHomePlayerLevel();
         await renderPrimeRecentRuns();
       }
     }
@@ -9486,7 +9571,7 @@
 
     function buildRankingTheadHtml(tab) {
       if (tab === "score") {
-        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.totalScore")) + "</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.playerLevel")) + "</th></tr>";
       }
       if (tab === "survival") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
@@ -9514,7 +9599,8 @@
       const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
-      const scoreStr = escapeHtml(String(entry.totalScore != null ? entry.totalScore : 0));
+      const totalXp = entry.totalScore != null ? entry.totalScore : 0;
+      const levelStr = escapeHtml(tf("home.playerLevel.badge", { level: computePlayerLevelFromTotalXp(totalXp).level }));
       let avatarInner;
       if (entry.avatarUrl) {
         const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
@@ -9523,7 +9609,7 @@
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
       const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
-      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + scoreStr + "</td></tr>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + levelStr + "</td></tr>";
     }
 
     function buildRankingStreakRowHtml(entry, isMe) {
@@ -10038,7 +10124,7 @@
         }
         bubble.addEventListener("click", async () => {
           if (locked) {
-            showToast(tf("toast.avatarUnlockNeed", { need: need }));
+            showToast(tf("toast.avatarUnlockNeedLevel", { level: computePlayerLevelFromTotalXp(need).level }));
             return;
           }
           const name = loadCurrentUsername();
@@ -10063,7 +10149,7 @@
         if (locked) {
           const needEl = document.createElement("div");
           needEl.className = "avatar-item-need";
-          needEl.textContent = `需 ${need} 分`;
+          needEl.textContent = tf("avatar.needLevel", { level: computePlayerLevelFromTotalXp(need).level });
           item.appendChild(needEl);
         }
         grid.appendChild(item);
@@ -11732,7 +11818,7 @@
           document.getElementById("app-view").style.display = "flex";
           syncHomeSettingsAuthItems();
             loadState();
-            updateHomeTotalScore();
+            updateHomePlayerLevel();
             updateSurvivalStatusUI();
             updateSurvivalButtonLabel();
             renderRecentRuns();
