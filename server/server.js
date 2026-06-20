@@ -79,18 +79,21 @@ function readAchievementsCatalog() {
   return catalogStore.readCatalog();
 }
 
-function equippedBadgesForUsername(username) {
+function equippedBadgesForUsername(username, req) {
   const usersData = readJson(USERS_FILE, { users: [] });
   const u = (usersData.users || []).find((x) => x && x.username === username);
   if (!u) return [];
   const catalog = readAchievementsCatalog();
   achievementEngine.sanitizeEquippedBadges(u, catalog);
-  return achievementEngine.buildEquippedBadgesSummary(u, catalog);
+  return achievementEngine.buildEquippedBadgesSummary(u, catalog).map((b) => ({
+    ...b,
+    imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
+  }));
 }
 
 function withEquippedBadges(row, req) {
   if (!row || !row.username) return row;
-  return Object.assign({}, row, { equippedBadges: equippedBadgesForUsername(row.username) });
+  return Object.assign({}, row, { equippedBadges: equippedBadgesForUsername(row.username, req) });
 }
 
 function pickStudentUserPatch(u, keys) {
@@ -117,6 +120,7 @@ const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.js
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
 const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
+const ACHIEVEMENT_ASSET_DIR = path.join(DATA_DIR, "achievement-assets");
 const FEEDBACK_FILE = path.join(DATA_DIR, "feedback.json");
 const ACHIEVEMENTS_CATALOG_FILE = path.join(DATA_DIR, "achievements-catalog.json");
 const catalogStore = achievementCatalog.createCatalogStore(ACHIEVEMENTS_CATALOG_FILE);
@@ -884,6 +888,9 @@ migrateI18nScoreRankingLabels();
 if (!fs.existsSync(AVATAR_ASSET_DIR)) {
   fs.mkdirSync(AVATAR_ASSET_DIR, { recursive: true });
 }
+if (!fs.existsSync(ACHIEVEMENT_ASSET_DIR)) {
+  fs.mkdirSync(ACHIEVEMENT_ASSET_DIR, { recursive: true });
+}
 
 app.use(cors({
   origin: true,
@@ -894,6 +901,7 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json());
 app.use("/avatar-assets", express.static(AVATAR_ASSET_DIR));
+app.use("/achievement-assets", express.static(ACHIEVEMENT_ASSET_DIR));
 
 // 管理端 / 报表静态页：位于 docs/ 下，与主站一并部署到静态根目录时可同域访问 /admin/、/report/。
 // 若只部署 server 目录到 Render，此处不会挂载；本地可用 local-admin-server（以 docs 为根）打开。
@@ -1008,6 +1016,36 @@ function buildAvatarPublic(item, req) {
     order: item.order,
     enabled: item.enabled !== false,
   };
+}
+
+function buildAchievementImageUrl(item, req) {
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.get("host");
+  let imageUrl = (item && item.imagePath) || "";
+  if (imageUrl && /^\/[^/]/.test(imageUrl) && host) {
+    imageUrl = `${proto}://${host}${imageUrl}`;
+  }
+  return imageUrl;
+}
+
+function mapAchievementItemPublic(item, req) {
+  return {
+    id: item.id,
+    name: item.name,
+    icon: item.icon,
+    imageUrl: buildAchievementImageUrl(item, req),
+    category: item.category,
+    tier: item.tier,
+    hint: item.hint,
+    xpReward: item.xpReward,
+    sortOrder: item.sortOrder,
+  };
+}
+
+function mapAchievementItemView(item, req) {
+  return Object.assign({}, item, {
+    imageUrl: buildAchievementImageUrl({ imagePath: item.imagePath }, req),
+  });
 }
 
 function resolveUserAvatarIdOrEmpty(user) {
@@ -1351,16 +1389,7 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
 // ========== 成就：公开 catalog（仅 enabled） ==========
 app.get("/api/achievements/catalog", (req, res) => {
   const catalog = readAchievementsCatalog();
-  const items = catalogStore.getEnabledItems(catalog).map((item) => ({
-    id: item.id,
-    name: item.name,
-    icon: item.icon,
-    category: item.category,
-    tier: item.tier,
-    hint: item.hint,
-    xpReward: item.xpReward,
-    sortOrder: item.sortOrder,
-  }));
+  const items = catalogStore.getEnabledItems(catalog).map((item) => mapAchievementItemPublic(item, req));
   res.json({ ok: true, version: catalog.version, items });
 });
 
@@ -1377,6 +1406,7 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   const catalog = readAchievementsCatalog();
   achievementEngine.sanitizeEquippedBadges(user, catalog);
   const view = achievementEngine.buildUserAchievementsView(user, runs, catalog, { includeDisabled: false });
+  view.items = view.items.map((item) => mapAchievementItemView(item, req));
   res.json({ ok: true, ...view });
 });
 
@@ -1399,7 +1429,10 @@ app.put("/api/user/:username/achievements/equipped", requireStudentAuth, ensureO
   res.json({
     ok: true,
     equippedBadges: user.equippedBadges,
-    equippedSummary: achievementEngine.buildEquippedBadgesSummary(user, catalog),
+    equippedSummary: achievementEngine.buildEquippedBadgesSummary(user, catalog).map((b) => ({
+      ...b,
+      imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
+    })),
   });
 });
 
@@ -2709,6 +2742,30 @@ app.put("/api/admin/achievements/catalog", (req, res) => {
   }
   const saved = catalogStore.writeCatalog(body);
   res.json({ ok: true, catalog: saved });
+});
+
+app.post("/api/admin/achievements/:id/replace-image", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const id = String(req.params.id || "").trim();
+  const parsed = parseDataUrl(req.body && req.body.dataUrl);
+  if (!id) return res.json({ ok: false, error: "缺少 id" });
+  if (!parsed) return res.json({ ok: false, error: "图片格式不支持（仅 png/jpg/webp 的 dataUrl）" });
+  const catalog = readAchievementsCatalog();
+  const idx = (catalog.items || []).findIndex((x) => x && x.id === id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: "成就不存在" });
+  const fileName = `${id}.${parsed.ext}`;
+  const target = path.join(ACHIEVEMENT_ASSET_DIR, fileName);
+  fs.writeFileSync(target, parsed.buf);
+  catalog.items[idx].imagePath = `/achievement-assets/${fileName}`;
+  const saved = catalogStore.writeCatalog(catalog);
+  const item = saved.items.find((x) => x.id === id);
+  res.json({
+    ok: true,
+    item: item ? { ...item, imageUrl: buildAchievementImageUrl(item, req) } : null,
+    catalog: saved,
+  });
 });
 
 app.post("/api/admin/achievements/recompute", (req, res) => {

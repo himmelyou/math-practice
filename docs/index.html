@@ -1120,31 +1120,204 @@
     .home-equipped-badges { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; vertical-align: middle; }
     .home-badge-chip { font-size: 0.95rem; line-height: 1; cursor: default; }
     .achievement-wall-section { margin-top: 12px; }
-    .ach-equip-panel { margin-bottom: 16px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
-    .ach-equip-panel h3 { margin: 0 0 10px; font-size: 0.95rem; color: #334155; }
-    .ach-equip-slots { display: flex; flex-wrap: wrap; gap: 8px; }
-    .ach-equip-slot { min-width: 100px; padding: 8px 10px; border-radius: 8px; border: 1px dashed #cbd5e1; background: #fff; font-size: 0.84rem; cursor: pointer; text-align: left; }
-    .ach-equip-slot.filled { border-style: solid; border-color: #93c5fd; background: #eff6ff; }
-    .ach-equip-picker { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
-    .ach-equip-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-    .ach-equip-pick { padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; font-size: 0.82rem; cursor: pointer; }
-    .ach-equip-pick-clear { color: #64748b; }
-    .ach-equip-pick-cancel { padding: 4px 8px; border: none; background: transparent; color: #64748b; font-size: 0.82rem; cursor: pointer; }
-    .ach-category { margin-bottom: 18px; }
-    .ach-category-title { margin: 0 0 8px; font-size: 0.92rem; color: #475569; }
-    .ach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-    .ach-item { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; align-items: flex-start; }
-    .ach-item-locked { opacity: 0.72; background: #f8fafc; }
-    .ach-item-unlocked { border-color: #bfdbfe; box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.08); }
-    .ach-item-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
-    .ach-item-title { font-weight: 600; color: #1e293b; font-size: 0.92rem; margin-bottom: 4px; }
-    .ach-tier { margin-left: 6px; font-size: 0.75rem; color: #64748b; font-weight: 500; }
+    .achievement-wall-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-bottom: 12px;
+    }
+    .ach-wall-summary-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 12px;
+      margin-top: 4px;
+    }
+    .ach-wall-unlocked-count {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #1e293b;
+    }
+    .ach-wall-equip-toggle {
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #334155;
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ach-wall-equip-toggle.active {
+      border-color: #2563eb;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .ach-wall-equip-hint { font-size: 0.8rem; }
+    .ach-wall-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px;
+      margin-top: 10px;
+    }
+    .ach-category { margin-bottom: 16px; }
+    .ach-category:last-child { margin-bottom: 0; }
+    .ach-category-title {
+      margin: 0 0 10px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #64748b;
+      letter-spacing: 0.02em;
+    }
+    .ach-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .ach-cell {
+      position: relative;
+      border: none;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 10px;
+      overflow: hidden;
+      aspect-ratio: 1;
+    }
+    .ach-cell:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    .ach-cell-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ach-cell img.ach-cell-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .ach-cell-locked .ach-cell-inner img.ach-cell-img {
+      filter: grayscale(1);
+      opacity: 0.45;
+    }
+    .ach-cell-unlocked .ach-cell-inner {
+      border-color: #bfdbfe;
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12);
+    }
+    .ach-img-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #94a3b8;
+      background: linear-gradient(145deg, #f8fafc, #e2e8f0);
+    }
+    .ach-cell-equipped .ach-cell-inner::after {
+      content: "✓";
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.72rem;
+      line-height: 18px;
+      text-align: center;
+      font-weight: 700;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+    }
+    .ach-cell-inner { position: relative; }
+    .ach-equip-mode .ach-cell-unlocked .ach-cell-inner {
+      outline: 2px dashed rgba(37, 99, 235, 0.35);
+      outline-offset: -2px;
+    }
+    .ach-detail-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .ach-detail-modal {
+      width: min(320px, 100%);
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+    }
+    .ach-detail-img-wrap {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 12px;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+    }
+    .ach-detail-img-wrap img,
+    .ach-detail-img-wrap .ach-img-placeholder {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .ach-detail-title {
+      margin: 0 0 6px;
+      text-align: center;
+      font-size: 1rem;
+      color: #0f172a;
+    }
+    .ach-detail-meta {
+      text-align: center;
+      font-size: 0.82rem;
+      color: #64748b;
+      margin-bottom: 10px;
+    }
+    .ach-detail-body { font-size: 0.86rem; color: #334155; margin-bottom: 12px; }
+    .ach-detail-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .ach-detail-btn {
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      padding: 6px 14px;
+      font-size: 0.84rem;
+      cursor: pointer;
+    }
+    .ach-detail-btn-primary {
+      border-color: #2563eb;
+      background: #2563eb;
+      color: #fff;
+    }
     .ach-progress-done { color: #15803d; font-size: 0.82rem; font-weight: 600; }
-    .ach-progress-bar-wrap { display: flex; align-items: center; gap: 8px; max-width: 280px; }
+    .ach-progress-bar-wrap { display: flex; align-items: center; gap: 8px; max-width: 280px; margin: 0 auto; }
     .ach-progress-bar { flex: 1; height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
     .ach-progress-bar-fill { height: 100%; background: linear-gradient(90deg, #60a5fa, #2563eb); border-radius: 999px; }
     .ach-progress-text { font-size: 0.78rem; color: #64748b; white-space: nowrap; }
-    .ach-xp { margin-top: 4px; font-size: 0.78rem; color: #b45309; }
+    .home-badge-chip img,
+    .rank-badge-chip img {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      object-fit: cover;
+      vertical-align: middle;
+      display: inline-block;
+    }
     .user-meta { display: flex; flex-direction: column; min-width: 0; }
     .user-meta .name { font-weight: 700; color: #263238; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .user-meta .tag { font-size: 0.78rem; color: #1976d2; font-weight: 700; }
@@ -3751,11 +3924,12 @@
       <div class="ranking-header">
         <div class="ranking-title-row">
           <h2 class="ranking-title">成就墙</h2>
-          <button type="button" class="jml-btn home-pill-btn" id="achievement-wall-back-btn">返回首页</button>
         </div>
-        <p class="ranking-subtitle muted">完成挑战解锁成就；最多佩戴 3 枚徽章（在下方槽位手动选择）。</p>
+        <div class="ach-wall-summary-row" id="achievement-wall-summary"></div>
       </div>
-      <div id="achievement-wall-body"></div>
+      <div class="achievement-wall-scroll" id="achievement-wall-scroll">
+        <div class="ach-wall-card" id="achievement-wall-body"></div>
+      </div>
     </section>
 
     <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分 -->
@@ -9214,7 +9388,7 @@
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       const sec = document.getElementById("achievement-wall-section");
-      if (sec) sec.style.display = "block";
+      if (sec) sec.style.display = "flex";
       if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
         await JmlAchievementsClient.loadState();
       }

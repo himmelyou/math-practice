@@ -666,6 +666,28 @@
   vertical-align: middle;
 }
 
+.jml-ach-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  vertical-align: middle;
+  border: 1px solid #e2e8f0;
+}
+
+.jml-ach-thumb-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.jml-ach-name-cell {
+  white-space: nowrap;
+}
+
 .jml-achievements-table code {
   font-size: 0.82rem;
 }

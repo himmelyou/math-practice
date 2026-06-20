@@ -63,6 +63,7 @@ function buildAchievementItemView(item, user, ctx) {
     id: item.id,
     name: item.name,
     icon: item.icon,
+    imagePath: item.imagePath || "",
     category: item.category,
     tier: item.tier,
     hint: item.hint,
@@ -96,7 +97,7 @@ function buildEquippedBadgesSummary(user, catalog) {
     .map((id) => {
       const item = map.get(id);
       if (!item || !user.achievements[id]) return null;
-      return { id: item.id, name: item.name, icon: item.icon };
+      return { id: item.id, name: item.name, icon: item.icon, imagePath: item.imagePath || "" };
     })
     .filter(Boolean);
 }

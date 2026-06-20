@@ -8,7 +8,8 @@
     equippedBadges: [],
     equippedSummary: [],
     loading: false,
-    pickingSlot: -1,
+    equipMode: false,
+    detailId: "",
   };
 
   function apiBase() {
@@ -44,11 +45,66 @@
     return map;
   }
 
-  function renderProgress(item) {
-    if (item.unlocked) return '<span class="ach-progress ach-progress-done">已解锁</span>';
+  function achievementImageInner(item, className) {
+    if (item && item.imageUrl) {
+      return (
+        '<img class="' +
+        className +
+        '" src="' +
+        escapeHtml(item.imageUrl) +
+        '" alt="' +
+        escapeHtml(item.name || "") +
+        '" loading="lazy" />'
+      );
+    }
+    return (
+      '<div class="' +
+      className +
+      ' ach-img-placeholder">' +
+      escapeHtml((item && item.name ? item.name : "?").slice(0, 1)) +
+      "</div>"
+    );
+  }
+
+  function renderBadgeChip(b, chipClass) {
+    if (b && b.imageUrl) {
+      return (
+        '<span class="' +
+        chipClass +
+        '" title="' +
+        escapeHtml(b.name || "") +
+        '"><img src="' +
+        escapeHtml(b.imageUrl) +
+        '" alt="" /></span>'
+      );
+    }
+    return (
+      '<span class="' +
+      chipClass +
+      '" title="' +
+      escapeHtml((b && b.name) || "") +
+      '">' +
+      escapeHtml((b && b.icon) || "🏅") +
+      "</span>"
+    );
+  }
+
+  function formatUnlockTime(ts) {
+    if (!ts) return "";
+    try {
+      var d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function renderProgressHtml(item) {
+    if (item.unlocked) return '<div class="ach-progress-done">已解锁</div>';
     var p = item.progress;
     if (!p || p.target == null) {
-      return '<span class="ach-progress">' + escapeHtml(item.hint || "") + "</span>";
+      return '<div class="muted">' + escapeHtml(item.hint || "") + "</div>";
     }
     var cur = p.current != null ? p.current : 0;
     var tgt = p.target != null ? p.target : 0;
@@ -64,145 +120,109 @@
     );
   }
 
+  function isEquipped(id) {
+    return (state.equippedBadges || []).indexOf(id) >= 0;
+  }
+
+  function renderSummary() {
+    var el = document.getElementById("achievement-wall-summary");
+    if (!el) return;
+    var unlockedCount = (state.items || []).filter(function (x) {
+      return x.unlocked;
+    }).length;
+    el.innerHTML =
+      '<span class="ach-wall-unlocked-count">已解锁 ' +
+      unlockedCount +
+      "</span>" +
+      '<button type="button" class="ach-wall-equip-toggle' +
+      (state.equipMode ? " active" : "") +
+      '" id="ach-wall-equip-toggle">' +
+      (state.equipMode ? "完成" : "编辑佩戴") +
+      "</button>" +
+      (state.equipMode ? '<span class="ach-wall-equip-hint muted">点选已解锁徽章佩戴（最多 3 枚）</span>' : "");
+    var toggle = document.getElementById("ach-wall-equip-toggle");
+    if (toggle) {
+      toggle.addEventListener("click", function () {
+        state.equipMode = !state.equipMode;
+        closeDetail();
+        renderSummary();
+        renderWall();
+      });
+    }
+  }
+
   function renderWall() {
     var body = document.getElementById("achievement-wall-body");
     if (!body) return;
+    renderSummary();
     if (state.loading) {
       body.innerHTML = '<div class="panel-empty">加载中…</div>';
+      body.classList.remove("ach-equip-mode");
       return;
     }
     var items = state.items || [];
     if (!items.length) {
       body.innerHTML = '<div class="panel-empty">暂无成就配置。</div>';
+      body.classList.remove("ach-equip-mode");
       return;
     }
-    var equipped = state.equippedBadges || [];
-    var equipHtml =
-      '<div class="ach-equip-panel">' +
-      "<h3>佩戴徽章（最多 3 枚）</h3>" +
-      '<div class="ach-equip-slots">' +
-      [0, 1, 2]
-        .map(function (idx) {
-          var id = equipped[idx] || "";
-          var item = items.find(function (x) {
-            return x.id === id;
-          });
-          var label = item ? item.icon + " " + item.name : "空槽";
-          return (
-            '<button type="button" class="ach-equip-slot' +
-            (item ? " filled" : "") +
-            '" data-slot="' +
-            idx +
-            '" title="点击更换">' +
-            escapeHtml(label) +
-            "</button>"
-          );
-        })
-        .join("") +
-      "</div>" +
-      '<p class="ach-equip-hint muted">新解锁不会自动佩戴；点槽位选择已解锁成就。</p>' +
-      (state.pickingSlot >= 0 ? renderEquipPicker(state.pickingSlot) : "") +
-      "</div>";
-
+    body.classList.toggle("ach-equip-mode", !!state.equipMode);
     var groups = groupByCategory(items);
     var listHtml = "";
     groups.forEach(function (catItems, cat) {
-      listHtml += '<div class="ach-category"><h3 class="ach-category-title">' + escapeHtml(cat) + "</h3><ul class="ach-list">";
+      listHtml += '<div class="ach-category"><h3 class="ach-category-title">' + escapeHtml(cat) + '</h3><div class="ach-grid">';
       catItems.forEach(function (item) {
         var locked = !item.unlocked;
+        var equipped = isEquipped(item.id);
         listHtml +=
-          '<li class="ach-item' +
-          (locked ? " ach-item-locked" : " ach-item-unlocked") +
+          '<button type="button" class="ach-cell' +
+          (locked ? " ach-cell-locked" : " ach-cell-unlocked") +
+          (equipped ? " ach-cell-equipped" : "") +
           '" data-id="' +
           escapeHtml(item.id) +
-          '">' +
-          '<div class="ach-item-icon">' +
-          escapeHtml(item.icon || "🏅") +
-          "</div>" +
-          '<div class="ach-item-main">' +
-          '<div class="ach-item-title">' +
+          '" aria-label="' +
           escapeHtml(item.name || item.id) +
-          (item.tier ? '<span class="ach-tier">' + escapeHtml(item.tier) + "</span>" : "") +
-          "</div>" +
-          renderProgress(item) +
-          (item.xpReward ? '<div class="ach-xp">+' + escapeHtml(String(item.xpReward)) + " XP</div>" : "") +
-          "</div></li>";
+          '">' +
+          '<span class="ach-cell-inner">' +
+          achievementImageInner(item, "ach-cell-img") +
+          "</span></button>";
       });
-      listHtml += "</ul></div>";
+      listHtml += "</div></div>";
     });
+    body.innerHTML = listHtml;
+    body.querySelectorAll(".ach-cell").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-id") || "";
+        var item = (state.items || []).find(function (x) {
+          return x.id === id;
+        });
+        if (!item) return;
+        if (state.equipMode) {
+          if (!item.unlocked) {
+            showToast("尚未解锁");
+            return;
+          }
+          toggleEquip(id);
+          return;
+        }
+        openDetail(id);
+      });
+    });
+  }
 
-    body.innerHTML = equipHtml + listHtml;
-    body.querySelectorAll(".ach-equip-slot").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        state.pickingSlot = parseInt(btn.getAttribute("data-slot"), 10) || 0;
-        renderWall();
-      });
-    });
-    body.querySelectorAll("[data-equip-pick]").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        var slot = state.pickingSlot;
-        var id = btn.getAttribute("data-equip-pick") || "";
-        state.pickingSlot = -1;
-        applyEquipSlot(slot, id);
-      });
-    });
-    var cancelPick = body.querySelector("[data-equip-cancel]");
-    if (cancelPick) {
-      cancelPick.addEventListener("click", function () {
-        state.pickingSlot = -1;
-        renderWall();
-      });
+  function toggleEquip(id) {
+    var next = (state.equippedBadges || []).slice();
+    var idx = next.indexOf(id);
+    if (idx >= 0) {
+      next.splice(idx, 1);
+    } else {
+      if (next.length >= 3) {
+        showToast("最多佩戴 3 枚徽章");
+        return;
+      }
+      next.push(id);
     }
-  }
-
-  function renderEquipPicker(slotIndex) {
-    var unlocked = (state.items || []).filter(function (x) {
-      return x.unlocked;
-    });
-    var chips =
-      '<button type="button" class="ach-equip-pick ach-equip-pick-clear" data-equip-pick="">清除</button>' +
-      unlocked
-        .map(function (item) {
-          return (
-            '<button type="button" class="ach-equip-pick" data-equip-pick="' +
-            escapeHtml(item.id) +
-            '">' +
-            escapeHtml((item.icon || "") + " " + (item.name || item.id)) +
-            "</button>"
-          );
-        })
-        .join("");
-    return (
-      '<div class="ach-equip-picker">' +
-      "<p>为槽位 " +
-      (slotIndex + 1) +
-      ' 选择：</p><div class="ach-equip-picker-row">' +
-      chips +
-      '</div><button type="button" class="ach-equip-pick-cancel" data-equip-cancel>取消</button></div>'
-    );
-  }
-
-  function openEquipPicker(slotIndex) {
-    state.pickingSlot = slotIndex;
-    renderWall();
-  }
-
-  function applyEquipSlot(slotIndex, achievementId) {
-    var next = (state.equippedBadges || []).slice(0, 3);
-    while (next.length < 3) next.push("");
-    next[slotIndex] = achievementId || "";
-    var cleaned = [];
-    var seen = new Set();
-    next.forEach(function (id) {
-      if (!id || seen.has(id)) return;
-      var item = (state.items || []).find(function (x) {
-        return x.id === id && x.unlocked;
-      });
-      if (!item) return;
-      seen.add(id);
-      cleaned.push(id);
-    });
-    saveEquipped(cleaned);
+    saveEquipped(next);
   }
 
   function saveEquipped(ids) {
@@ -221,25 +241,82 @@
       .then(function (data) {
         if (!data || !data.ok) throw new Error((data && data.error) || "保存失败");
         state.equippedBadges = Array.isArray(data.equippedBadges) ? data.equippedBadges : ids;
-        state.equippedSummary = Array.isArray(data.equippedSummary) ? data.equippedSummary : [];
+        state.equippedSummary = Array.isArray(data.equippedSummary) ? data.equippedSummary : buildSummaryFromEquipped();
         if (window.cachedUser) {
           window.cachedUser.equippedBadges = state.equippedBadges.slice();
           window.cachedUser.achievements = Object.assign({}, state.achievements);
         }
         renderWall();
         renderHomeBadges();
+        if (state.detailId) openDetail(state.detailId);
       })
       .catch(function (e) {
         showToast(e.message || String(e));
       });
   }
 
+  function closeDetail() {
+    state.detailId = "";
+    var overlay = document.getElementById("ach-detail-overlay");
+    if (overlay) overlay.remove();
+  }
+
+  function openDetail(id) {
+    var item = (state.items || []).find(function (x) {
+      return x.id === id;
+    });
+    if (!item) return;
+    state.detailId = id;
+    closeDetail();
+    var overlay = document.createElement("div");
+    overlay.id = "ach-detail-overlay";
+    overlay.className = "ach-detail-overlay";
+    var equipped = isEquipped(id);
+    var unlockLine = item.unlocked
+      ? "解锁于 " + (formatUnlockTime(item.unlockedAt) || "—")
+      : item.hint || "完成对应挑战即可解锁";
+    overlay.innerHTML =
+      '<div class="ach-detail-modal" role="dialog" aria-modal="true">' +
+      '<div class="ach-detail-img-wrap">' +
+      achievementImageInner(item, "ach-cell-img") +
+      "</div>" +
+      '<h3 class="ach-detail-title">' +
+      escapeHtml(item.name || item.id) +
+      (item.tier ? ' <span class="muted">· ' + escapeHtml(item.tier) + "</span>" : "") +
+      "</h3>" +
+      '<div class="ach-detail-meta">' +
+      escapeHtml(unlockLine) +
+      "</div>" +
+      '<div class="ach-detail-body">' +
+      renderProgressHtml(item) +
+      "</div>" +
+      '<div class="ach-detail-actions">' +
+      (item.unlocked
+        ? '<button type="button" class="ach-detail-btn ach-detail-btn-primary" id="ach-detail-equip-btn">' +
+          (equipped ? "取消佩戴" : "佩戴") +
+          "</button>"
+        : "") +
+      '<button type="button" class="ach-detail-btn" id="ach-detail-close-btn">关闭</button>' +
+      "</div></div>";
+    document.body.appendChild(overlay);
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) closeDetail();
+    });
+    var closeBtn = document.getElementById("ach-detail-close-btn");
+    if (closeBtn) closeBtn.addEventListener("click", closeDetail);
+    var equipBtn = document.getElementById("ach-detail-equip-btn");
+    if (equipBtn) {
+      equipBtn.addEventListener("click", function () {
+        toggleEquip(id);
+      });
+    }
+  }
+
   function renderHomeBadges() {
     var el = document.getElementById("home-equipped-badges");
     if (!el) return;
-    var summary = state.equippedSummary && state.equippedSummary.length
-      ? state.equippedSummary
-      : buildSummaryFromEquipped();
+    var summary =
+      state.equippedSummary && state.equippedSummary.length ? state.equippedSummary : buildSummaryFromEquipped();
     if (!summary.length) {
       el.innerHTML = "";
       el.hidden = true;
@@ -248,13 +325,7 @@
     el.hidden = false;
     el.innerHTML = summary
       .map(function (b) {
-        return (
-          '<span class="home-badge-chip" title="' +
-          escapeHtml(b.name || "") +
-          '">' +
-          escapeHtml(b.icon || "🏅") +
-          "</span>"
-        );
+        return renderBadgeChip(b, "home-badge-chip");
       })
       .join("");
   }
@@ -266,7 +337,7 @@
           return x.id === id;
         });
         if (!item) return null;
-        return { id: item.id, name: item.name, icon: item.icon };
+        return { id: item.id, name: item.name, icon: item.icon, imageUrl: item.imageUrl || "" };
       })
       .filter(Boolean);
   }
@@ -277,13 +348,7 @@
       '<span class="rank-equipped-badges">' +
       badges
         .map(function (b) {
-          return (
-            '<span class="rank-badge-chip" title="' +
-            escapeHtml(b.name || "") +
-            '">' +
-            escapeHtml(b.icon || "🏅") +
-            "</span>"
-          );
+          return renderBadgeChip(b, "rank-badge-chip");
         })
         .join("") +
       "</span>"
@@ -334,8 +399,7 @@
   function handleNewAchievementsFromSync(list) {
     if (!Array.isArray(list) || !list.length) return;
     var first = list[0];
-    var xpPart = first.xpReward ? "（+" + first.xpReward + " XP）" : "";
-    showToast("解锁成就：" + (first.icon || "") + " " + (first.name || first.id) + xpPart);
+    showToast("解锁成就：" + (first.name || first.id));
     if (list.length > 1) {
       setTimeout(function () {
         showToast("另有 " + (list.length - 1) + " 个成就已解锁");
@@ -365,25 +429,19 @@
     var home = document.getElementById("home-section");
     if (home) home.classList.add("hidden");
     var sec = document.getElementById("achievement-wall-section");
-    if (sec) sec.style.display = "block";
+    if (sec) sec.style.display = "flex";
     loadState();
   }
 
   function hideWall() {
+    state.equipMode = false;
+    closeDetail();
     var sec = document.getElementById("achievement-wall-section");
     if (sec) sec.style.display = "none";
   }
 
   window.JmlAchievementsClient = {
-    init: function () {
-      var backBtn = document.getElementById("achievement-wall-back-btn");
-      if (backBtn) {
-        backBtn.addEventListener("click", function () {
-          hideWall();
-          if (typeof window.showHome === "function") window.showHome();
-        });
-      }
-    },
+    init: function () {},
     loadState: loadState,
     showWall: showWall,
     hideWall: hideWall,

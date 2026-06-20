@@ -47,6 +47,24 @@
       .replace(/"/g, '&quot;');
   }
 
+  function fileToDataUrl(file) {
+    return new Promise(function (resolve, reject) {
+      var r = new FileReader();
+      r.onerror = function () { reject(new Error('读取文件失败')); };
+      r.onload = function () { resolve(String(r.result || '')); };
+      r.readAsDataURL(file);
+    });
+  }
+
+  function resolveImagePreview(item) {
+    if (!item) return '';
+    if (item.imageUrl) return item.imageUrl;
+    var path = item.imagePath || '';
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) return path;
+    return apiBase() + path;
+  }
+
   function renderTable() {
     var wrap = document.getElementById('jml-achievements-table-wrap');
     if (!wrap) return;
@@ -60,6 +78,10 @@
     });
     var rows = items
       .map(function (item) {
+        var preview = resolveImagePreview(item);
+        var thumb = preview
+          ? '<img class="jml-ach-thumb" src="' + escapeHtml(preview) + '" alt="" />'
+          : '<span class="jml-ach-thumb jml-ach-thumb-empty">无图</span>';
         return (
           '<tr data-id="' +
           escapeHtml(item.id) +
@@ -67,9 +89,9 @@
           '<td><code>' +
           escapeHtml(item.id) +
           '</code></td>' +
-          '<td><span class="jml-ach-icon">' +
-          escapeHtml(item.icon || '') +
-          '</span> ' +
+          '<td class="jml-ach-name-cell">' +
+          thumb +
+          ' ' +
           escapeHtml(item.name || '') +
           '</td>' +
           '<td>' +
@@ -126,6 +148,7 @@
         return '<option value="' + escapeHtml(rt) + '"' + sel + '>' + escapeHtml(rt) + '</option>';
       })
       .join('');
+    var preview = resolveImagePreview(item);
     body.innerHTML =
       '<div class="jml-field"><label>id（不可改）</label><input type="text" value="' +
       escapeHtml(item.id) +
@@ -133,9 +156,9 @@
       '<div class="jml-field"><label>名称</label><input id="jml-ach-edit-name" type="text" value="' +
       escapeHtml(item.name || '') +
       '" /></div>' +
-      '<div class="jml-field"><label>icon（emoji 或短文本）</label><input id="jml-ach-edit-icon" type="text" value="' +
-      escapeHtml(item.icon || '') +
-      '" /></div>' +
+      '<div class="jml-field"><label>徽章图片（建议方图 256–512px）</label>' +
+      (preview ? '<div style="margin:0 0 8px;"><img id="jml-ach-edit-preview" src="' + escapeHtml(preview) + '" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;" /></div>' : '<div id="jml-ach-edit-preview-wrap" class="muted" style="margin:0 0 8px;">尚未上传</div>') +
+      '<input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" /></div>' +
       '<div class="jml-field"><label>分类</label><input id="jml-ach-edit-category" type="text" value="' +
       escapeHtml(item.category || '') +
       '" /></div>' +
@@ -171,10 +194,15 @@
     saveBtn.className = 'jml-btn jml-btn-primary';
     saveBtn.textContent = '保存到列表';
     saveBtn.addEventListener('click', function () {
-      applyEditToItem(item.id);
-      closeModal();
-      renderTable();
-      state.dirty = true;
+      applyEditToItem(item.id)
+        .then(function () {
+          closeModal();
+          renderTable();
+          state.dirty = true;
+        })
+        .catch(function (e) {
+          setStatus(e.message || String(e), 'err');
+        });
     });
     actions.appendChild(cancelBtn);
     actions.appendChild(saveBtn);
@@ -188,9 +216,8 @@
 
   function applyEditToItem(id) {
     var item = findItem(id);
-    if (!item) return;
+    if (!item) return Promise.resolve();
     var nameEl = document.getElementById('jml-ach-edit-name');
-    var iconEl = document.getElementById('jml-ach-edit-icon');
     var catEl = document.getElementById('jml-ach-edit-category');
     var tierEl = document.getElementById('jml-ach-edit-tier');
     var xpEl = document.getElementById('jml-ach-edit-xp');
@@ -199,8 +226,8 @@
     var ruleTypeEl = document.getElementById('jml-ach-edit-rule-type');
     var ruleParamsEl = document.getElementById('jml-ach-edit-rule-params');
     var enabledEl = document.getElementById('jml-ach-edit-enabled');
+    var imageEl = document.getElementById('jml-ach-edit-image');
     item.name = nameEl ? nameEl.value.trim() : item.name;
-    item.icon = iconEl ? iconEl.value.trim() : item.icon;
     item.category = catEl ? catEl.value.trim() : item.category;
     item.tier = tierEl ? tierEl.value.trim() : item.tier;
     item.xpReward = Math.max(0, Math.floor(Number(xpEl && xpEl.value) || 0));
@@ -211,8 +238,29 @@
     try {
       item.ruleParams = JSON.parse(ruleParamsEl ? ruleParamsEl.value : '{}');
     } catch (e) {
-      setStatus('ruleParams JSON 无效', 'err');
+      return Promise.reject(new Error('ruleParams JSON 无效'));
     }
+    var file = imageEl && imageEl.files && imageEl.files[0];
+    if (!file) return Promise.resolve();
+    setStatus('上传徽章图片…', '');
+    return fileToDataUrl(file)
+      .then(function (dataUrl) {
+        return apiFetch('/api/admin/achievements/' + encodeURIComponent(id) + '/replace-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dataUrl: dataUrl }),
+        });
+      })
+      .then(function (data) {
+        if (data.catalog) {
+          state.catalog = data.catalog;
+          item = findItem(id) || item;
+        } else if (data.item) {
+          item.imagePath = data.item.imagePath || item.imagePath;
+          item.imageUrl = data.item.imageUrl || item.imageUrl;
+        }
+        setStatus('图片已上传', 'ok');
+      });
   }
 
   function loadCatalog() {

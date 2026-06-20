@@ -26,6 +26,7 @@ function normalizeCatalogItem(raw) {
     id,
     name: String(raw.name || id),
     icon: String(raw.icon || "🏅"),
+    imagePath: String(raw.imagePath || ""),
     category: String(raw.category || "其他"),
     tier: String(raw.tier || ""),
     xpReward: Math.max(0, Math.floor(Number(raw.xpReward) || 0)),
