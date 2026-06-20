@@ -435,19 +435,24 @@
         t2 = innerPlus ? `${B} × ${k}` : `- ${B} × ${k}`;
       }
       const correctText = ebJoinSum([t1, t2]);
-      const wrong3 = kLeft
+      const w1 = kLeft
+        ? innerPlus
+          ? `${k} × ${A} + ${B}`
+          : `${k} × ${A} - ${B}`
+        : innerPlus
+          ? `${A} + ${B} × ${k}`
+          : `${A} - ${B} × ${k}`;
+      const w2 = kLeft
         ? innerPlus
           ? ebJoinSum([t1, `- ${k} × ${B}`])
           : ebJoinSum([t1, `${k} × ${B}`])
         : innerPlus
           ? ebJoinSum([t1, `- ${B} × ${k}`])
           : ebJoinSum([t1, `${B} × ${k}`]);
-      const wrong4 = kLeft ? `${k} × (${A} × ${B})` : `(${A} × ${B}) × ${k}`;
       const fullWrongPool = [
-        { text: ebJoinSum([t2]), explain: "分配时漏乘第一项。", causeNo: 1 },
-        { text: ebJoinSum([t1]), explain: "分配时漏乘第二项。", causeNo: 2 },
-        { text: wrong3, explain: "分配时第二项符号看错。", causeNo: 3 },
-        { text: wrong4, explain: "把括号内加减看成乘除。", causeNo: 4 },
+        { text: w1, explain: "仅去掉括号，未对两项都乘 k。", causeNo: 1 },
+        { text: w2, explain: "用了分配律，但两项之间的加变减（或减变加）。", causeNo: 2 },
+        { text: L2_CANNOT_REMOVE, explain: "误以为不能去括号。", causeNo: 3 },
       ];
       return { prompt, correctText, fullWrongPool };
     }
@@ -466,12 +471,14 @@
       const w1 = kLeft
         ? `${k} × ${A} ${innerOp} ${k} × ${B}`
         : `${A} × ${k} ${innerOp} ${B} × ${k}`;
-      const w2 = kLeft ? `${k} × ${A} + ${k} × ${B}` : `${A} × ${k} + ${B} × ${k}`;
-      const w3 = kLeft ? `${k} × ${A} + ${B}` : `${A} + ${B} × ${k}`;
+      const w3Op = innerTimes ? "÷" : "×";
+      const w3 = kLeft
+        ? `${k} × ${A} ${w3Op} ${B}`
+        : `${A} ${w3Op} ${B} × ${k}`;
       const fullWrongPool = [
-        { text: w1, explain: "误用乘法分配，对两项都乘 k 却没去掉括号。", causeNo: 1 },
-        { text: w2, explain: "把内层 × / ÷ 看成 + / − 去分配。", causeNo: 2 },
-        { text: w3, explain: "把内层看成 ± 且只去了一半括号。", causeNo: 3 },
+        { text: w1, explain: "误用乘法分配律，对两项都乘 k。", causeNo: 1 },
+        { text: L2_CANNOT_REMOVE, explain: "误以为不能去括号。", causeNo: 2 },
+        { text: w3, explain: "去括号时误把内层 × 与 ÷ 对调。", causeNo: 3 },
       ];
       return { prompt, correctText, fullWrongPool };
     }
@@ -536,12 +543,12 @@
       const fullWrongPool = [
         {
           text: innerPlus ? ebJoinSum([t1, `- ${B} ÷ ${k}`]) : ebJoinSum([t1, `${B} ÷ ${k}`]),
-          explain: "括号内是 + 却按 − 去分配（或反之）。",
+          explain: "用了分配律，但拆出两项之间的加变减（或减变加）。",
           causeNo: 1,
         },
         {
           text: innerPlus ? `${A} + ${B} ÷ ${k}` : `${A} - ${B} ÷ ${k}`,
-          explain: "第一项漏 ÷ k。",
+          explain: "仅去掉括号，未对两项都 ÷ k。",
           causeNo: 2,
         },
         {
@@ -557,32 +564,16 @@
       const innerOp = innerTimes ? "×" : "÷";
       const prompt = `(${A} ${innerOp} ${B}) ÷ ${k}`;
       const correctText = innerTimes ? `${A} × ${B} ÷ ${k}` : `${A} ÷ ${B} ÷ ${k}`;
+      const w1 = innerTimes
+        ? `${A} ÷ ${k} × ${B} ÷ ${k}`
+        : `${A} ÷ ${k} ÷ ${B} ÷ ${k}`;
+      const w2Op = innerTimes ? "÷" : "×";
+      const w2 = `${A} ${w2Op} ${B} ÷ ${k}`;
       const fullWrongPool = [
-        {
-          text: ebJoinSum([`${A} ÷ ${k} × ${B} ÷ ${k}`]),
-          explain: "对 (A × B) ÷ k 误用加减分配。",
-          causeNo: 1,
-        },
-        { text: `${A} × ${k} ÷ ${B}`, explain: "(A × B) ÷ k 拆写混乱。", causeNo: 2 },
-        {
-          text: ebJoinSum([`${A} ÷ ${k}`, `${B} ÷ ${k}`]),
-          explain: "把内层 × / ÷ 当成 ± 去分配。",
-          causeNo: 3,
-        },
-        { text: `${B} × ${A} ÷ ${k}`, explain: "乘除号顺序写反。", causeNo: 4 },
+        { text: w1, explain: "误用分配律，对两项都 ÷ k。", causeNo: 1 },
+        { text: w2, explain: "去括号时误把内层 × 与 ÷ 对调。", causeNo: 2 },
+        { text: L2_CANNOT_REMOVE, explain: "误以为不能去括号。", causeNo: 3 },
       ];
-      if (!innerTimes) {
-        fullWrongPool[1] = {
-          text: `${A} ÷ ${k} + ${B} ÷ ${k}`,
-          explain: "对 (A ÷ B) ÷ k 误用加减分配。",
-          causeNo: 1,
-        };
-        fullWrongPool[3] = {
-          text: `${B} ÷ ${A} ÷ ${k}`,
-          explain: "乘除号顺序写反。",
-          causeNo: 4,
-        };
-      }
       return { prompt, correctText, fullWrongPool };
     }
 
