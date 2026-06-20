@@ -776,7 +776,7 @@
       const k = params.k;
       const xCoeff = params.term1.kind === "x" ? params.term1.mag : params.term2.mag;
 
-      if (outerPlus) {
+      if (questionType === L3_TYPE_T1) {
         return [
           {
             text: l3AnswerText(params, { multFirst: true, multSecond: false }),
@@ -784,21 +784,36 @@
             causeNo: 1,
           },
           {
-            text: l3AnswerText(params, { multFirst: false, multSecond: false }),
-            explain: "括号内两项都忘了乘 k。",
-            causeNo: 2,
-          },
-          {
             text: l3AnswerText(params, { innerPlus: !innerPlus }),
             explain: innerPlus
               ? "内层应是「加」却按「减」分配。"
               : "内层应是「减」却按「加」分配。",
-            causeNo: 3,
+            causeNo: 2,
           },
           {
             text: l3AnswerText(params, { xMag: k * l3AltMag(xCoeff, 1) }),
             explain: "k 与 x 的系数相乘算错。",
-            causeNo: 4,
+            causeNo: 3,
+          },
+        ];
+      }
+
+      if (questionType === L3_TYPE_T2) {
+        return [
+          {
+            text: l3AnswerText(params, { multFirst: true, multSecond: false }),
+            explain: "第二项忘了乘括号外的 k。",
+            causeNo: 1,
+          },
+          {
+            text: l3AnswerText(params, { innerPlus: !innerPlus }),
+            explain: "内层应是「减」却按「加」分配。",
+            causeNo: 2,
+          },
+          {
+            text: l3AnswerText(params, { xMag: k * l3AltMag(xCoeff, 1) }),
+            explain: "k 与 x 的系数相乘算错。",
+            causeNo: 3,
           },
         ];
       }
@@ -806,65 +821,38 @@
       if (questionType === L3_TYPE_T3) {
         return [
           {
-            text: l3AnswerText(params, {}, "plus"),
-            explain: "括号外是减号，但括号里两项都没变号。",
-            causeNo: 1,
-          },
-          {
             text: l3AnswerText(params, {}, "minusFirst"),
-            explain: "括号外是减号，但只变了第一项的符号。",
-            causeNo: 2,
-          },
-          {
-            text: l3AnswerText(params, {}, "minusSecond"),
-            explain: "括号外是减号，但只变了第二项的符号。",
-            causeNo: 2,
+            explain: "只变了第一项，第二项忘记变号。",
+            causeNo: 1,
           },
           {
             text: l3AnswerText(params, { multFirst: true, multSecond: false }),
             explain: "变号对但第二项忘了乘 k。",
-            causeNo: 3,
+            causeNo: 2,
           },
           {
-            text: l3AnswerText(params, { multFirst: false, multSecond: false }),
-            explain: "变号对但两项都忘了乘 k。",
-            causeNo: 4,
+            text: l3AnswerText(params, { xMag: k * l3AltMag(xCoeff, 1) }),
+            explain: "乘积有一处错。",
+            causeNo: 3,
           },
         ];
       }
 
       return [
         {
-          text: l3AnswerText(params, {}, "plus"),
-          explain: "外「减」、内「减」时变号规则全错。",
-          causeNo: 1,
-        },
-        {
-          text: l3AnswerText(params, {}, "minusFirst"),
-          explain: "只变一项，或内层减号看错。",
-          causeNo: 2,
-        },
-        {
           text: l3AnswerText(params, {}, "minusSecond"),
-          explain: "只变一项，或内层减号看错。",
-          causeNo: 2,
-        },
-        {
-          text: l3AnswerText(params, { innerPlus: !innerPlus }),
-          explain: innerPlus
-            ? "内层应是「加」却按「减」分配。"
-            : "内层应是「减」却按「加」分配。",
-          causeNo: 2,
+          explain: "第二项变号错。",
+          causeNo: 1,
         },
         {
           text: l3AnswerText(params, { multFirst: true, multSecond: false }),
           explain: "变号对但第二项忘了乘 k。",
-          causeNo: 3,
+          causeNo: 2,
         },
         {
           text: l3AnswerText(params, { xMag: k * l3AltMag(xCoeff, 1) }),
-          explain: "变号、乘 k 都试了但算积错。",
-          causeNo: 4,
+          explain: "变号、乘 k 规则都对但算积错。",
+          causeNo: 3,
         },
       ];
     }
@@ -1172,7 +1160,7 @@
       const outerPlus = params.outerPlus;
       const innerPlus = params.innerPlus;
 
-      if (outerPlus) {
+      if (questionType === L4_TYPE_T1) {
         return [
           {
             text: l4AnswerText(params, { multFirst: true, multSecond: false }),
@@ -1180,21 +1168,36 @@
             causeNo: 1,
           },
           {
-            text: l4AnswerText(params, { multFirst: false, multSecond: false }),
-            explain: "括号内两项都忘了乘 B。",
-            causeNo: 2,
-          },
-          {
             text: l4AnswerText(params, { innerPlus: !innerPlus }),
             explain: innerPlus
               ? "内层应是「加」却按「减」分配。"
               : "内层应是「减」却按「加」分配。",
-            causeNo: 3,
+            causeNo: 2,
           },
           {
             text: l4AnswerText(params, l4WrongMagOpts(params)),
             explain: "乘积算错。",
-            causeNo: 4,
+            causeNo: 3,
+          },
+        ];
+      }
+
+      if (questionType === L4_TYPE_T2) {
+        return [
+          {
+            text: l4AnswerText(params, { multFirst: true, multSecond: false }),
+            explain: "第二项忘了乘括号外的 B。",
+            causeNo: 1,
+          },
+          {
+            text: l4AnswerText(params, { innerPlus: !innerPlus }),
+            explain: "内层应是「减」却按「加」分配。",
+            causeNo: 2,
+          },
+          {
+            text: l4AnswerText(params, l4WrongMagOpts(params)),
+            explain: "乘积算错。",
+            causeNo: 3,
           },
         ];
       }
@@ -1202,65 +1205,38 @@
       if (questionType === L4_TYPE_T3) {
         return [
           {
-            text: l4AnswerText(params, {}, "plus"),
-            explain: "括号外是减号，但括号里两项都没变号。",
-            causeNo: 1,
-          },
-          {
             text: l4AnswerText(params, {}, "minusFirst"),
-            explain: "括号外是减号，但只变了第一项的符号。",
-            causeNo: 2,
-          },
-          {
-            text: l4AnswerText(params, {}, "minusSecond"),
-            explain: "括号外是减号，但只变了第二项的符号。",
-            causeNo: 2,
+            explain: "只变了第一项，第二项忘记变号。",
+            causeNo: 1,
           },
           {
             text: l4AnswerText(params, { multFirst: true, multSecond: false }),
             explain: "变号对但第二项忘了乘 B。",
-            causeNo: 3,
+            causeNo: 2,
           },
           {
-            text: l4AnswerText(params, { multFirst: false, multSecond: false }),
-            explain: "变号对但两项都忘了乘 B。",
-            causeNo: 4,
+            text: l4AnswerText(params, l4WrongMagOpts(params)),
+            explain: "乘积有一处错。",
+            causeNo: 3,
           },
         ];
       }
 
       return [
         {
-          text: l4AnswerText(params, {}, "plus"),
-          explain: "外「减」、内「减」时变号规则全错。",
-          causeNo: 1,
-        },
-        {
-          text: l4AnswerText(params, {}, "minusFirst"),
-          explain: "只变一项，或内层减号看错。",
-          causeNo: 2,
-        },
-        {
           text: l4AnswerText(params, {}, "minusSecond"),
-          explain: "只变一项，或内层减号看错。",
-          causeNo: 2,
-        },
-        {
-          text: l4AnswerText(params, { innerPlus: !innerPlus }),
-          explain: innerPlus
-            ? "内层应是「加」却按「减」分配。"
-            : "内层应是「减」却按「加」分配。",
-          causeNo: 2,
+          explain: "第二项变号错。",
+          causeNo: 1,
         },
         {
           text: l4AnswerText(params, { multFirst: true, multSecond: false }),
           explain: "变号对但第二项忘了乘 B。",
-          causeNo: 3,
+          causeNo: 2,
         },
         {
           text: l4AnswerText(params, l4WrongMagOpts(params)),
-          explain: "变号、乘 B 都试了但算积错。",
-          causeNo: 4,
+          explain: "变号、乘 B 规则都对但算积错。",
+          causeNo: 3,
         },
       ];
     }
