@@ -850,37 +850,16 @@ if (fs.existsSync(DOCS_DIR)) {
   app.use("/docs", express.static(DOCS_DIR));
 }
 
-function clampUnlockScore(v) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.floor(n));
-}
-
 function clampUnlockLevel(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 1;
   return Math.max(1, Math.floor(n));
 }
 
-function resolveAvatarUnlockLevel(raw) {
-  if (raw && raw.unlockLevel != null && Number.isFinite(Number(raw.unlockLevel))) {
-    return clampUnlockLevel(raw.unlockLevel);
-  }
-  if (raw && raw.unlockScore != null && Number.isFinite(Number(raw.unlockScore))) {
-    return clampUnlockLevel(playerLevel.levelForTotalXp(clampUnlockScore(raw.unlockScore)));
-  }
-  return 1;
-}
-
-function getUserPlayerLevel(user) {
-  const totalXp = Number(user && user.totalScore) || 0;
-  return playerLevel.levelForTotalXp(totalXp);
-}
-
 function isAvatarUnlockedForUser(user, item) {
   if (!item || item.enabled === false) return false;
-  const needLevel = clampUnlockLevel(item.unlockLevel);
-  return getUserPlayerLevel(user) >= needLevel;
+  const playerLv = playerLevel.levelForTotalXp(Number(user && user.totalScore) || 0);
+  return playerLv >= clampUnlockLevel(item.unlockLevel);
 }
 
 function sanitizeAvatarName(v, fallback) {
@@ -897,8 +876,7 @@ function normalizeAvatarEntry(raw, index) {
     id,
     name: sanitizeAvatarName(raw && raw.name, id),
     imagePath: typeof (raw && raw.imagePath) === "string" ? raw.imagePath : "",
-    unlockScore: clampUnlockScore(raw && raw.unlockScore),
-    unlockLevel: resolveAvatarUnlockLevel(raw),
+    unlockLevel: clampUnlockLevel(raw && raw.unlockLevel),
     order,
     enabled: raw && raw.enabled !== false,
     createdAt: Number(raw && raw.createdAt) || Date.now(),
@@ -958,7 +936,6 @@ function buildAvatarPublic(item, req) {
     id: item.id,
     name: item.name,
     imageUrl,
-    unlockScore: item.unlockScore,
     unlockLevel: clampUnlockLevel(item.unlockLevel),
     order: item.order,
     enabled: item.enabled !== false,
@@ -2404,7 +2381,7 @@ app.get("/api/admin/avatars", (req, res) => {
   res.json({ ok: true, avatars: list });
 });
 
-// ========== 管理员：保存头像列表（名称/解锁积分/启用/排序） ==========
+// ========== 管理员：保存头像列表（名称/解锁等级/启用/排序） ==========
 app.put("/api/admin/avatars", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
@@ -2422,8 +2399,7 @@ app.put("/api/admin/avatars", (req, res) => {
       {
         id,
         name: x && x.name,
-        unlockScore: x && x.unlockScore != null ? x.unlockScore : (old ? old.unlockScore : 0),
-        unlockLevel: x && x.unlockLevel != null ? x.unlockLevel : (old ? old.unlockLevel : undefined),
+        unlockLevel: x && x.unlockLevel != null ? x.unlockLevel : (old ? old.unlockLevel : 1),
         enabled: x && x.enabled,
         // order 只作为“同等级内的手动排序”权重使用；全局排序由服务端按规则重排
         order: Number.isFinite(Number(x && x.order)) ? Number(x.order) : i,
@@ -2461,7 +2437,7 @@ app.post("/api/admin/avatars/upload", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const { name, unlockScore, unlockLevel, dataUrl } = req.body || {};
+  const { name, unlockLevel, dataUrl } = req.body || {};
   const parsed = parseDataUrl(dataUrl);
   if (!parsed) {
     return res.json({ ok: false, error: "图片格式不支持（仅 png/jpg/webp 的 dataUrl）" });
@@ -2475,8 +2451,7 @@ app.post("/api/admin/avatars/upload", (req, res) => {
     id,
     name: sanitizeAvatarName(name, id),
     imagePath: `/avatar-assets/${fileName}`,
-    unlockScore: clampUnlockScore(unlockScore),
-    unlockLevel: unlockLevel != null ? clampUnlockLevel(unlockLevel) : resolveAvatarUnlockLevel({ unlockScore }),
+    unlockLevel: clampUnlockLevel(unlockLevel),
     order: 0,
     enabled: true,
     createdAt: Date.now(),
@@ -2556,7 +2531,6 @@ app.post("/api/admin/avatars/init-legacy", (req, res) => {
       id,
       name: base,
       imagePath: `/avatar-assets/${targetName}`,
-      unlockScore: 0,
       unlockLevel: 1,
       order: 0,
       enabled: true,

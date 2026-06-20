@@ -903,7 +903,6 @@
           return {
             id: a.id,
             name: a.name || '',
-            unlockScore: Number(a.unlockScore) || 0,
             unlockLevel: Math.max(1, Math.floor(Number(a.unlockLevel) || 1)),
             order: Number.isFinite(Number(a.__orderWithin)) ? Number(a.__orderWithin) : 0,
             enabled: a.enabled !== false,
