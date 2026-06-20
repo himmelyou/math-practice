@@ -6398,10 +6398,10 @@
         "game.over.trainingBrushDoneTitle": "訓練結束！",
         "game.training.promoteLevelUp": "升級！",
         "game.training.promoteStayHint": "準確率低於通關線，繼續在本級練習。",
-        "game.training.dailyRunPass": "本局達標！下次將從下一關掃描。",
+        "game.training.dailyRunPass": "本局達標！下次將挑戰下一關。",
         "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
         "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
-        "game.training.subtitle.dailyRules": "當日闖關：從 L1 找加權<95% 的關；單局 {n} 題≥95% 則推進，否則同關再練（3 敗換關或進刷熱圖）；無弱關則開新關（題數<10）。",
+        "game.training.subtitle.dailyRules": "當日闖關：按梯子頂 M 穩關或開 M+1；單局 {n} 題≥95% 則推進下一關，否則同關再練（3 敗進刷熱圖）；M 以下掉線在刷熱圖 pool 內補。",
         "game.display.levelOrdinal": "第 {n} 級",
         "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
         "game.display.percent": "{pct}%",
@@ -6863,10 +6863,10 @@
         "game.over.trainingBrushDoneTitle": "Training complete!",
         "game.training.promoteLevelUp": "Level up!",
         "game.training.promoteStayHint": "Accuracy is below the promotion line. Keep practicing at this level.",
-        "game.training.dailyRunPass": "Run cleared! Next time we scan from the next level.",
+        "game.training.dailyRunPass": "Run cleared! Next time: the next level.",
         "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
         "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
-        "game.training.subtitle.dailyRules": "Daily climb: find first level with weighted accuracy <95%; pass a {n}-question run at ≥95% to advance; 3 fails → switch or brush; open new level if none (n<10).",
+        "game.training.subtitle.dailyRules": "Daily: stabilize ladder top M or open M+1; pass a {n}-question run at ≥95% to advance; 3 fails → brush; regressions below M are fixed in the brush pool.",
         "game.display.levelOrdinal": "Level {n}",
         "game.over.levelRunBestTitle": "Best this run: level {n}",
         "game.display.percent": "{pct}%",
@@ -6965,6 +6965,14 @@
 
     function getTrainingReasonLabels() {
       return {
+        brushFixRed: t("stats.training.reason.brushFixRed"),
+        brushPickSpeed: t("stats.training.reason.brushPickSpeed"),
+        frontierStabilizeM: t("stats.training.reason.frontierStabilizeM"),
+        frontierOpenM1: t("stats.training.reason.frontierOpenM1"),
+        dailyClear: t("stats.training.reason.dailyClear"),
+        dailyPassAllClear: t("stats.training.reason.dailyPassAllClear"),
+        dailyFailEnterBrush: t("stats.training.reason.dailyFailEnterBrush"),
+        dailyPassNext: t("stats.training.reason.dailyPassNext"),
         brush: t("stats.training.reason.brush"),
         scanBelow: t("stats.training.reason.scanBelow"),
         openNew: t("stats.training.reason.openNew"),
@@ -9036,7 +9044,6 @@
       const runPass = accuracy >= 0.95;
 
       if (trainingRunBrushMode) {
-        recordTrainingLastRun(levelThisRun, runPass, 0);
         await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
           trainingMeta: buildTrainingRunMeta({ runPass, failCount: 0, runBrushMode: true }),
         });
@@ -11105,6 +11112,7 @@
       return {
         dayKey: getLocalTrainingDayKey(),
         brushMode: false,
+        brushPoolMax: null,
         lastRun: null,
       };
     }
@@ -11156,6 +11164,10 @@
       st.dayKey = getLocalTrainingDayKey();
       if (result && result.enterBrush) {
         st.brushMode = true;
+        st.brushPoolMax =
+          result.brushPoolMax != null && Number.isFinite(Number(result.brushPoolMax))
+            ? Math.min(15, Math.max(0, Math.floor(Number(result.brushPoolMax))))
+            : 15;
         st.lastRun = null;
       }
       return st;
@@ -11167,7 +11179,8 @@
       return {
         pickedLevel: currentLevelIndex,
         pickMode: trainingSessionBrushMode ? "brush" : "daily",
-        pickReason: pick && pick.reason ? String(pick.reason) : "",
+        pickReason: pick && pick.pickReason ? String(pick.pickReason) : pick && pick.reason ? String(pick.reason) : "",
+        brushPoolMax: st.brushMode && st.brushPoolMax != null ? st.brushPoolMax : null,
         brushMode: !!st.brushMode,
         runBrushMode: !!trainingSessionBrushMode,
         lastRunBefore: st.lastRun
@@ -11191,6 +11204,7 @@
         dayStateAfter: {
           dayKey: st.dayKey,
           brushMode: !!st.brushMode,
+          brushPoolMax: st.brushMode && st.brushPoolMax != null ? st.brushPoolMax : null,
           lastRun: st.lastRun
             ? {
                 levelIndex: st.lastRun.levelIndex,

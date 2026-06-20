@@ -91,6 +91,14 @@
 
   function getReportTrainingReasonLabels() {
     return {
+      brushFixRed: rt('stats.training.reason.brushFixRed'),
+      brushPickSpeed: rt('stats.training.reason.brushPickSpeed'),
+      frontierStabilizeM: rt('stats.training.reason.frontierStabilizeM'),
+      frontierOpenM1: rt('stats.training.reason.frontierOpenM1'),
+      dailyClear: rt('stats.training.reason.dailyClear'),
+      dailyPassAllClear: rt('stats.training.reason.dailyPassAllClear'),
+      dailyFailEnterBrush: rt('stats.training.reason.dailyFailEnterBrush'),
+      dailyPassNext: rt('stats.training.reason.dailyPassNext'),
       brush: rt('stats.training.reason.brush'),
       scanBelow: rt('stats.training.reason.scanBelow'),
       openNew: rt('stats.training.reason.openNew'),
