@@ -809,10 +809,53 @@ function readManageableI18nFromDisk() {
   return normalizeI18nPayload(raw);
 }
 
+/** 總積分榜改名等級榜：线上 i18n.json 里旧文案在部署后自动对齐代码默认。 */
+const SCORE_RANKING_I18N_KEYS = [
+  "ranking.score",
+  "ranking.hint.score.loading",
+  "ranking.hint.score.needNet",
+  "ranking.hint.score.desc",
+  "ranking.hint.score.fail",
+  "ranking.hint.tabLoading.score",
+];
+
+function needsScoreRankingI18nMigrate(value, key) {
+  const s = String(value || "");
+  if (!s) return false;
+  if (s.includes("總積分榜") || s.includes("总积分榜")) return true;
+  if (key === "ranking.hint.score.desc" && s.includes("按總積分") && !s.includes("總經驗")) return true;
+  if (key === "ranking.score" && /total\s*score/i.test(s) && !/level\s*rank/i.test(s)) return true;
+  return false;
+}
+
+function migrateI18nScoreRankingLabels() {
+  if (!fs.existsSync(I18N_FILE)) return;
+  const raw = readJson(I18N_FILE, {});
+  const defaults = defaultI18nPayload();
+  let changed = false;
+  ["zhHant", "en"].forEach((lang) => {
+    const src = raw[lang];
+    if (!src || typeof src !== "object") return;
+    SCORE_RANKING_I18N_KEYS.forEach((key) => {
+      const cur = src[key];
+      if (typeof cur !== "string" || !needsScoreRankingI18nMigrate(cur, key)) return;
+      const next = defaults[lang] && defaults[lang][key];
+      if (!next || cur === next) return;
+      src[key] = next;
+      changed = true;
+    });
+  });
+  if (changed) {
+    writeJson(I18N_FILE, normalizeI18nPayload(raw));
+    console.log("[i18n] migrated score-ranking labels (總積分榜 → 等級榜)");
+  }
+}
+
 // 确保 data 目录存在
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
+migrateI18nScoreRankingLabels();
 if (!fs.existsSync(AVATAR_ASSET_DIR)) {
   fs.mkdirSync(AVATAR_ASSET_DIR, { recursive: true });
 }

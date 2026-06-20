@@ -9681,7 +9681,7 @@
         empty.style.display = hasAny ? "none" : "block";
         if (hint) hint.textContent = t("ranking.hint.score.desc");
       } catch (e) {
-        console.warn("加载总积分榜失败", e);
+        console.warn("加载等级榜失败", e);
         tbody.innerHTML = "";
         empty.style.display = "block";
         if (hint) hint.textContent = t("ranking.hint.score.fail");
