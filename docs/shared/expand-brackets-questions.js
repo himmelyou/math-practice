@@ -840,7 +840,7 @@
 
       return [
         {
-          text: l3AnswerText(params, {}, "minusSecond"),
+          text: l3AnswerText(params, {}, "minusFirst"),
           explain: "第二项变号错。",
           causeNo: 1,
         },
@@ -1224,7 +1224,7 @@
 
       return [
         {
-          text: l4AnswerText(params, {}, "minusSecond"),
+          text: l4AnswerText(params, {}, "minusFirst"),
           explain: "第二项变号错。",
           causeNo: 1,
         },
