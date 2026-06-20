@@ -7613,11 +7613,20 @@
       return apiAppendRun(name, runEntry);
     }
 
-    function recordWrongAnswer(text, answer, studentAnswer) {
+    function recordWrongAnswer(text, answer, studentAnswer, levelIndex) {
       if (isGuestMode || gameMode === "wrong") return;
       const name = loadCurrentUsername();
       if (!name) return;
-      const entry = { text: String(text || ""), answer: Number(answer), studentAnswer: Number(studentAnswer) };
+      const lv = typeof levelIndex === "number" && Number.isFinite(levelIndex)
+        ? Math.max(0, Math.min(15, Math.floor(levelIndex)))
+        : Math.max(0, Math.min(15, Math.floor(currentLevelIndex)));
+      const entry = {
+        text: String(text || ""),
+        answer: Number(answer),
+        studentAnswer: Number(studentAnswer),
+        ts: Date.now(),
+        levelIndex: lv,
+      };
       apiAppendWrongAnswer(name, entry);
     }
 
@@ -8667,8 +8676,9 @@
       } else {
         runWrongCount += 1;
         consecutiveCorrect = 0;
+        const levelAtWrong = currentLevelIndex;
         if (currentLevelIndex > 0) currentLevelIndex -= 1;
-        recordWrongAnswer(question.text, question.answer, userAnswer);
+        recordWrongAnswer(question.text, question.answer, userAnswer, levelAtWrong);
         setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
       }
       updateSurvivalStatusUI();

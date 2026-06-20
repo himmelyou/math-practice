@@ -1244,6 +1244,11 @@ app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData,
     text: String(raw.text || ""),
     answer: Number(raw.answer),
     studentAnswer: Number(raw.studentAnswer),
+    ts: typeof raw.ts === "number" && Number.isFinite(raw.ts) ? raw.ts : Date.now(),
+    levelIndex:
+      typeof raw.levelIndex === "number" && Number.isFinite(raw.levelIndex)
+        ? Math.max(0, Math.min(15, Math.floor(raw.levelIndex)))
+        : 0,
   };
   u.wrongAnswers.unshift(entry);
   if (u.wrongAnswers.length > WRONGBOOK_MAX_STORE) {
