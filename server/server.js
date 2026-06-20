@@ -11,6 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const heatmapStats = require("./stats-heatmap");
+const playerLevel = require("./player-level");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
@@ -855,6 +856,33 @@ function clampUnlockScore(v) {
   return Math.max(0, Math.floor(n));
 }
 
+function clampUnlockLevel(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.max(1, Math.floor(n));
+}
+
+function resolveAvatarUnlockLevel(raw) {
+  if (raw && raw.unlockLevel != null && Number.isFinite(Number(raw.unlockLevel))) {
+    return clampUnlockLevel(raw.unlockLevel);
+  }
+  if (raw && raw.unlockScore != null && Number.isFinite(Number(raw.unlockScore))) {
+    return clampUnlockLevel(playerLevel.levelForTotalXp(clampUnlockScore(raw.unlockScore)));
+  }
+  return 1;
+}
+
+function getUserPlayerLevel(user) {
+  const totalXp = Number(user && user.totalScore) || 0;
+  return playerLevel.levelForTotalXp(totalXp);
+}
+
+function isAvatarUnlockedForUser(user, item) {
+  if (!item || item.enabled === false) return false;
+  const needLevel = clampUnlockLevel(item.unlockLevel);
+  return getUserPlayerLevel(user) >= needLevel;
+}
+
 function sanitizeAvatarName(v, fallback) {
   const s = typeof v === "string" ? v.trim() : "";
   if (!s) return fallback || "未命名头像";
@@ -870,6 +898,7 @@ function normalizeAvatarEntry(raw, index) {
     name: sanitizeAvatarName(raw && raw.name, id),
     imagePath: typeof (raw && raw.imagePath) === "string" ? raw.imagePath : "",
     unlockScore: clampUnlockScore(raw && raw.unlockScore),
+    unlockLevel: resolveAvatarUnlockLevel(raw),
     order,
     enabled: raw && raw.enabled !== false,
     createdAt: Number(raw && raw.createdAt) || Date.now(),
@@ -930,6 +959,7 @@ function buildAvatarPublic(item, req) {
     name: item.name,
     imageUrl,
     unlockScore: item.unlockScore,
+    unlockLevel: clampUnlockLevel(item.unlockLevel),
     order: item.order,
     enabled: item.enabled !== false,
   };
@@ -941,9 +971,7 @@ function resolveUserAvatarIdOrEmpty(user) {
   const catalog = readAvatarCatalog();
   const item = catalog.find((x) => x.id === id);
   if (!item || item.enabled === false) return "";
-  const score = Number(user && user.totalScore) || 0;
-  const need = clampUnlockScore(item.unlockScore);
-  if (score >= need) return id;
+  if (isAvatarUnlockedForUser(user, item)) return id;
   return "";
 }
 
@@ -955,10 +983,9 @@ function validateAndNormalizeAvatarIdForUser(user, avatarId) {
   if (!item || item.enabled === false) {
     return { ok: false, status: 400, error: "无效的头像" };
   }
-  const score = Number(user && user.totalScore) || 0;
-  const need = clampUnlockScore(item.unlockScore);
-  if (score < need) {
-    return { ok: false, status: 403, error: `头像未解锁：需要 ${need} 分` };
+  const needLevel = clampUnlockLevel(item.unlockLevel);
+  if (!isAvatarUnlockedForUser(user, item)) {
+    return { ok: false, status: 403, error: `头像未解锁：需要 Lv.${needLevel}` };
   }
   return { ok: true, value: id };
 }
@@ -2395,9 +2422,10 @@ app.put("/api/admin/avatars", (req, res) => {
       {
         id,
         name: x && x.name,
-        unlockScore: x && x.unlockScore,
+        unlockScore: x && x.unlockScore != null ? x.unlockScore : (old ? old.unlockScore : 0),
+        unlockLevel: x && x.unlockLevel != null ? x.unlockLevel : (old ? old.unlockLevel : undefined),
         enabled: x && x.enabled,
-        // order 只作为“同积分内的手动排序”权重使用；全局排序由服务端按规则重排
+        // order 只作为“同等级内的手动排序”权重使用；全局排序由服务端按规则重排
         order: Number.isFinite(Number(x && x.order)) ? Number(x.order) : i,
         imagePath: old ? old.imagePath : "",
         createdAt: old ? old.createdAt : Date.now(),
@@ -2407,16 +2435,16 @@ app.put("/api/admin/avatars", (req, res) => {
   });
   // 固化排序规则：
   // 1) 启用的在前；禁用的全在最后
-  // 2) 启用部分按 unlockScore 升序
-  // 3) 同 unlockScore 内按传入 order（手动排序）升序
+  // 2) 启用部分按 unlockLevel 升序
+  // 3) 同 unlockLevel 内按传入 order（手动排序）升序
   const next = nextRaw
     .slice()
     .sort((a, b) => {
       const ea = a.enabled !== false ? 1 : 0;
       const eb = b.enabled !== false ? 1 : 0;
       if (ea !== eb) return eb - ea;
-      const sa = clampUnlockScore(a.unlockScore);
-      const sb = clampUnlockScore(b.unlockScore);
+      const sa = clampUnlockLevel(a.unlockLevel);
+      const sb = clampUnlockLevel(b.unlockLevel);
       if (sa !== sb) return sa - sb;
       const oa = Number.isFinite(Number(a.order)) ? Number(a.order) : 0;
       const ob = Number.isFinite(Number(b.order)) ? Number(b.order) : 0;
@@ -2433,7 +2461,7 @@ app.post("/api/admin/avatars/upload", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const { name, unlockScore, dataUrl } = req.body || {};
+  const { name, unlockScore, unlockLevel, dataUrl } = req.body || {};
   const parsed = parseDataUrl(dataUrl);
   if (!parsed) {
     return res.json({ ok: false, error: "图片格式不支持（仅 png/jpg/webp 的 dataUrl）" });
@@ -2448,6 +2476,7 @@ app.post("/api/admin/avatars/upload", (req, res) => {
     name: sanitizeAvatarName(name, id),
     imagePath: `/avatar-assets/${fileName}`,
     unlockScore: clampUnlockScore(unlockScore),
+    unlockLevel: unlockLevel != null ? clampUnlockLevel(unlockLevel) : resolveAvatarUnlockLevel({ unlockScore }),
     order: 0,
     enabled: true,
     createdAt: Date.now(),
@@ -2528,6 +2557,7 @@ app.post("/api/admin/avatars/init-legacy", (req, res) => {
       name: base,
       imagePath: `/avatar-assets/${targetName}`,
       unlockScore: 0,
+      unlockLevel: 1,
       order: 0,
       enabled: true,
       createdAt: Date.now(),

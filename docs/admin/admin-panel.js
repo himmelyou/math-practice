@@ -745,7 +745,7 @@
       thumb +
       '</td>' +
       '<td><div class="jml-avatar-name-text">' + escapeHtml(a.name || '') + '</div></td>' +
-      '<td class="num">' + escapeHtml(String(a.unlockScore || 0)) + '</td>' +
+      '<td class="num">' + escapeHtml(String(a.unlockLevel != null ? a.unlockLevel : 1)) + '</td>' +
       '<td><span class="jml-badge ' + enabledCls + '">' + enabledText + '</span></td>' +
       '</tr>'
     );
@@ -761,7 +761,7 @@
   }
 
   function enforceAvatarOrdering() {
-    // 规则：启用在前；按解锁积分升序；同积分保持当前相对顺序（可通过拖拽改变）
+    // 规则：启用在前；按解锁等级升序；同等级保持当前相对顺序（可通过拖拽改变）
     var list = state.avatars || [];
     var seq = new Map();
     list.forEach(function (x, i) {
@@ -771,8 +771,8 @@
       var ea = a && a.enabled !== false ? 1 : 0;
       var eb = b && b.enabled !== false ? 1 : 0;
       if (ea !== eb) return eb - ea;
-      var sa = Number(a && a.unlockScore) || 0;
-      var sb = Number(b && b.unlockScore) || 0;
+      var sa = Number(a && a.unlockLevel) || 1;
+      var sb = Number(b && b.unlockLevel) || 1;
       if (sa !== sb) return sa - sb;
       var ia = seq.get(a && a.id);
       var ib = seq.get(b && b.id);
@@ -820,13 +820,13 @@
         var insertAt = before ? to : to + 1;
         if (insertAt > state.avatars.length) insertAt = state.avatars.length;
         state.avatars.splice(insertAt, 0, item);
-        // 若跨积分组拖拽，会被自动重排回规则顺序
+        // 若跨等级组拖拽，会被自动重排回规则顺序
         var targetId = tr.getAttribute('data-id') || '';
         var targetItem = state.avatars.find(function (x) { return x && x.id === targetId; });
-        var srcScore = Number(item && item.unlockScore) || 0;
-        var tgtScore = Number(targetItem && targetItem.unlockScore) || 0;
-        if (srcScore !== tgtScore) {
-          setStatus('拖拽仅用于同积分内排序；已自动重排', 'err');
+        var srcLevel = Number(item && item.unlockLevel) || 1;
+        var tgtLevel = Number(targetItem && targetItem.unlockLevel) || 1;
+        if (srcLevel !== tgtLevel) {
+          setStatus('拖拽仅用于同等级内排序；已自动重排', 'err');
         }
         enforceAvatarOrdering();
         renderAvatarsTable();
@@ -890,10 +890,10 @@
     enforceAvatarOrdering();
     setStatus('保存头像中…', '');
     try {
-      // order 字段仅用于“同积分内的手动排序”
+      // order 字段仅用于“同等级内的手动排序”
       var orderWithin = {};
       state.avatars.forEach(function (a) {
-        var key = (a && a.enabled !== false ? '1' : '0') + '_' + String(Number(a && a.unlockScore) || 0);
+        var key = (a && a.enabled !== false ? '1' : '0') + '_' + String(Number(a && a.unlockLevel) || 1);
         orderWithin[key] = orderWithin[key] || 0;
         a.__orderWithin = orderWithin[key];
         orderWithin[key] += 1;
@@ -904,6 +904,7 @@
             id: a.id,
             name: a.name || '',
             unlockScore: Number(a.unlockScore) || 0,
+            unlockLevel: Math.max(1, Math.floor(Number(a.unlockLevel) || 1)),
             order: Number.isFinite(Number(a.__orderWithin)) ? Number(a.__orderWithin) : 0,
             enabled: a.enabled !== false,
           };
@@ -926,7 +927,7 @@
       '<div class="muted" style="margin:0 0 10px;">选择图片后上传（png/jpg/webp）。</div>' +
         '<div class="jml-field"><input id="jml-avatar-file" type="file" accept="image/*" /></div>' +
         fieldHtml('jml-avatar-name', '头像名', '<input id="jml-avatar-name" type="text" />') +
-        fieldHtml('jml-avatar-unlock', '解锁积分', '<input id="jml-avatar-unlock" type="number" value="0" />'),
+        fieldHtml('jml-avatar-unlock', '解锁等级', '<input id="jml-avatar-unlock" type="number" min="1" step="1" value="1" />'),
       [
         { label: '取消', onClick: closeModal },
         {
@@ -937,13 +938,13 @@
             var f = fileInput && fileInput.files && fileInput.files[0];
             if (!f) return;
             var name = (document.getElementById('jml-avatar-name').value || '').trim();
-            var unlock = Math.max(0, Math.floor(Number(document.getElementById('jml-avatar-unlock').value) || 0));
+            var unlock = Math.max(1, Math.floor(Number(document.getElementById('jml-avatar-unlock').value) || 1));
             try {
               setStatus('上传中…', '');
               var dataUrl = await fileToDataUrl(f);
               await apiFetch('/api/admin/avatars/upload', {
                 method: 'POST',
-                body: JSON.stringify({ name: name, unlockScore: unlock, dataUrl: dataUrl }),
+                body: JSON.stringify({ name: name, unlockLevel: unlock, dataUrl: dataUrl }),
               });
               closeModal();
               await loadAvatars();
@@ -1017,7 +1018,7 @@
     openModal(
       '修改所选头像',
       fieldHtml('jml-avatar-meta-name', '头像名', '<input id="jml-avatar-meta-name" type="text" value="' + escapeHtml(item.name || '') + '" />') +
-        fieldHtml('jml-avatar-meta-unlock', '解锁积分', '<input id="jml-avatar-meta-unlock" type="number" value="' + String(item.unlockScore || 0) + '" />') +
+        fieldHtml('jml-avatar-meta-unlock', '解锁等级', '<input id="jml-avatar-meta-unlock" type="number" min="1" step="1" value="' + String(item.unlockLevel != null ? item.unlockLevel : 1) + '" />') +
         '<div class="jml-field"><label><input id="jml-avatar-meta-enabled" type="checkbox"' + (item.enabled !== false ? ' checked' : '') + ' /> 启用</label></div>' +
         '<div class="muted" style="margin-top:6px;">提示：保存后将立即写入服务器。</div>',
       [
@@ -1027,10 +1028,10 @@
           primary: true,
           onClick: async function () {
             var name = (document.getElementById('jml-avatar-meta-name').value || '').trim();
-            var unlock = Math.max(0, Math.floor(Number(document.getElementById('jml-avatar-meta-unlock').value) || 0));
+            var unlock = Math.max(1, Math.floor(Number(document.getElementById('jml-avatar-meta-unlock').value) || 1));
             var enabled = !!document.getElementById('jml-avatar-meta-enabled').checked;
             item.name = name || item.name;
-            item.unlockScore = unlock;
+            item.unlockLevel = unlock;
             item.enabled = enabled;
             closeModal();
             await saveAvatars();

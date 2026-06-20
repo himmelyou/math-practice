@@ -10088,7 +10088,7 @@
         return;
       }
       await ensureAvatarCatalogLoaded();
-      const score = typeof user.totalScore === "number" ? user.totalScore : 0;
+      const playerLevel = computePlayerLevelFromTotalXp(user.totalScore).level;
       const list = Array.isArray(avatarCatalogCache) ? avatarCatalogCache.slice() : [];
       list.sort((a, b) => (Number(a.order) - Number(b.order)) || String(a.id).localeCompare(String(b.id)));
       const curId = String(user.avatarId || "").trim();
@@ -10098,8 +10098,8 @@
         return;
       }
       list.forEach((a) => {
-        const need = Number(a.unlockScore) || 0;
-        const locked = score < need || a.enabled === false;
+        const needLevel = Math.max(1, Math.floor(Number(a.unlockLevel) || 1));
+        const locked = playerLevel < needLevel || a.enabled === false;
         const item = document.createElement("div");
         item.className = "avatar-item";
         const bubble = document.createElement("div");
@@ -10124,7 +10124,7 @@
         }
         bubble.addEventListener("click", async () => {
           if (locked) {
-            showToast(tf("toast.avatarUnlockNeedLevel", { level: computePlayerLevelFromTotalXp(need).level }));
+            showToast(tf("toast.avatarUnlockNeedLevel", { level: needLevel }));
             return;
           }
           const name = loadCurrentUsername();
@@ -10149,7 +10149,7 @@
         if (locked) {
           const needEl = document.createElement("div");
           needEl.className = "avatar-item-need";
-          needEl.textContent = tf("avatar.needLevel", { level: computePlayerLevelFromTotalXp(need).level });
+          needEl.textContent = tf("avatar.needLevel", { level: needLevel });
           item.appendChild(needEl);
         }
         grid.appendChild(item);
