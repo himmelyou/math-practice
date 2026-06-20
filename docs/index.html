@@ -23,6 +23,8 @@
       --game-card-playing-max: clamp(168px, 38vh, 260px);
       --game-card-playing-min: 148px;
       --expand-card-prestart-height: clamp(190px, 30vh, 240px);
+      /* 首页经验条：固定宽度，避免随右侧按钮伸缩 */
+      --home-xp-track-width: 168px;
     }
 
     * {
@@ -484,7 +486,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      width: 100%;
+      width: auto;
       max-width: 100%;
       margin-top: 2px;
     }
@@ -500,14 +502,15 @@
       border: 1px solid rgba(21, 101, 192, 0.12);
     }
     .player-xp-track {
-      flex: 1;
+      flex: 0 0 var(--home-xp-track-width);
+      width: var(--home-xp-track-width);
       min-width: 0;
       display: flex;
       align-items: center;
       gap: 6px;
     }
     .player-xp-bar {
-      flex: 1;
+      flex: 1 1 auto;
       min-width: 0;
       height: 8px;
       border-radius: 999px;
