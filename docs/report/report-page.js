@@ -25,7 +25,58 @@
     survival: '生存模式',
     level: '闯关模式',
     training: '训练模式',
+    decimal: '小数运算',
+    perfectSquare: '平方数',
   };
+
+  var WRONG_ANSWER_MODES = {
+    survival: true,
+    level: true,
+    training: true,
+    decimal: true,
+    perfectSquare: true,
+  };
+
+  var WRONG_ANSWER_LEVEL_MAX = {
+    survival: 15,
+    level: 15,
+    training: 15,
+    decimal: 4,
+    perfectSquare: 2,
+  };
+
+  function normalizeWrongAnswerMode(mode) {
+    var m = String(mode || '').trim();
+    return WRONG_ANSWER_MODES[m] ? m : 'level';
+  }
+
+  function clampWrongAnswerLevelIndex(mode, levelIndex) {
+    var max = WRONG_ANSWER_LEVEL_MAX[normalizeWrongAnswerMode(mode)];
+    if (typeof max !== 'number') max = 15;
+    var lv = typeof levelIndex === 'number' && Number.isFinite(levelIndex) ? Math.floor(levelIndex) : 0;
+    return Math.max(0, Math.min(max, lv));
+  }
+
+  function formatWrongAnswerLevelLabel(mode, levelIndex) {
+    var m = normalizeWrongAnswerMode(mode);
+    var n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
+    if (m === 'decimal') return 'D' + n;
+    return 'L' + n;
+  }
+
+  function formatWrongAnswerMeta(w) {
+    if (!w || typeof w !== 'object') return '';
+    var levelLabel = w.levelLabel;
+    if (!levelLabel && w.levelIndex != null) {
+      levelLabel = formatWrongAnswerLevelLabel(w.mode || 'level', w.levelIndex);
+    }
+    if (!levelLabel) return '';
+    var modeLabel = MODE_LABEL[normalizeWrongAnswerMode(w.mode)];
+    if (w.mode && modeLabel && w.mode !== 'level' && w.mode !== 'survival' && w.mode !== 'training') {
+      return modeLabel + ' · ' + levelLabel;
+    }
+    return levelLabel;
+  }
 
   var state = {
     usersAll: [],
@@ -496,7 +547,9 @@
           }
           var wrongAnsText = wrongAns === '' ? '（空）' : String(wrongAns);
           var rightAnsText = rightAns === '' ? '（空）' : String(rightAns);
-          var meta = formatDateTime(w.ts) + (w.levelIndex != null ? (' · L' + (Number(w.levelIndex) + 1)) : '');
+          var meta = formatDateTime(w.ts);
+          var levelMeta = formatWrongAnswerMeta(w);
+          if (levelMeta) meta += ' · ' + levelMeta;
           return (
             '<li class="jml-wrong-item">' +
             '<div class="expr">' +

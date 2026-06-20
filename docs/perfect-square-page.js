@@ -418,7 +418,7 @@
 
     psWrongCount += 1;
     if (dom().psWrongText) dom().psWrongText.textContent = String(psWrongCount);
-    deps.recordWrongAnswer(psCurrent.text || psCurrent.prompt, psCurrent.answer, userAnswer);
+    deps.recordWrongAnswer(psCurrent.text || psCurrent.prompt, psCurrent.answer, userAnswer, psLevel, "perfectSquare");
     setPsFeedback(
       t("game.feedback.incorrectPrefixHtml") +
         t("game.feedback.correctAnswerLabel") +

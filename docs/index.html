@@ -2488,6 +2488,7 @@
     .wrongbook-item .q { font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
     .wrongbook-item .wrong-ans { color: var(--danger); }
     .wrongbook-item .correct-ans { color: var(--success); }
+    .wrongbook-item .wrongbook-meta { margin-top: 4px; font-size: 0.82rem; color: var(--muted); }
     .wrongbook-empty { text-align: center; padding: 24px; color: var(--muted); }
     .wrongbook-actions { display: flex; flex-direction: column; gap: 10px; }
 
@@ -7843,20 +7844,59 @@
       return apiAppendRun(name, runEntry);
     }
 
-    function recordWrongAnswer(text, answer, studentAnswer, levelIndex) {
-      if (isGuestMode || gameMode === "wrong") return;
-      const name = loadCurrentUsername();
-      if (!name) return;
-      const lv = typeof levelIndex === "number" && Number.isFinite(levelIndex)
-        ? Math.max(0, Math.min(15, Math.floor(levelIndex)))
-        : Math.max(0, Math.min(15, Math.floor(currentLevelIndex)));
-      const entry = {
+    const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare"]);
+    const WRONG_ANSWER_LEVEL_MAX = {
+      survival: 15,
+      level: 15,
+      training: 15,
+      decimal: 4,
+      perfectSquare: 2,
+    };
+
+    function normalizeWrongAnswerMode(mode) {
+      const m = String(mode || "").trim();
+      return WRONG_ANSWER_MODES.has(m) ? m : "level";
+    }
+
+    function clampWrongAnswerLevelIndex(mode, levelIndex) {
+      const max = WRONG_ANSWER_LEVEL_MAX[normalizeWrongAnswerMode(mode)] ?? 15;
+      const lv = typeof levelIndex === "number" && Number.isFinite(levelIndex) ? Math.floor(levelIndex) : 0;
+      return Math.max(0, Math.min(max, lv));
+    }
+
+    function formatWrongAnswerLevelLabel(mode, levelIndex) {
+      const m = normalizeWrongAnswerMode(mode);
+      const n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
+      if (m === "decimal") return "D" + n;
+      return "L" + n;
+    }
+
+    function buildWrongAnswerEntry(text, answer, studentAnswer, levelIndex, mode) {
+      const resolvedMode = normalizeWrongAnswerMode(mode || gameMode);
+      let lv;
+      if (typeof levelIndex === "number" && Number.isFinite(levelIndex)) {
+        lv = clampWrongAnswerLevelIndex(resolvedMode, levelIndex);
+      } else if (resolvedMode === "decimal" || resolvedMode === "perfectSquare") {
+        lv = 0;
+      } else {
+        lv = clampWrongAnswerLevelIndex(resolvedMode, currentLevelIndex);
+      }
+      return {
         text: String(text || ""),
         answer: Number(answer),
         studentAnswer: Number(studentAnswer),
         ts: Date.now(),
+        mode: resolvedMode,
         levelIndex: lv,
+        levelLabel: formatWrongAnswerLevelLabel(resolvedMode, lv),
       };
+    }
+
+    function recordWrongAnswer(text, answer, studentAnswer, levelIndex, mode) {
+      if (isGuestMode || gameMode === "wrong") return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      const entry = buildWrongAnswerEntry(text, answer, studentAnswer, levelIndex, mode);
       apiAppendWrongAnswer(name, entry);
     }
 
@@ -10957,12 +10997,20 @@
       empty.style.display = "none";
       const lblWrong = t("wrongbook.studentAnswer");
       const lblCorrect = t("wrongbook.correctAnswer");
-      list.innerHTML = wrongs.map(w => `
+      list.innerHTML = wrongs.map(w => {
+        const levelMeta = w.levelLabel
+          || (w.levelIndex != null ? formatWrongAnswerLevelLabel(w.mode || "level", w.levelIndex) : "");
+        const levelLine = levelMeta
+          ? `<div class="wrongbook-meta">${escapeHtml(levelMeta)}</div>`
+          : "";
+        return `
         <div class="wrongbook-item">
           <div class="q">${escapeHtml(w.text || "")}</div>
           <div>${escapeHtml(lblWrong)}<span class="wrong-ans">${escapeHtml(String(w.studentAnswer ?? ""))}</span> · ${escapeHtml(lblCorrect)}<span class="correct-ans">${escapeHtml(String(w.answer ?? ""))}</span></div>
+          ${levelLine}
         </div>
-      `).join("");
+      `;
+      }).join("");
       if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
       updateWrongbookBadge();
     }

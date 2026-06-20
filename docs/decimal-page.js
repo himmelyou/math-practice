@@ -424,7 +424,7 @@
 
     decWrongCount += 1;
     if (dom().decWrongText) dom().decWrongText.textContent = String(decWrongCount);
-    deps.recordWrongAnswer(decCurrent.text || decCurrent.prompt, decCurrent.answer, userAnswer);
+    deps.recordWrongAnswer(decCurrent.text || decCurrent.prompt, decCurrent.answer, userAnswer, decLevel, "decimal");
     setDecFeedback(
       t("game.feedback.incorrectPrefixHtml") +
         t("game.feedback.correctAnswerLabel") +

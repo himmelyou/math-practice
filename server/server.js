@@ -36,6 +36,50 @@ function safeUser(u) {
 const WRONGBOOK_MAX_STORE = 30;
 const EXPAND_WRONG_MAX_STORE = 20;
 
+const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare"]);
+const WRONG_ANSWER_LEVEL_MAX = {
+  survival: 15,
+  level: 15,
+  training: 15,
+  decimal: 4,
+  perfectSquare: 2,
+};
+
+function normalizeWrongAnswerMode(mode) {
+  const m = String(mode || "").trim();
+  return WRONG_ANSWER_MODES.has(m) ? m : "level";
+}
+
+function clampWrongAnswerLevelIndex(mode, levelIndex) {
+  const max = WRONG_ANSWER_LEVEL_MAX[normalizeWrongAnswerMode(mode)] ?? 15;
+  const lv = typeof levelIndex === "number" && Number.isFinite(levelIndex) ? Math.floor(levelIndex) : 0;
+  return Math.max(0, Math.min(max, lv));
+}
+
+function formatWrongAnswerLevelLabel(mode, levelIndex) {
+  const m = normalizeWrongAnswerMode(mode);
+  const n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
+  if (m === "decimal") return "D" + n;
+  return "L" + n;
+}
+
+function normalizeWrongAnswerEntry(raw) {
+  const mode = normalizeWrongAnswerMode(raw && raw.mode);
+  const levelIndex = clampWrongAnswerLevelIndex(
+    mode,
+    raw && typeof raw.levelIndex === "number" && Number.isFinite(raw.levelIndex) ? raw.levelIndex : 0
+  );
+  return {
+    text: String((raw && raw.text) || ""),
+    answer: Number(raw && raw.answer),
+    studentAnswer: Number(raw && raw.studentAnswer),
+    ts: raw && typeof raw.ts === "number" && Number.isFinite(raw.ts) ? raw.ts : Date.now(),
+    mode,
+    levelIndex,
+    levelLabel: formatWrongAnswerLevelLabel(mode, levelIndex),
+  };
+}
+
 /** 学员端 API：不返回拆括号错题（仅管理端 report 使用） */
 function safeUserForStudent(u) {
   const out = safeUser(u);
@@ -1305,16 +1349,7 @@ app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData,
   }
   const u = data.users[idx];
   if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
-  const entry = {
-    text: String(raw.text || ""),
-    answer: Number(raw.answer),
-    studentAnswer: Number(raw.studentAnswer),
-    ts: typeof raw.ts === "number" && Number.isFinite(raw.ts) ? raw.ts : Date.now(),
-    levelIndex:
-      typeof raw.levelIndex === "number" && Number.isFinite(raw.levelIndex)
-        ? Math.max(0, Math.min(15, Math.floor(raw.levelIndex)))
-        : 0,
-  };
+  const entry = normalizeWrongAnswerEntry(raw);
   u.wrongAnswers.unshift(entry);
   if (u.wrongAnswers.length > WRONGBOOK_MAX_STORE) {
     u.wrongAnswers = u.wrongAnswers.slice(0, WRONGBOOK_MAX_STORE);
