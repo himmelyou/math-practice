@@ -656,3 +656,17 @@
   }
 }
 
+.jml-btn-sm {
+  padding: 4px 10px;
+  font-size: 0.82rem;
+}
+
+.jml-ach-icon {
+  font-size: 1.1rem;
+  vertical-align: middle;
+}
+
+.jml-achievements-table code {
+  font-size: 0.82rem;
+}
+

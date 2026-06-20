@@ -478,6 +478,9 @@
     document.querySelectorAll('.jml-tab-panel').forEach(function (p) {
       p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
     });
+    if (id === 'achievements' && typeof JmlAdminAchievements !== 'undefined') {
+      JmlAdminAchievements.onTabShow();
+    }
   }
 
   var modal = document.getElementById('jml-modal-overlay');
@@ -1336,6 +1339,7 @@
       showApiWarning();
       bindEvents();
       if (typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
+      if (typeof JmlAdminAchievements !== 'undefined') JmlAdminAchievements.init();
       // 默认加载账号列表；并行拉取反馈未读角标
       loadUsers();
       refreshFeedbackUnreadBadge();

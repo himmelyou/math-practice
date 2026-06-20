@@ -50,6 +50,7 @@
           <span id="jml-feedback-tab-badge" class="jml-tab-badge" hidden aria-label="未读反馈数"></span>
         </button>
         <button type="button" class="jml-tab" data-tab="worksheet" role="tab">出题打印</button>
+        <button type="button" class="jml-tab" data-tab="achievements" role="tab">成就管理</button>
         <button type="button" class="jml-tab" data-tab="backup" role="tab">系统备份</button>
         <button type="button" class="jml-tab" data-tab="maintenance" role="tab">初始化/维护</button>
       </div>
@@ -209,6 +210,19 @@
         </div>
       </div>
 
+      <div id="panel-achievements" class="jml-tab-panel hidden" data-panel="achievements" role="tabpanel">
+        <div class="jml-panel-head">
+          <button type="button" id="jml-btn-achievements-refresh" class="jml-btn">刷新列表</button>
+          <button type="button" id="jml-btn-achievements-save" class="jml-btn jml-btn-primary">保存 catalog</button>
+          <button type="button" id="jml-btn-achievements-recompute" class="jml-btn">全量重算成就</button>
+        </div>
+        <div class="jml-placeholder-panel">
+          <p>在此编辑成就 <strong>名称、icon、XP、启用状态</strong> 与 <code>ruleParams</code>。判定逻辑由服务端 <code>ruleType</code> 决定，新增类型需发版代码。</p>
+          <p class="muted" style="margin:0;">规格见项目根目录 <code>成就系统说明.md</code>；改完 §4 后可在阶段 B 批量导入。</p>
+        </div>
+        <div id="jml-achievements-table-wrap"></div>
+      </div>
+
       <div id="panel-backup" class="jml-tab-panel hidden" data-panel="backup" role="tabpanel">
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-backup" class="jml-btn jml-btn-primary">下载全部备份</button>
@@ -216,7 +230,7 @@
           <input type="file" id="jml-restore-file" accept=".json" style="display:none;" />
         </div>
         <div class="jml-placeholder-panel">
-          <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置、文案与用户反馈到本地 JSON 文件。</p>
+          <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置、文案、用户反馈与成就 catalog 到本地 JSON 文件。</p>
           <p>在执行「初始化/维护」里的数据回填前，<strong>请先在此 Tab 备份</strong>。恢复会覆盖线上数据，请谨慎操作。</p>
         </div>
       </div>
@@ -280,6 +294,7 @@
   <script src="../shared/decimal-questions.js?v=46"></script>
   <script src="admin-panel.js?v=24"></script>
   <script src="admin-worksheet.js?v=23"></script>
+  <script src="admin-achievements.js?v=1"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

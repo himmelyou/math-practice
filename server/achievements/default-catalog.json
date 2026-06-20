@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "first_run",
+      "name": "初次挑战",
+      "icon": "🎯",
+      "category": "入门",
+      "tier": "铜",
+      "xpReward": 10,
+      "hint": "完成任意 1 局挑战",
+      "ruleType": "any_run",
+      "ruleParams": { "minCount": 1 },
+      "sortOrder": 10,
+      "enabled": true
+    },
+    {
+      "id": "first_training",
+      "name": "热身完成",
+      "icon": "📘",
+      "category": "入门",
+      "tier": "铜",
+      "xpReward": 10,
+      "hint": "完成 1 局训练模式",
+      "ruleType": "mode_run_count",
+      "ruleParams": { "mode": "training", "minCount": 1 },
+      "sortOrder": 20,
+      "enabled": true
+    },
+    {
+      "id": "first_level",
+      "name": "闯关上手",
+      "icon": "🚩",
+      "category": "入门",
+      "tier": "铜",
+      "xpReward": 10,
+      "hint": "完成 1 局闯关模式",
+      "ruleType": "mode_run_count",
+      "ruleParams": { "mode": "level", "minCount": 1 },
+      "sortOrder": 30,
+      "enabled": true
+    }
+  ]
+}

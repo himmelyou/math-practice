@@ -12,6 +12,9 @@ const path = require("path");
 const crypto = require("crypto");
 const heatmapStats = require("./stats-heatmap");
 const playerLevel = require("./player-level");
+const achievementCatalog = require("./achievements/catalog");
+const achievementEngine = require("./achievements/engine");
+const { REGISTERED_RULE_TYPES } = require("./achievements/evaluators");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
@@ -67,7 +70,27 @@ function buildRunSyncForStudent(u, mode) {
   sync.heatmapL16Passed = u.heatmapL16Passed === true;
   sync.levelChallengeBestLevel = typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0;
   sync.survivalEligible = userEligibleForSurvivalUnlock(u);
+  sync.achievements = u.achievements && typeof u.achievements === "object" ? u.achievements : {};
+  sync.equippedBadges = Array.isArray(u.equippedBadges) ? u.equippedBadges.slice(0, achievementEngine.MAX_EQUIPPED_BADGES) : [];
   return sync;
+}
+
+function readAchievementsCatalog() {
+  return catalogStore.readCatalog();
+}
+
+function equippedBadgesForUsername(username) {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const u = (usersData.users || []).find((x) => x && x.username === username);
+  if (!u) return [];
+  const catalog = readAchievementsCatalog();
+  achievementEngine.sanitizeEquippedBadges(u, catalog);
+  return achievementEngine.buildEquippedBadgesSummary(u, catalog);
+}
+
+function withEquippedBadges(row, req) {
+  if (!row || !row.username) return row;
+  return Object.assign({}, row, { equippedBadges: equippedBadgesForUsername(row.username) });
 }
 
 function pickStudentUserPatch(u, keys) {
@@ -95,6 +118,8 @@ const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
 const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
 const FEEDBACK_FILE = path.join(DATA_DIR, "feedback.json");
+const ACHIEVEMENTS_CATALOG_FILE = path.join(DATA_DIR, "achievements-catalog.json");
+const catalogStore = achievementCatalog.createCatalogStore(ACHIEVEMENTS_CATALOG_FILE);
 const FEEDBACK_CATEGORIES = new Set(["bug", "suggestion", "account", "other"]);
 const FEEDBACK_MESSAGE_MAX_LEN = 2000;
 const FEEDBACK_RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -335,7 +360,7 @@ function buildScoreRankingRowUser(u, req) {
       avatarUrl = buildAvatarPublic(item, req).imageUrl || "";
     }
   }
-  return { username: u.username, displayName, totalScore, avatarUrl };
+  return withEquippedBadges({ username: u.username, displayName, totalScore, avatarUrl }, req);
 }
 
 function avatarUrlForUsername(username, req) {
@@ -1156,6 +1181,8 @@ app.post("/api/register", async (req, res) => {
     levelDecimalUnlockedMax: 0,
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
+    achievements: {},
+    equippedBadges: [],
     survivalUnlocked: false,
     trainingL16Cleared: false,
     heatmapL16Passed: false,
@@ -1319,6 +1346,61 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   // 头像：若被删/禁用/未解锁则回退为空（前端用默认符号展示）
   user.avatarId = resolveUserAvatarIdOrEmpty(user);
   res.json({ ok: true, user: safeUserForStudent(user) });
+});
+
+// ========== 成就：公开 catalog（仅 enabled） ==========
+app.get("/api/achievements/catalog", (req, res) => {
+  const catalog = readAchievementsCatalog();
+  const items = catalogStore.getEnabledItems(catalog).map((item) => ({
+    id: item.id,
+    name: item.name,
+    icon: item.icon,
+    category: item.category,
+    tier: item.tier,
+    hint: item.hint,
+    xpReward: item.xpReward,
+    sortOrder: item.sortOrder,
+  }));
+  res.json({ ok: true, version: catalog.version, items });
+});
+
+// ========== 成就：学员进度与佩戴 ==========
+app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runs = runsData.runs[username] || [];
+  const catalog = readAchievementsCatalog();
+  achievementEngine.sanitizeEquippedBadges(user, catalog);
+  const view = achievementEngine.buildUserAchievementsView(user, runs, catalog, { includeDisabled: false });
+  res.json({ ok: true, ...view });
+});
+
+app.put("/api/user/:username/achievements/equipped", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const badgeIds = req.body && Array.isArray(req.body.equippedBadges) ? req.body.equippedBadges : [];
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx < 0) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const user = data.users[idx];
+  const catalog = readAchievementsCatalog();
+  try {
+    achievementEngine.setEquippedBadges(user, catalog, badgeIds);
+  } catch (e) {
+    return res.status(400).json({ ok: false, error: e.message || String(e) });
+  }
+  writeJson(USERS_FILE, data);
+  res.json({
+    ok: true,
+    equippedBadges: user.equippedBadges,
+    equippedSummary: achievementEngine.buildEquippedBadgesSummary(user, catalog),
+  });
 });
 
 // ========== 更新学员进度（游戏结束后同步），需登录且只能访问自己 ==========
@@ -1563,7 +1645,18 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
 
   if (uIdx >= 0) {
     const u = userData.users[uIdx];
-    return res.json({ ok: true, sync: buildRunSyncForStudent(u, runEntry.mode) });
+    let newlyUnlocked = [];
+    if (!comboOnly) {
+      const catalog = readAchievementsCatalog();
+      const allRuns = runsData.runs[username] || [];
+      const evalResult = achievementEngine.evaluateUserAchievements(u, allRuns, catalog);
+      newlyUnlocked = evalResult.newlyUnlocked || [];
+      achievementEngine.sanitizeEquippedBadges(u, catalog);
+      writeJson(USERS_FILE, userData);
+    }
+    const sync = buildRunSyncForStudent(u, runEntry.mode);
+    if (newlyUnlocked.length) sync.newAchievements = newlyUnlocked;
+    return res.json({ ok: true, sync });
   }
   res.json({ ok: true });
 });
@@ -1628,7 +1721,7 @@ app.get("/api/survival-ranking", (req, res) => {
     const n = (u.nickname || "").trim();
     nicknameMap[u.username] = n ? n : "新人";
   });
-  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ({
+  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => withEquippedBadges({
     rank: i + 1,
     username: e.username,
     displayName: nicknameMap[e.username] || "新人",
@@ -1636,7 +1729,7 @@ app.get("/api/survival-ranking", (req, res) => {
     wrongCount: e.wrongCount ?? 0,
     ts: e.ts,
     avatarUrl: avatarUrlForUsername(e.username, req),
-  }));
+  }, req));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -1645,7 +1738,7 @@ app.get("/api/survival-ranking", (req, res) => {
     if (idx >= 0) {
       myRank = idx + 1;
       const e = list[idx];
-      myEntry = {
+      myEntry = withEquippedBadges({
         rank: myRank,
         username: e.username,
         displayName: nicknameMap[e.username] || "新人",
@@ -1653,7 +1746,7 @@ app.get("/api/survival-ranking", (req, res) => {
         wrongCount: e.wrongCount ?? 0,
         ts: e.ts,
         avatarUrl: avatarUrlForUsername(e.username, req),
-      };
+      }, req);
     }
   }
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
@@ -1687,14 +1780,14 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
     const n = (u.nickname || "").trim();
     nicknameMap[u.username] = n ? n : "新人";
   });
-  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ({
+  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => withEquippedBadges({
     rank: i + 1,
     username: e.username,
     displayName: nicknameMap[e.username] || "新人",
     survivalTimeSec: e.survivalTimeSec ?? 0,
     ts: e.ts,
     avatarUrl: avatarUrlForUsername(e.username, req),
-  }));
+  }, req));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -1703,14 +1796,14 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
     if (idx >= 0) {
       myRank = idx + 1;
       const e = list[idx];
-      myEntry = {
+      myEntry = withEquippedBadges({
         rank: myRank,
         username: e.username,
         displayName: nicknameMap[e.username] || "新人",
         survivalTimeSec: e.survivalTimeSec ?? 0,
         ts: e.ts,
         avatarUrl: avatarUrlForUsername(e.username, req),
-      };
+      }, req);
     }
   }
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
@@ -1742,7 +1835,7 @@ app.get("/api/streak-ranking", (req, res) => {
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
 
-  const top = rows.slice(0, STREAK_RANKING_MAX).map((r, i) => ({ rank: i + 1, ...r }));
+  const top = rows.slice(0, STREAK_RANKING_MAX).map((r, i) => withEquippedBadges({ rank: i + 1, ...r }, req));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -1750,7 +1843,7 @@ app.get("/api/streak-ranking", (req, res) => {
     const idx = rows.findIndex((r) => r.username === username);
     if (idx >= 0) {
       myRank = idx + 1;
-      myEntry = { rank: myRank, ...rows[idx] };
+      myEntry = withEquippedBadges({ rank: myRank, ...rows[idx] }, req);
     }
   }
 
@@ -1779,7 +1872,7 @@ app.get("/api/combo-ranking", (req, res) => {
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
 
-  const top = rows.slice(0, COMBO_RANKING_MAX).map((r, i) => ({ rank: i + 1, ...r }));
+  const top = rows.slice(0, COMBO_RANKING_MAX).map((r, i) => withEquippedBadges({ rank: i + 1, ...r }, req));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -1787,7 +1880,7 @@ app.get("/api/combo-ranking", (req, res) => {
     const idx = rows.findIndex((r) => r.username === username);
     if (idx >= 0) {
       myRank = idx + 1;
-      myEntry = { rank: myRank, ...rows[idx] };
+      myEntry = withEquippedBadges({ rank: myRank, ...rows[idx] }, req);
     }
   }
   res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
@@ -1855,6 +1948,8 @@ app.post("/api/admin/users", async (req, res) => {
     recentDecimalRuns: [],
     wrongAnswers: [],
     expandBracketsWrongAnswers: [],
+    achievements: {},
+    equippedBadges: [],
     survivalUnlocked: false,
     trainingL16Cleared: false,
     heatmapL16Passed: false,
@@ -2319,7 +2414,8 @@ app.get("/api/admin/backup", (req, res) => {
   const settings = readJson(SETTINGS_FILE, { levels: [] });
   const i18n = readJson(I18N_FILE, defaultI18nPayload());
   const feedback = readFeedbackStore();
-  const backup = { users, runs, settings, i18n, feedback, ts: Date.now() };
+  const achievementsCatalog = readAchievementsCatalog();
+  const backup = { users, runs, settings, i18n, feedback, achievementsCatalog, ts: Date.now() };
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Content-Disposition", "attachment; filename=jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json");
   res.send(JSON.stringify(backup, null, 2));
@@ -2358,6 +2454,9 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
     if (body.feedback && typeof body.feedback === "object") {
       const fb = body.feedback;
       writeFeedbackStore(Array.isArray(fb.items) ? fb : { items: Array.isArray(fb) ? fb : [] });
+    }
+    if (body.achievementsCatalog && typeof body.achievementsCatalog === "object") {
+      catalogStore.writeCatalog(body.achievementsCatalog);
     }
     res.json({ ok: true, msg: "数据已恢复" });
   } catch (e) {
@@ -2589,6 +2688,55 @@ app.post("/api/admin/avatars/init-legacy", (req, res) => {
   });
   const saved = writeAvatarCatalog(cur);
   res.json({ ok: true, avatars: saved.map((x) => buildAvatarPublic(x, req)), added });
+});
+
+// ========== 管理员：成就 catalog ==========
+app.get("/api/admin/achievements/catalog", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const catalog = readAchievementsCatalog();
+  res.json({ ok: true, catalog, ruleTypes: REGISTERED_RULE_TYPES });
+});
+
+app.put("/api/admin/achievements/catalog", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && req.body.catalog ? req.body.catalog : req.body;
+  if (!body || typeof body !== "object") {
+    return res.status(400).json({ ok: false, error: "无效 catalog" });
+  }
+  const saved = catalogStore.writeCatalog(body);
+  res.json({ ok: true, catalog: saved });
+});
+
+app.post("/api/admin/achievements/recompute", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const targetUsername = (req.body && req.body.username ? String(req.body.username) : "").trim();
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const catalog = readAchievementsCatalog();
+  let users = usersData.users || [];
+  if (targetUsername) {
+    users = users.filter((u) => u && u.username === targetUsername);
+  }
+  let unlockedTotal = 0;
+  let usersTouched = 0;
+  users.forEach((user) => {
+    if (!user || !user.username) return;
+    const runs = runsData.runs[user.username] || [];
+    const before = Object.keys(user.achievements || {}).length;
+    achievementEngine.evaluateUserAchievements(user, runs, catalog);
+    achievementEngine.sanitizeEquippedBadges(user, catalog);
+    const after = Object.keys(user.achievements || {}).length;
+    if (after > before) unlockedTotal += after - before;
+    usersTouched += 1;
+  });
+  writeJson(USERS_FILE, usersData);
+  res.json({ ok: true, usersTouched, newlyUnlockedCount: unlockedTotal });
 });
 
 app.listen(PORT, () => {

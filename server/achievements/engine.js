@@ -1,0 +1,153 @@
+const { evaluateRule, normalizeRunMode } = require("./evaluators");
+
+const MAX_EQUIPPED_BADGES = 3;
+
+function ensureUserAchievementFields(user) {
+  if (!user) return;
+  if (!user.achievements || typeof user.achievements !== "object") user.achievements = {};
+  if (!Array.isArray(user.equippedBadges)) user.equippedBadges = [];
+}
+
+function buildAchievementContext(user, runs) {
+  const validRuns = (runs || []).filter((r) => r && r.comboOnly !== true);
+  const modeCounts = {};
+  validRuns.forEach((r) => {
+    const mode = normalizeRunMode(r.mode);
+    modeCounts[mode] = (modeCounts[mode] || 0) + 1;
+  });
+  return {
+    user: user || {},
+    runs: validRuns,
+    totalRunCount: validRuns.length,
+    modeCounts,
+  };
+}
+
+function evaluateUserAchievements(user, runs, catalog) {
+  ensureUserAchievementFields(user);
+  const ctx = buildAchievementContext(user, runs);
+  const newlyUnlocked = [];
+  const items = (catalog.items || []).filter((item) => item.enabled);
+
+  items.forEach((item) => {
+    if (user.achievements[item.id]) return;
+    const result = evaluateRule(item.ruleType, item.ruleParams, ctx);
+    if (!result.met) return;
+    const unlockedAt = Date.now();
+    user.achievements[item.id] = unlockedAt;
+    const xpReward = Math.max(0, Math.floor(Number(item.xpReward) || 0));
+    if (xpReward > 0) {
+      user.totalScore = (Number(user.totalScore) || 0) + xpReward;
+    }
+    newlyUnlocked.push({
+      id: item.id,
+      name: item.name,
+      icon: item.icon,
+      xpReward,
+      unlockedAt,
+    });
+  });
+
+  return { newlyUnlocked, ctx };
+}
+
+function buildAchievementItemView(item, user, ctx) {
+  const unlockedAt = user.achievements && user.achievements[item.id] ? user.achievements[item.id] : 0;
+  const unlocked = unlockedAt > 0;
+  let progress = null;
+  if (!unlocked) {
+    const result = evaluateRule(item.ruleType, item.ruleParams, ctx);
+    progress = result.progress || null;
+  }
+  return {
+    id: item.id,
+    name: item.name,
+    icon: item.icon,
+    category: item.category,
+    tier: item.tier,
+    hint: item.hint,
+    xpReward: item.xpReward,
+    sortOrder: item.sortOrder,
+    unlocked,
+    unlockedAt: unlocked ? unlockedAt : 0,
+    progress,
+  };
+}
+
+function buildUserAchievementsView(user, runs, catalog, options) {
+  ensureUserAchievementFields(user);
+  const includeDisabled = !!(options && options.includeDisabled);
+  const ctx = buildAchievementContext(user, runs);
+  const items = (catalog.items || [])
+    .filter((item) => includeDisabled || item.enabled)
+    .map((item) => buildAchievementItemView(item, user, ctx));
+  return {
+    achievements: user.achievements,
+    equippedBadges: user.equippedBadges.slice(0, MAX_EQUIPPED_BADGES),
+    items,
+  };
+}
+
+function buildEquippedBadgesSummary(user, catalog) {
+  ensureUserAchievementFields(user);
+  const map = new Map((catalog.items || []).map((item) => [item.id, item]));
+  return (user.equippedBadges || [])
+    .slice(0, MAX_EQUIPPED_BADGES)
+    .map((id) => {
+      const item = map.get(id);
+      if (!item || !user.achievements[id]) return null;
+      return { id: item.id, name: item.name, icon: item.icon };
+    })
+    .filter(Boolean);
+}
+
+function sanitizeEquippedBadges(user, catalog) {
+  ensureUserAchievementFields(user);
+  const map = new Map((catalog.items || []).map((item) => [item.id, item]));
+  const seen = new Set();
+  const next = [];
+  (user.equippedBadges || []).forEach((rawId) => {
+    const id = String(rawId || "").trim();
+    if (!id || seen.has(id)) return;
+    if (!map.has(id)) return;
+    if (!user.achievements[id]) return;
+    seen.add(id);
+    next.push(id);
+    if (next.length >= MAX_EQUIPPED_BADGES) return;
+  });
+  user.equippedBadges = next.slice(0, MAX_EQUIPPED_BADGES);
+  return user.equippedBadges;
+}
+
+function setEquippedBadges(user, catalog, badgeIds) {
+  ensureUserAchievementFields(user);
+  const map = new Map((catalog.items || []).map((item) => [item.id, item]));
+  const seen = new Set();
+  const next = [];
+  (Array.isArray(badgeIds) ? badgeIds : []).forEach((rawId) => {
+    const id = String(rawId || "").trim();
+    if (!id || seen.has(id)) return;
+    if (!map.has(id) || !map.get(id).enabled) return;
+    if (!user.achievements[id]) return;
+    seen.add(id);
+    next.push(id);
+  });
+  if (next.length > MAX_EQUIPPED_BADGES) {
+    const err = new Error("最多佩戴 3 枚徽章");
+    err.code = "TOO_MANY_BADGES";
+    throw err;
+  }
+  user.equippedBadges = next;
+  return user.equippedBadges;
+}
+
+module.exports = {
+  MAX_EQUIPPED_BADGES,
+  ensureUserAchievementFields,
+  buildAchievementContext,
+  evaluateUserAchievements,
+  buildUserAchievementsView,
+  buildEquippedBadgesSummary,
+  sanitizeEquippedBadges,
+  setEquippedBadges,
+};

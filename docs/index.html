@@ -1115,6 +1115,36 @@
       font-weight: 700;
     }
     .user-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+    .rank-equipped-badges { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; flex-shrink: 0; }
+    .rank-badge-chip { font-size: 0.82rem; line-height: 1; }
+    .home-equipped-badges { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; vertical-align: middle; }
+    .home-badge-chip { font-size: 0.95rem; line-height: 1; cursor: default; }
+    .achievement-wall-section { margin-top: 12px; }
+    .ach-equip-panel { margin-bottom: 16px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .ach-equip-panel h3 { margin: 0 0 10px; font-size: 0.95rem; color: #334155; }
+    .ach-equip-slots { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ach-equip-slot { min-width: 100px; padding: 8px 10px; border-radius: 8px; border: 1px dashed #cbd5e1; background: #fff; font-size: 0.84rem; cursor: pointer; text-align: left; }
+    .ach-equip-slot.filled { border-style: solid; border-color: #93c5fd; background: #eff6ff; }
+    .ach-equip-picker { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e2e8f0; }
+    .ach-equip-picker-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .ach-equip-pick { padding: 6px 10px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; font-size: 0.82rem; cursor: pointer; }
+    .ach-equip-pick-clear { color: #64748b; }
+    .ach-equip-pick-cancel { padding: 4px 8px; border: none; background: transparent; color: #64748b; font-size: 0.82rem; cursor: pointer; }
+    .ach-category { margin-bottom: 18px; }
+    .ach-category-title { margin: 0 0 8px; font-size: 0.92rem; color: #475569; }
+    .ach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+    .ach-item { display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid #e2e8f0; background: #fff; align-items: flex-start; }
+    .ach-item-locked { opacity: 0.72; background: #f8fafc; }
+    .ach-item-unlocked { border-color: #bfdbfe; box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.08); }
+    .ach-item-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+    .ach-item-title { font-weight: 600; color: #1e293b; font-size: 0.92rem; margin-bottom: 4px; }
+    .ach-tier { margin-left: 6px; font-size: 0.75rem; color: #64748b; font-weight: 500; }
+    .ach-progress-done { color: #15803d; font-size: 0.82rem; font-weight: 600; }
+    .ach-progress-bar-wrap { display: flex; align-items: center; gap: 8px; max-width: 280px; }
+    .ach-progress-bar { flex: 1; height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+    .ach-progress-bar-fill { height: 100%; background: linear-gradient(90deg, #60a5fa, #2563eb); border-radius: 999px; }
+    .ach-progress-text { font-size: 0.78rem; color: #64748b; white-space: nowrap; }
+    .ach-xp { margin-top: 4px; font-size: 0.78rem; color: #b45309; }
     .user-meta { display: flex; flex-direction: column; min-width: 0; }
     .user-meta .name { font-weight: 700; color: #263238; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .user-meta .tag { font-size: 0.78rem; color: #1976d2; font-weight: 700; }
@@ -3253,6 +3283,7 @@
         <div class="home-user-meta">
           <span class="nickname-row">
             <span class="user-name" id="current-username-label">-</span>
+            <span class="home-equipped-badges" id="home-equipped-badges" hidden></span>
             <button id="change-nickname-btn" class="nickname-edit" type="button" title="修改昵称">
               <img src="assets/home/ic_edit.png" width="14" height="14" alt="" />
             </button>
@@ -3716,6 +3747,17 @@
       </div>
     </section>
 
+    <section class="ranking-section achievement-wall-section" id="achievement-wall-section" style="display:none;margin-top:12px;">
+      <div class="ranking-header">
+        <div class="ranking-title-row">
+          <h2 class="ranking-title">成就墙</h2>
+          <button type="button" class="jml-btn home-pill-btn" id="achievement-wall-back-btn">返回首页</button>
+        </div>
+        <p class="ranking-subtitle muted">完成挑战解锁成就；最多佩戴 3 枚徽章（在下方槽位手动选择）。</p>
+      </div>
+      <div id="achievement-wall-body"></div>
+    </section>
+
     <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分 -->
     <section class="game-section prime-composite-page" id="prime-composite-section" style="display:none;">
       <div class="status-grid" id="prime-status-grid">
@@ -4118,6 +4160,7 @@
   <script src="shared/perfect-square-questions.js?v=37"></script>
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=37"></script>
+  <script src="achievements-client.js?v=1"></script>
   <script src="perfect-square-page.js?v=37"></script>
   <script src="decimal-page.js?v=3"></script>
   <script>
@@ -7188,6 +7231,11 @@
         cachedUser.levelChallengeBestLevel = sync.levelChallengeBestLevel;
       }
       if (sync.survivalEligible === true) updateSurvivalButtonLabel();
+      if (sync.achievements) cachedUser.achievements = sync.achievements;
+      if (sync.equippedBadges) cachedUser.equippedBadges = sync.equippedBadges.slice();
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.applySync === "function") {
+        JmlAchievementsClient.applySync(sync);
+      }
     }
 
     async function refreshSurvivalEligibility() {
@@ -9114,6 +9162,8 @@
       if (statsSection) statsSection.classList.remove("visible");
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
+      const achievementWallSection = document.getElementById("achievement-wall-section");
+      if (achievementWallSection) achievementWallSection.style.display = "none";
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "none";
@@ -9139,6 +9189,35 @@
       if (!user) return false;
       if (user.hasClearedSurvival === true) return true;
       return Array.isArray(user.recentSurvivalRuns) && user.recentSurvivalRuns.some((r) => r.cleared === true);
+    }
+
+    async function showAchievementWallView() {
+      setTopActionsVisible(false);
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.expandSection) {
+        dom.expandSection.classList.remove("visible");
+        dom.expandSection.style.display = "none";
+      }
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
+      hidePerfectSquareSection();
+      hideDecimalSection();
+      const avatarPickerSec = document.getElementById("avatar-picker-section");
+      if (avatarPickerSec) avatarPickerSec.style.display = "none";
+      const sec = document.getElementById("achievement-wall-section");
+      if (sec) sec.style.display = "block";
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
+        await JmlAchievementsClient.loadState();
+      }
     }
 
     async function showRankingView() {
@@ -9578,6 +9657,13 @@
       return s.slice(0, 1).toUpperCase();
     }
 
+    function buildRankingBadgesInline(entry) {
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.buildRankingBadgesHtml === "function") {
+        return JmlAchievementsClient.buildRankingBadgesHtml(entry && entry.equippedBadges);
+      }
+      return "";
+    }
+
     function buildRankingTheadHtml(tab) {
       if (tab === "score") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.playerLevel")) + "</th></tr>";
@@ -9617,7 +9703,7 @@
       } else {
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
-      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + levelStr + "</td></tr>";
     }
 
@@ -9634,7 +9720,7 @@
       } else {
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
-      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + bestStr + "</td><td class=\"r-col r-col-score\">" + currentStr + "</td></tr>";
     }
 
@@ -9651,7 +9737,7 @@
       } else {
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
-      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + bestStr + "</td><td class=\"r-col r-col-score\">" + currentStr + "</td></tr>";
     }
 
@@ -9715,7 +9801,7 @@
       } else {
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
-      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-wrong\">" + wrongStr + "</td><td class=\"r-col r-col-date\">" + dateStr + "</td></tr>";
     }
 
@@ -9779,7 +9865,7 @@
       } else {
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
-      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span></span></span>";
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-date\">" + dateStr + "</td></tr>";
     }
 
@@ -11347,6 +11433,9 @@
       updateWrongbookBadge();
       showHome();
       updateSurvivalStatusUI();
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
+        void JmlAchievementsClient.loadState();
+      }
     }
 
     async function handleRegister() {
@@ -11601,6 +11690,14 @@
       if (modeStats) modeStats.addEventListener("click", showStatsView);
       const modeRanking = document.getElementById("mode-ranking");
       if (modeRanking) modeRanking.addEventListener("click", showRankingView);
+      const modeAchievementWall = document.getElementById("mode-achievement-wall");
+      if (modeAchievementWall) modeAchievementWall.addEventListener("click", function () {
+        if (isGuestMode) {
+          showToast("请先登录");
+          return;
+        }
+        void showAchievementWallView();
+      });
 
       const modePrimeComposite = document.getElementById("mode-prime-composite");
       if (modePrimeComposite) modePrimeComposite.addEventListener("click", showPrimeCompositePlaceholder);
@@ -11638,7 +11735,6 @@
       const soonButtons = [
         { id: "mode-gcd", key: "home.soon.gcd" },
         { id: "mode-lcm", key: "home.soon.lcm" },
-        { id: "mode-achievement-wall", key: "home.soon.achievementWall" },
         { id: "mode-unit-conversion", key: "home.soon.unitConversion" },
       ];
       soonButtons.forEach((x) => {
@@ -11797,6 +11893,12 @@
     }
 
     async function init() {
+      window.getApiBase = getApiBase;
+      window.getAuthHeaders = getAuthHeaders;
+      window.loadCurrentUsername = loadCurrentUsername;
+      window.showHome = showHome;
+      window.escapeHtml = escapeHtml;
+      window.showToast = showToast;
       saveLang(getSavedLang());
       await loadI18nFromServer();
       initDomRefs();
@@ -11807,6 +11909,9 @@
       applyI18nToMainView();
       bindEvents();
       bindRuleHintResizeObserver();
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.init === "function") {
+        JmlAchievementsClient.init();
+      }
       const name = loadCurrentUsername();
       if (!name) {
         document.getElementById("login-view").style.display = "flex";
@@ -11844,6 +11949,9 @@
             updateWrongbookBadge();
             applyTesterOnlyHomeModes();
             scheduleHomeTopBreathe();
+            if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
+              void JmlAchievementsClient.loadState();
+            }
             return;
         }
       } catch (e) {
