@@ -484,11 +484,19 @@
       const fullWrongPool = [
         {
           text: ebJoinSum([`${k} ÷ ${A}`, t2sign]),
-          explain: "强行分配两项。",
+          explain: "强行对两项分配除法。",
           causeNo: 1,
         },
-        { text: ebJoinSum([`${k} ÷ ${A}`]), explain: "只「分配」了一项。", causeNo: 2 },
-        { text: `${k} ÷ (${A} × ${B})`, explain: "把括号内 ± 看成 ×。", causeNo: 3 },
+        {
+          text: innerPlus ? `${k} ÷ ${A} + ${B}` : `${k} ÷ ${A} - ${B}`,
+          explain: "仅去掉括号，内层 ± 不变。",
+          causeNo: 2,
+        },
+        {
+          text: innerPlus ? `${k} ÷ ${A} - ${B}` : `${k} ÷ ${A} + ${B}`,
+          explain: "去括号时误把内层 ± 变号。",
+          causeNo: 3,
+        },
       ];
       return { prompt, correctText, fullWrongPool };
     }
