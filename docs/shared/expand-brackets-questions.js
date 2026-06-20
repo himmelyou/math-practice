@@ -512,8 +512,11 @@
       const innerOp = innerTimes ? "×" : "÷";
       const prompt = `${k} ÷ (${A} ${innerOp} ${B})`;
       const correctText = innerTimes ? `${k} ÷ ${A} ÷ ${B}` : `${k} ÷ ${A} × ${B}`;
+      const w1 = innerTimes
+        ? `${k} ÷ ${A} × ${k} ÷ ${B}`
+        : `${k} ÷ ${A} ÷ ${k} ÷ ${B}`;
       const fullWrongPool = [
-        { text: `${k} ÷ ${A} × ${k} ÷ ${B}`, explain: "误用「分别除」式分配。", causeNo: 1 },
+        { text: w1, explain: "误用「分别除」式分配。", causeNo: 1 },
         innerTimes
           ? {
               text: `${k} ÷ ${A} × ${B}`,
