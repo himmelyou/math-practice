@@ -125,30 +125,30 @@
   }
 
   function renderSummary() {
-    var el = document.getElementById("achievement-wall-summary");
-    if (!el) return;
     var unlockedCount = (state.items || []).filter(function (x) {
       return x.unlocked;
     }).length;
-    el.innerHTML =
-      '<span class="ach-wall-unlocked-count">已解锁 ' +
-      unlockedCount +
-      "</span>" +
-      '<button type="button" class="ach-wall-equip-toggle' +
-      (state.equipMode ? " active" : "") +
-      '" id="ach-wall-equip-toggle">' +
-      (state.equipMode ? "完成" : "编辑佩戴") +
-      "</button>" +
-      (state.equipMode ? '<span class="ach-wall-equip-hint muted">点选已解锁徽章佩戴（最多 3 枚）</span>' : "");
+    var totalCount = (state.items || []).length;
+    var countEl = document.getElementById("ach-wall-unlocked-count");
+    if (countEl) countEl.textContent = "已解锁 " + unlockedCount + "/" + totalCount;
     var toggle = document.getElementById("ach-wall-equip-toggle");
     if (toggle) {
-      toggle.addEventListener("click", function () {
-        state.equipMode = !state.equipMode;
-        closeDetail();
-        renderSummary();
-        renderWall();
-      });
+      toggle.textContent = state.equipMode ? "完成" : "管理佩戴";
+      toggle.classList.toggle("active", !!state.equipMode);
     }
+    var hint = document.getElementById("ach-wall-equip-hint");
+    if (hint) hint.hidden = !state.equipMode;
+  }
+
+  function bindEquipToggle() {
+    var toggle = document.getElementById("ach-wall-equip-toggle");
+    if (!toggle || toggle.dataset.bound === "1") return;
+    toggle.dataset.bound = "1";
+    toggle.addEventListener("click", function () {
+      state.equipMode = !state.equipMode;
+      closeDetail();
+      renderWall();
+    });
   }
 
   function renderWall() {
@@ -441,7 +441,9 @@
   }
 
   window.JmlAchievementsClient = {
-    init: function () {},
+    init: function () {
+      bindEquipToggle();
+    },
     loadState: loadState,
     showWall: showWall,
     hideWall: hideWall,

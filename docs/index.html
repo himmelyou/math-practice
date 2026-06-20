@@ -25,6 +25,8 @@
       --expand-card-prestart-height: clamp(190px, 30vh, 240px);
       /* 首页经验条：固定宽度，避免随右侧按钮伸缩 */
       --home-xp-track-width: 120px;
+      --ach-cell-size: 56px;
+      --ach-grid-gap: 12px;
     }
 
     * {
@@ -1128,34 +1130,58 @@
       overscroll-behavior: contain;
       padding-bottom: 12px;
     }
-    .ach-wall-summary-row {
+    .ach-wall-title-row {
       display: flex;
       align-items: center;
-      flex-wrap: wrap;
-      gap: 10px 12px;
-      margin-top: 4px;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 12px;
+      box-sizing: border-box;
+    }
+    .ach-wall-title-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex-shrink: 1;
+    }
+    .ach-wall-title-left .ranking-title {
+      flex-shrink: 0;
     }
     .ach-wall-unlocked-count {
-      font-size: 0.92rem;
-      font-weight: 700;
-      color: #1e293b;
+      flex-shrink: 0;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
     .ach-wall-equip-toggle {
+      flex-shrink: 0;
       border: 1px solid #cbd5e1;
       background: #fff;
       color: #334155;
       border-radius: 999px;
-      padding: 4px 12px;
-      font-size: 0.82rem;
+      padding: 4px 10px;
+      font-size: 0.78rem;
       font-weight: 600;
+      line-height: 1.2;
       cursor: pointer;
+      font-family: inherit;
     }
     .ach-wall-equip-toggle.active {
       border-color: #2563eb;
       background: #eff6ff;
       color: #1d4ed8;
     }
-    .ach-wall-equip-hint { font-size: 0.8rem; }
+    .ach-wall-equip-hint-row {
+      padding: 4px 12px 0;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    .ach-wall-equip-hint-row[hidden] {
+      display: none;
+    }
     .ach-wall-card {
       background: #fff;
       border: 1px solid #e2e8f0;
@@ -1175,7 +1201,8 @@
     .ach-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
+      gap: var(--ach-grid-gap);
+      justify-items: center;
     }
     .ach-cell {
       position: relative;
@@ -1184,13 +1211,15 @@
       background: transparent;
       cursor: pointer;
       border-radius: 10px;
-      overflow: hidden;
-      aspect-ratio: 1;
+      overflow: visible;
+      width: 100%;
+      max-width: calc(var(--ach-cell-size) + 4px);
     }
     .ach-cell:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
     .ach-cell-inner {
-      width: 100%;
-      height: 100%;
+      width: var(--ach-cell-size);
+      height: var(--ach-cell-size);
+      margin: 0 auto;
       border-radius: 10px;
       overflow: hidden;
       background: #f1f5f9;
@@ -3923,10 +3952,14 @@
 
     <section class="ranking-section achievement-wall-section" id="achievement-wall-section" style="display:none;margin-top:12px;">
       <div class="ranking-header">
-        <div class="ranking-title-row">
-          <h2 class="ranking-title">成就墙</h2>
+        <div class="ranking-title-row ach-wall-title-row">
+          <div class="ach-wall-title-left">
+            <h2 class="ranking-title">成就墙</h2>
+            <button type="button" class="ach-wall-equip-toggle" id="ach-wall-equip-toggle">管理佩戴</button>
+          </div>
+          <span class="ach-wall-unlocked-count" id="ach-wall-unlocked-count">已解锁 0/0</span>
         </div>
-        <div class="ach-wall-summary-row" id="achievement-wall-summary"></div>
+        <div class="ach-wall-equip-hint-row" id="ach-wall-equip-hint" hidden>点选已解锁徽章佩戴（最多 3 枚）</div>
       </div>
       <div class="achievement-wall-scroll" id="achievement-wall-scroll">
         <div class="ach-wall-card" id="achievement-wall-body"></div>
@@ -4335,7 +4368,7 @@
   <script src="shared/perfect-square-questions.js?v=37"></script>
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=37"></script>
-  <script src="achievements-client.js?v=1"></script>
+  <script src="achievements-client.js?v=2"></script>
   <script src="perfect-square-page.js?v=37"></script>
   <script src="decimal-page.js?v=3"></script>
   <script>
