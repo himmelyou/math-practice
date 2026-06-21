@@ -1474,6 +1474,7 @@ app.get("/api/achievements/catalog", (req, res) => {
     ok: true,
     version: catalog.version,
     categoryOrder: Array.isArray(catalog.categoryOrder) ? catalog.categoryOrder.slice() : [],
+    categories: catalog.categories && typeof catalog.categories === "object" ? catalog.categories : {},
     items,
   });
 });
@@ -1493,6 +1494,7 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   const view = achievementEngine.buildUserAchievementsView(user, runs, catalog, { includeDisabled: false });
   view.items = view.items.map((item) => mapAchievementItemView(item, req));
   view.categoryOrder = Array.isArray(catalog.categoryOrder) ? catalog.categoryOrder.slice() : [];
+  view.categories = catalog.categories && typeof catalog.categories === "object" ? catalog.categories : {};
   view.equippedSummary = achievementEngine.buildEquippedBadgesSummary(user, catalog).map((b) => ({
     ...b,
     imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),

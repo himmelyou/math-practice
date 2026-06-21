@@ -17,6 +17,69 @@
     itemDragFrom: { category: "", index: -1 },
   };
   var modalKeyHandler = null;
+  var DEFAULT_CATEGORY_SLUG = 'other';
+  var collapsedCategories = {};
+
+  function slugifyAscii(source) {
+    return String(source || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .replace(/-+/g, '-');
+  }
+
+  function isCategorySlug(value) {
+    return /^[a-z][a-z0-9-]*$/.test(String(value || '').trim());
+  }
+
+  function collectUsedCategorySlugs() {
+    var used = new Set();
+    var cats = (state.catalog && state.catalog.categories) || {};
+    Object.keys(cats).forEach(function (slug) {
+      if (isCategorySlug(slug)) used.add(slug);
+    });
+    return used;
+  }
+
+  function deriveCategorySlug(nameEn, name) {
+    var used = collectUsedCategorySlugs();
+    var fromEn = slugifyAscii(nameEn);
+    if (fromEn && fromEn.length >= 2 && !used.has(fromEn)) return fromEn;
+    var fromName = slugifyAscii(name);
+    if (fromName && fromName.length >= 2 && !used.has(fromName)) return fromName;
+    var base = fromEn || fromName || 'category';
+    var slug = base;
+    var n = 2;
+    while (used.has(slug)) {
+      slug = base + '-' + n;
+      n += 1;
+    }
+    return slug;
+  }
+
+  function getCategoriesMap() {
+    return (state.catalog && state.catalog.categories) || {};
+  }
+
+  function getCategoryMeta(slug) {
+    var cats = getCategoriesMap();
+    var key = String(slug || DEFAULT_CATEGORY_SLUG).trim() || DEFAULT_CATEGORY_SLUG;
+    return cats[key] || { name: key, nameEn: '' };
+  }
+
+  function categoryAdminLabel(slug) {
+    var meta = getCategoryMeta(slug);
+    var label = meta.name || slug;
+    if (meta.nameEn) label += ' · ' + meta.nameEn;
+    return label;
+  }
+
+  function categorySelectLabel(slug) {
+    var meta = getCategoryMeta(slug);
+    if (meta.nameEn) return meta.name + ' · ' + meta.nameEn;
+    return meta.name || slug;
+  }
 
   function apiBase() {
     var base = (window.__JML_API_BASE__ || window.API_BASE_URL || '').trim();
@@ -93,31 +156,37 @@
 
   function ensureCatalogShape(catalog) {
     if (!catalog || typeof catalog !== 'object') {
-      return { version: 1, categoryOrder: [], items: [] };
+      return { version: 2, categoryOrder: [DEFAULT_CATEGORY_SLUG], categories: {}, items: [] };
     }
     if (!Array.isArray(catalog.items)) catalog.items = [];
     if (!Array.isArray(catalog.categoryOrder)) catalog.categoryOrder = [];
+    if (!catalog.categories || typeof catalog.categories !== 'object') catalog.categories = {};
+    if (!catalog.categories[DEFAULT_CATEGORY_SLUG]) {
+      catalog.categories[DEFAULT_CATEGORY_SLUG] = { name: '其他', nameEn: 'Other' };
+    }
     catalog.items.forEach(function (item) {
-      if (!item.category) item.category = '其他';
+      if (!item.category || !isCategorySlug(item.category)) item.category = DEFAULT_CATEGORY_SLUG;
       if (typeof item.nameEn !== 'string') item.nameEn = '';
       if (typeof item.hintEn !== 'string') item.hintEn = '';
     });
-    var seen = new Set(catalog.categoryOrder);
-    catalog.items.forEach(function (item) {
-      var cat = String(item.category || '其他').trim() || '其他';
-      item.category = cat;
-      if (!seen.has(cat)) {
-        seen.add(cat);
-        catalog.categoryOrder.push(cat);
-      }
+    catalog.categoryOrder = catalog.categoryOrder.filter(function (slug) {
+      return isCategorySlug(slug) && catalog.categories[slug];
     });
+    catalog.items.forEach(function (item) {
+      var slug = item.category || DEFAULT_CATEGORY_SLUG;
+      if (!catalog.categories[slug]) {
+        catalog.categories[slug] = { name: slug, nameEn: '' };
+      }
+      if (catalog.categoryOrder.indexOf(slug) < 0) catalog.categoryOrder.push(slug);
+    });
+    if (!catalog.categoryOrder.length) catalog.categoryOrder.push(DEFAULT_CATEGORY_SLUG);
     return catalog;
   }
 
   function itemsForCategory(category) {
     return (state.catalog.items || [])
       .filter(function (item) {
-        return (item.category || '其他') === category;
+        return (item.category || DEFAULT_CATEGORY_SLUG) === category;
       })
       .sort(function (a, b) {
         return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.id).localeCompare(String(b.id));
@@ -133,13 +202,13 @@
 
   function categorySortLabel(item) {
     if (!item) return '';
-    var cat = item.category || '其他';
+    var cat = item.category || DEFAULT_CATEGORY_SLUG;
     var list = itemsForCategory(cat);
     var idx = list.findIndex(function (x) {
       return x && x.id === item.id;
     });
     if (idx < 0) return '';
-    return cat + ' · 第 ' + (idx + 1) + ' / ' + list.length + ' 项';
+    return categoryAdminLabel(cat) + ' · 第 ' + (idx + 1) + ' / ' + list.length + ' 项';
   }
 
   function markDirty(msg) {
@@ -161,14 +230,20 @@
     );
   }
 
-  function buildCategoryOptionsHtml(current) {
-    var cats = (state.catalog && state.catalog.categoryOrder) || [];
-    return cats
-      .map(function (cat) {
-        return '<option value="' + escapeHtml(cat) + '"></option>';
-      })
-      .concat('<option value="其他"></option>')
-      .join('');
+  function buildCategorySelectHtml(selected) {
+    var order = (state.catalog && state.catalog.categoryOrder) || [];
+    return (
+      '<select id="jml-ach-edit-category">' +
+      order
+        .map(function (slug) {
+          var sel = slug === selected ? ' selected' : '';
+          return (
+            '<option value="' + escapeHtml(slug) + '"' + sel + '>' + escapeHtml(categorySelectLabel(slug)) + '</option>'
+          );
+        })
+        .join('') +
+      '</select>'
+    );
   }
 
   function buildRuleTypeSelectHtml(selected) {
@@ -231,7 +306,7 @@
       '<tr class="jml-ach-item-row" draggable="true" data-id="' +
       escapeHtml(item.id) +
       '" data-category="' +
-      escapeHtml(item.category || '其他') +
+      escapeHtml(item.category || DEFAULT_CATEGORY_SLUG) +
       '">' +
       '<td class="jml-ach-drag-col"><span class="jml-ach-drag-handle" title="拖动排序">⠿</span></td>' +
       '<td><code>' +
@@ -261,38 +336,48 @@
 
   function wireCategoryDnD(listEl) {
     if (!listEl) return;
-    listEl.querySelectorAll('.jml-ach-category-row').forEach(function (li) {
-      li.addEventListener('dragstart', function () {
-        state.categoryDragFrom = Array.from(listEl.children).indexOf(li);
-        li.classList.add('dragging');
+    listEl.querySelectorAll('.jml-ach-folder-head').forEach(function (head) {
+      head.addEventListener('dragstart', function (e) {
+        var folder = head.closest('.jml-ach-folder');
+        if (!folder) return;
+        state.categoryDragFrom = Array.from(listEl.children).indexOf(folder);
+        folder.classList.add('dragging');
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       });
-      li.addEventListener('dragend', function () {
-        li.classList.remove('dragging');
-        listEl.querySelectorAll('.jml-ach-category-row').forEach(function (x) {
+      head.addEventListener('dragend', function () {
+        var folder = head.closest('.jml-ach-folder');
+        if (folder) folder.classList.remove('dragging');
+        listEl.querySelectorAll('.jml-ach-folder').forEach(function (x) {
           x.classList.remove('drag-over-top');
           x.classList.remove('drag-over-bottom');
         });
       });
-      li.addEventListener('dragover', function (e) {
+      head.addEventListener('dragover', function (e) {
         e.preventDefault();
-        var rect = li.getBoundingClientRect();
-        var before = e.clientX - rect.left < rect.width / 2;
-        li.classList.toggle('drag-over-top', before);
-        li.classList.toggle('drag-over-bottom', !before);
+        var folder = head.closest('.jml-ach-folder');
+        if (!folder) return;
+        var rect = head.getBoundingClientRect();
+        var before = e.clientY - rect.top < rect.height / 2;
+        folder.classList.toggle('drag-over-top', before);
+        folder.classList.toggle('drag-over-bottom', !before);
       });
-      li.addEventListener('dragleave', function () {
-        li.classList.remove('drag-over-top');
-        li.classList.remove('drag-over-bottom');
+      head.addEventListener('dragleave', function () {
+        var folder = head.closest('.jml-ach-folder');
+        if (!folder) return;
+        folder.classList.remove('drag-over-top');
+        folder.classList.remove('drag-over-bottom');
       });
-      li.addEventListener('drop', function (e) {
+      head.addEventListener('drop', function (e) {
         e.preventDefault();
+        var folder = head.closest('.jml-ach-folder');
+        if (!folder) return;
         var from = state.categoryDragFrom;
         if (from < 0) return;
         var rows = Array.from(listEl.children);
-        var to = rows.indexOf(li);
+        var to = rows.indexOf(folder);
         if (to < 0 || to === from) return;
-        var rect = li.getBoundingClientRect();
-        var before = e.clientX - rect.left < rect.width / 2;
+        var rect = head.getBoundingClientRect();
+        var before = e.clientY - rect.top < rect.height / 2;
         var order = (state.catalog.categoryOrder || []).slice();
         var moved = order.splice(from, 1)[0];
         var insertAt = before ? to : to + 1;
@@ -303,6 +388,247 @@
         state.catalog.categoryOrder = order;
         markDirty('分类顺序已更新，记得保存 catalog');
         renderTable();
+      });
+    });
+  }
+
+  function toggleCategoryCollapsed(slug) {
+    collapsedCategories[slug] = !collapsedCategories[slug];
+    renderTable();
+  }
+
+  function openCategoryModal(mode, slug) {
+    mode = mode === 'edit' ? 'edit' : 'add';
+    var modal = document.getElementById('jml-modal-overlay');
+    var title = document.getElementById('jml-modal-title');
+    var body = document.getElementById('jml-modal-body');
+    var actions = document.getElementById('jml-modal-actions');
+    if (!modal || !title || !body || !actions) return;
+    modal.classList.remove('jml-modal-wide');
+    var meta = mode === 'edit' ? getCategoryMeta(slug) : { name: '', nameEn: '' };
+    var initialSlug = mode === 'edit' ? slug : deriveCategorySlug('', '');
+    title.textContent = mode === 'edit' ? '编辑分类' : '添加分类';
+    body.innerHTML =
+      fieldRow(
+        'slug',
+        mode === 'edit'
+          ? '<code class="jml-ach-id-chip">' + escapeHtml(slug) + '</code>'
+          : '<input id="jml-cat-edit-slug" type="text" value="' +
+            escapeHtml(initialSlug) +
+            '" spellcheck="false" />' +
+            '<div class="jml-ach-field-hint">仅小写英文、数字与连字符；创建后不可修改</div>',
+      ) +
+      fieldRow('名称（繁中）', '<input id="jml-cat-edit-name" type="text" value="' + escapeHtml(meta.name || '') + '" />') +
+      fieldRow(
+        '名称（English）',
+        '<input id="jml-cat-edit-name-en" type="text" value="' +
+          escapeHtml(meta.nameEn || '') +
+          '" placeholder="English name" />' +
+          (mode === 'add'
+            ? '<div class="jml-ach-field-hint">填写英文名后会自动建议 slug</div>'
+            : ''),
+      );
+
+    actions.innerHTML = '';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'jml-btn';
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', closeModal);
+    var saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'jml-btn jml-btn-primary';
+    saveBtn.textContent = mode === 'edit' ? '保存' : '添加';
+    saveBtn.addEventListener('click', function () {
+      try {
+        if (mode === 'add') saveNewCategory();
+        else saveCategoryEdit(slug);
+        closeModal();
+        renderTable();
+      } catch (e) {
+        setStatus(e.message || String(e), 'err');
+      }
+    });
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+    modal.hidden = false;
+    modalKeyHandler = function (e) {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', modalKeyHandler);
+
+    if (mode === 'add') {
+      var nameEl = document.getElementById('jml-cat-edit-name');
+      var nameEnEl = document.getElementById('jml-cat-edit-name-en');
+      var slugEl = document.getElementById('jml-cat-edit-slug');
+      var slugTouched = false;
+      if (slugEl) {
+        slugEl.addEventListener('input', function () {
+          slugTouched = true;
+        });
+      }
+      function syncSuggestedSlug() {
+        if (slugTouched || !slugEl) return;
+        slugEl.value = deriveCategorySlug(nameEnEl ? nameEnEl.value : '', nameEl ? nameEl.value : '');
+      }
+      if (nameEl) nameEl.addEventListener('input', syncSuggestedSlug);
+      if (nameEnEl) nameEnEl.addEventListener('input', syncSuggestedSlug);
+    }
+  }
+
+  function saveNewCategory() {
+    var nameEl = document.getElementById('jml-cat-edit-name');
+    var nameEnEl = document.getElementById('jml-cat-edit-name-en');
+    var slugEl = document.getElementById('jml-cat-edit-slug');
+    var name = nameEl ? nameEl.value.trim() : '';
+    var nameEn = nameEnEl ? nameEnEl.value.trim() : '';
+    var slug = slugEl ? slugEl.value.trim().toLowerCase() : '';
+    if (!name) throw new Error('请填写繁中名称');
+    if (!isCategorySlug(slug)) throw new Error('slug 格式无效（需以小写字母开头，仅含 a-z、0-9、-）');
+    ensureCatalogShape(state.catalog);
+    if (state.catalog.categories[slug]) throw new Error('slug 已存在：' + slug);
+    state.catalog.categories[slug] = { name: name, nameEn: nameEn };
+    if (state.catalog.categoryOrder.indexOf(slug) < 0) state.catalog.categoryOrder.push(slug);
+    collapsedCategories[slug] = false;
+    markDirty('已添加分类「' + name + '」，记得保存 catalog');
+  }
+
+  function saveCategoryEdit(slug) {
+    if (!slug) throw new Error('分类不存在');
+    var nameEl = document.getElementById('jml-cat-edit-name');
+    var nameEnEl = document.getElementById('jml-cat-edit-name-en');
+    var name = nameEl ? nameEl.value.trim() : '';
+    var nameEn = nameEnEl ? nameEnEl.value.trim() : '';
+    if (!name) throw new Error('请填写繁中名称');
+    ensureCatalogShape(state.catalog);
+    if (!state.catalog.categories[slug]) throw new Error('分类不存在');
+    state.catalog.categories[slug] = { name: name, nameEn: nameEn };
+    markDirty('分类「' + name + '」已更新，记得保存 catalog');
+  }
+
+  function deleteCategory(slug) {
+    if (!slug || slug === DEFAULT_CATEGORY_SLUG) {
+      setStatus('系统默认分类「其他」不可删除', 'err');
+      return;
+    }
+    if (itemsForCategory(slug).length > 0) {
+      setStatus('该分类下仍有成就，请先移走或删除后再删分类', 'err');
+      return;
+    }
+    var meta = getCategoryMeta(slug);
+    if (!window.confirm('确定删除空分类「' + (meta.name || slug) + '」？')) return;
+    ensureCatalogShape(state.catalog);
+    delete state.catalog.categories[slug];
+    state.catalog.categoryOrder = (state.catalog.categoryOrder || []).filter(function (s) {
+      return s !== slug;
+    });
+    delete collapsedCategories[slug];
+    markDirty('已删除分类，记得保存 catalog');
+    renderTable();
+  }
+
+  function renderTable() {
+    var wrap = document.getElementById('jml-achievements-table-wrap');
+    if (!wrap || !state.catalog) return;
+    ensureCatalogShape(state.catalog);
+    var order = state.catalog.categoryOrder || [];
+    if (!order.length) {
+      wrap.innerHTML = '<p class="muted">暂无分类。请添加分类后再管理成就。</p>';
+      return;
+    }
+
+    var treeHtml =
+      '<div class="jml-ach-tree">' +
+      '<div class="jml-ach-tree-toolbar">' +
+      '<button type="button" class="jml-btn jml-btn-sm" id="jml-btn-add-category">+ 添加分类</button>' +
+      '<span class="muted jml-ach-tree-hint">拖动文件夹行调整分类顺序；展开后可拖动成就排序</span>' +
+      '</div>' +
+      '<ul class="jml-ach-tree-list" id="jml-ach-category-list">' +
+      order
+        .map(function (slug) {
+          var catItems = itemsForCategory(slug);
+          var collapsed = !!collapsedCategories[slug];
+          var canDelete = catItems.length === 0 && slug !== DEFAULT_CATEGORY_SLUG;
+          return (
+            '<li class="jml-ach-folder' +
+            (collapsed ? ' is-collapsed' : '') +
+            '" data-category="' +
+            escapeHtml(slug) +
+            '">' +
+            '<div class="jml-ach-folder-head" draggable="true">' +
+            '<button type="button" class="jml-ach-folder-toggle" data-category="' +
+            escapeHtml(slug) +
+            '" aria-label="展开/折叠">' +
+            (collapsed ? '▸' : '▾') +
+            '</button>' +
+            '<span class="jml-ach-drag-handle" title="拖动调整分类顺序">⠿</span>' +
+            '<span class="jml-ach-folder-title">' +
+            escapeHtml(categoryAdminLabel(slug)) +
+            '</span>' +
+            '<code class="jml-ach-folder-slug muted">' +
+            escapeHtml(slug) +
+            '</code>' +
+            '<span class="jml-ach-category-count muted">' +
+            catItems.length +
+            ' 项</span>' +
+            '<span class="jml-ach-folder-actions">' +
+            '<button type="button" class="jml-btn jml-btn-sm jml-ach-cat-edit-btn" data-category="' +
+            escapeHtml(slug) +
+            '">编辑</button> ' +
+            '<button type="button" class="jml-btn jml-btn-sm jml-ach-cat-del-btn"' +
+            (canDelete ? '' : ' disabled') +
+            ' data-category="' +
+            escapeHtml(slug) +
+            '">删除</button>' +
+            '</span></div>' +
+            '<div class="jml-ach-folder-body">' +
+            (catItems.length
+              ? '<div class="jml-table-wrap"><table class="jml-user-table jml-achievements-table">' +
+                '<thead><tr><th class="jml-ach-drag-col"></th><th>id</th><th>名称</th><th class="num">XP</th><th>ruleType</th><th>启用</th><th>操作</th></tr></thead>' +
+                '<tbody data-category="' +
+                escapeHtml(slug) +
+                '">' +
+                catItems.map(achievementRowHtml).join('') +
+                '</tbody></table></div>'
+              : '<p class="muted jml-ach-folder-empty">此分类暂无成就</p>') +
+            '</div></li>'
+          );
+        })
+        .join('') +
+      '</ul></div>';
+
+    wrap.innerHTML = treeHtml;
+
+    var addBtn = document.getElementById('jml-btn-add-category');
+    if (addBtn) addBtn.addEventListener('click', function () { openCategoryModal('add'); });
+
+    wrap.querySelectorAll('.jml-ach-folder-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleCategoryCollapsed(btn.getAttribute('data-category') || '');
+      });
+    });
+    wrap.querySelectorAll('.jml-ach-cat-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openCategoryModal('edit', btn.getAttribute('data-category') || '');
+      });
+    });
+    wrap.querySelectorAll('.jml-ach-cat-del-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.disabled) return;
+        deleteCategory(btn.getAttribute('data-category') || '');
+      });
+    });
+
+    wireCategoryDnD(document.getElementById('jml-ach-category-list'));
+    wrap.querySelectorAll('tbody[data-category]').forEach(function (tbody) {
+      wireItemDnD(tbody, tbody.getAttribute('data-category') || DEFAULT_CATEGORY_SLUG);
+    });
+    wrap.querySelectorAll('.jml-ach-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tr = btn.closest('tr');
+        var id = tr ? tr.getAttribute('data-id') : '';
+        openEditModal(id);
       });
     });
   }
@@ -355,72 +681,8 @@
         list.forEach(function (item, index) {
           item.sortOrder = (index + 1) * 10;
         });
-        markDirty('「' + category + '」内成就顺序已更新，记得保存 catalog');
+        markDirty('「' + categoryAdminLabel(category) + '」内成就顺序已更新，记得保存 catalog');
         renderTable();
-      });
-    });
-  }
-
-  function renderTable() {
-    var wrap = document.getElementById('jml-achievements-table-wrap');
-    if (!wrap || !state.catalog) return;
-    ensureCatalogShape(state.catalog);
-    var items = state.catalog.items || [];
-    if (!items.length) {
-      wrap.innerHTML = '<p class="muted">暂无成就条目。</p>';
-      return;
-    }
-
-    var categoryHtml =
-      '<div class="jml-ach-sort-block">' +
-      '<h3 class="jml-ach-sort-title">分类顺序 <span class="muted">（拖动调整外层排序）</span></h3>' +
-      '<ul class="jml-ach-category-list" id="jml-ach-category-list">' +
-      (state.catalog.categoryOrder || [])
-        .map(function (cat) {
-          return (
-            '<li class="jml-ach-category-row" draggable="true" data-category="' +
-            escapeHtml(cat) +
-            '"><span class="jml-ach-drag-handle">⠿</span><span>' +
-            escapeHtml(cat) +
-            '</span><span class="muted jml-ach-category-count">' +
-            itemsForCategory(cat).length +
-            ' 项</span></li>'
-          );
-        })
-        .join('') +
-      '</ul></div>';
-
-    var groupsHtml = (state.catalog.categoryOrder || [])
-      .map(function (cat) {
-        var catItems = itemsForCategory(cat);
-        if (!catItems.length) return '';
-        return (
-          '<div class="jml-ach-group">' +
-          '<h3 class="jml-ach-group-title">' +
-          escapeHtml(cat) +
-          ' <span class="muted">（类内拖动排序）</span></h3>' +
-          '<div class="jml-table-wrap"><table class="jml-user-table jml-achievements-table">' +
-          '<thead><tr><th class="jml-ach-drag-col"></th><th>id</th><th>名称</th><th class="num">XP</th><th>ruleType</th><th>启用</th><th>操作</th></tr></thead>' +
-          '<tbody data-category="' +
-          escapeHtml(cat) +
-          '">' +
-          catItems.map(achievementRowHtml).join('') +
-          '</tbody></table></div></div>'
-        );
-      })
-      .join('');
-
-    wrap.innerHTML = categoryHtml + groupsHtml;
-
-    wireCategoryDnD(document.getElementById('jml-ach-category-list'));
-    wrap.querySelectorAll('tbody[data-category]').forEach(function (tbody) {
-      wireItemDnD(tbody, tbody.getAttribute('data-category') || '其他');
-    });
-    wrap.querySelectorAll('.jml-ach-edit-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var tr = btn.closest('tr');
-        var id = tr ? tr.getAttribute('data-id') : '';
-        openEditModal(id);
       });
     });
   }
@@ -563,12 +825,7 @@
       ) +
       fieldRow(
         '分类',
-        '<input id="jml-ach-edit-category" list="jml-ach-category-options" type="text" value="' +
-          escapeHtml(item.category || '') +
-          '" />' +
-          '<datalist id="jml-ach-category-options">' +
-          buildCategoryOptionsHtml(item.category) +
-          '</datalist>' +
+        buildCategorySelectHtml(item.category || DEFAULT_CATEGORY_SLUG) +
           (sortLabel
             ? '<div class="jml-ach-field-hint">当前排序：' + escapeHtml(sortLabel) + '</div>'
             : ''),
@@ -663,7 +920,7 @@
   function readFormIntoItem(id) {
     var item = findItem(id);
     if (!item) return null;
-    var oldCategory = item.category || '其他';
+    var oldCategory = item.category || DEFAULT_CATEGORY_SLUG;
     var nameEl = document.getElementById('jml-ach-edit-name');
     var nameEnEl = document.getElementById('jml-ach-edit-name-en');
     var catEl = document.getElementById('jml-ach-edit-category');
@@ -680,8 +937,10 @@
 
     item.name = nameEl.value.trim();
     item.nameEn = nameEnEl ? nameEnEl.value.trim() : item.nameEn;
-    var nextCategory = catEl ? catEl.value.trim() : item.category;
-    nextCategory = nextCategory || '其他';
+    var nextCategory = catEl ? catEl.value : item.category;
+    if (!nextCategory || !state.catalog.categories[nextCategory]) {
+      throw new Error('请选择有效分类');
+    }
     item.category = nextCategory;
     item.xpReward = Math.max(0, Math.floor(Number(xpEl && xpEl.value) || 0));
     item.hint = hintEl ? hintEl.value.trim() : item.hint;
@@ -696,9 +955,6 @@
 
     ensureCatalogShape(state.catalog);
     if (nextCategory !== oldCategory) {
-      if (state.catalog.categoryOrder.indexOf(nextCategory) < 0) {
-        state.catalog.categoryOrder.push(nextCategory);
-      }
       var dest = itemsForCategory(nextCategory).filter(function (x) {
         return x.id !== item.id;
       });
@@ -748,7 +1004,7 @@
     setStatus('加载成就 catalog…', '');
     return apiFetch('/api/admin/achievements/catalog')
       .then(function (data) {
-        state.catalog = ensureCatalogShape(data.catalog || { version: 1, categoryOrder: [], items: [] });
+        state.catalog = ensureCatalogShape(data.catalog || { version: 2, categoryOrder: [DEFAULT_CATEGORY_SLUG], categories: {}, items: [] });
         state.ruleTypes = Array.isArray(data.ruleTypes) ? data.ruleTypes.slice() : [];
         state.implementedRuleTypes = Array.isArray(data.implementedRuleTypes)
           ? data.implementedRuleTypes.slice()

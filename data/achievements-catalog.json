@@ -1,15 +1,25 @@
 {
-  "version": 1,
+  "version": 2,
   "categoryOrder": [
-    "入门"
+    "getting-started"
   ],
+  "categories": {
+    "getting-started": {
+      "name": "入门",
+      "nameEn": "Getting Started"
+    },
+    "other": {
+      "name": "其他",
+      "nameEn": "Other"
+    }
+  },
   "items": [
     {
       "id": "first_run",
       "name": "初次挑战",
       "nameEn": "First Run",
       "icon": "🎯",
-      "category": "入门",
+      "category": "getting-started",
       "xpReward": 10,
       "hint": "完成任意 1 局挑战",
       "hintEn": "Complete any 1 run",
@@ -23,7 +33,7 @@
       "name": "热身完成",
       "nameEn": "Training Started",
       "icon": "📘",
-      "category": "入门",
+      "category": "getting-started",
       "xpReward": 10,
       "hint": "完成 1 局训练模式",
       "hintEn": "Complete 1 training run",
@@ -37,7 +47,7 @@
       "name": "闯关上手",
       "nameEn": "Level Challenge Started",
       "icon": "🚩",
-      "category": "入门",
+      "category": "getting-started",
       "xpReward": 10,
       "hint": "完成 1 局闯关模式",
       "hintEn": "Complete 1 level challenge run",

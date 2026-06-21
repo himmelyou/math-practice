@@ -5,6 +5,7 @@
   var state = {
     items: [],
     categoryOrder: [],
+    categories: {},
     achievements: {},
     equippedBadges: [],
     equippedSummary: [],
@@ -59,10 +60,18 @@
     return item.hint || item.hintEn || "";
   }
 
+  function categoryDisplayName(slug) {
+    var key = String(slug || "other").trim() || "other";
+    var meta = state.categories && state.categories[key];
+    if (!meta) return key;
+    if (getAchievementLang() === "en" && meta.nameEn) return meta.nameEn;
+    return meta.name || meta.nameEn || key;
+  }
+
   function groupByCategory(items) {
     var map = new Map();
     (items || []).forEach(function (item) {
-      var cat = item.category || "其他";
+      var cat = item.category || "other";
       if (!map.has(cat)) map.set(cat, []);
       map.get(cat).push(item);
     });
@@ -225,7 +234,7 @@
     groups.forEach(function (pair) {
       var cat = pair[0];
       var catItems = pair[1];
-      listHtml += '<div class="ach-category"><h3 class="ach-category-title">' + escapeHtml(cat) + '</h3><div class="ach-grid">';
+      listHtml += '<div class="ach-category"><h3 class="ach-category-title">' + escapeHtml(categoryDisplayName(cat)) + '</h3><div class="ach-grid">';
       catItems.forEach(function (item) {
         var locked = !item.unlocked;
         var equipped = isEquipped(item.id);
@@ -424,6 +433,7 @@
     if (!name || !base) {
       state.items = [];
       state.categoryOrder = [];
+      state.categories = {};
       state.achievements = {};
       state.equippedBadges = [];
       state.equippedSummary = [];
@@ -443,6 +453,7 @@
         if (!data || !data.ok) throw new Error((data && data.error) || "加载失败");
         state.items = Array.isArray(data.items) ? data.items : [];
         state.categoryOrder = Array.isArray(data.categoryOrder) ? data.categoryOrder.slice() : [];
+        state.categories = data.categories && typeof data.categories === "object" ? data.categories : {};
         state.achievements = data.achievements && typeof data.achievements === "object" ? data.achievements : {};
         state.equippedBadges = Array.isArray(data.equippedBadges) ? data.equippedBadges : [];
         state.equippedSummary = Array.isArray(data.equippedSummary) && data.equippedSummary.length
