@@ -66,26 +66,39 @@
     );
   }
 
+  function resolveBadgeImageUrl(b) {
+    if (!b) return "";
+    if (b.imageUrl) return String(b.imageUrl);
+    var path = b.imagePath || "";
+    if (!path) return "";
+    if (/^https?:\/\//i.test(path)) return path;
+    var base = apiBase().replace(/\/+$/, "");
+    if (!base) return path;
+    return base + path;
+  }
+
   function renderBadgeChip(b, chipClass) {
-    if (b && b.imageUrl) {
+    var url = resolveBadgeImageUrl(b);
+    var title = escapeHtml((b && b.name) || "");
+    if (url) {
       return (
         '<span class="' +
         chipClass +
         '" title="' +
-        escapeHtml(b.name || "") +
+        title +
         '"><img src="' +
-        escapeHtml(b.imageUrl) +
-        '" alt="" /></span>'
+        escapeHtml(url) +
+        '" alt="" loading="lazy" /></span>'
       );
     }
     return (
       '<span class="' +
       chipClass +
-      '" title="' +
-      escapeHtml((b && b.name) || "") +
-      '">' +
-      escapeHtml((b && b.icon) || "🏅") +
-      "</span>"
+      ' badge-chip-placeholder" title="' +
+      title +
+      '"><span class="badge-chip-placeholder-inner">' +
+      escapeHtml((b && b.name ? b.name : "?").slice(0, 1)) +
+      "</span></span>"
     );
   }
 
@@ -337,7 +350,12 @@
           return x.id === id;
         });
         if (!item) return null;
-        return { id: item.id, name: item.name, icon: item.icon, imageUrl: item.imageUrl || "" };
+        return {
+          id: item.id,
+          name: item.name,
+          imagePath: item.imagePath || "",
+          imageUrl: item.imageUrl || resolveBadgeImageUrl({ imagePath: item.imagePath, imageUrl: item.imageUrl }),
+        };
       })
       .filter(Boolean);
   }
@@ -380,7 +398,9 @@
         state.items = Array.isArray(data.items) ? data.items : [];
         state.achievements = data.achievements && typeof data.achievements === "object" ? data.achievements : {};
         state.equippedBadges = Array.isArray(data.equippedBadges) ? data.equippedBadges : [];
-        state.equippedSummary = buildSummaryFromEquipped();
+        state.equippedSummary = Array.isArray(data.equippedSummary) && data.equippedSummary.length
+          ? data.equippedSummary
+          : buildSummaryFromEquipped();
         if (window.cachedUser) {
           window.cachedUser.achievements = Object.assign({}, state.achievements);
           window.cachedUser.equippedBadges = state.equippedBadges.slice();

@@ -943,7 +943,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(cookieParser());
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 app.use("/avatar-assets", express.static(AVATAR_ASSET_DIR));
 app.use("/achievement-assets", express.static(ACHIEVEMENT_ASSET_DIR));
 
@@ -1442,6 +1442,10 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   achievementEngine.sanitizeEquippedBadges(user, catalog);
   const view = achievementEngine.buildUserAchievementsView(user, runs, catalog, { includeDisabled: false });
   view.items = view.items.map((item) => mapAchievementItemView(item, req));
+  view.equippedSummary = achievementEngine.buildEquippedBadgesSummary(user, catalog).map((b) => ({
+    ...b,
+    imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
+  }));
   res.json({ ok: true, ...view });
 });
 

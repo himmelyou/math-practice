@@ -926,7 +926,7 @@
   function openAvatarUploadModal() {
     openModal(
       '上传头像',
-      '<div class="muted" style="margin:0 0 10px;">选择图片后上传（png/jpg/webp）。</div>' +
+      '<div class="muted" style="margin:0 0 10px;">选择图片后自动压缩为 256×256 再上传（png/jpg/webp）。</div>' +
         '<div class="jml-field"><input id="jml-avatar-file" type="file" accept="image/*" /></div>' +
         fieldHtml('jml-avatar-name', '头像名', '<input id="jml-avatar-name" type="text" />') +
         fieldHtml('jml-avatar-unlock', '解锁等级', '<input id="jml-avatar-unlock" type="number" min="1" step="1" value="1" />'),
@@ -942,14 +942,15 @@
             var name = (document.getElementById('jml-avatar-name').value || '').trim();
             var unlock = Math.max(1, Math.floor(Number(document.getElementById('jml-avatar-unlock').value) || 1));
             try {
-              setStatus('上传中…', '');
-              var dataUrl = await fileToDataUrl(f);
+              setStatus('处理并上传中…', '');
+              var normalized = await normalizeUploadFile(f);
               await apiFetch('/api/admin/avatars/upload', {
                 method: 'POST',
-                body: JSON.stringify({ name: name, unlockLevel: unlock, dataUrl: dataUrl }),
+                body: JSON.stringify({ name: name, unlockLevel: unlock, dataUrl: normalized.dataUrl }),
               });
               closeModal();
               await loadAvatars();
+              setStatus(window.JmlAdminImageNormalize ? window.JmlAdminImageNormalize.formatNormalizeStatus(normalized) : '上传成功', 'ok');
             } catch (e) {
               setStatus(e.message || '上传失败', 'err');
             }
@@ -959,13 +960,11 @@
     );
   }
 
-  function fileToDataUrl(file) {
-    return new Promise(function (resolve, reject) {
-      var r = new FileReader();
-      r.onerror = function () { reject(new Error('读取文件失败')); };
-      r.onload = function () { resolve(String(r.result || '')); };
-      r.readAsDataURL(file);
-    });
+  function normalizeUploadFile(file) {
+    if (!window.JmlAdminImageNormalize || typeof window.JmlAdminImageNormalize.normalizeImageFile !== 'function') {
+      return Promise.reject(new Error('图片处理模块未加载'));
+    }
+    return window.JmlAdminImageNormalize.normalizeImageFile(file, { size: 256, maxBytes: 80000 });
   }
 
   function openAvatarEditSelectedModal() {
@@ -991,11 +990,11 @@
             var f = fileInput && fileInput.files && fileInput.files[0];
             if (!f) return;
             try {
-              setStatus('替换中…', '');
-              var dataUrl = await fileToDataUrl(f);
+              setStatus('处理并替换中…', '');
+              var normalized = await normalizeUploadFile(f);
               await apiFetch('/api/admin/avatars/' + encodeURIComponent(id) + '/replace-image', {
                 method: 'POST',
-                body: JSON.stringify({ dataUrl: dataUrl }),
+                body: JSON.stringify({ dataUrl: normalized.dataUrl }),
               });
               closeModal();
               await loadAvatars();

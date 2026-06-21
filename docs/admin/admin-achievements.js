@@ -21,11 +21,18 @@
     var url = apiBase() + path;
     var headers = Object.assign({ 'X-Admin-Pin': adminPin() }, (opts && opts.headers) || {});
     return fetch(url, Object.assign({}, opts || {}, { headers: headers })).then(function (res) {
-      return res.json().then(function (data) {
-        if (!res.ok || (data && data.ok === false)) {
-          throw new Error((data && data.error) || ('HTTP ' + res.status));
-        }
-        return data;
+      var ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('application/json') >= 0) {
+        return res.json().then(function (data) {
+          if (!res.ok || (data && data.ok === false)) {
+            throw new Error((data && data.error) || ('HTTP ' + res.status));
+          }
+          return data;
+        });
+      }
+      return res.text().then(function (text) {
+        var snippet = String(text || '').replace(/\s+/g, ' ').slice(0, 120);
+        throw new Error('HTTP ' + res.status + (snippet ? ('：' + snippet) : ''));
       });
     });
   }
@@ -47,13 +54,18 @@
       .replace(/"/g, '&quot;');
   }
 
-  function fileToDataUrl(file) {
-    return new Promise(function (resolve, reject) {
-      var r = new FileReader();
-      r.onerror = function () { reject(new Error('读取文件失败')); };
-      r.onload = function () { resolve(String(r.result || '')); };
-      r.readAsDataURL(file);
-    });
+  function normalizeUploadFile(file) {
+    if (!global.JmlAdminImageNormalize || typeof global.JmlAdminImageNormalize.normalizeImageFile !== 'function') {
+      return Promise.reject(new Error('图片处理模块未加载'));
+    }
+    return global.JmlAdminImageNormalize.normalizeImageFile(file, { size: 256, maxBytes: 80000 });
+  }
+
+  function formatNormalizeStatus(result) {
+    if (global.JmlAdminImageNormalize && typeof global.JmlAdminImageNormalize.formatNormalizeStatus === 'function') {
+      return global.JmlAdminImageNormalize.formatNormalizeStatus(result);
+    }
+    return '图片已上传';
   }
 
   function resolveImagePreview(item) {
@@ -156,7 +168,7 @@
       '<div class="jml-field"><label>名称</label><input id="jml-ach-edit-name" type="text" value="' +
       escapeHtml(item.name || '') +
       '" /></div>' +
-      '<div class="jml-field"><label>徽章图片（建议方图 256–512px）</label>' +
+      '<div class="jml-field"><label>徽章图片（任意尺寸，上传后自动转为 256×256）</label>' +
       (preview ? '<div style="margin:0 0 8px;"><img id="jml-ach-edit-preview" src="' + escapeHtml(preview) + '" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;" /></div>' : '<div id="jml-ach-edit-preview-wrap" class="muted" style="margin:0 0 8px;">尚未上传</div>') +
       '<input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" /></div>' +
       '<div class="jml-field"><label>分类</label><input id="jml-ach-edit-category" type="text" value="' +
@@ -242,16 +254,20 @@
     }
     var file = imageEl && imageEl.files && imageEl.files[0];
     if (!file) return Promise.resolve();
-    setStatus('上传徽章图片…', '');
-    return fileToDataUrl(file)
-      .then(function (dataUrl) {
+    setStatus('处理并上传徽章图片…', '');
+    return normalizeUploadFile(file)
+      .then(function (normalized) {
         return apiFetch('/api/admin/achievements/' + encodeURIComponent(id) + '/replace-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dataUrl: dataUrl }),
+          body: JSON.stringify({ dataUrl: normalized.dataUrl }),
+        }).then(function (data) {
+          return { data: data, normalized: normalized };
         });
       })
-      .then(function (data) {
+      .then(function (result) {
+        var data = result.data;
+        var normalized = result.normalized;
         if (data.catalog) {
           state.catalog = data.catalog;
           item = findItem(id) || item;
@@ -259,7 +275,7 @@
           item.imagePath = data.item.imagePath || item.imagePath;
           item.imageUrl = data.item.imageUrl || item.imageUrl;
         }
-        setStatus('图片已上传', 'ok');
+        setStatus(formatNormalizeStatus(normalized), 'ok');
       });
   }
 
