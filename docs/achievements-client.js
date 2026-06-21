@@ -38,6 +38,55 @@
   }
 
   var ACH_LANG_KEY = "jml_lang_v1";
+  var ACH_CACHE_PREFIX = "jml_ach_wall_v1_";
+
+  function readWallCache(username) {
+    if (!username) return null;
+    try {
+      var raw = sessionStorage.getItem(ACH_CACHE_PREFIX + username);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeWallCache(username, payload) {
+    if (!username || !payload) return;
+    try {
+      sessionStorage.setItem(
+        ACH_CACHE_PREFIX + username,
+        JSON.stringify({
+          items: payload.items || [],
+          categoryOrder: payload.categoryOrder || [],
+          categories: payload.categories || {},
+          achievements: payload.achievements || {},
+          equippedBadges: payload.equippedBadges || [],
+          equippedSummary: payload.equippedSummary || [],
+          cachedAt: Date.now(),
+        }),
+      );
+    } catch (e) {
+      /* ignore quota */
+    }
+  }
+
+  function applyAchievementsPayload(data) {
+    if (!data || typeof data !== "object") return;
+    state.items = Array.isArray(data.items) ? data.items : [];
+    state.categoryOrder = Array.isArray(data.categoryOrder) ? data.categoryOrder.slice() : [];
+    state.categories = data.categories && typeof data.categories === "object" ? data.categories : {};
+    state.achievements = data.achievements && typeof data.achievements === "object" ? data.achievements : {};
+    state.equippedBadges = Array.isArray(data.equippedBadges) ? data.equippedBadges : [];
+    state.equippedSummary =
+      Array.isArray(data.equippedSummary) && data.equippedSummary.length
+        ? data.equippedSummary
+        : buildSummaryFromEquipped();
+    if (window.cachedUser) {
+      window.cachedUser.achievements = Object.assign({}, state.achievements);
+      window.cachedUser.equippedBadges = state.equippedBadges.slice();
+    }
+  }
 
   function getAchievementLang() {
     try {
@@ -427,7 +476,8 @@
     );
   }
 
-  function loadState() {
+  function loadState(opts) {
+    opts = opts || {};
     var name = currentUsername();
     var base = apiBase();
     if (!name || !base) {
@@ -440,8 +490,18 @@
       renderHomeBadges();
       return Promise.resolve();
     }
-    state.loading = true;
-    renderWall();
+
+    var cached = !opts.force && readWallCache(name);
+    if (cached && Array.isArray(cached.items)) {
+      applyAchievementsPayload(cached);
+      state.loading = false;
+      renderWall();
+      renderHomeBadges();
+    } else if (!opts.background) {
+      state.loading = true;
+      renderWall();
+    }
+
     return fetch(base + "/api/user/" + encodeURIComponent(name) + "/achievements", {
       credentials: "include",
       headers: authHeaders(),
@@ -451,21 +511,17 @@
       })
       .then(function (data) {
         if (!data || !data.ok) throw new Error((data && data.error) || "加载失败");
-        state.items = Array.isArray(data.items) ? data.items : [];
-        state.categoryOrder = Array.isArray(data.categoryOrder) ? data.categoryOrder.slice() : [];
-        state.categories = data.categories && typeof data.categories === "object" ? data.categories : {};
-        state.achievements = data.achievements && typeof data.achievements === "object" ? data.achievements : {};
-        state.equippedBadges = Array.isArray(data.equippedBadges) ? data.equippedBadges : [];
-        state.equippedSummary = Array.isArray(data.equippedSummary) && data.equippedSummary.length
-          ? data.equippedSummary
-          : buildSummaryFromEquipped();
-        if (window.cachedUser) {
-          window.cachedUser.achievements = Object.assign({}, state.achievements);
-          window.cachedUser.equippedBadges = state.equippedBadges.slice();
-        }
+        applyAchievementsPayload(data);
+        writeWallCache(name, data);
       })
       .catch(function (e) {
         console.warn("加载成就失败", e);
+        if (!cached || !cached.items || !cached.items.length) {
+          if (!opts.background) {
+            state.loading = false;
+            renderWall();
+          }
+        }
       })
       .finally(function () {
         state.loading = false;
@@ -483,7 +539,7 @@
         showToast("另有 " + (list.length - 1) + " 个成就已解锁");
       }, 1200);
     }
-    return loadState();
+    return loadState({ force: true });
   }
 
   function applySync(sync) {
@@ -493,10 +549,12 @@
     state.equippedSummary = buildSummaryFromEquipped();
     if (sync.newAchievements && sync.newAchievements.length) {
       handleNewAchievementsFromSync(sync.newAchievements);
-    } else {
-      renderHomeBadges();
-      var sec = document.getElementById("achievement-wall-section");
-      if (sec && sec.style.display !== "none") renderWall();
+      return;
+    }
+    renderHomeBadges();
+    var sec = document.getElementById("achievement-wall-section");
+    if (sec && sec.style.display !== "none") {
+      loadState({ background: true });
     }
   }
 
@@ -508,7 +566,7 @@
     if (home) home.classList.add("hidden");
     var sec = document.getElementById("achievement-wall-section");
     if (sec) sec.style.display = "flex";
-    loadState();
+    loadState({ background: false });
   }
 
   function hideWall() {

@@ -1,6 +1,7 @@
 const { evaluateRule, normalizeRunMode } = require("./evaluators");
 
 const MAX_EQUIPPED_BADGES = 3;
+const ACHIEVEMENT_STATS_VERSION = 1;
 
 function ensureUserAchievementFields(user) {
   if (!user) return;
@@ -8,7 +9,7 @@ function ensureUserAchievementFields(user) {
   if (!Array.isArray(user.equippedBadges)) user.equippedBadges = [];
 }
 
-function buildAchievementContext(user, runs) {
+function rebuildAchievementStatsFromRuns(runs) {
   const validRuns = (runs || []).filter((r) => r && r.comboOnly !== true);
   const modeCounts = {};
   validRuns.forEach((r) => {
@@ -16,10 +17,58 @@ function buildAchievementContext(user, runs) {
     modeCounts[mode] = (modeCounts[mode] || 0) + 1;
   });
   return {
-    user: user || {},
-    runs: validRuns,
     totalRunCount: validRuns.length,
     modeCounts,
+  };
+}
+
+function hasValidAchievementStats(user) {
+  return (
+    user &&
+    user.achievementStatsVersion === ACHIEVEMENT_STATS_VERSION &&
+    user.achievementStats &&
+    typeof user.achievementStats.totalRunCount === "number" &&
+    user.achievementStats.modeCounts &&
+    typeof user.achievementStats.modeCounts === "object"
+  );
+}
+
+/** 从 runs 回填并写入 user；返回是否新写入 */
+function ensureAchievementStats(user, runs) {
+  if (!user) return false;
+  if (hasValidAchievementStats(user)) return false;
+  user.achievementStats = rebuildAchievementStatsFromRuns(runs);
+  user.achievementStatsVersion = ACHIEVEMENT_STATS_VERSION;
+  return true;
+}
+
+function bumpAchievementStatsFromRun(user, runEntry) {
+  if (!user || !runEntry || runEntry.comboOnly === true) return;
+  if (!hasValidAchievementStats(user)) {
+    user.achievementStats = { totalRunCount: 0, modeCounts: {} };
+    user.achievementStatsVersion = ACHIEVEMENT_STATS_VERSION;
+  }
+  const mode = normalizeRunMode(runEntry.mode);
+  user.achievementStats.totalRunCount = Math.max(0, (user.achievementStats.totalRunCount || 0) + 1);
+  const mc = user.achievementStats.modeCounts || {};
+  mc[mode] = (mc[mode] || 0) + 1;
+  user.achievementStats.modeCounts = mc;
+}
+
+function assignAchievementStatsFromRuns(user, runs) {
+  if (!user) return;
+  user.achievementStats = rebuildAchievementStatsFromRuns(runs);
+  user.achievementStatsVersion = ACHIEVEMENT_STATS_VERSION;
+}
+
+function buildAchievementContext(user, runs) {
+  ensureAchievementStats(user, runs || []);
+  const stats = (user && user.achievementStats) || { totalRunCount: 0, modeCounts: {} };
+  return {
+    user: user || {},
+    runs: [],
+    totalRunCount: stats.totalRunCount || 0,
+    modeCounts: stats.modeCounts || {},
   };
 }
 
@@ -178,7 +227,13 @@ function purgeAchievementFromAllUsers(users, achievementId) {
 
 module.exports = {
   MAX_EQUIPPED_BADGES,
+  ACHIEVEMENT_STATS_VERSION,
   ensureUserAchievementFields,
+  rebuildAchievementStatsFromRuns,
+  hasValidAchievementStats,
+  ensureAchievementStats,
+  bumpAchievementStatsFromRun,
+  assignAchievementStatsFromRuns,
   buildAchievementContext,
   evaluateUserAchievements,
   buildUserAchievementsView,

@@ -1487,11 +1487,15 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = runsData.runs[username] || [];
+  let userNeedsSave = false;
+  if (!achievementEngine.hasValidAchievementStats(user)) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    if (achievementEngine.ensureAchievementStats(user, runs)) userNeedsSave = true;
+  }
   const catalog = readAchievementsCatalog();
   achievementEngine.sanitizeEquippedBadges(user, catalog);
-  const view = achievementEngine.buildUserAchievementsView(user, runs, catalog, { includeDisabled: false });
+  const view = achievementEngine.buildUserAchievementsView(user, [], catalog, { includeDisabled: false });
   view.items = view.items.map((item) => mapAchievementItemView(item, req));
   view.categoryOrder = Array.isArray(catalog.categoryOrder) ? catalog.categoryOrder.slice() : [];
   view.categories = catalog.categories && typeof catalog.categories === "object" ? catalog.categories : {};
@@ -1499,6 +1503,7 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
     ...b,
     imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
   }));
+  if (userNeedsSave) writeJson(USERS_FILE, data);
   res.json({ ok: true, ...view });
 });
 
@@ -1692,6 +1697,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     if (!comboOnly) {
       u.lastGameTs = runEntry.ts;
       u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+      achievementEngine.bumpAchievementStatsFromRun(u, runEntry);
       // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
       bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));
     }
@@ -1733,6 +1739,9 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     if (!comboOnly) {
       const allRuns = runsData.runs[username] || [];
       recomputeSurvivalUnlockFlags(u, allRuns);
+      if (allRuns.length >= 500) {
+        achievementEngine.assignAchievementStatsFromRuns(u, allRuns);
+      }
     }
   }
   if (!comboOnly && runEntry.mode === "survival" && runEntry.cleared === true) {
@@ -1773,8 +1782,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     let newlyUnlocked = [];
     if (!comboOnly) {
       const catalog = readAchievementsCatalog();
-      const allRuns = runsData.runs[username] || [];
-      const evalResult = achievementEngine.evaluateUserAchievements(u, allRuns, catalog);
+      const evalResult = achievementEngine.evaluateUserAchievements(u, [], catalog);
       newlyUnlocked = evalResult.newlyUnlocked || [];
       achievementEngine.sanitizeEquippedBadges(u, catalog);
       writeJson(USERS_FILE, userData);

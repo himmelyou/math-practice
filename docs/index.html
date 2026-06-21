@@ -4410,7 +4410,7 @@
   <script src="shared/perfect-square-questions.js?v=37"></script>
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=37"></script>
-  <script src="achievements-client.js?v=6"></script>
+  <script src="achievements-client.js?v=7"></script>
   <script src="perfect-square-page.js?v=37"></script>
   <script src="decimal-page.js?v=3"></script>
   <script>
@@ -11744,9 +11744,6 @@
       updateWrongbookBadge();
       showHome();
       updateSurvivalStatusUI();
-      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
-        void JmlAchievementsClient.loadState();
-      }
     }
 
     async function handleRegister() {
@@ -12260,9 +12257,6 @@
             updateWrongbookBadge();
             applyTesterOnlyHomeModes();
             scheduleHomeTopBreathe();
-            if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
-              void JmlAchievementsClient.loadState();
-            }
             return;
         }
       } catch (e) {

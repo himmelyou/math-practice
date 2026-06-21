@@ -277,6 +277,17 @@ function normalizeCatalog(raw) {
 }
 
 function createCatalogStore(catalogFilePath) {
+  let catalogCache = null;
+  let catalogCacheMtime = 0;
+
+  function getCatalogFileMtime() {
+    try {
+      return fs.statSync(catalogFilePath).mtimeMs;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   function seedIfMissing() {
     const existing = readJsonFile(catalogFilePath, null);
     if (existing && Array.isArray(existing.items) && existing.items.length > 0) {
@@ -284,19 +295,32 @@ function createCatalogStore(catalogFilePath) {
     }
     const seed = normalizeCatalog(readJsonFile(DEFAULT_CATALOG_PATH, { version: 2, categoryOrder: [], items: [] }));
     writeJsonFile(catalogFilePath, seed);
+    catalogCache = seed;
+    catalogCacheMtime = getCatalogFileMtime();
     return seed;
   }
 
   function readCatalog() {
+    const mtime = getCatalogFileMtime();
+    if (catalogCache && catalogCacheMtime === mtime) {
+      return catalogCache;
+    }
     const data = readJsonFile(catalogFilePath, null);
-    if (!data || !Array.isArray(data.items)) return seedIfMissing();
+    if (!data || !Array.isArray(data.items)) {
+      const seeded = seedIfMissing();
+      return seeded;
+    }
     const normalized = normalizeCatalog(data);
+    catalogCache = normalized;
+    catalogCacheMtime = mtime;
     return normalized;
   }
 
   function writeCatalog(catalog) {
     const normalized = normalizeCatalog(catalog);
     writeJsonFile(catalogFilePath, normalized);
+    catalogCache = normalized;
+    catalogCacheMtime = getCatalogFileMtime();
     return normalized;
   }
 
