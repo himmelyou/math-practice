@@ -1145,3 +1145,11 @@
   margin-top: 10px;
 }
 
+.jml-ach-row-actions {
+  white-space: nowrap;
+}
+
+.jml-ach-row-actions .jml-btn + .jml-btn {
+  margin-left: 4px;
+}
+

@@ -2842,6 +2842,30 @@ app.put("/api/admin/achievements/catalog", (req, res) => {
   res.json({ ok: true, catalog: saved });
 });
 
+app.delete("/api/admin/achievements/:id", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const id = String(req.params.id || "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "缺少 id" });
+  const catalog = readAchievementsCatalog();
+  const idx = (catalog.items || []).findIndex((x) => x && x.id === id);
+  if (idx < 0) return res.status(404).json({ ok: false, error: "成就不存在" });
+  removeAssetFilesForId(ACHIEVEMENT_ASSET_DIR, id);
+  catalog.items.splice(idx, 1);
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const purge = achievementEngine.purgeAchievementFromAllUsers(usersData.users, id);
+  writeJson(USERS_FILE, usersData);
+  const saved = catalogStore.writeCatalog(catalog);
+  res.json({
+    ok: true,
+    catalog: saved,
+    deletedId: id,
+    usersTouched: purge.usersTouched,
+    recordsRemoved: purge.recordsRemoved,
+  });
+});
+
 app.post("/api/admin/achievements/:id/replace-image", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });

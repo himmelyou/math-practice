@@ -153,6 +153,29 @@ function setEquippedBadges(user, catalog, badgeIds) {
   return user.equippedBadges;
 }
 
+/** 开发期：从全部学员移除某成就的解锁与佩戴（不扣 totalScore） */
+function purgeAchievementFromAllUsers(users, achievementId) {
+  const id = String(achievementId || "").trim();
+  if (!id) return { usersTouched: 0, recordsRemoved: 0 };
+  let usersTouched = 0;
+  let recordsRemoved = 0;
+  (users || []).forEach((user) => {
+    if (!user) return;
+    ensureUserAchievementFields(user);
+    let changed = false;
+    if (user.achievements && Object.prototype.hasOwnProperty.call(user.achievements, id)) {
+      delete user.achievements[id];
+      recordsRemoved += 1;
+      changed = true;
+    }
+    const beforeLen = (user.equippedBadges || []).length;
+    user.equippedBadges = (user.equippedBadges || []).filter((badgeId) => String(badgeId || "").trim() !== id);
+    if (user.equippedBadges.length !== beforeLen) changed = true;
+    if (changed) usersTouched += 1;
+  });
+  return { usersTouched, recordsRemoved };
+}
+
 module.exports = {
   MAX_EQUIPPED_BADGES,
   ensureUserAchievementFields,
@@ -162,4 +185,5 @@ module.exports = {
   buildEquippedBadgesSummary,
   sanitizeEquippedBadges,
   setEquippedBadges,
+  purgeAchievementFromAllUsers,
 };

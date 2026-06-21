@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="admin-panel.css?v=26" />
+  <link rel="stylesheet" href="admin-panel.css?v=27" />
   <link rel="stylesheet" href="admin-worksheet.css?v=23" />
 </head>
 <body>
@@ -218,7 +218,7 @@
         </div>
         <div class="jml-placeholder-panel">
           <p>分类与成就均在下方<strong>文件夹树</strong>中管理：添加/编辑分类（双语名称）、拖动文件夹调序、空分类可删除。成就的分类在编辑弹窗里<strong>下拉选择</strong>。</p>
-          <p class="muted" style="margin:0;">分类 slug 创建后不可改；改序或改分类元数据后请点「保存 catalog」。规格见 <code>成就系统说明.md</code>。</p>
+          <p class="muted" style="margin:0;">分类 slug 创建后不可改；改序或改分类元数据后请点「保存 catalog」。「删除」会永久移除配置并清全员解锁（开发期用；XP 不扣回）。规格见 <code>成就系统说明.md</code>。</p>
         </div>
         <div id="jml-achievements-table-wrap"></div>
       </div>
@@ -295,7 +295,7 @@
   <script src="../shared/admin-image-normalize.js?v=1"></script>
   <script src="admin-panel.js?v=26"></script>
   <script src="admin-worksheet.js?v=23"></script>
-  <script src="admin-achievements.js?v=6"></script>
+  <script src="admin-achievements.js?v=7"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

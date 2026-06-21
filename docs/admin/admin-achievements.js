@@ -329,9 +329,50 @@
       '<td>' +
       (item.enabled === false ? '否' : '是') +
       '</td>' +
-      '<td><button type="button" class="jml-btn jml-btn-sm jml-ach-edit-btn">编辑</button></td>' +
+      '<td class="jml-ach-row-actions">' +
+      '<button type="button" class="jml-btn jml-btn-sm jml-ach-edit-btn">编辑</button> ' +
+      '<button type="button" class="jml-btn jml-btn-sm jml-btn-danger jml-ach-del-btn" data-id="' +
+      escapeHtml(item.id) +
+      '">删除</button></td>' +
       '</tr>'
     );
+  }
+
+  function deleteAchievement(id) {
+    var item = findItem(id);
+    if (!item) {
+      setStatus('成就不存在：' + id, 'err');
+      return;
+    }
+    var msg =
+      '确定永久删除成就「' +
+      (item.name || id) +
+      '」（' +
+      id +
+      '）？\n\n' +
+      '将删除 catalog 配置、徽章图片，并清除全部学员的解锁与佩戴记录。\n' +
+      '已发放的 XP 不会扣回。此操作不可撤销。';
+    if (!window.confirm(msg)) return;
+    setStatus('正在删除成就…', '');
+    apiFetch('/api/admin/achievements/' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(function (data) {
+        state.catalog = ensureCatalogShape(data.catalog || state.catalog);
+        state.dirty = false;
+        renderTable();
+        setStatus(
+          '已删除「' +
+            id +
+            '」· 清除 ' +
+            (data.recordsRemoved || 0) +
+            ' 条解锁 · ' +
+            (data.usersTouched || 0) +
+            ' 名学员受影响',
+          'ok',
+        );
+      })
+      .catch(function (e) {
+        setStatus('删除失败：' + (e.message || e), 'err');
+      });
   }
 
   function wireCategoryDnD(listEl) {
@@ -629,6 +670,11 @@
         var tr = btn.closest('tr');
         var id = tr ? tr.getAttribute('data-id') : '';
         openEditModal(id);
+      });
+    });
+    wrap.querySelectorAll('.jml-ach-del-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        deleteAchievement(btn.getAttribute('data-id') || '');
       });
     });
   }
