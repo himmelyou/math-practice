@@ -217,8 +217,8 @@
           <button type="button" id="jml-btn-achievements-recompute" class="jml-btn">全量重算成就</button>
         </div>
         <div class="jml-placeholder-panel">
-          <p>在此编辑成就 <strong>名称、icon、XP、启用状态</strong> 与 <code>ruleParams</code>。判定逻辑由服务端 <code>ruleType</code> 决定，新增类型需发版代码。</p>
-          <p class="muted" style="margin:0;">规格见项目根目录 <code>成就系统说明.md</code>；改完 §4 后可在阶段 B 批量导入。</p>
+          <p>在此编辑成就 <strong>双语名称/提示、XP、启用</strong> 与 <code>ruleParams</code>。分类顺序与类内顺序均可<strong>拖动</strong>；改完记得保存 catalog。</p>
+          <p class="muted" style="margin:0;">规格见 <code>成就系统说明.md</code>；判定逻辑由服务端 <code>ruleType</code> 决定。</p>
         </div>
         <div id="jml-achievements-table-wrap"></div>
       </div>
@@ -295,7 +295,7 @@
   <script src="../shared/admin-image-normalize.js?v=1"></script>
   <script src="admin-panel.js?v=26"></script>
   <script src="admin-worksheet.js?v=23"></script>
-  <script src="admin-achievements.js?v=3"></script>
+  <script src="admin-achievements.js?v=4"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

@@ -4,6 +4,7 @@
 (function () {
   var state = {
     items: [],
+    categoryOrder: [],
     achievements: {},
     equippedBadges: [],
     equippedSummary: [],
@@ -35,6 +36,29 @@
     if (typeof window.showToast === "function") window.showToast(msg);
   }
 
+  var ACH_LANG_KEY = "jml_lang_v1";
+
+  function getAchievementLang() {
+    try {
+      var v = localStorage.getItem(ACH_LANG_KEY) || "";
+      return v === "en" ? "en" : "zhHant";
+    } catch (e) {
+      return "zhHant";
+    }
+  }
+
+  function achievementDisplayName(item) {
+    if (!item) return "";
+    if (getAchievementLang() === "en" && item.nameEn) return item.nameEn;
+    return item.name || item.nameEn || item.id || "";
+  }
+
+  function achievementDisplayHint(item) {
+    if (!item) return "";
+    if (getAchievementLang() === "en" && item.hintEn) return item.hintEn;
+    return item.hint || item.hintEn || "";
+  }
+
   function groupByCategory(items) {
     var map = new Map();
     (items || []).forEach(function (item) {
@@ -45,6 +69,22 @@
     return map;
   }
 
+  function getOrderedCategoryGroups(items) {
+    var map = groupByCategory(items);
+    var groups = [];
+    var seen = new Set();
+    (state.categoryOrder || []).forEach(function (cat) {
+      if (map.has(cat)) {
+        groups.push([cat, map.get(cat)]);
+        seen.add(cat);
+      }
+    });
+    map.forEach(function (list, cat) {
+      if (!seen.has(cat)) groups.push([cat, list]);
+    });
+    return groups;
+  }
+
   function achievementImageInner(item, className) {
     if (item && item.imageUrl) {
       return (
@@ -53,7 +93,7 @@
         '" src="' +
         escapeHtml(item.imageUrl) +
         '" alt="' +
-        escapeHtml(item.name || "") +
+        escapeHtml(achievementDisplayName(item)) +
         '" loading="lazy" />'
       );
     }
@@ -61,7 +101,7 @@
       '<div class="' +
       className +
       ' ach-img-placeholder">' +
-      escapeHtml((item && item.name ? item.name : "?").slice(0, 1)) +
+      escapeHtml((achievementDisplayName(item) || "?").slice(0, 1)) +
       "</div>"
     );
   }
@@ -79,7 +119,7 @@
 
   function renderBadgeChip(b, chipClass) {
     var url = resolveBadgeImageUrl(b);
-    var title = escapeHtml((b && b.name) || "");
+    var title = escapeHtml(achievementDisplayName(b));
     if (url) {
       return (
         '<span class="' +
@@ -97,7 +137,7 @@
       ' badge-chip-placeholder" title="' +
       title +
       '"><span class="badge-chip-placeholder-inner">' +
-      escapeHtml((b && b.name ? b.name : "?").slice(0, 1)) +
+      escapeHtml((achievementDisplayName(b) || "?").slice(0, 1)) +
       "</span></span>"
     );
   }
@@ -117,7 +157,7 @@
     if (item.unlocked) return '<div class="ach-progress-done">已解锁</div>';
     var p = item.progress;
     if (!p || p.target == null) {
-      return '<div class="muted">' + escapeHtml(item.hint || "") + "</div>";
+      return '<div class="muted">' + escapeHtml(achievementDisplayHint(item)) + "</div>";
     }
     var cur = p.current != null ? p.current : 0;
     var tgt = p.target != null ? p.target : 0;
@@ -180,9 +220,11 @@
       return;
     }
     body.classList.toggle("ach-equip-mode", !!state.equipMode);
-    var groups = groupByCategory(items);
+    var groups = getOrderedCategoryGroups(items);
     var listHtml = "";
-    groups.forEach(function (catItems, cat) {
+    groups.forEach(function (pair) {
+      var cat = pair[0];
+      var catItems = pair[1];
       listHtml += '<div class="ach-category"><h3 class="ach-category-title">' + escapeHtml(cat) + '</h3><div class="ach-grid">';
       catItems.forEach(function (item) {
         var locked = !item.unlocked;
@@ -194,7 +236,7 @@
           '" data-id="' +
           escapeHtml(item.id) +
           '" aria-label="' +
-          escapeHtml(item.name || item.id) +
+          escapeHtml(achievementDisplayName(item) || item.id) +
           '">' +
           '<span class="ach-cell-inner">' +
           achievementImageInner(item, "ach-cell-img") +
@@ -287,15 +329,14 @@
     var equipped = isEquipped(id);
     var unlockLine = item.unlocked
       ? "解锁于 " + (formatUnlockTime(item.unlockedAt) || "—")
-      : item.hint || "完成对应挑战即可解锁";
+      : achievementDisplayHint(item) || "完成对应挑战即可解锁";
     overlay.innerHTML =
       '<div class="ach-detail-modal" role="dialog" aria-modal="true">' +
       '<div class="ach-detail-img-wrap">' +
       achievementImageInner(item, "ach-cell-img") +
       "</div>" +
       '<h3 class="ach-detail-title">' +
-      escapeHtml(item.name || item.id) +
-      (item.tier ? ' <span class="muted">· ' + escapeHtml(item.tier) + "</span>" : "") +
+      escapeHtml(achievementDisplayName(item) || item.id) +
       "</h3>" +
       '<div class="ach-detail-meta">' +
       escapeHtml(unlockLine) +
@@ -353,6 +394,7 @@
         return {
           id: item.id,
           name: item.name,
+          nameEn: item.nameEn || "",
           imagePath: item.imagePath || "",
           imageUrl: item.imageUrl || resolveBadgeImageUrl({ imagePath: item.imagePath, imageUrl: item.imageUrl }),
         };
@@ -378,6 +420,7 @@
     var base = apiBase();
     if (!name || !base) {
       state.items = [];
+      state.categoryOrder = [];
       state.achievements = {};
       state.equippedBadges = [];
       state.equippedSummary = [];
@@ -396,6 +439,7 @@
       .then(function (data) {
         if (!data || !data.ok) throw new Error((data && data.error) || "加载失败");
         state.items = Array.isArray(data.items) ? data.items : [];
+        state.categoryOrder = Array.isArray(data.categoryOrder) ? data.categoryOrder.slice() : [];
         state.achievements = data.achievements && typeof data.achievements === "object" ? data.achievements : {};
         state.equippedBadges = Array.isArray(data.equippedBadges) ? data.equippedBadges : [];
         state.equippedSummary = Array.isArray(data.equippedSummary) && data.equippedSummary.length
@@ -419,7 +463,7 @@
   function handleNewAchievementsFromSync(list) {
     if (!Array.isArray(list) || !list.length) return;
     var first = list[0];
-    showToast("解锁成就：" + (first.name || first.id));
+    showToast("解锁成就：" + achievementDisplayName(first));
     if (list.length > 1) {
       setTimeout(function () {
         showToast("另有 " + (list.length - 1) + " 个成就已解锁");

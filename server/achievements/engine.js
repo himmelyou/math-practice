@@ -42,6 +42,7 @@ function evaluateUserAchievements(user, runs, catalog) {
     newlyUnlocked.push({
       id: item.id,
       name: item.name,
+      nameEn: item.nameEn || "",
       icon: item.icon,
       xpReward,
       unlockedAt,
@@ -62,13 +63,17 @@ function buildAchievementItemView(item, user, ctx) {
   return {
     id: item.id,
     name: item.name,
+    nameEn: item.nameEn || "",
     icon: item.icon,
     imagePath: item.imagePath || "",
     category: item.category,
-    tier: item.tier,
     hint: item.hint,
+    hintEn: item.hintEn || "",
     xpReward: item.xpReward,
     sortOrder: item.sortOrder,
+    ruleType: item.ruleType,
+    ruleParams: item.ruleParams,
+    enabled: item.enabled !== false,
     unlocked,
     unlockedAt: unlocked ? unlockedAt : 0,
     progress,
@@ -97,7 +102,13 @@ function buildEquippedBadgesSummary(user, catalog) {
     .map((id) => {
       const item = map.get(id);
       if (!item || !user.achievements[id]) return null;
-      return { id: item.id, name: item.name, icon: item.icon, imagePath: item.imagePath || "" };
+      return {
+        id: item.id,
+        name: item.name,
+        nameEn: item.nameEn || "",
+        icon: item.icon,
+        imagePath: item.imagePath || "",
+      };
     })
     .filter(Boolean);
 }

@@ -1041,6 +1041,50 @@ function parseDataUrl(dataUrl) {
   }
 }
 
+const IMAGE_ASSET_EXTS = new Set(["png", "jpg", "jpeg", "webp"]);
+
+function unlinkAssetFileSafe(filePath) {
+  if (!filePath) return;
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch (e) {
+    console.warn("[assets] failed to unlink", filePath, e.message);
+  }
+}
+
+function assetFileFromPublicPath(publicPath, assetDir, publicPrefix) {
+  if (!publicPath || typeof publicPath !== "string") return null;
+  if (!publicPath.startsWith(publicPrefix)) return null;
+  const rel = publicPath.slice(publicPrefix.length).replace(/^\/+/, "");
+  if (!rel || rel.includes("..") || rel.includes("/") || rel.includes("\\")) return null;
+  return path.join(assetDir, rel);
+}
+
+/** 删除 assetDir 下同一 id 的旧图片（如 id.webp / id.png），避免换格式后遗留死文件 */
+function removeAssetFilesForId(assetDir, assetId) {
+  const safeId = String(assetId || "").trim();
+  if (!safeId || safeId.includes("..") || safeId.includes("/") || safeId.includes("\\")) return;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(assetDir);
+  } catch (e) {
+    return;
+  }
+  const prefix = `${safeId}.`;
+  entries.forEach((name) => {
+    if (!name.startsWith(prefix)) return;
+    const ext = name.slice(prefix.length).toLowerCase();
+    if (!IMAGE_ASSET_EXTS.has(ext)) return;
+    unlinkAssetFileSafe(path.join(assetDir, name));
+  });
+}
+
+function cleanupReplacedAssetImage({ assetDir, assetId, previousImagePath, publicPrefix }) {
+  removeAssetFilesForId(assetDir, assetId);
+  const prevFile = assetFileFromPublicPath(previousImagePath, assetDir, publicPrefix);
+  if (prevFile) unlinkAssetFileSafe(prevFile);
+}
+
 function createAvatarId() {
   return `avt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -1076,11 +1120,12 @@ function mapAchievementItemPublic(item, req) {
   return {
     id: item.id,
     name: item.name,
+    nameEn: item.nameEn || "",
     icon: item.icon,
     imageUrl: buildAchievementImageUrl(item, req),
     category: item.category,
-    tier: item.tier,
     hint: item.hint,
+    hintEn: item.hintEn || "",
     xpReward: item.xpReward,
     sortOrder: item.sortOrder,
   };
@@ -1425,7 +1470,12 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
 app.get("/api/achievements/catalog", (req, res) => {
   const catalog = readAchievementsCatalog();
   const items = catalogStore.getEnabledItems(catalog).map((item) => mapAchievementItemPublic(item, req));
-  res.json({ ok: true, version: catalog.version, items });
+  res.json({
+    ok: true,
+    version: catalog.version,
+    categoryOrder: Array.isArray(catalog.categoryOrder) ? catalog.categoryOrder.slice() : [],
+    items,
+  });
 });
 
 // ========== 成就：学员进度与佩戴 ==========
@@ -1442,6 +1492,7 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   achievementEngine.sanitizeEquippedBadges(user, catalog);
   const view = achievementEngine.buildUserAchievementsView(user, runs, catalog, { includeDisabled: false });
   view.items = view.items.map((item) => mapAchievementItemView(item, req));
+  view.categoryOrder = Array.isArray(catalog.categoryOrder) ? catalog.categoryOrder.slice() : [];
   view.equippedSummary = achievementEngine.buildEquippedBadgesSummary(user, catalog).map((b) => ({
     ...b,
     imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
@@ -2691,6 +2742,12 @@ app.post("/api/admin/avatars/:id/replace-image", (req, res) => {
   const cur = readAvatarCatalog();
   const idx = cur.findIndex((x) => x.id === id);
   if (idx < 0) return res.status(404).json({ ok: false, error: "头像不存在" });
+  cleanupReplacedAssetImage({
+    assetDir: AVATAR_ASSET_DIR,
+    assetId: id,
+    previousImagePath: cur[idx].imagePath,
+    publicPrefix: "/avatar-assets/",
+  });
   const fileName = `${id}.${parsed.ext}`;
   const target = path.join(AVATAR_ASSET_DIR, fileName);
   fs.writeFileSync(target, parsed.buf);
@@ -2794,6 +2851,12 @@ app.post("/api/admin/achievements/:id/replace-image", (req, res) => {
   const catalog = readAchievementsCatalog();
   const idx = (catalog.items || []).findIndex((x) => x && x.id === id);
   if (idx < 0) return res.status(404).json({ ok: false, error: "成就不存在" });
+  cleanupReplacedAssetImage({
+    assetDir: ACHIEVEMENT_ASSET_DIR,
+    assetId: id,
+    previousImagePath: catalog.items[idx].imagePath,
+    publicPrefix: "/achievement-assets/",
+  });
   const fileName = `${id}.${parsed.ext}`;
   const target = path.join(ACHIEVEMENT_ASSET_DIR, fileName);
   fs.writeFileSync(target, parsed.buf);

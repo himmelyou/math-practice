@@ -692,3 +692,163 @@
   font-size: 0.82rem;
 }
 
+.jml-modal-wide .jml-modal {
+  max-width: 760px;
+  width: calc(100% - 32px);
+}
+
+.jml-field-row {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  gap: 8px 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.jml-field-row > label {
+  margin: 0;
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.jml-field-control input,
+.jml-field-control select,
+.jml-field-control textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  background: #fff;
+}
+
+.jml-field-control textarea {
+  resize: vertical;
+  min-height: 96px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.jml-ach-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.jml-ach-edit-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.jml-ach-edit-preview-empty {
+  margin-bottom: 8px;
+}
+
+.jml-ach-enabled-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
+.jml-ach-name-en {
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.jml-ach-sort-block {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.jml-ach-sort-title,
+.jml-ach-group-title {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  color: #334155;
+}
+
+.jml-ach-category-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jml-ach-category-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  cursor: grab;
+  user-select: none;
+}
+
+.jml-ach-category-row.dragging {
+  opacity: 0.45;
+}
+
+.jml-ach-category-row.drag-over-left,
+.jml-ach-category-row.drag-over-top {
+  box-shadow: inset 0 0 0 2px #2563eb;
+}
+
+.jml-ach-category-count {
+  font-size: 0.78rem;
+}
+
+.jml-ach-group {
+  margin-bottom: 20px;
+}
+
+.jml-ach-drag-col {
+  width: 28px;
+  text-align: center;
+}
+
+.jml-ach-drag-handle {
+  color: #64748b;
+  cursor: grab;
+  user-select: none;
+}
+
+.jml-ach-item-row.dragging {
+  opacity: 0.45;
+}
+
+.jml-ach-item-row.drag-over-top td {
+  border-top: 2px solid #2563eb;
+}
+
+.jml-ach-item-row.drag-over-bottom td {
+  border-bottom: 2px solid #2563eb;
+}
+
+@media (max-width: 720px) {
+  .jml-ach-edit-grid {
+    grid-template-columns: 1fr;
+  }
+  .jml-field-row {
+    grid-template-columns: 1fr;
+  }
+  .jml-field-row > label {
+    text-align: left;
+  }
+}
+

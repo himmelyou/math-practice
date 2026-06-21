@@ -6,6 +6,8 @@
     catalog: null,
     ruleTypes: [],
     dirty: false,
+    categoryDragFrom: -1,
+    itemDragFrom: { category: "", index: -1 },
   };
 
   function apiBase() {
@@ -77,58 +79,257 @@
     return apiBase() + path;
   }
 
+  function ensureCatalogShape(catalog) {
+    if (!catalog || typeof catalog !== 'object') {
+      return { version: 1, categoryOrder: [], items: [] };
+    }
+    if (!Array.isArray(catalog.items)) catalog.items = [];
+    if (!Array.isArray(catalog.categoryOrder)) catalog.categoryOrder = [];
+    catalog.items.forEach(function (item) {
+      if (!item.category) item.category = '其他';
+      if (typeof item.nameEn !== 'string') item.nameEn = '';
+      if (typeof item.hintEn !== 'string') item.hintEn = '';
+    });
+    var seen = new Set(catalog.categoryOrder);
+    catalog.items.forEach(function (item) {
+      var cat = String(item.category || '其他').trim() || '其他';
+      item.category = cat;
+      if (!seen.has(cat)) {
+        seen.add(cat);
+        catalog.categoryOrder.push(cat);
+      }
+    });
+    return catalog;
+  }
+
+  function itemsForCategory(category) {
+    return (state.catalog.items || [])
+      .filter(function (item) {
+        return (item.category || '其他') === category;
+      })
+      .sort(function (a, b) {
+        return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.id).localeCompare(String(b.id));
+      });
+  }
+
+  function reindexItemsInCategory(category) {
+    var list = itemsForCategory(category);
+    list.forEach(function (item, index) {
+      item.sortOrder = (index + 1) * 10;
+    });
+  }
+
+  function markDirty(msg) {
+    state.dirty = true;
+    if (msg) setStatus(msg, '');
+  }
+
+  function fieldRow(label, controlHtml) {
+    return (
+      '<div class="jml-field-row">' +
+      '<label>' +
+      escapeHtml(label) +
+      '</label>' +
+      '<div class="jml-field-control">' +
+      controlHtml +
+      '</div></div>'
+    );
+  }
+
+  function achievementRowHtml(item) {
+    var preview = resolveImagePreview(item);
+    var thumb = preview
+      ? '<img class="jml-ach-thumb" src="' + escapeHtml(preview) + '" alt="" />'
+      : '<span class="jml-ach-thumb jml-ach-thumb-empty">无图</span>';
+    var nameCell =
+      escapeHtml(item.name || '') +
+      (item.nameEn ? '<div class="jml-ach-name-en muted">' + escapeHtml(item.nameEn) + '</div>' : '');
+    return (
+      '<tr class="jml-ach-item-row" draggable="true" data-id="' +
+      escapeHtml(item.id) +
+      '" data-category="' +
+      escapeHtml(item.category || '其他') +
+      '">' +
+      '<td class="jml-ach-drag-col"><span class="jml-ach-drag-handle" title="拖动排序">⠿</span></td>' +
+      '<td><code>' +
+      escapeHtml(item.id) +
+      '</code></td>' +
+      '<td class="jml-ach-name-cell">' +
+      thumb +
+      ' ' +
+      nameCell +
+      '</td>' +
+      '<td class="num">' +
+      escapeHtml(String(item.xpReward != null ? item.xpReward : 0)) +
+      '</td>' +
+      '<td><code>' +
+      escapeHtml(item.ruleType || '') +
+      '</code></td>' +
+      '<td>' +
+      (item.enabled === false ? '否' : '是') +
+      '</td>' +
+      '<td><button type="button" class="jml-btn jml-btn-sm jml-ach-edit-btn">编辑</button></td>' +
+      '</tr>'
+    );
+  }
+
+  function wireCategoryDnD(listEl) {
+    if (!listEl) return;
+    listEl.querySelectorAll('.jml-ach-category-row').forEach(function (li) {
+      li.addEventListener('dragstart', function () {
+        state.categoryDragFrom = Array.from(listEl.children).indexOf(li);
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', function () {
+        li.classList.remove('dragging');
+        listEl.querySelectorAll('.jml-ach-category-row').forEach(function (x) {
+          x.classList.remove('drag-over-top');
+          x.classList.remove('drag-over-bottom');
+        });
+      });
+      li.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        var rect = li.getBoundingClientRect();
+        var before = e.clientX - rect.left < rect.width / 2;
+        li.classList.toggle('drag-over-top', before);
+        li.classList.toggle('drag-over-bottom', !before);
+      });
+      li.addEventListener('dragleave', function () {
+        li.classList.remove('drag-over-top');
+        li.classList.remove('drag-over-bottom');
+      });
+      li.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var from = state.categoryDragFrom;
+        if (from < 0) return;
+        var rows = Array.from(listEl.children);
+        var to = rows.indexOf(li);
+        if (to < 0 || to === from) return;
+        var rect = li.getBoundingClientRect();
+        var before = e.clientX - rect.left < rect.width / 2;
+        var order = (state.catalog.categoryOrder || []).slice();
+        var moved = order.splice(from, 1)[0];
+        var insertAt = before ? to : to + 1;
+        if (insertAt > from) insertAt -= 1;
+        if (insertAt < 0) insertAt = 0;
+        if (insertAt > order.length) insertAt = order.length;
+        order.splice(insertAt, 0, moved);
+        state.catalog.categoryOrder = order;
+        markDirty('分类顺序已更新，记得保存 catalog');
+        renderTable();
+      });
+    });
+  }
+
+  function wireItemDnD(tbody, category) {
+    if (!tbody) return;
+    tbody.querySelectorAll('tr.jml-ach-item-row').forEach(function (tr) {
+      tr.addEventListener('dragstart', function () {
+        state.itemDragFrom = {
+          category: category,
+          index: Array.from(tbody.children).indexOf(tr),
+        };
+        tr.classList.add('dragging');
+      });
+      tr.addEventListener('dragend', function () {
+        tr.classList.remove('dragging');
+        tbody.querySelectorAll('tr').forEach(function (x) {
+          x.classList.remove('drag-over-top');
+          x.classList.remove('drag-over-bottom');
+        });
+      });
+      tr.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        var rect = tr.getBoundingClientRect();
+        var before = e.clientY - rect.top < rect.height / 2;
+        tr.classList.toggle('drag-over-top', before);
+        tr.classList.toggle('drag-over-bottom', !before);
+      });
+      tr.addEventListener('dragleave', function () {
+        tr.classList.remove('drag-over-top');
+        tr.classList.remove('drag-over-bottom');
+      });
+      tr.addEventListener('drop', function (e) {
+        e.preventDefault();
+        if (state.itemDragFrom.category !== category) return;
+        var from = state.itemDragFrom.index;
+        if (from < 0) return;
+        var rows = Array.from(tbody.children);
+        var to = rows.indexOf(tr);
+        if (to < 0 || to === from) return;
+        var rect = tr.getBoundingClientRect();
+        var before = e.clientY - rect.top < rect.height / 2;
+        var list = itemsForCategory(category);
+        var moved = list.splice(from, 1)[0];
+        var insertAt = before ? to : to + 1;
+        if (insertAt > from) insertAt -= 1;
+        if (insertAt < 0) insertAt = 0;
+        if (insertAt > list.length) insertAt = list.length;
+        list.splice(insertAt, 0, moved);
+        list.forEach(function (item, index) {
+          item.sortOrder = (index + 1) * 10;
+        });
+        markDirty('「' + category + '」内成就顺序已更新，记得保存 catalog');
+        renderTable();
+      });
+    });
+  }
+
   function renderTable() {
     var wrap = document.getElementById('jml-achievements-table-wrap');
-    if (!wrap) return;
-    var items = state.catalog && Array.isArray(state.catalog.items) ? state.catalog.items.slice() : [];
+    if (!wrap || !state.catalog) return;
+    ensureCatalogShape(state.catalog);
+    var items = state.catalog.items || [];
     if (!items.length) {
       wrap.innerHTML = '<p class="muted">暂无成就条目。</p>';
       return;
     }
-    items.sort(function (a, b) {
-      return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.id).localeCompare(String(b.id));
-    });
-    var rows = items
-      .map(function (item) {
-        var preview = resolveImagePreview(item);
-        var thumb = preview
-          ? '<img class="jml-ach-thumb" src="' + escapeHtml(preview) + '" alt="" />'
-          : '<span class="jml-ach-thumb jml-ach-thumb-empty">无图</span>';
+
+    var categoryHtml =
+      '<div class="jml-ach-sort-block">' +
+      '<h3 class="jml-ach-sort-title">分类顺序 <span class="muted">（拖动调整外层排序）</span></h3>' +
+      '<ul class="jml-ach-category-list" id="jml-ach-category-list">' +
+      (state.catalog.categoryOrder || [])
+        .map(function (cat) {
+          return (
+            '<li class="jml-ach-category-row" draggable="true" data-category="' +
+            escapeHtml(cat) +
+            '"><span class="jml-ach-drag-handle">⠿</span><span>' +
+            escapeHtml(cat) +
+            '</span><span class="muted jml-ach-category-count">' +
+            itemsForCategory(cat).length +
+            ' 项</span></li>'
+          );
+        })
+        .join('') +
+      '</ul></div>';
+
+    var groupsHtml = (state.catalog.categoryOrder || [])
+      .map(function (cat) {
+        var catItems = itemsForCategory(cat);
+        if (!catItems.length) return '';
         return (
-          '<tr data-id="' +
-          escapeHtml(item.id) +
+          '<div class="jml-ach-group">' +
+          '<h3 class="jml-ach-group-title">' +
+          escapeHtml(cat) +
+          ' <span class="muted">（类内拖动排序）</span></h3>' +
+          '<div class="jml-table-wrap"><table class="jml-user-table jml-achievements-table">' +
+          '<thead><tr><th class="jml-ach-drag-col"></th><th>id</th><th>名称</th><th class="num">XP</th><th>ruleType</th><th>启用</th><th>操作</th></tr></thead>' +
+          '<tbody data-category="' +
+          escapeHtml(cat) +
           '">' +
-          '<td><code>' +
-          escapeHtml(item.id) +
-          '</code></td>' +
-          '<td class="jml-ach-name-cell">' +
-          thumb +
-          ' ' +
-          escapeHtml(item.name || '') +
-          '</td>' +
-          '<td>' +
-          escapeHtml(item.category || '') +
-          '</td>' +
-          '<td class="num">' +
-          escapeHtml(String(item.xpReward != null ? item.xpReward : 0)) +
-          '</td>' +
-          '<td><code>' +
-          escapeHtml(item.ruleType || '') +
-          '</code></td>' +
-          '<td>' +
-          (item.enabled === false ? '否' : '是') +
-          '</td>' +
-          '<td><button type="button" class="jml-btn jml-btn-sm jml-ach-edit-btn">编辑</button></td>' +
-          '</tr>'
+          catItems.map(achievementRowHtml).join('') +
+          '</tbody></table></div></div>'
         );
       })
       .join('');
-    wrap.innerHTML =
-      '<div class="jml-table-wrap"><table class="jml-user-table jml-achievements-table">' +
-      '<thead><tr><th>id</th><th>名称</th><th>分类</th><th class="num">XP</th><th>ruleType</th><th>启用</th><th>操作</th></tr></thead>' +
-      '<tbody>' +
-      rows +
-      '</tbody></table></div>';
+
+    wrap.innerHTML = categoryHtml + groupsHtml;
+
+    wireCategoryDnD(document.getElementById('jml-ach-category-list'));
+    wrap.querySelectorAll('tbody[data-category]').forEach(function (tbody) {
+      wireItemDnD(tbody, tbody.getAttribute('data-category') || '其他');
+    });
     wrap.querySelectorAll('.jml-ach-edit-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var tr = btn.closest('tr');
@@ -154,6 +355,8 @@
     var actions = document.getElementById('jml-modal-actions');
     if (!modal || !title || !body || !actions) return;
     title.textContent = '编辑成就 · ' + item.id;
+    modal.classList.add('jml-modal-wide');
+
     var ruleOptions = (state.ruleTypes || [])
       .map(function (rt) {
         var sel = rt === item.ruleType ? ' selected' : '';
@@ -161,40 +364,30 @@
       })
       .join('');
     var preview = resolveImagePreview(item);
+    var imageBlock =
+      (preview
+        ? '<img id="jml-ach-edit-preview" src="' + escapeHtml(preview) + '" alt="" class="jml-ach-edit-preview" />'
+        : '<div id="jml-ach-edit-preview-wrap" class="muted jml-ach-edit-preview-empty">尚未上传</div>') +
+      '<input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" />';
+
     body.innerHTML =
-      '<div class="jml-field"><label>id（不可改）</label><input type="text" value="' +
-      escapeHtml(item.id) +
-      '" disabled /></div>' +
-      '<div class="jml-field"><label>名称</label><input id="jml-ach-edit-name" type="text" value="' +
-      escapeHtml(item.name || '') +
-      '" /></div>' +
-      '<div class="jml-field"><label>徽章图片（任意尺寸，上传后自动转为 256×256）</label>' +
-      (preview ? '<div style="margin:0 0 8px;"><img id="jml-ach-edit-preview" src="' + escapeHtml(preview) + '" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0;" /></div>' : '<div id="jml-ach-edit-preview-wrap" class="muted" style="margin:0 0 8px;">尚未上传</div>') +
-      '<input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" /></div>' +
-      '<div class="jml-field"><label>分类</label><input id="jml-ach-edit-category" type="text" value="' +
-      escapeHtml(item.category || '') +
-      '" /></div>' +
-      '<div class="jml-field"><label>稀有度</label><input id="jml-ach-edit-tier" type="text" value="' +
-      escapeHtml(item.tier || '') +
-      '" /></div>' +
-      '<div class="jml-field"><label>XP 奖励</label><input id="jml-ach-edit-xp" type="number" min="0" step="1" value="' +
-      escapeHtml(String(item.xpReward != null ? item.xpReward : 0)) +
-      '" /></div>' +
-      '<div class="jml-field"><label>未解锁提示</label><input id="jml-ach-edit-hint" type="text" value="' +
-      escapeHtml(item.hint || '') +
-      '" /></div>' +
-      '<div class="jml-field"><label>排序 sortOrder</label><input id="jml-ach-edit-sort" type="number" step="1" value="' +
-      escapeHtml(String(item.sortOrder != null ? item.sortOrder : 0)) +
-      '" /></div>' +
-      '<div class="jml-field"><label>ruleType</label><select id="jml-ach-edit-rule-type">' +
-      ruleOptions +
-      '</select></div>' +
-      '<div class="jml-field"><label>ruleParams（JSON）</label><textarea id="jml-ach-edit-rule-params" rows="4">' +
-      escapeHtml(JSON.stringify(item.ruleParams || {}, null, 2)) +
-      '</textarea></div>' +
-      '<div class="jml-field"><label><input id="jml-ach-edit-enabled" type="checkbox"' +
-      (item.enabled !== false ? ' checked' : '') +
-      ' /> 启用</label></div>';
+      '<div class="jml-ach-edit-grid">' +
+      '<div class="jml-ach-edit-col">' +
+      fieldRow('id', '<input type="text" value="' + escapeHtml(item.id) + '" disabled />') +
+      fieldRow('名称（繁中）', '<input id="jml-ach-edit-name" type="text" value="' + escapeHtml(item.name || '') + '" />') +
+      fieldRow('名称（English）', '<input id="jml-ach-edit-name-en" type="text" value="' + escapeHtml(item.nameEn || '') + '" />') +
+      fieldRow('分类', '<input id="jml-ach-edit-category" type="text" value="' + escapeHtml(item.category || '') + '" />') +
+      fieldRow('XP 奖励', '<input id="jml-ach-edit-xp" type="number" min="0" step="1" value="' + escapeHtml(String(item.xpReward != null ? item.xpReward : 0)) + '" />') +
+      fieldRow('未解锁提示（繁中）', '<input id="jml-ach-edit-hint" type="text" value="' + escapeHtml(item.hint || '') + '" />') +
+      fieldRow('未解锁提示（English）', '<input id="jml-ach-edit-hint-en" type="text" value="' + escapeHtml(item.hintEn || '') + '" />') +
+      '</div>' +
+      '<div class="jml-ach-edit-col">' +
+      fieldRow('徽章图片', '<div class="jml-ach-edit-image-block">' + imageBlock + '<div class="muted" style="font-size:0.78rem;margin-top:6px;">任意尺寸，自动转为 256×256</div></div>') +
+      fieldRow('ruleType', '<select id="jml-ach-edit-rule-type">' + ruleOptions + '</select>') +
+      fieldRow('ruleParams', '<textarea id="jml-ach-edit-rule-params" rows="5">' + escapeHtml(JSON.stringify(item.ruleParams || {}, null, 2)) + '</textarea>') +
+      fieldRow('启用', '<label class="jml-ach-enabled-label"><input id="jml-ach-edit-enabled" type="checkbox"' + (item.enabled !== false ? ' checked' : '') + ' /> 启用此成就</label>') +
+      '</div></div>';
+
     actions.innerHTML = '';
     var cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
@@ -235,28 +428,35 @@
 
   function closeModal() {
     var modal = document.getElementById('jml-modal-overlay');
-    if (modal) modal.hidden = true;
+    if (modal) {
+      modal.hidden = true;
+      modal.classList.remove('jml-modal-wide');
+    }
   }
 
   function applyEditToItem(id) {
     var item = findItem(id);
     if (!item) return Promise.resolve();
+    var oldCategory = item.category || '其他';
     var nameEl = document.getElementById('jml-ach-edit-name');
+    var nameEnEl = document.getElementById('jml-ach-edit-name-en');
     var catEl = document.getElementById('jml-ach-edit-category');
-    var tierEl = document.getElementById('jml-ach-edit-tier');
     var xpEl = document.getElementById('jml-ach-edit-xp');
     var hintEl = document.getElementById('jml-ach-edit-hint');
-    var sortEl = document.getElementById('jml-ach-edit-sort');
+    var hintEnEl = document.getElementById('jml-ach-edit-hint-en');
     var ruleTypeEl = document.getElementById('jml-ach-edit-rule-type');
     var ruleParamsEl = document.getElementById('jml-ach-edit-rule-params');
     var enabledEl = document.getElementById('jml-ach-edit-enabled');
     var imageEl = document.getElementById('jml-ach-edit-image');
+
     item.name = nameEl ? nameEl.value.trim() : item.name;
-    item.category = catEl ? catEl.value.trim() : item.category;
-    item.tier = tierEl ? tierEl.value.trim() : item.tier;
+    item.nameEn = nameEnEl ? nameEnEl.value.trim() : item.nameEn;
+    var nextCategory = catEl ? catEl.value.trim() : item.category;
+    nextCategory = nextCategory || '其他';
+    item.category = nextCategory;
     item.xpReward = Math.max(0, Math.floor(Number(xpEl && xpEl.value) || 0));
     item.hint = hintEl ? hintEl.value.trim() : item.hint;
-    item.sortOrder = Number(sortEl && sortEl.value) || 0;
+    item.hintEn = hintEnEl ? hintEnEl.value.trim() : item.hintEn;
     item.ruleType = ruleTypeEl ? ruleTypeEl.value : item.ruleType;
     item.enabled = !!(enabledEl && enabledEl.checked);
     try {
@@ -264,6 +464,19 @@
     } catch (e) {
       return Promise.reject(new Error('ruleParams JSON 无效'));
     }
+
+    ensureCatalogShape(state.catalog);
+    if (nextCategory !== oldCategory) {
+      if (state.catalog.categoryOrder.indexOf(nextCategory) < 0) {
+        state.catalog.categoryOrder.push(nextCategory);
+      }
+      var dest = itemsForCategory(nextCategory).filter(function (x) {
+        return x.id !== item.id;
+      });
+      item.sortOrder = dest.length ? (dest[dest.length - 1].sortOrder || 0) + 10 : 10;
+      reindexItemsInCategory(oldCategory);
+    }
+
     var file = imageEl && imageEl.files && imageEl.files[0];
     if (!file) return Promise.resolve();
     setStatus('第 1/2 步：正在读取并压缩图片（256×256）…', '');
@@ -283,7 +496,7 @@
         var data = result.data;
         var normalized = result.normalized;
         if (data.catalog) {
-          state.catalog = data.catalog;
+          state.catalog = ensureCatalogShape(data.catalog);
           item = findItem(id) || item;
         } else if (data.item) {
           item.imagePath = data.item.imagePath || item.imagePath;
@@ -297,7 +510,7 @@
     setStatus('加载成就 catalog…', '');
     return apiFetch('/api/admin/achievements/catalog')
       .then(function (data) {
-        state.catalog = data.catalog || { version: 1, items: [] };
+        state.catalog = ensureCatalogShape(data.catalog || { version: 1, categoryOrder: [], items: [] });
         state.ruleTypes = Array.isArray(data.ruleTypes) ? data.ruleTypes.slice() : [];
         state.dirty = false;
         renderTable();
@@ -310,6 +523,7 @@
 
   function saveCatalog() {
     if (!state.catalog) return Promise.resolve();
+    ensureCatalogShape(state.catalog);
     setStatus('保存成就 catalog…', '');
     return apiFetch('/api/admin/achievements/catalog', {
       method: 'PUT',
@@ -317,7 +531,7 @@
       body: JSON.stringify({ catalog: state.catalog }),
     })
       .then(function (data) {
-        state.catalog = data.catalog || state.catalog;
+        state.catalog = ensureCatalogShape(data.catalog || state.catalog);
         state.dirty = false;
         renderTable();
         setStatus('成就 catalog 已保存', 'ok');

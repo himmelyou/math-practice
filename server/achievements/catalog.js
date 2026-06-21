@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const DEFAULT_CATALOG_PATH = path.join(__dirname, "default-catalog.json");
+const DEFAULT_CATEGORY = "其他";
 
 function readJsonFile(filePath, defaultValue) {
   try {
@@ -18,6 +19,51 @@ function writeJsonFile(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
 }
 
+function mergeCategoryOrder(order, items) {
+  const next = (Array.isArray(order) ? order : [])
+    .map((c) => String(c || "").trim())
+    .filter(Boolean);
+  const seen = new Set(next);
+  (items || []).forEach((item) => {
+    const cat = String((item && item.category) || DEFAULT_CATEGORY).trim() || DEFAULT_CATEGORY;
+    if (!seen.has(cat)) {
+      seen.add(cat);
+      next.push(cat);
+    }
+  });
+  return next;
+}
+
+function sortCatalogItems(items, categoryOrder) {
+  const catIndex = new Map((categoryOrder || []).map((c, i) => [c, i]));
+  return (items || []).slice().sort((a, b) => {
+    const ca = String(a.category || DEFAULT_CATEGORY).trim() || DEFAULT_CATEGORY;
+    const cb = String(b.category || DEFAULT_CATEGORY).trim() || DEFAULT_CATEGORY;
+    const ia = catIndex.has(ca) ? catIndex.get(ca) : 9999;
+    const ib = catIndex.has(cb) ? catIndex.get(cb) : 9999;
+    if (ia !== ib) return ia - ib;
+    return (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.id).localeCompare(String(b.id));
+  });
+}
+
+function reindexSortOrdersWithinCategories(items) {
+  const groups = new Map();
+  (items || []).forEach((item) => {
+    const cat = String(item.category || DEFAULT_CATEGORY).trim() || DEFAULT_CATEGORY;
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push(item);
+  });
+  groups.forEach((list) => {
+    list.sort(
+      (a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.id).localeCompare(String(b.id))
+    );
+    list.forEach((item, index) => {
+      item.sortOrder = (index + 1) * 10;
+    });
+  });
+  return items;
+}
+
 function normalizeCatalogItem(raw) {
   if (!raw || typeof raw !== "object") return null;
   const id = String(raw.id || "").trim();
@@ -25,12 +71,13 @@ function normalizeCatalogItem(raw) {
   return {
     id,
     name: String(raw.name || id),
+    nameEn: String(raw.nameEn || ""),
     icon: String(raw.icon || "🏅"),
     imagePath: String(raw.imagePath || ""),
-    category: String(raw.category || "其他"),
-    tier: String(raw.tier || ""),
+    category: String(raw.category || DEFAULT_CATEGORY).trim() || DEFAULT_CATEGORY,
     xpReward: Math.max(0, Math.floor(Number(raw.xpReward) || 0)),
     hint: String(raw.hint || ""),
+    hintEn: String(raw.hintEn || ""),
     ruleType: String(raw.ruleType || ""),
     ruleParams: raw.ruleParams && typeof raw.ruleParams === "object" ? raw.ruleParams : {},
     sortOrder: Number.isFinite(Number(raw.sortOrder)) ? Number(raw.sortOrder) : 0,
@@ -39,15 +86,18 @@ function normalizeCatalogItem(raw) {
 }
 
 function normalizeCatalog(raw) {
-  const items = Array.isArray(raw && raw.items) ? raw.items : [];
   const map = new Map();
-  items.forEach((item) => {
+  (Array.isArray(raw && raw.items) ? raw.items : []).forEach((item) => {
     const norm = normalizeCatalogItem(item);
     if (norm) map.set(norm.id, norm);
   });
+  const items = Array.from(map.values());
+  reindexSortOrdersWithinCategories(items);
+  const categoryOrder = mergeCategoryOrder(raw && raw.categoryOrder, items);
   return {
     version: Number(raw && raw.version) || 1,
-    items: Array.from(map.values()).sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
+    categoryOrder,
+    items: sortCatalogItems(items, categoryOrder),
   };
 }
 
@@ -57,7 +107,7 @@ function createCatalogStore(catalogFilePath) {
     if (existing && Array.isArray(existing.items) && existing.items.length > 0) {
       return normalizeCatalog(existing);
     }
-    const seed = normalizeCatalog(readJsonFile(DEFAULT_CATALOG_PATH, { version: 1, items: [] }));
+    const seed = normalizeCatalog(readJsonFile(DEFAULT_CATALOG_PATH, { version: 1, categoryOrder: [], items: [] }));
     writeJsonFile(catalogFilePath, seed);
     return seed;
   }
@@ -90,6 +140,9 @@ function createCatalogStore(catalogFilePath) {
     getEnabledItems,
     getItemMap,
     normalizeCatalog,
+    mergeCategoryOrder,
+    sortCatalogItems,
+    reindexSortOrdersWithinCategories,
   };
 }
 
@@ -97,4 +150,8 @@ module.exports = {
   createCatalogStore,
   normalizeCatalog,
   normalizeCatalogItem,
+  mergeCategoryOrder,
+  sortCatalogItems,
+  reindexSortOrdersWithinCategories,
+  DEFAULT_CATEGORY,
 };
