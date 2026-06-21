@@ -14,7 +14,7 @@ const heatmapStats = require("./stats-heatmap");
 const playerLevel = require("./player-level");
 const achievementCatalog = require("./achievements/catalog");
 const achievementEngine = require("./achievements/engine");
-const { REGISTERED_RULE_TYPES } = require("./achievements/evaluators");
+const { REGISTERED_RULE_TYPES, IMPLEMENTED_RULE_TYPES } = require("./achievements/evaluators");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
@@ -2825,7 +2825,7 @@ app.get("/api/admin/achievements/catalog", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const catalog = readAchievementsCatalog();
-  res.json({ ok: true, catalog, ruleTypes: REGISTERED_RULE_TYPES });
+  res.json({ ok: true, catalog, ruleTypes: REGISTERED_RULE_TYPES, implementedRuleTypes: IMPLEMENTED_RULE_TYPES });
 });
 
 app.put("/api/admin/achievements/catalog", (req, res) => {

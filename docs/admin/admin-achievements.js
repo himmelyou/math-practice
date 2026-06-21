@@ -2,13 +2,21 @@
  * 管理端 · 成就 catalog 编辑
  */
 (function () {
+  var RULE_PARAM_HINTS = {
+    any_run: '示例：{ "minCount": 1 } — 任意模式累计完成局数',
+    mode_run_count:
+      '示例：{ "mode": "training", "minCount": 1 } — mode 可为 survival / level / training / decimal 等',
+  };
+
   var state = {
     catalog: null,
     ruleTypes: [],
+    implementedRuleTypes: [],
     dirty: false,
     categoryDragFrom: -1,
     itemDragFrom: { category: "", index: -1 },
   };
+  var modalKeyHandler = null;
 
   function apiBase() {
     var base = (window.__JML_API_BASE__ || window.API_BASE_URL || '').trim();
@@ -79,6 +87,10 @@
     return apiBase() + path;
   }
 
+  function isRuleTypeImplemented(ruleType) {
+    return (state.implementedRuleTypes || []).indexOf(ruleType) >= 0;
+  }
+
   function ensureCatalogShape(catalog) {
     if (!catalog || typeof catalog !== 'object') {
       return { version: 1, categoryOrder: [], items: [] };
@@ -119,14 +131,27 @@
     });
   }
 
+  function categorySortLabel(item) {
+    if (!item) return '';
+    var cat = item.category || '其他';
+    var list = itemsForCategory(cat);
+    var idx = list.findIndex(function (x) {
+      return x && x.id === item.id;
+    });
+    if (idx < 0) return '';
+    return cat + ' · 第 ' + (idx + 1) + ' / ' + list.length + ' 项';
+  }
+
   function markDirty(msg) {
     state.dirty = true;
     if (msg) setStatus(msg, '');
   }
 
-  function fieldRow(label, controlHtml) {
+  function fieldRow(label, controlHtml, extraClass) {
     return (
-      '<div class="jml-field-row">' +
+      '<div class="jml-field-row' +
+      (extraClass ? ' ' + extraClass : '') +
+      '">' +
       '<label>' +
       escapeHtml(label) +
       '</label>' +
@@ -136,6 +161,59 @@
     );
   }
 
+  function buildCategoryOptionsHtml(current) {
+    var cats = (state.catalog && state.catalog.categoryOrder) || [];
+    return cats
+      .map(function (cat) {
+        return '<option value="' + escapeHtml(cat) + '"></option>';
+      })
+      .concat('<option value="其他"></option>')
+      .join('');
+  }
+
+  function buildRuleTypeSelectHtml(selected) {
+    var implSet = new Set(state.implementedRuleTypes || []);
+    var implemented = (state.ruleTypes || []).filter(function (rt) {
+      return implSet.has(rt);
+    });
+    var pending = (state.ruleTypes || []).filter(function (rt) {
+      return !implSet.has(rt);
+    });
+    function opts(list, suffix) {
+      return list
+        .map(function (rt) {
+          var sel = rt === selected ? ' selected' : '';
+          return (
+            '<option value="' +
+            escapeHtml(rt) +
+            '"' +
+            sel +
+            '>' +
+            escapeHtml(rt) +
+            (suffix || '') +
+            '</option>'
+          );
+        })
+        .join('');
+    }
+    return (
+      '<select id="jml-ach-edit-rule-type">' +
+      '<optgroup label="已实现">' +
+      opts(implemented) +
+      '</optgroup>' +
+      '<optgroup label="未实现（暂不可解锁）">' +
+      opts(pending, ' · 未实现') +
+      '</optgroup>' +
+      '</select>' +
+      '<div id="jml-ach-rule-type-warn" class="jml-ach-inline-warn" hidden></div>'
+    );
+  }
+
+  function buildRuleParamsHintHtml(ruleType) {
+    var hint = RULE_PARAM_HINTS[ruleType] || 'JSON 对象，字段取决于 ruleType；未实现的类型改了也不会生效。';
+    return '<div id="jml-ach-rule-params-hint" class="jml-ach-field-hint">' + escapeHtml(hint) + '</div>';
+  }
+
   function achievementRowHtml(item) {
     var preview = resolveImagePreview(item);
     var thumb = preview
@@ -143,7 +221,12 @@
       : '<span class="jml-ach-thumb jml-ach-thumb-empty">无图</span>';
     var nameCell =
       escapeHtml(item.name || '') +
-      (item.nameEn ? '<div class="jml-ach-name-en muted">' + escapeHtml(item.nameEn) + '</div>' : '');
+      (item.nameEn
+        ? '<div class="jml-ach-name-en muted">' + escapeHtml(item.nameEn) + '</div>'
+        : '<div class="jml-ach-name-en jml-ach-inline-warn">英文名为空</div>');
+    var ruleBadge = isRuleTypeImplemented(item.ruleType)
+      ? ''
+      : ' <span class="jml-ach-pill-warn">未实现</span>';
     return (
       '<tr class="jml-ach-item-row" draggable="true" data-id="' +
       escapeHtml(item.id) +
@@ -155,16 +238,19 @@
       escapeHtml(item.id) +
       '</code></td>' +
       '<td class="jml-ach-name-cell">' +
+      '<div class="jml-ach-name-stack">' +
       thumb +
-      ' ' +
+      '<div class="jml-ach-name-text">' +
       nameCell +
-      '</td>' +
+      '</div></div></td>' +
       '<td class="num">' +
       escapeHtml(String(item.xpReward != null ? item.xpReward : 0)) +
       '</td>' +
       '<td><code>' +
       escapeHtml(item.ruleType || '') +
-      '</code></td>' +
+      '</code>' +
+      ruleBadge +
+      '</td>' +
       '<td>' +
       (item.enabled === false ? '否' : '是') +
       '</td>' +
@@ -346,6 +432,97 @@
     });
   }
 
+  function mergeImageFromUploadResponse(id, data) {
+    var local = findItem(id);
+    if (!local) return;
+    var remote = data && data.item ? data.item : null;
+    if (remote) {
+      local.imagePath = remote.imagePath || local.imagePath;
+      local.imageUrl = remote.imageUrl || local.imageUrl;
+      return;
+    }
+    if (!data || !data.catalog || !Array.isArray(data.catalog.items)) return;
+    var remoteItem = data.catalog.items.find(function (x) {
+      return x && x.id === id;
+    });
+    if (!remoteItem) return;
+    local.imagePath = remoteItem.imagePath || local.imagePath;
+    local.imageUrl = remoteItem.imageUrl || local.imageUrl;
+  }
+
+  function updateRuleTypeUi() {
+    var ruleTypeEl = document.getElementById('jml-ach-edit-rule-type');
+    var warnEl = document.getElementById('jml-ach-rule-type-warn');
+    var hintEl = document.getElementById('jml-ach-rule-params-hint');
+    if (!ruleTypeEl) return;
+    var rt = ruleTypeEl.value;
+    if (warnEl) {
+      if (!isRuleTypeImplemented(rt)) {
+        warnEl.hidden = false;
+        warnEl.textContent = '该 ruleType 尚未实现，学员无法解锁此成就。';
+      } else {
+        warnEl.hidden = true;
+        warnEl.textContent = '';
+      }
+    }
+    if (hintEl) {
+      hintEl.textContent = RULE_PARAM_HINTS[rt] || 'JSON 对象，字段取决于 ruleType；未实现的类型改了也不会生效。';
+    }
+  }
+
+  function updateEnglishWarnUi() {
+    var nameEnEl = document.getElementById('jml-ach-edit-name-en');
+    var hintEnEl = document.getElementById('jml-ach-edit-hint-en');
+    var nameWarn = document.getElementById('jml-ach-name-en-warn');
+    var hintWarn = document.getElementById('jml-ach-hint-en-warn');
+    if (nameWarn && nameEnEl) nameWarn.hidden = !!nameEnEl.value.trim();
+    if (hintWarn && hintEnEl) hintWarn.hidden = !!hintEnEl.value.trim();
+  }
+
+  function wireEditModalInteractions(item) {
+    var ruleTypeEl = document.getElementById('jml-ach-edit-rule-type');
+    if (ruleTypeEl) {
+      ruleTypeEl.addEventListener('change', updateRuleTypeUi);
+      updateRuleTypeUi();
+    }
+    ['jml-ach-edit-name-en', 'jml-ach-edit-hint-en'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', updateEnglishWarnUi);
+    });
+    updateEnglishWarnUi();
+
+    var imageEl = document.getElementById('jml-ach-edit-image');
+    if (imageEl) {
+      imageEl.addEventListener('change', function () {
+        var file = imageEl.files && imageEl.files[0];
+        if (!file) return;
+        normalizeUploadFile(file)
+          .then(function (normalized) {
+            var preview = document.getElementById('jml-ach-edit-preview');
+            var empty = document.getElementById('jml-ach-edit-preview-wrap');
+            if (empty) empty.remove();
+            if (!preview) {
+              var block = document.querySelector('.jml-ach-edit-image-block');
+              if (block) {
+                preview = document.createElement('img');
+                preview.id = 'jml-ach-edit-preview';
+                preview.className = 'jml-ach-edit-preview';
+                preview.alt = '';
+                block.insertBefore(preview, imageEl);
+              }
+            }
+            if (preview) {
+              preview.src = normalized.dataUrl;
+              preview.classList.add('jml-ach-edit-preview-pending');
+            }
+          })
+          .catch(function (e) {
+            setStatus(e.message || String(e), 'err');
+          });
+      });
+    }
+  }
+
   function openEditModal(id) {
     var item = findItem(id);
     if (!item) return;
@@ -357,35 +534,76 @@
     title.textContent = '编辑成就 · ' + item.id;
     modal.classList.add('jml-modal-wide');
 
-    var ruleOptions = (state.ruleTypes || [])
-      .map(function (rt) {
-        var sel = rt === item.ruleType ? ' selected' : '';
-        return '<option value="' + escapeHtml(rt) + '"' + sel + '>' + escapeHtml(rt) + '</option>';
-      })
-      .join('');
     var preview = resolveImagePreview(item);
+    var sortLabel = categorySortLabel(item);
     var imageBlock =
+      '<div class="jml-ach-edit-image-block">' +
       (preview
         ? '<img id="jml-ach-edit-preview" src="' + escapeHtml(preview) + '" alt="" class="jml-ach-edit-preview" />'
-        : '<div id="jml-ach-edit-preview-wrap" class="muted jml-ach-edit-preview-empty">尚未上传</div>') +
-      '<input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" />';
+        : '<div id="jml-ach-edit-preview-wrap" class="jml-ach-edit-preview-empty muted">尚未上传</div>') +
+      '<label class="jml-ach-file-btn"><span>选择图片</span><input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" hidden /></label>' +
+      '<div class="jml-ach-field-hint">任意尺寸，保存时自动转为 256×256</div>' +
+      '</div>';
 
     body.innerHTML =
+      '<p class="jml-ach-edit-intro muted">保存后会立即写入服务器（含文案与图片）。排序请在列表页拖动。</p>' +
       '<div class="jml-ach-edit-grid">' +
-      '<div class="jml-ach-edit-col">' +
-      fieldRow('id', '<input type="text" value="' + escapeHtml(item.id) + '" disabled />') +
+      '<div class="jml-ach-edit-col jml-ach-edit-col--meta">' +
+      '<h4 class="jml-ach-edit-section">基本信息</h4>' +
+      fieldRow('id', '<code class="jml-ach-id-chip">' + escapeHtml(item.id) + '</code>') +
       fieldRow('名称（繁中）', '<input id="jml-ach-edit-name" type="text" value="' + escapeHtml(item.name || '') + '" />') +
-      fieldRow('名称（English）', '<input id="jml-ach-edit-name-en" type="text" value="' + escapeHtml(item.nameEn || '') + '" />') +
-      fieldRow('分类', '<input id="jml-ach-edit-category" type="text" value="' + escapeHtml(item.category || '') + '" />') +
+      fieldRow(
+        '名称（English）',
+        '<input id="jml-ach-edit-name-en" type="text" value="' +
+          escapeHtml(item.nameEn || '') +
+          '" placeholder="English name" />' +
+          '<div id="jml-ach-name-en-warn" class="jml-ach-inline-warn"' +
+          (item.nameEn ? ' hidden' : '') +
+          '>英文名为空时，英文界面会显示繁中名称</div>',
+      ) +
+      fieldRow(
+        '分类',
+        '<input id="jml-ach-edit-category" list="jml-ach-category-options" type="text" value="' +
+          escapeHtml(item.category || '') +
+          '" />' +
+          '<datalist id="jml-ach-category-options">' +
+          buildCategoryOptionsHtml(item.category) +
+          '</datalist>' +
+          (sortLabel
+            ? '<div class="jml-ach-field-hint">当前排序：' + escapeHtml(sortLabel) + '</div>'
+            : ''),
+      ) +
       fieldRow('XP 奖励', '<input id="jml-ach-edit-xp" type="number" min="0" step="1" value="' + escapeHtml(String(item.xpReward != null ? item.xpReward : 0)) + '" />') +
       fieldRow('未解锁提示（繁中）', '<input id="jml-ach-edit-hint" type="text" value="' + escapeHtml(item.hint || '') + '" />') +
-      fieldRow('未解锁提示（English）', '<input id="jml-ach-edit-hint-en" type="text" value="' + escapeHtml(item.hintEn || '') + '" />') +
+      fieldRow(
+        '未解锁提示（English）',
+        '<input id="jml-ach-edit-hint-en" type="text" value="' +
+          escapeHtml(item.hintEn || '') +
+          '" placeholder="Hint in English" />' +
+          '<div id="jml-ach-hint-en-warn" class="jml-ach-inline-warn"' +
+          (item.hintEn ? ' hidden' : '') +
+          '>英文提示为空时，英文界面会显示繁中提示</div>',
+      ) +
       '</div>' +
-      '<div class="jml-ach-edit-col">' +
-      fieldRow('徽章图片', '<div class="jml-ach-edit-image-block">' + imageBlock + '<div class="muted" style="font-size:0.78rem;margin-top:6px;">任意尺寸，自动转为 256×256</div></div>') +
-      fieldRow('ruleType', '<select id="jml-ach-edit-rule-type">' + ruleOptions + '</select>') +
-      fieldRow('ruleParams', '<textarea id="jml-ach-edit-rule-params" rows="5">' + escapeHtml(JSON.stringify(item.ruleParams || {}, null, 2)) + '</textarea>') +
-      fieldRow('启用', '<label class="jml-ach-enabled-label"><input id="jml-ach-edit-enabled" type="checkbox"' + (item.enabled !== false ? ' checked' : '') + ' /> 启用此成就</label>') +
+      '<div class="jml-ach-edit-col jml-ach-edit-col--rule">' +
+      '<h4 class="jml-ach-edit-section">规则与图片</h4>' +
+      fieldRow('徽章图片', imageBlock, 'jml-field-row--top') +
+      fieldRow('ruleType', buildRuleTypeSelectHtml(item.ruleType)) +
+      fieldRow(
+        'ruleParams',
+        buildRuleParamsHintHtml(item.ruleType) +
+          '<textarea id="jml-ach-edit-rule-params" rows="5">' +
+          escapeHtml(JSON.stringify(item.ruleParams || {}, null, 2)) +
+          '</textarea>',
+        'jml-field-row--top',
+      ) +
+      fieldRow(
+        '启用',
+        '<label class="jml-ach-enabled-label"><input id="jml-ach-edit-enabled" type="checkbox"' +
+          (item.enabled !== false ? ' checked' : '') +
+          ' /><span>启用此成就</span></label>',
+        'jml-field-row--check',
+      ) +
       '</div></div>';
 
     actions.innerHTML = '';
@@ -397,7 +615,7 @@
     var saveBtn = document.createElement('button');
     saveBtn.type = 'button';
     saveBtn.className = 'jml-btn jml-btn-primary';
-    saveBtn.textContent = '保存到列表';
+    saveBtn.textContent = '保存';
     saveBtn.addEventListener('click', function () {
       saveBtn.disabled = true;
       var pending;
@@ -412,7 +630,6 @@
         .then(function () {
           closeModal();
           renderTable();
-          state.dirty = true;
         })
         .catch(function (e) {
           setStatus(e.message || String(e), 'err');
@@ -424,6 +641,11 @@
     actions.appendChild(cancelBtn);
     actions.appendChild(saveBtn);
     modal.hidden = false;
+    modalKeyHandler = function (e) {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', modalKeyHandler);
+    wireEditModalInteractions(item);
   }
 
   function closeModal() {
@@ -432,11 +654,15 @@
       modal.hidden = true;
       modal.classList.remove('jml-modal-wide');
     }
+    if (modalKeyHandler) {
+      document.removeEventListener('keydown', modalKeyHandler);
+      modalKeyHandler = null;
+    }
   }
 
-  function applyEditToItem(id) {
+  function readFormIntoItem(id) {
     var item = findItem(id);
-    if (!item) return Promise.resolve();
+    if (!item) return null;
     var oldCategory = item.category || '其他';
     var nameEl = document.getElementById('jml-ach-edit-name');
     var nameEnEl = document.getElementById('jml-ach-edit-name-en');
@@ -447,9 +673,12 @@
     var ruleTypeEl = document.getElementById('jml-ach-edit-rule-type');
     var ruleParamsEl = document.getElementById('jml-ach-edit-rule-params');
     var enabledEl = document.getElementById('jml-ach-edit-enabled');
-    var imageEl = document.getElementById('jml-ach-edit-image');
 
-    item.name = nameEl ? nameEl.value.trim() : item.name;
+    if (!nameEl || !nameEl.value.trim()) {
+      throw new Error('请填写繁中名称');
+    }
+
+    item.name = nameEl.value.trim();
     item.nameEn = nameEnEl ? nameEnEl.value.trim() : item.nameEn;
     var nextCategory = catEl ? catEl.value.trim() : item.category;
     nextCategory = nextCategory || '其他';
@@ -462,7 +691,7 @@
     try {
       item.ruleParams = JSON.parse(ruleParamsEl ? ruleParamsEl.value : '{}');
     } catch (e) {
-      return Promise.reject(new Error('ruleParams JSON 无效'));
+      throw new Error('ruleParams JSON 无效');
     }
 
     ensureCatalogShape(state.catalog);
@@ -476,33 +705,42 @@
       item.sortOrder = dest.length ? (dest[dest.length - 1].sortOrder || 0) + 10 : 10;
       reindexItemsInCategory(oldCategory);
     }
+    return item;
+  }
 
-    var file = imageEl && imageEl.files && imageEl.files[0];
-    if (!file) return Promise.resolve();
+  function uploadAchievementImage(id, file) {
     setStatus('第 1/2 步：正在读取并压缩图片（256×256）…', '');
     return normalizeUploadFile(file)
       .then(function (normalized) {
         var kb = Math.max(1, Math.round((normalized.bytes || 0) / 1024));
-        setStatus('第 2/2 步：压缩完成（约 ' + kb + 'KB），正在上传到服务器…', '');
+        setStatus('第 2/2 步：压缩完成（约 ' + kb + 'KB），正在上传图片…', '');
         return apiFetch('/api/admin/achievements/' + encodeURIComponent(id) + '/replace-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dataUrl: normalized.dataUrl }),
         }).then(function (data) {
+          mergeImageFromUploadResponse(id, data);
           return { data: data, normalized: normalized };
         });
       })
       .then(function (result) {
-        var data = result.data;
-        var normalized = result.normalized;
-        if (data.catalog) {
-          state.catalog = ensureCatalogShape(data.catalog);
-          item = findItem(id) || item;
-        } else if (data.item) {
-          item.imagePath = data.item.imagePath || item.imagePath;
-          item.imageUrl = data.item.imageUrl || item.imageUrl;
-        }
-        setStatus('上传完成 · ' + formatNormalizeStatus(normalized), 'ok');
+        return '图片已更新 · ' + formatNormalizeStatus(result.normalized);
+      });
+  }
+
+  function applyEditToItem(id) {
+    readFormIntoItem(id);
+    var imageEl = document.getElementById('jml-ach-edit-image');
+    var file = imageEl && imageEl.files && imageEl.files[0];
+
+    setStatus('正在保存成就…', '');
+    return saveCatalog({ silent: true })
+      .then(function () {
+        if (!file) return '成就已保存';
+        return uploadAchievementImage(id, file);
+      })
+      .then(function (msg) {
+        setStatus(msg, 'ok');
       });
   }
 
@@ -512,6 +750,9 @@
       .then(function (data) {
         state.catalog = ensureCatalogShape(data.catalog || { version: 1, categoryOrder: [], items: [] });
         state.ruleTypes = Array.isArray(data.ruleTypes) ? data.ruleTypes.slice() : [];
+        state.implementedRuleTypes = Array.isArray(data.implementedRuleTypes)
+          ? data.implementedRuleTypes.slice()
+          : ['any_run', 'mode_run_count'];
         state.dirty = false;
         renderTable();
         setStatus('成就 catalog 已加载（' + (state.catalog.items || []).length + ' 条）', 'ok');
@@ -521,10 +762,11 @@
       });
   }
 
-  function saveCatalog() {
+  function saveCatalog(opts) {
+    opts = opts || {};
     if (!state.catalog) return Promise.resolve();
     ensureCatalogShape(state.catalog);
-    setStatus('保存成就 catalog…', '');
+    if (!opts.silent) setStatus('保存成就 catalog…', '');
     return apiFetch('/api/admin/achievements/catalog', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -533,11 +775,10 @@
       .then(function (data) {
         state.catalog = ensureCatalogShape(data.catalog || state.catalog);
         state.dirty = false;
-        renderTable();
-        setStatus('成就 catalog 已保存', 'ok');
-      })
-      .catch(function (e) {
-        setStatus('保存失败：' + (e.message || e), 'err');
+        if (!opts.silent) {
+          renderTable();
+          setStatus('成就 catalog 已保存', 'ok');
+        }
       });
   }
 

@@ -57,6 +57,7 @@ const EVALUATORS = {
 };
 
 const REGISTERED_RULE_TYPES = Object.keys(EVALUATORS);
+const IMPLEMENTED_RULE_TYPES = REGISTERED_RULE_TYPES.filter((key) => EVALUATORS[key] !== notImplemented);
 
 function evaluateRule(ruleType, ruleParams, ctx) {
   const fn = EVALUATORS[ruleType];
@@ -72,5 +73,6 @@ module.exports = {
   normalizeRunMode,
   evaluateRule,
   REGISTERED_RULE_TYPES,
+  IMPLEMENTED_RULE_TYPES,
   EVALUATORS,
 };
