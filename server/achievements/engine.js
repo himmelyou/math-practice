@@ -1,7 +1,7 @@
-const { evaluateRule, normalizeRunMode } = require("./evaluators");
+const { evaluateRule, normalizeRunMode, isZeroWrongClearRun } = require("./evaluators");
 
 const MAX_EQUIPPED_BADGES = 3;
-const ACHIEVEMENT_STATS_VERSION = 1;
+const ACHIEVEMENT_STATS_VERSION = 2;
 
 function ensureUserAchievementFields(user) {
   if (!user) return;
@@ -12,13 +12,16 @@ function ensureUserAchievementFields(user) {
 function rebuildAchievementStatsFromRuns(runs) {
   const validRuns = (runs || []).filter((r) => r && r.comboOnly !== true);
   const modeCounts = {};
+  let hasZeroWrongClear = false;
   validRuns.forEach((r) => {
     const mode = normalizeRunMode(r.mode);
     modeCounts[mode] = (modeCounts[mode] || 0) + 1;
+    if (!hasZeroWrongClear && isZeroWrongClearRun(r)) hasZeroWrongClear = true;
   });
   return {
     totalRunCount: validRuns.length,
     modeCounts,
+    hasZeroWrongClear,
   };
 }
 
@@ -29,7 +32,8 @@ function hasValidAchievementStats(user) {
     user.achievementStats &&
     typeof user.achievementStats.totalRunCount === "number" &&
     user.achievementStats.modeCounts &&
-    typeof user.achievementStats.modeCounts === "object"
+    typeof user.achievementStats.modeCounts === "object" &&
+    typeof user.achievementStats.hasZeroWrongClear === "boolean"
   );
 }
 
@@ -45,7 +49,7 @@ function ensureAchievementStats(user, runs) {
 function bumpAchievementStatsFromRun(user, runEntry) {
   if (!user || !runEntry || runEntry.comboOnly === true) return;
   if (!hasValidAchievementStats(user)) {
-    user.achievementStats = { totalRunCount: 0, modeCounts: {} };
+    user.achievementStats = { totalRunCount: 0, modeCounts: {}, hasZeroWrongClear: false };
     user.achievementStatsVersion = ACHIEVEMENT_STATS_VERSION;
   }
   const mode = normalizeRunMode(runEntry.mode);
@@ -53,6 +57,9 @@ function bumpAchievementStatsFromRun(user, runEntry) {
   const mc = user.achievementStats.modeCounts || {};
   mc[mode] = (mc[mode] || 0) + 1;
   user.achievementStats.modeCounts = mc;
+  if (!user.achievementStats.hasZeroWrongClear && isZeroWrongClearRun(runEntry)) {
+    user.achievementStats.hasZeroWrongClear = true;
+  }
 }
 
 function assignAchievementStatsFromRuns(user, runs) {
@@ -63,12 +70,17 @@ function assignAchievementStatsFromRuns(user, runs) {
 
 function buildAchievementContext(user, runs) {
   ensureAchievementStats(user, runs || []);
-  const stats = (user && user.achievementStats) || { totalRunCount: 0, modeCounts: {} };
+  const stats = (user && user.achievementStats) || {
+    totalRunCount: 0,
+    modeCounts: {},
+    hasZeroWrongClear: false,
+  };
   return {
     user: user || {},
     runs: [],
     totalRunCount: stats.totalRunCount || 0,
     modeCounts: stats.modeCounts || {},
+    hasZeroWrongClear: !!stats.hasZeroWrongClear,
   };
 }
 

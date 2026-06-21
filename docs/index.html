@@ -7901,6 +7901,7 @@
       if (runCleared === true) runEntry.cleared = true;
       if (Array.isArray(attempts) && attempts.length > 0) runEntry.attempts = attempts;
       if (comboOnly === true) runEntry.comboOnly = true;
+      if (opts && typeof opts === "object" && opts.abandoned === true) runEntry.abandoned = true;
       if (opts && typeof opts === "object" && opts.trainingMeta && typeof opts.trainingMeta === "object") {
         runEntry.trainingMeta = opts.trainingMeta;
       }
@@ -9147,6 +9148,7 @@
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
         appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
+          abandoned: true,
           trainingMeta: buildTrainingRunMeta({ abandoned: true }),
         });
         renderRecentRuns();
@@ -9277,7 +9279,9 @@
         // 放弃：按进度结算 runs，不写错题本（全程不调用 recordWrongAnswer）
         saveLevelChallengeLastLevel(persistIdx);
         saveLevelChallengeBestLevel(persistIdx);
-        appendRun(survivalTimeSec, runScore, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false);
+        appendRun(survivalTimeSec, runScore, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false, {
+          abandoned: true,
+        });
         renderRecentRuns();
         updateTrainingButtonLabel();
         if (dom.gameOverPanel) {

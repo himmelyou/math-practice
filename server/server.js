@@ -1654,6 +1654,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   if (run.trainingMeta && typeof run.trainingMeta === "object") {
     runEntry.trainingMeta = run.trainingMeta;
   }
+  if (run.abandoned === true) runEntry.abandoned = true;
   if (!comboOnly) {
     runsData.runs[username].unshift(runEntry);
     if (runsData.runs[username].length > 500) {
@@ -2921,6 +2922,7 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
   users.forEach((user) => {
     if (!user || !user.username) return;
     const runs = runsData.runs[user.username] || [];
+    achievementEngine.assignAchievementStatsFromRuns(user, runs);
     const before = Object.keys(user.achievements || {}).length;
     achievementEngine.evaluateUserAchievements(user, runs, catalog);
     achievementEngine.sanitizeEquippedBadges(user, catalog);

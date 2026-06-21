@@ -15,6 +15,23 @@ function evaluateMinCount(current, minCount) {
   return { met: progress.current >= progress.target, progress };
 }
 
+function isRunAbandoned(run) {
+  if (!run) return true;
+  if (run.abandoned === true) return true;
+  if (run.trainingMeta && run.trainingMeta.abandoned === true) return true;
+  return false;
+}
+
+/** 任意模式 0 错通关：非放弃、非 comboOnly、生存须 cleared；wrongCount=0 */
+function isZeroWrongClearRun(run) {
+  if (!run || run.comboOnly === true) return false;
+  if ((run.wrongCount ?? 0) !== 0) return false;
+  if (isRunAbandoned(run)) return false;
+  const mode = normalizeRunMode(run.mode);
+  if (mode === "survival" && run.cleared !== true) return false;
+  return true;
+}
+
 function any_run(params, ctx) {
   const minCount = params && params.minCount != null ? params.minCount : 1;
   return evaluateMinCount(ctx.totalRunCount || 0, minCount);
@@ -27,6 +44,21 @@ function mode_run_count(params, ctx) {
   return evaluateMinCount(current, minCount);
 }
 
+function any_zero_wrong_clear(params, ctx) {
+  void params;
+  const met = !!ctx.hasZeroWrongClear;
+  return {
+    met,
+    progress: met ? null : { current: 0, target: 1 },
+  };
+}
+
+function streak_best(params, ctx) {
+  const minDays = params && params.minDays != null ? params.minDays : 1;
+  const current = Number(ctx.user && ctx.user.streakBest) || 0;
+  return evaluateMinCount(current, minDays);
+}
+
 function notImplemented() {
   return { met: false, progress: null };
 }
@@ -35,6 +67,7 @@ function notImplemented() {
 const EVALUATORS = {
   any_run,
   mode_run_count,
+  any_zero_wrong_clear,
   distinct_modes: notImplemented,
   level_challenge_best: notImplemented,
   level_perfect_run: notImplemented,
@@ -50,7 +83,7 @@ const EVALUATORS = {
   perfect_square_perfect_run: notImplemented,
   prime_perfect_run: notImplemented,
   prime_run_count: notImplemented,
-  streak_best: notImplemented,
+  streak_best,
   combo_best: notImplemented,
   player_level: notImplemented,
   ranking_top_n: notImplemented,
@@ -71,6 +104,8 @@ function evaluateRule(ruleType, ruleParams, ctx) {
 
 module.exports = {
   normalizeRunMode,
+  isRunAbandoned,
+  isZeroWrongClearRun,
   evaluateRule,
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,
