@@ -942,15 +942,23 @@
             var name = (document.getElementById('jml-avatar-name').value || '').trim();
             var unlock = Math.max(1, Math.floor(Number(document.getElementById('jml-avatar-unlock').value) || 1));
             try {
-              setStatus('处理并上传中…', '');
+              setStatus('第 1/2 步：正在读取并压缩图片（256×256）…', '');
               var normalized = await normalizeUploadFile(f);
+              var kb = Math.max(1, Math.round((normalized.bytes || 0) / 1024));
+              setStatus('第 2/2 步：压缩完成（约 ' + kb + 'KB），正在上传到服务器…', '');
               await apiFetch('/api/admin/avatars/upload', {
                 method: 'POST',
                 body: JSON.stringify({ name: name, unlockLevel: unlock, dataUrl: normalized.dataUrl }),
               });
               closeModal();
               await loadAvatars();
-              setStatus(window.JmlAdminImageNormalize ? window.JmlAdminImageNormalize.formatNormalizeStatus(normalized) : '上传成功', 'ok');
+              setStatus(
+                '上传完成 · ' +
+                  (window.JmlAdminImageNormalize
+                    ? window.JmlAdminImageNormalize.formatNormalizeStatus(normalized)
+                    : '上传成功'),
+                'ok',
+              );
             } catch (e) {
               setStatus(e.message || '上传失败', 'err');
             }
@@ -990,14 +998,23 @@
             var f = fileInput && fileInput.files && fileInput.files[0];
             if (!f) return;
             try {
-              setStatus('处理并替换中…', '');
+              setStatus('第 1/2 步：正在读取并压缩图片（256×256）…', '');
               var normalized = await normalizeUploadFile(f);
+              var kb = Math.max(1, Math.round((normalized.bytes || 0) / 1024));
+              setStatus('第 2/2 步：压缩完成（约 ' + kb + 'KB），正在上传到服务器…', '');
               await apiFetch('/api/admin/avatars/' + encodeURIComponent(id) + '/replace-image', {
                 method: 'POST',
                 body: JSON.stringify({ dataUrl: normalized.dataUrl }),
               });
               closeModal();
               await loadAvatars();
+              setStatus(
+                '替换完成 · ' +
+                  (window.JmlAdminImageNormalize
+                    ? window.JmlAdminImageNormalize.formatNormalizeStatus(normalized)
+                    : '替换成功'),
+                'ok',
+              );
             } catch (e) {
               setStatus(e.message || '替换失败', 'err');
             }

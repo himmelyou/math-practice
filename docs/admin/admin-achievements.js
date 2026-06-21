@@ -55,15 +55,15 @@
   }
 
   function normalizeUploadFile(file) {
-    if (!global.JmlAdminImageNormalize || typeof global.JmlAdminImageNormalize.normalizeImageFile !== 'function') {
-      return Promise.reject(new Error('图片处理模块未加载'));
+    if (!window.JmlAdminImageNormalize || typeof window.JmlAdminImageNormalize.normalizeImageFile !== 'function') {
+      return Promise.reject(new Error('图片处理模块未加载，请刷新页面后重试'));
     }
-    return global.JmlAdminImageNormalize.normalizeImageFile(file, { size: 256, maxBytes: 80000 });
+    return window.JmlAdminImageNormalize.normalizeImageFile(file, { size: 256, maxBytes: 80000 });
   }
 
   function formatNormalizeStatus(result) {
-    if (global.JmlAdminImageNormalize && typeof global.JmlAdminImageNormalize.formatNormalizeStatus === 'function') {
-      return global.JmlAdminImageNormalize.formatNormalizeStatus(result);
+    if (window.JmlAdminImageNormalize && typeof window.JmlAdminImageNormalize.formatNormalizeStatus === 'function') {
+      return window.JmlAdminImageNormalize.formatNormalizeStatus(result);
     }
     return '图片已上传';
   }
@@ -206,7 +206,16 @@
     saveBtn.className = 'jml-btn jml-btn-primary';
     saveBtn.textContent = '保存到列表';
     saveBtn.addEventListener('click', function () {
-      applyEditToItem(item.id)
+      saveBtn.disabled = true;
+      var pending;
+      try {
+        pending = applyEditToItem(item.id);
+      } catch (e) {
+        saveBtn.disabled = false;
+        setStatus(e.message || String(e), 'err');
+        return;
+      }
+      pending
         .then(function () {
           closeModal();
           renderTable();
@@ -214,6 +223,9 @@
         })
         .catch(function (e) {
           setStatus(e.message || String(e), 'err');
+        })
+        .finally(function () {
+          saveBtn.disabled = false;
         });
     });
     actions.appendChild(cancelBtn);
@@ -254,9 +266,11 @@
     }
     var file = imageEl && imageEl.files && imageEl.files[0];
     if (!file) return Promise.resolve();
-    setStatus('处理并上传徽章图片…', '');
+    setStatus('第 1/2 步：正在读取并压缩图片（256×256）…', '');
     return normalizeUploadFile(file)
       .then(function (normalized) {
+        var kb = Math.max(1, Math.round((normalized.bytes || 0) / 1024));
+        setStatus('第 2/2 步：压缩完成（约 ' + kb + 'KB），正在上传到服务器…', '');
         return apiFetch('/api/admin/achievements/' + encodeURIComponent(id) + '/replace-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -275,7 +289,7 @@
           item.imagePath = data.item.imagePath || item.imagePath;
           item.imageUrl = data.item.imageUrl || item.imageUrl;
         }
-        setStatus(formatNormalizeStatus(normalized), 'ok');
+        setStatus('上传完成 · ' + formatNormalizeStatus(normalized), 'ok');
       });
   }
 
