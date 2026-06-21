@@ -240,6 +240,9 @@
           '">' +
           '<span class="ach-cell-inner">' +
           achievementImageInner(item, "ach-cell-img") +
+          "</span>" +
+          '<span class="ach-cell-name">' +
+          escapeHtml(achievementDisplayName(item) || item.id) +
           "</span></button>";
       });
       listHtml += "</div></div>";
