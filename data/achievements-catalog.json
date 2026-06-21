@@ -1,12 +1,17 @@
 {
   "version": 2,
   "categoryOrder": [
-    "getting-started"
+    "getting-started",
+    "honor"
   ],
   "categories": {
     "getting-started": {
       "name": "新手任务",
       "nameEn": "Getting Started"
+    },
+    "honor": {
+      "name": "荣誉",
+      "nameEn": "Honor"
     },
     "other": {
       "name": "其他",
@@ -54,6 +59,20 @@
       "ruleType": "streak_best",
       "ruleParams": { "minDays": 3 },
       "sortOrder": 30,
+      "enabled": true
+    },
+    {
+      "id": "rank_any_first",
+      "name": "榜一学员",
+      "nameEn": "Rank #1",
+      "icon": "👑",
+      "category": "honor",
+      "xpReward": 50,
+      "hint": "在任意排行榜中拿到第 1 名",
+      "hintEn": "Reach #1 on any leaderboard",
+      "ruleType": "ranking_any_top_n",
+      "ruleParams": { "maxRank": 1 },
+      "sortOrder": 10,
       "enabled": true
     }
   ]

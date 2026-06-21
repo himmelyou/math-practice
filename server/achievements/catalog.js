@@ -6,6 +6,7 @@ const DEFAULT_CATEGORY_SLUG = "other";
 const LEGACY_DEFAULT_LABEL = "其他";
 const LEGACY_CATEGORY_SLUG_MAP = {
   入门: "getting-started",
+  荣誉: "honor",
   其他: "other",
   other: "other",
   "getting-started": "getting-started",

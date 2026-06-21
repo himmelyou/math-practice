@@ -14,6 +14,7 @@ const heatmapStats = require("./stats-heatmap");
 const playerLevel = require("./player-level");
 const achievementCatalog = require("./achievements/catalog");
 const achievementEngine = require("./achievements/engine");
+const achievementRankings = require("./achievements/rankings");
 const { REGISTERED_RULE_TYPES, IMPLEMENTED_RULE_TYPES } = require("./achievements/evaluators");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
@@ -177,6 +178,22 @@ const SURVIVAL_RANKING_MAX = 50;
 const SCORE_RANKING_MAX = 50;
 const STREAK_RANKING_MAX = 50;
 const COMBO_RANKING_MAX = 50;
+
+function readRankingEvalData() {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
+  const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  return {
+    users: usersData.users || [],
+    survivalList: Array.isArray(survivalData.list) ? survivalData.list : [],
+    primeList: Array.isArray(primeData.list) ? primeData.list : [],
+  };
+}
+
+function buildAchievementRankingContext(username, rankingData) {
+  const data = rankingData || readRankingEvalData();
+  return achievementRankings.buildRankingContextForUser(username, data);
+}
 
 function normalizeRunMode(mode) {
   if (mode === "level") return "level";
@@ -1495,7 +1512,13 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   }
   const catalog = readAchievementsCatalog();
   achievementEngine.sanitizeEquippedBadges(user, catalog);
-  const view = achievementEngine.buildUserAchievementsView(user, [], catalog, { includeDisabled: false });
+  const rankingCtx = buildAchievementRankingContext(username);
+  const evalResult = achievementEngine.evaluateUserAchievements(user, [], catalog, { rankingCtx });
+  if ((evalResult.newlyUnlocked || []).length > 0) userNeedsSave = true;
+  const view = achievementEngine.buildUserAchievementsView(user, [], catalog, {
+    includeDisabled: false,
+    rankingCtx,
+  });
   view.items = view.items.map((item) => mapAchievementItemView(item, req));
   view.categoryOrder = Array.isArray(catalog.categoryOrder) ? catalog.categoryOrder.slice() : [];
   view.categories = catalog.categories && typeof catalog.categories === "object" ? catalog.categories : {};
@@ -1783,7 +1806,8 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     let newlyUnlocked = [];
     if (!comboOnly) {
       const catalog = readAchievementsCatalog();
-      const evalResult = achievementEngine.evaluateUserAchievements(u, [], catalog);
+      const rankingCtx = buildAchievementRankingContext(u.username);
+      const evalResult = achievementEngine.evaluateUserAchievements(u, [], catalog, { rankingCtx });
       newlyUnlocked = evalResult.newlyUnlocked || [];
       achievementEngine.sanitizeEquippedBadges(u, catalog);
       writeJson(USERS_FILE, userData);
@@ -2913,6 +2937,7 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
   const usersData = readJson(USERS_FILE, { users: [] });
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const catalog = readAchievementsCatalog();
+  const rankingData = readRankingEvalData();
   let users = usersData.users || [];
   if (targetUsername) {
     users = users.filter((u) => u && u.username === targetUsername);
@@ -2923,8 +2948,9 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
     if (!user || !user.username) return;
     const runs = runsData.runs[user.username] || [];
     achievementEngine.assignAchievementStatsFromRuns(user, runs);
+    const rankingCtx = buildAchievementRankingContext(user.username, rankingData);
     const before = Object.keys(user.achievements || {}).length;
-    achievementEngine.evaluateUserAchievements(user, runs, catalog);
+    achievementEngine.evaluateUserAchievements(user, runs, catalog, { rankingCtx });
     achievementEngine.sanitizeEquippedBadges(user, catalog);
     const after = Object.keys(user.achievements || {}).length;
     if (after > before) unlockedTotal += after - before;

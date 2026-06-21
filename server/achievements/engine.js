@@ -68,25 +68,28 @@ function assignAchievementStatsFromRuns(user, runs) {
   user.achievementStatsVersion = ACHIEVEMENT_STATS_VERSION;
 }
 
-function buildAchievementContext(user, runs) {
+function buildAchievementContext(user, runs, options) {
   ensureAchievementStats(user, runs || []);
   const stats = (user && user.achievementStats) || {
     totalRunCount: 0,
     modeCounts: {},
     hasZeroWrongClear: false,
   };
+  const rankingCtx = options && options.rankingCtx ? options.rankingCtx : null;
   return {
     user: user || {},
     runs: [],
     totalRunCount: stats.totalRunCount || 0,
     modeCounts: stats.modeCounts || {},
     hasZeroWrongClear: !!stats.hasZeroWrongClear,
+    rankingBestRank: rankingCtx ? Number(rankingCtx.bestRank) || 0 : 0,
+    rankingRanksByBoard: rankingCtx && rankingCtx.ranksByBoard ? rankingCtx.ranksByBoard : {},
   };
 }
 
-function evaluateUserAchievements(user, runs, catalog) {
+function evaluateUserAchievements(user, runs, catalog, options) {
   ensureUserAchievementFields(user);
-  const ctx = buildAchievementContext(user, runs);
+  const ctx = buildAchievementContext(user, runs, options);
   const newlyUnlocked = [];
   const items = (catalog.items || []).filter((item) => item.enabled);
 
@@ -144,7 +147,7 @@ function buildAchievementItemView(item, user, ctx) {
 function buildUserAchievementsView(user, runs, catalog, options) {
   ensureUserAchievementFields(user);
   const includeDisabled = !!(options && options.includeDisabled);
-  const ctx = buildAchievementContext(user, runs);
+  const ctx = buildAchievementContext(user, runs, options);
   const items = (catalog.items || [])
     .filter((item) => includeDisabled || item.enabled)
     .map((item) => buildAchievementItemView(item, user, ctx));

@@ -59,6 +59,14 @@ function streak_best(params, ctx) {
   return evaluateMinCount(current, minDays);
 }
 
+function ranking_any_top_n(params, ctx) {
+  const maxRank = params && params.maxRank != null ? params.maxRank : 1;
+  const limit = Math.max(1, Math.floor(Number(maxRank) || 1));
+  const bestRank = Number(ctx.rankingBestRank) || 0;
+  const met = bestRank > 0 && bestRank <= limit;
+  return { met, progress: null };
+}
+
 function notImplemented() {
   return { met: false, progress: null };
 }
@@ -84,6 +92,7 @@ const EVALUATORS = {
   prime_perfect_run: notImplemented,
   prime_run_count: notImplemented,
   streak_best,
+  ranking_any_top_n,
   combo_best: notImplemented,
   player_level: notImplemented,
   ranking_top_n: notImplemented,
