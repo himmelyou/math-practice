@@ -15,6 +15,7 @@ const playerLevel = require("./player-level");
 const achievementCatalog = require("./achievements/catalog");
 const achievementEngine = require("./achievements/engine");
 const achievementRankings = require("./achievements/rankings");
+const achievementImport = require("./achievements/import");
 const { REGISTERED_RULE_TYPES, IMPLEMENTED_RULE_TYPES } = require("./achievements/evaluators");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
@@ -2873,6 +2874,28 @@ app.put("/api/admin/achievements/catalog", (req, res) => {
   }
   const saved = catalogStore.writeCatalog(body);
   res.json({ ok: true, catalog: saved });
+});
+
+app.post("/api/admin/achievements/import", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const dryRun = body.dryRun === true;
+  const importPayload = body.import && typeof body.import === "object" ? body.import : body;
+  const catalog = readAchievementsCatalog();
+  const result = achievementImport.applyAchievementImport(catalog, importPayload, {
+    registeredRuleTypes: REGISTERED_RULE_TYPES,
+    implementedRuleTypes: IMPLEMENTED_RULE_TYPES,
+  });
+  if (!result.ok) {
+    return res.status(400).json({ ok: false, error: result.error || "导入失败" });
+  }
+  if (dryRun) {
+    return res.json({ ok: true, dryRun: true, report: result.report });
+  }
+  const saved = catalogStore.writeCatalog(result.catalog);
+  res.json({ ok: true, dryRun: false, report: result.report, catalog: saved });
 });
 
 app.delete("/api/admin/achievements/:id", (req, res) => {

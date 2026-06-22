@@ -1,0 +1,56 @@
+{
+  "schema": "jml-achievement-import",
+  "version": 1,
+  "comment": "新手任务 0 错 / 3 日打卡 + 荣誉榜一（不含 first_run，线上通常已有）",
+  "addCategories": {
+    "honor": {
+      "name": "荣誉",
+      "nameEn": "Honor"
+    }
+  },
+  "appendCategoryOrder": ["honor"],
+  "addItems": [
+    {
+      "id": "zero_wrong_clear_once",
+      "name": "零失误初体验",
+      "nameEn": "Flawless Run",
+      "icon": "💯",
+      "category": "getting-started",
+      "xpReward": 15,
+      "hint": "任意模式 0 错完成 1 局",
+      "hintEn": "Complete any run with zero wrong answers",
+      "ruleType": "any_zero_wrong_clear",
+      "ruleParams": {},
+      "sortOrder": 20,
+      "enabled": true
+    },
+    {
+      "id": "streak_3",
+      "name": "三日打卡",
+      "nameEn": "3-Day Streak",
+      "icon": "📅",
+      "category": "getting-started",
+      "xpReward": 15,
+      "hint": "最长连续挑战天 ≥3",
+      "hintEn": "Reach a best streak of 3 days",
+      "ruleType": "streak_best",
+      "ruleParams": { "minDays": 3 },
+      "sortOrder": 30,
+      "enabled": true
+    },
+    {
+      "id": "rank_any_first",
+      "name": "榜一学员",
+      "nameEn": "Rank #1",
+      "icon": "👑",
+      "category": "honor",
+      "xpReward": 50,
+      "hint": "在任意排行榜中拿到第 1 名",
+      "hintEn": "Reach #1 on any leaderboard",
+      "ruleType": "ranking_any_top_n",
+      "ruleParams": { "maxRank": 1 },
+      "sortOrder": 10,
+      "enabled": true
+    }
+  ]
+}

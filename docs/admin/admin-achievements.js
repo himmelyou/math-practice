@@ -1107,9 +1107,170 @@
       });
   }
 
+  function formatImportReportHtml(report) {
+    if (!report) return '<p class="muted">无报告</p>';
+    var parts = [];
+    if (report.comment) {
+      parts.push('<p><strong>说明：</strong>' + escapeHtml(report.comment) + '</p>');
+    }
+    parts.push('<p>将新增成就 <strong>' + (report.addedItems || []).length + '</strong> 条，跳过 <strong>' + (report.skippedItems || []).length + '</strong> 条。</p>');
+    if ((report.addedCategories || []).length) {
+      parts.push('<p><strong>新增分类</strong></p><ul>');
+      report.addedCategories.forEach(function (c) {
+        parts.push('<li><code>' + escapeHtml(c.slug) + '</code> · ' + escapeHtml(c.name) + '</li>');
+      });
+      parts.push('</ul>');
+    }
+    if ((report.skippedCategories || []).length) {
+      parts.push('<p><strong>跳过的分类</strong></p><ul class="muted">');
+      report.skippedCategories.forEach(function (c) {
+        parts.push('<li><code>' + escapeHtml(c.slug) + '</code>（' + escapeHtml(c.reason || '') + '）</li>');
+      });
+      parts.push('</ul>');
+    }
+    if ((report.addedItems || []).length) {
+      parts.push('<p><strong>将添加的成就</strong></p><ul>');
+      report.addedItems.forEach(function (item) {
+        parts.push(
+          '<li><code>' +
+            escapeHtml(item.id) +
+            '</code> · ' +
+            escapeHtml(item.name) +
+            ' · <code>' +
+            escapeHtml(item.ruleType || '') +
+            '</code></li>',
+        );
+      });
+      parts.push('</ul>');
+    }
+    if ((report.skippedItems || []).length) {
+      parts.push('<p><strong>跳过的成就</strong></p><ul class="muted">');
+      report.skippedItems.forEach(function (item) {
+        parts.push(
+          '<li><code>' +
+            escapeHtml(item.id) +
+            '</code>（' +
+            escapeHtml(item.reason || '') +
+            (item.name ? ' · ' + escapeHtml(item.name) : '') +
+            '）</li>',
+        );
+      });
+      parts.push('</ul>');
+    }
+    if ((report.warnings || []).length) {
+      parts.push('<p><strong>提示</strong></p><ul class="jml-ach-inline-warn">');
+      report.warnings.forEach(function (w) {
+        parts.push('<li>' + escapeHtml(w) + '</li>');
+      });
+      parts.push('</ul>');
+    }
+    return parts.join('');
+  }
+
+  function formatImportStatusMessage(report, applied) {
+    if (!report) return applied ? '导入完成' : '预览完成';
+    var added = (report.addedItems || []).length;
+    var skipped = (report.skippedItems || []).length;
+    var prefix = applied ? '导入完成' : '预览';
+    return prefix + '：新增 ' + added + ' 条，跳过 ' + skipped + ' 条';
+  }
+
+  function postAchievementImport(importPayload, dryRun) {
+    return apiFetch('/api/admin/achievements/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ import: importPayload, dryRun: !!dryRun }),
+    });
+  }
+
+  function openImportPreviewModal(importPayload, previewReport) {
+    var modal = document.getElementById('jml-modal-overlay');
+    var title = document.getElementById('jml-modal-title');
+    var body = document.getElementById('jml-modal-body');
+    var actions = document.getElementById('jml-modal-actions');
+    if (!modal || !title || !body || !actions) return;
+    modal.classList.add('jml-modal-wide');
+    title.textContent = '从文件添加成就 · 预览';
+    body.innerHTML = formatImportReportHtml(previewReport);
+    actions.innerHTML = '';
+    var cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'jml-btn';
+    cancelBtn.textContent = '取消';
+    cancelBtn.addEventListener('click', closeModal);
+    var confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = 'jml-btn jml-btn-primary';
+    confirmBtn.textContent = '确认添加';
+    confirmBtn.disabled = !(previewReport.addedItems && previewReport.addedItems.length);
+    confirmBtn.addEventListener('click', function () {
+      confirmBtn.disabled = true;
+      setStatus('正在导入成就…', '');
+      postAchievementImport(importPayload, false)
+        .then(function (data) {
+          closeModal();
+          state.catalog = ensureCatalogShape(data.catalog || state.catalog);
+          state.dirty = false;
+          renderTable();
+          setStatus(formatImportStatusMessage(data.report, true), 'ok');
+        })
+        .catch(function (e) {
+          confirmBtn.disabled = false;
+          setStatus('导入失败：' + (e.message || e), 'err');
+        });
+    });
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    modal.hidden = false;
+    modalKeyHandler = function (e) {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', modalKeyHandler);
+  }
+
+  function handleImportFileSelected(file) {
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var text = String(reader.result || '');
+      var parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (e) {
+        setStatus('JSON 解析失败：' + (e.message || e), 'err');
+        return;
+      }
+      setStatus('正在预览导入…', '');
+      postAchievementImport(parsed, true)
+        .then(function (data) {
+          setStatus(formatImportStatusMessage(data.report, false), 'ok');
+          openImportPreviewModal(parsed, data.report || {});
+        })
+        .catch(function (e) {
+          setStatus('预览失败：' + (e.message || e), 'err');
+        });
+    };
+    reader.onerror = function () {
+      setStatus('读取文件失败', 'err');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
   function bindEvents() {
     var refreshBtn = document.getElementById('jml-btn-achievements-refresh');
     if (refreshBtn) refreshBtn.addEventListener('click', loadCatalog);
+    var importBtn = document.getElementById('jml-btn-achievements-import');
+    var importFile = document.getElementById('jml-achievements-import-file');
+    if (importBtn && importFile) {
+      importBtn.addEventListener('click', function () {
+        importFile.value = '';
+        importFile.click();
+      });
+      importFile.addEventListener('change', function () {
+        var file = importFile.files && importFile.files[0];
+        handleImportFileSelected(file);
+      });
+    }
     var saveBtn = document.getElementById('jml-btn-achievements-save');
     if (saveBtn) saveBtn.addEventListener('click', saveCatalog);
     var recomputeBtn = document.getElementById('jml-btn-achievements-recompute');
