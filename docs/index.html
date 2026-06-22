@@ -5376,7 +5376,7 @@
     const buildExpandBracketsQuestion = (level) => JmlExpandBrackets.buildQuestion(level);
     const formatExpandedTerms = (terms) => JmlExpandBrackets.formatExpandedTerms(terms);
 
-    const TESTER_ONLY_HOME_MODE_IDS = ["mode-gcd", "mode-lcm", "mode-achievement-wall"];
+    const TESTER_ONLY_HOME_MODE_IDS = ["mode-gcd", "mode-lcm"];
 
     function isTesterUser() {
       return !!(cachedUser && cachedUser.isTester === true);
@@ -5393,6 +5393,16 @@
         el.removeAttribute("aria-disabled");
       });
       scheduleHomeTopBreathe();
+    }
+
+    /** 成就墙：已登录学员可见（游客不可见）。 */
+    function applyAchievementWallHomeMode() {
+      const el = document.getElementById("mode-achievement-wall");
+      if (!el) return;
+      const show = !isGuestMode && !!cachedUser;
+      el.style.display = show ? "" : "none";
+      el.classList.remove("mode-btn-soon", "mode-btn-locked");
+      el.removeAttribute("aria-disabled");
     }
 
     const HOME_TOP_BREATHE_BASE_PX = 10;
@@ -9481,6 +9491,7 @@
       updateWrongbookBadge();
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
+      applyAchievementWallHomeMode();
       scheduleHomeTopBreathe();
       refreshSurvivalEligibility();
     }
@@ -11825,6 +11836,8 @@
       if (ms) ms.style.display = "none";
       const mr = document.getElementById("mode-ranking");
       if (mr) mr.style.display = "none";
+      const maw = document.getElementById("mode-achievement-wall");
+      if (maw) maw.style.display = "none";
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();
@@ -12260,6 +12273,7 @@
             updateTrainingButtonLabel();
             updateWrongbookBadge();
             applyTesterOnlyHomeModes();
+            applyAchievementWallHomeMode();
             scheduleHomeTopBreathe();
             return;
         }
