@@ -152,7 +152,7 @@
         escapeHtml(item.imageUrl) +
         '" alt="' +
         escapeHtml(achievementDisplayName(item)) +
-        '" loading="lazy" />'
+        '" />'
       );
     }
     return (
@@ -186,7 +186,7 @@
         title +
         '"><img src="' +
         escapeHtml(url) +
-        '" alt="" loading="lazy" /></span>'
+        '" alt="" /></span>'
       );
     }
     return (
@@ -492,9 +492,11 @@
     }
 
     var cached = !opts.force && readWallCache(name);
+    var shownFromCache = false;
     if (cached && Array.isArray(cached.items)) {
       applyAchievementsPayload(cached);
       state.loading = false;
+      shownFromCache = true;
       renderWall();
       renderHomeBadges();
     } else if (!opts.background) {
@@ -525,8 +527,10 @@
       })
       .finally(function () {
         state.loading = false;
-        renderWall();
-        renderHomeBadges();
+        if (!shownFromCache) {
+          renderWall();
+          renderHomeBadges();
+        }
       });
   }
 
