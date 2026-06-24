@@ -6,6 +6,276 @@
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
+  var L16_TYPES = [
+    { op1: "+", op2: "×", order: "back" },
+    { op1: "+", op2: "÷", order: "back" },
+    { op1: "−", op2: "×", order: "back" },
+    { op1: "−", op2: "÷", order: "back" },
+    { op1: "−", op2: "+", order: "front" },
+    { op1: "×", op2: "+", order: "front" },
+    { op1: "×", op2: "−", order: "front" },
+    { op1: "÷", op2: "+", order: "front" },
+    { op1: "÷", op2: "−", order: "front" },
+    { op1: "÷", op2: "×", order: "front" },
+    { op1: "−", op2: "−", order: "front" },
+    { op1: "÷", op2: "÷", order: "front" }
+  ];
+
+  function l16OpEval(op) {
+    if (op === "+") return function (x, y) { return x + y; };
+    if (op === "−") return function (x, y) { return x - y; };
+    if (op === "×") return function (x, y) { return x * y; };
+    return function (x, y) { return x / y; };
+  }
+
+  function l16IsHigh(op) {
+    return op === "×" || op === "÷";
+  }
+
+  function l16ValidSteps(steps) {
+    for (var i = 0; i < steps.length; i++) {
+      if (!Number.isInteger(steps[i]) || steps[i] < 0) return false;
+    }
+    return true;
+  }
+
+  function l16EvalNatural(a, b, c, op1, op2) {
+    var f = l16OpEval(op1);
+    var g = l16OpEval(op2);
+    var mid;
+    var ans;
+    if (l16IsHigh(op2) && !l16IsHigh(op1)) {
+      mid = g(b, c);
+      if (!Number.isInteger(mid)) return null;
+      ans = f(a, mid);
+      if (!Number.isInteger(ans)) return null;
+      return { steps: [mid, ans], answer: ans };
+    }
+    if (l16IsHigh(op1) && !l16IsHigh(op2)) {
+      mid = f(a, b);
+      if (!Number.isInteger(mid)) return null;
+      ans = g(mid, c);
+      if (!Number.isInteger(ans)) return null;
+      return { steps: [mid, ans], answer: ans };
+    }
+    mid = f(a, b);
+    if (!Number.isInteger(mid)) return null;
+    ans = g(mid, c);
+    if (!Number.isInteger(ans)) return null;
+    return { steps: [mid, ans], answer: ans };
+  }
+
+  function l16EvalBracketed(a, b, c, op1, op2, side) {
+    var f = l16OpEval(op1);
+    var g = l16OpEval(op2);
+    var mid;
+    var ans;
+    if (side === "left") {
+      mid = f(a, b);
+      if (!Number.isInteger(mid)) return null;
+      ans = g(mid, c);
+      if (!Number.isInteger(ans)) return null;
+      return { steps: [mid, ans], answer: ans };
+    }
+    mid = g(b, c);
+    if (!Number.isInteger(mid)) return null;
+    ans = f(a, mid);
+    if (!Number.isInteger(ans)) return null;
+    return { steps: [mid, ans], answer: ans };
+  }
+
+  function l16Render(a, b, c, op1, op2, bracketSide) {
+    if (bracketSide === "left") return "(" + a + " " + op1 + " " + b + ") " + op2 + " " + c + " = ?";
+    if (bracketSide === "right") return a + " " + op1 + " (" + b + " " + op2 + " " + c + ") = ?";
+    return a + " " + op1 + " " + b + " " + op2 + " " + c + " = ?";
+  }
+
+  function l16ConstructOperands(op1, op2, withBracket) {
+    var key = op1 + op2;
+    var b;
+    var c;
+    var a;
+    var q;
+    var sum;
+    var product;
+    var inner;
+    var q1;
+    var q2;
+    var k;
+    switch (key) {
+      case "+×":
+        b = randomInt(2, 9);
+        c = randomInt(2, 9);
+        if (withBracket) {
+          a = randomInt(1, 9 - b);
+          if ((a + b) * c > 99 || (a + b) * c === a + b * c) return null;
+          return { a: a, b: b, c: c };
+        }
+        a = randomInt(0, Math.min(99, 100 - b * c));
+        return { a: a, b: b, c: c };
+      case "+÷":
+        c = randomInt(2, 9);
+        if (withBracket) {
+          q = randomInt(2, Math.min(9, Math.floor(18 / c)));
+          sum = c * q;
+          if (sum < 4 || sum > 18) return null;
+          a = randomInt(1, sum - 1);
+          return { a: a, b: sum - a, c: c };
+        }
+        q = randomInt(2, 9);
+        b = c * q;
+        if (b > 81) return null;
+        a = randomInt(0, Math.min(99, 100 - q));
+        return { a: a, b: b, c: c };
+      case "−×":
+        b = randomInt(2, 9);
+        c = randomInt(2, 9);
+        product = b * c;
+        if (withBracket) {
+          a = randomInt(b + 1, Math.min(99, 100));
+          if (a < b + 1) return null;
+          if ((a - b) * c === a - product) return null;
+          return { a: a, b: b, c: c };
+        }
+        a = randomInt(product, Math.min(99, 100));
+        return { a: a, b: b, c: c };
+      case "−÷":
+        c = randomInt(2, 9);
+        if (withBracket) {
+          q = randomInt(2, 9);
+          k = randomInt(2, 9);
+          b = c * k;
+          if (b > 81) return null;
+          a = b + c * q;
+          if (a > 99) return null;
+          return { a: a, b: b, c: c };
+        }
+        q = randomInt(2, 9);
+        b = c * q;
+        if (b > 81) return null;
+        a = randomInt(q, 99);
+        return { a: a, b: b, c: c };
+      case "−+":
+        if (withBracket) {
+          b = randomInt(1, 40);
+          c = randomInt(1, 40);
+          a = randomInt(b + c, 99);
+          return { a: a, b: b, c: c };
+        }
+        a = randomInt(10, 99);
+        b = randomInt(0, a);
+        c = randomInt(0, 99);
+        return { a: a, b: b, c: c };
+      case "×+":
+        a = randomInt(2, 9);
+        if (withBracket) {
+          b = randomInt(1, 8);
+          c = randomInt(1, 9 - b);
+          if (a * (b + c) > 99) return null;
+          return { a: a, b: b, c: c };
+        }
+        b = randomInt(2, 9);
+        c = randomInt(0, Math.min(99, 100 - a * b));
+        return { a: a, b: b, c: c };
+      case "×−":
+        a = randomInt(2, 9);
+        b = randomInt(2, 9);
+        if (withBracket) {
+          c = randomInt(1, b - 1);
+          if (a * (b - c) > 99) return null;
+          return { a: a, b: b, c: c };
+        }
+        c = randomInt(0, a * b);
+        return { a: a, b: b, c: c };
+      case "÷+":
+        b = randomInt(2, 9);
+        if (withBracket) {
+          c = randomInt(1, 7);
+          inner = b + c;
+          q = randomInt(2, Math.min(9, Math.floor(81 / inner)));
+          a = inner * q;
+          if (a > 81) return null;
+          return { a: a, b: b, c: c };
+        }
+        q = randomInt(2, 9);
+        a = b * q;
+        if (a > 81) return null;
+        c = randomInt(0, Math.min(99, 100 - q));
+        return { a: a, b: b, c: c };
+      case "÷−":
+        b = randomInt(2, 9);
+        if (withBracket) {
+          c = randomInt(1, 8);
+          inner = randomInt(c + 1, 9);
+          a = inner * b;
+          if (a > 81) return null;
+          return { a: a, b: b, c: c };
+        }
+        q = randomInt(2, 9);
+        a = b * q;
+        if (a > 81) return null;
+        c = randomInt(0, q);
+        return { a: a, b: b, c: c };
+      case "÷×":
+        b = randomInt(2, 9);
+        c = randomInt(2, 9);
+        if (withBracket) {
+          inner = b * c;
+          if (inner > 81) return null;
+          q = randomInt(2, Math.min(9, Math.floor(81 / inner)));
+          a = q * inner;
+          if (a > 81) return null;
+          return { a: a, b: b, c: c };
+        }
+        q = randomInt(2, 9);
+        a = b * q;
+        if (a > 81) return null;
+        return { a: a, b: b, c: c };
+      case "−−":
+        c = randomInt(1, 8);
+        b = randomInt(c + 1, 9);
+        a = randomInt(b + c, 99);
+        return { a: a, b: b, c: c };
+      case "÷÷":
+        c = randomInt(2, 9);
+        if (withBracket) {
+          inner = randomInt(2, 9);
+          b = c * inner;
+          if (b > 81) return null;
+          q = c * randomInt(2, Math.min(9, Math.floor(81 / b)));
+          a = q * b;
+          if (a > 81) return null;
+          return { a: a, b: b, c: c };
+        }
+        q2 = randomInt(2, 9);
+        q1 = c * q2;
+        b = randomInt(2, 9);
+        a = b * q1;
+        if (a > 81) return null;
+        return { a: a, b: b, c: c };
+      default:
+        return null;
+    }
+  }
+
+  function l16BuildQuestion(type, withBracket) {
+    var operands = l16ConstructOperands(type.op1, type.op2, withBracket);
+    if (!operands) return null;
+    var a = operands.a;
+    var b = operands.b;
+    var c = operands.c;
+    var natural = l16EvalNatural(a, b, c, type.op1, type.op2);
+    if (!natural || !l16ValidSteps(natural.steps)) return null;
+    var bracketSide = withBracket ? (type.order === "back" ? "left" : "right") : "none";
+    if (withBracket) {
+      var bracketed = l16EvalBracketed(a, b, c, type.op1, type.op2, bracketSide);
+      if (!bracketed || !l16ValidSteps(bracketed.steps)) return null;
+      if (bracketed.answer === natural.answer) return null;
+      return { text: l16Render(a, b, c, type.op1, type.op2, bracketSide), answer: bracketed.answer };
+    }
+    return { text: l16Render(a, b, c, type.op1, type.op2, "none"), answer: natural.answer };
+  }
+
   var LEVEL_DEFS = [
         {
           id: "L1",
@@ -379,66 +649,59 @@
         {
           id: "L15",
           name: "第 15 级 · 不带括号的四则运算",
-          description: "3 个数 2 个运算符，先乘除后加减，单步难度至 L11。",
+          description: "3 个数 2 个运算符，12 种混合形态（无连加连减连乘连除），单步难度至 L11。",
           operations: ["+", "-", "×", "÷"],
           min: 1,
           max: 99,
           generateQuestion() {
-            const templates = [
+            const precedenceFirst = [
               () => { const b = randomInt(2, 9); const c = randomInt(2, 9); const a = randomInt(0, Math.min(99, 100 - b * c)); return { text: `${a} + ${b} × ${c} = ?`, answer: a + b * c }; },
-              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(0, Math.min(99, 100 - a * b)); return { text: `${a} × ${b} + ${c} = ?`, answer: a * b + c }; },
               () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(0, Math.min(99, 100 - b / c)); return { text: `${a} + ${b} ÷ ${c} = ?`, answer: a + b / c }; },
-              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, Math.min(99, 100 - a / b)); return { text: `${a} ÷ ${b} + ${c} = ?`, answer: a / b + c }; },
               () => { const b = randomInt(2, 9); const c = randomInt(2, 9); const a = randomInt(b * c, Math.min(99, 100)); return { text: `${a} − ${b} × ${c} = ?`, answer: a - b * c }; },
+              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − ${b} ÷ ${c} = ?`, answer: a - b / c }; }
+            ];
+            const leftFirst = [
+              () => { const a = randomInt(0, 50); const b = randomInt(0, Math.min(50, 100 - a)); const c = randomInt(0, Math.min(50, 100 - a - b)); return { text: `${a} + ${b} − ${c} = ?`, answer: a + b - c }; },
+              () => { const a = randomInt(10, 99); const b = randomInt(0, a); const c = randomInt(0, 99); return { text: `${a} − ${b} + ${c} = ?`, answer: a - b + c }; },
+              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(0, Math.min(99, 100 - a * b)); return { text: `${a} × ${b} + ${c} = ?`, answer: a * b + c }; },
               () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(0, a * b); return { text: `${a} × ${b} − ${c} = ?`, answer: a * b - c }; },
-              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − ${b} ÷ ${c} = ?`, answer: a - b / c }; },
-              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, a / b); return { text: `${a} ÷ ${b} − ${c} = ?`, answer: a / b - c }; },
-              () => { const a = randomInt(0, 50); const b = randomInt(0, Math.min(50, 100 - a)); const c = randomInt(0, Math.min(50, 100 - a - b)); return { text: `${a} + ${b} + ${c} = ?`, answer: a + b + c }; },
-              () => { const a = randomInt(20, 99); const b = randomInt(0, Math.min(50, a)); const c = randomInt(0, Math.min(50, a - b)); return { text: `${a} − ${b} − ${c} = ?`, answer: a - b - c }; },
-              () => { const a = randomInt(2, 4); const b = randomInt(2, 4); const maxC = Math.min(4, Math.floor(81 / (a * b))); if (maxC < 2) return null; const c = randomInt(2, maxC); return { text: `${a} × ${b} × ${c} = ?`, answer: a * b * c }; },
-              () => { const c = randomInt(2, 9); const b = randomInt(2, 9); const a = b * c * randomInt(2, 4); if (a > 81) return null; return { text: `${a} ÷ ${b} ÷ ${c} = ?`, answer: a / b / c }; },
               () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(2, 9); if ((a * b) % c !== 0) return null; return { text: `${a} × ${b} ÷ ${c} = ?`, answer: a * b / c }; },
-              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(2, 9); return { text: `${a} ÷ ${b} × ${c} = ?`, answer: a / b * c }; },
-              () => { const a = randomInt(0, 50); const b = randomInt(0, 50); const c = randomInt(0, Math.min(99, a + b)); return { text: `${a} + ${b} − ${c} = ?`, answer: a + b - c }; },
-              () => { const a = randomInt(10, 99); const b = randomInt(0, a); const c = randomInt(0, 99); return { text: `${a} − ${b} + ${c} = ?`, answer: a - b + c }; }
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, Math.min(99, 100 - a / b)); return { text: `${a} ÷ ${b} + ${c} = ?`, answer: a / b + c }; },
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(0, a / b); return { text: `${a} ÷ ${b} − ${c} = ?`, answer: a / b - c }; },
+              () => { const b = randomInt(2, 9); const a = b * randomInt(2, 9); if (a > 81) return null; const c = randomInt(2, 9); return { text: `${a} ÷ ${b} × ${c} = ?`, answer: a / b * c }; }
             ];
             for (let i = 0; i < 20; i++) {
-              const t = templates[randomInt(0, templates.length - 1)];
-              const r = t();
+              const pool = Math.random() < 0.5 ? precedenceFirst : leftFirst;
+              const r = pool[randomInt(0, pool.length - 1)]();
               if (r && Number.isInteger(r.answer) && r.answer >= 0) return { a: 0, b: 0, op: "+", text: r.text, answer: r.answer, baseLevelId: this.id };
             }
-            const fallback = templates[0]();
-            return { a: 0, b: 0, op: "+", text: (fallback && fallback.text) || "1 + 2 + 3 = ?", answer: (fallback && fallback.answer) || 6, baseLevelId: this.id };
+            const fallback = precedenceFirst[0]();
+            return { a: 0, b: 0, op: "+", text: (fallback && fallback.text) || "3 + 4 × 5 = ?", answer: (fallback && fallback.answer) || 23, baseLevelId: this.id };
           }
         },
         {
           id: "L16",
           name: "第 16 级 · 带括号的四则运算",
-          description: "3 个数 2 个运算符，一对括号改变运算顺序，单步难度至 L11。",
+          description: "12 种四则形态，约 70% 加括号改变运算顺序，约 30% 无括号混淆；单步难度至 L11。",
           operations: ["+", "-", "×", "÷"],
           min: 1,
           max: 99,
           generateQuestion() {
-            const templates = [
-              () => { const a = randomInt(1, 8); const b = randomInt(1, 9 - a); const c = randomInt(2, 9); return { text: `(${a} + ${b}) × ${c} = ?`, answer: (a + b) * c }; },
-              () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(2, 9); return { text: `(${a} − ${b}) × ${c} = ?`, answer: (a - b) * c }; },
-              () => { const c = randomInt(2, 9); const quotient = randomInt(2, 9); const sum = c * quotient; if (sum < 10 || sum > 18) return null; const a = randomInt(1, sum - 1); const b = sum - a; return { text: `(${a} + ${b}) ÷ ${c} = ?`, answer: (a + b) / c }; },
-              () => { const a = randomInt(2, 9); const b = randomInt(1, a - 1); const c = randomInt(2, 9); if ((a - b) % c !== 0) return null; return { text: `(${a} − ${b}) ÷ ${c} = ?`, answer: (a - b) / c }; },
-              () => { const a = randomInt(2, 9); const b = randomInt(1, 8); const c = randomInt(1, 9 - b); return { text: `${a} × (${b} + ${c}) = ?`, answer: a * (b + c) }; },
-              () => { const a = randomInt(2, 9); const b = randomInt(2, 9); const c = randomInt(1, b - 1); return { text: `${a} × (${b} − ${c}) = ?`, answer: a * (b - c) }; },
-              () => { const bc = randomInt(2, 9); const a = bc * randomInt(2, 9); if (a > 81) return null; const b = randomInt(1, bc - 1); const c = bc - b; return { text: `${a} ÷ (${b} + ${c}) = ?`, answer: a / (b + c) }; },
-              () => { const bc = randomInt(2, 9); const a = bc * randomInt(2, 9); if (a > 81) return null; const b = randomInt(bc + 1, 9); const c = b - bc; return { text: `${a} ÷ (${b} − ${c}) = ?`, answer: a / (b - c) }; },
-              () => { const a = randomInt(0, 90); const b = randomInt(2, 9); const c = randomInt(2, 9); return { text: `${a} + (${b} × ${c}) = ?`, answer: a + b * c }; },
-              () => { const b = randomInt(2, 9); const c = randomInt(2, 9); const a = randomInt(b * c, 99); return { text: `${a} − (${b} × ${c}) = ?`, answer: a - b * c }; },
-              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(0, 100 - b / c); return { text: `${a} + (${b} ÷ ${c}) = ?`, answer: a + b / c }; },
-              () => { const c = randomInt(2, 9); const b = c * randomInt(2, 9); if (b > 81) return null; const a = randomInt(b / c, 99); return { text: `${a} − (${b} ÷ ${c}) = ?`, answer: a - b / c }; }
-            ];
-            for (let i = 0; i < 20; i++) {
-              const t = templates[randomInt(0, templates.length - 1)];
-              const r = t();
-              if (r && Number.isInteger(r.answer) && r.answer >= 0) return { a: 0, b: 0, op: "+", text: r.text, answer: r.answer, baseLevelId: this.id };
+            for (var i = 0; i < 80; i++) {
+              var type = L16_TYPES[randomInt(0, L16_TYPES.length - 1)];
+              var withBracket = Math.random() < 0.7;
+              var r = l16BuildQuestion(type, withBracket);
+              if (r && Number.isInteger(r.answer) && r.answer >= 0) {
+                return { a: 0, b: 0, op: "+", text: r.text, answer: r.answer, baseLevelId: this.id };
+              }
             }
-            return { a: 2, b: 2, op: "+", text: "(2 + 2) × 2 = ?", answer: 8, baseLevelId: this.id };
+            var fallback = l16BuildQuestion(L16_TYPES[0], true);
+            return {
+              a: 0, b: 0, op: "+",
+              text: (fallback && fallback.text) || "(2 + 3) × 4 = ?",
+              answer: (fallback && fallback.answer) || 20,
+              baseLevelId: this.id
+            };
           }
         }
       ];
