@@ -1,5 +1,5 @@
 /**
- * 拆括号 / 平方数：局末升降级与再玩选关（只升不降，解锁不写 runs）
+ * 拆括号 / 平方数 / 小数：局末升降级与再玩选关（只升不降，解锁不写 runs）
  */
 (function (global) {
   /**
@@ -18,6 +18,11 @@
     startLevel = Math.min(startLevel, maxLevel);
     unlockedMaxBefore = Math.min(unlockedMaxBefore, maxLevel);
 
+    function finish(outcome) {
+      outcome.savedUnlockedMax = Math.max(unlockedMaxBefore, Math.min(outcome.savedUnlockedMax, maxLevel));
+      return outcome;
+    }
+
     var atMax = startLevel >= maxLevel;
     var next = startLevel + 1;
     var hasNext = !atMax;
@@ -25,36 +30,36 @@
 
     if (wrongCount === 0) {
       if (frontier) {
-        return {
+        return finish({
           resultKey: "unlockNew",
           savedCurrent: next,
           savedUnlockedMax: next,
           playAgainLevel: next,
-        };
+        });
       }
-      return {
+      return finish({
         resultKey: "perfect",
         savedCurrent: hasNext ? next : startLevel,
         savedUnlockedMax: hasNext ? next : startLevel,
         playAgainLevel: hasNext ? next : startLevel,
-      };
+      });
     }
 
     if (wrongCount === 1 && frontier) {
-      return {
+      return finish({
         resultKey: "unlockNew",
         savedCurrent: startLevel,
         savedUnlockedMax: next,
         playAgainLevel: startLevel,
-      };
+      });
     }
 
-    return {
+    return finish({
       resultKey: "keepGoing",
       savedCurrent: startLevel,
       savedUnlockedMax: unlockedMaxBefore,
       playAgainLevel: startLevel,
-    };
+    });
   }
 
   global.JmlSpecialModeRunOutcome = {
