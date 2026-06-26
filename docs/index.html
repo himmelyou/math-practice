@@ -5064,6 +5064,7 @@
     }
 
     function openHomeSettingsMenu() {
+      if (isGuestMode) return;
       closeRankingModeMenu();
       const menu = document.getElementById("home-settings-menu");
       const btn = document.getElementById("home-settings-btn");
@@ -5073,6 +5074,7 @@
     }
 
     function toggleHomeSettingsMenu() {
+      if (isGuestMode) return;
       const menu = document.getElementById("home-settings-menu");
       if (!menu) return;
       if (menu.hidden) openHomeSettingsMenu();
@@ -5183,16 +5185,69 @@
       if (logoutBtn) logoutBtn.hidden = !!isGuestMode;
     }
 
-    function updateHomeSettingsMenuI18n() {
+    function restoreGuestHiddenHomeModes() {
+      const changeNickBtn = document.getElementById("change-nickname-btn");
+      if (changeNickBtn) changeNickBtn.style.display = "";
+      ["mode-stats", "mode-ranking", "mode-achievement-wall"].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "";
+      });
+    }
+
+    function syncGuestTopActionButton() {
+      const settingsBtn = document.getElementById("home-settings-btn");
+      const menu = document.getElementById("home-settings-menu");
+      if (!settingsBtn) return;
+      if (isGuestMode) {
+        setTextById("home-settings-btn-label", "login.register");
+        settingsBtn.setAttribute("aria-label", t("login.register"));
+        settingsBtn.removeAttribute("aria-haspopup");
+        settingsBtn.removeAttribute("aria-controls");
+        settingsBtn.setAttribute("aria-expanded", "false");
+        if (menu) menu.hidden = true;
+        return;
+      }
       setTextById("home-settings-btn-label", "home.btn.settings");
+      settingsBtn.setAttribute("aria-label", t("home.btn.settings"));
+      settingsBtn.setAttribute("aria-haspopup", "menu");
+      settingsBtn.setAttribute("aria-controls", "home-settings-menu");
+      settingsBtn.setAttribute("aria-expanded", "false");
+    }
+
+    function handleGuestExitToRegister() {
+      closeHomeSettingsMenu();
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      if (isPlaying && !gameOver) {
+        abandonCurrentRun();
+      }
+      isPlaying = false;
+      gameOver = false;
+      isGuestMode = false;
+      cachedUser = null;
+      setCurrentUsername(null);
+      restoreGuestHiddenHomeModes();
+      syncGuestTopActionButton();
+      document.getElementById("app-view").style.display = "none";
+      document.getElementById("login-view").style.display = "flex";
+      const loginPanel = document.getElementById("login-panel");
+      const registerPanel = document.getElementById("register-panel");
+      if (loginPanel && registerPanel) {
+        loginPanel.classList.remove("active");
+        registerPanel.classList.add("active");
+      }
+      const errorEl = document.getElementById("login-error");
+      if (errorEl) errorEl.textContent = "";
+    }
+
+    function updateHomeSettingsMenuI18n() {
       setTextById("home-settings-lang-label", "home.menu.switchLang");
       setTextById("home-settings-contact-label", "home.menu.contactUs");
       setTextById("change-password-btn-label", "home.btn.changePassword");
       setTextById("logout-btn-label", "home.btn.logout");
-      const settingsBtn = document.getElementById("home-settings-btn");
-      if (settingsBtn) {
-        settingsBtn.setAttribute("aria-label", t("home.btn.settings"));
-      }
+      syncGuestTopActionButton();
       const langBtn = document.getElementById("home-settings-lang-btn");
       if (langBtn) {
         langBtn.setAttribute(
@@ -5311,10 +5366,17 @@
       const settingsWrap = document.getElementById("home-settings-wrap");
       const globalBackBtn = document.getElementById("global-back-home-btn");
       closeHomeSettingsMenu();
+      if (isGuestMode) {
+        if (globalBackBtn) globalBackBtn.style.display = "none";
+        if (settingsWrap) settingsWrap.style.display = "";
+        syncGuestTopActionButton();
+        return;
+      }
       if (visible) {
         if (globalBackBtn) globalBackBtn.style.display = "none";
         if (settingsWrap) settingsWrap.style.display = "";
         syncHomeSettingsAuthItems();
+        syncGuestTopActionButton();
         return;
       }
       if (globalBackBtn) globalBackBtn.style.display = "";
@@ -11806,6 +11868,7 @@
       }
       cachedUser = data.user;
 
+      isGuestMode = false;
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
       void refreshGameSettings();
@@ -11813,6 +11876,7 @@
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
       syncHomeSettingsAuthItems();
+      syncGuestTopActionButton();
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "";
       const mr = document.getElementById("mode-ranking");
@@ -11863,6 +11927,7 @@
       }
       cachedUser = data.user || { username, totalScore: 0, bestSurvivalSec: 0, bestScore: 0 };
 
+      isGuestMode = false;
       setCurrentUsername(username);
       ensureUserProgressDefault(cachedUser);
       void refreshGameSettings();
@@ -11870,6 +11935,7 @@
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
       syncHomeSettingsAuthItems();
+      syncGuestTopActionButton();
       const ms = document.getElementById("mode-stats");
       if (ms) ms.style.display = "";
       const mr = document.getElementById("mode-ranking");
@@ -11896,6 +11962,7 @@
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
       syncHomeSettingsAuthItems();
+      syncGuestTopActionButton();
       const changeNickBtn = document.getElementById("change-nickname-btn");
       if (changeNickBtn) changeNickBtn.style.display = "none";
       const ms = document.getElementById("mode-stats");
@@ -12020,6 +12087,8 @@
       isGuestMode = false;
       cachedUser = null;
       setCurrentUsername(null);
+      restoreGuestHiddenHomeModes();
+      syncGuestTopActionButton();
       document.getElementById("app-view").style.display = "none";
       document.getElementById("login-view").style.display = "flex";
       const loginPanel = document.getElementById("login-panel");
@@ -12213,6 +12282,10 @@
       const homeSettingsBtn = document.getElementById("home-settings-btn");
       if (homeSettingsBtn) homeSettingsBtn.addEventListener("click", function (e) {
         e.stopPropagation();
+        if (isGuestMode) {
+          handleGuestExitToRegister();
+          return;
+        }
         toggleHomeSettingsMenu();
       });
       const homeSettingsLangBtn = document.getElementById("home-settings-lang-btn");
