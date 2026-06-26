@@ -476,8 +476,28 @@
     );
   }
 
+  function isStateReady() {
+    return Array.isArray(state.items) && state.items.length > 0;
+  }
+
+  /** 登录/回首页：只拉成就数据并渲染昵称旁徽章，不碰成就墙 DOM */
+  function prefetchHomeBadges() {
+    return loadState({ background: true, homeOnly: true });
+  }
+
+  /** 打开成就墙：内存已有数据则先画墙再静默刷新，避免重复全量渲染 */
+  function openWall() {
+    if (isStateReady()) {
+      renderWall();
+      return loadState({ background: true });
+    }
+    return loadState({ background: false });
+  }
+
   function loadState(opts) {
     opts = opts || {};
+    var homeOnly = !!opts.homeOnly;
+    var silent = !!opts.background;
     var name = currentUsername();
     var base = apiBase();
     if (!name || !base) {
@@ -497,9 +517,13 @@
       applyAchievementsPayload(cached);
       state.loading = false;
       shownFromCache = true;
-      renderWall();
-      renderHomeBadges();
-    } else if (!opts.background) {
+      if (!silent) {
+        if (!homeOnly) renderWall();
+        renderHomeBadges();
+      } else if (homeOnly) {
+        renderHomeBadges();
+      }
+    } else if (!silent && !homeOnly) {
       state.loading = true;
       renderWall();
     }
@@ -528,7 +552,7 @@
       .finally(function () {
         state.loading = false;
         if (!shownFromCache) {
-          renderWall();
+          if (!homeOnly) renderWall();
           renderHomeBadges();
         }
       });
@@ -570,7 +594,7 @@
     if (home) home.classList.add("hidden");
     var sec = document.getElementById("achievement-wall-section");
     if (sec) sec.style.display = "flex";
-    loadState({ background: false });
+    openWall();
   }
 
   function hideWall() {
@@ -585,8 +609,12 @@
       bindEquipToggle();
     },
     loadState: loadState,
+    prefetchHomeBadges: prefetchHomeBadges,
+    openWall: openWall,
+    isStateReady: isStateReady,
     showWall: showWall,
     hideWall: hideWall,
+    renderWall: renderWall,
     renderHomeBadges: renderHomeBadges,
     buildRankingBadgesHtml: buildRankingBadgesHtml,
     applySync: applySync,

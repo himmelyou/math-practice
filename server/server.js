@@ -125,23 +125,6 @@ function readAchievementsCatalog() {
   return catalogStore.readCatalog();
 }
 
-function equippedBadgesForUsername(username, req) {
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const u = (usersData.users || []).find((x) => x && x.username === username);
-  if (!u) return [];
-  const catalog = readAchievementsCatalog();
-  achievementEngine.sanitizeEquippedBadges(u, catalog);
-  return achievementEngine.buildEquippedBadgesSummary(u, catalog).map((b) => ({
-    ...b,
-    imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
-  }));
-}
-
-function withEquippedBadges(row, req) {
-  if (!row || !row.username) return row;
-  return Object.assign({}, row, { equippedBadges: equippedBadgesForUsername(row.username, req) });
-}
-
 function pickStudentUserPatch(u, keys) {
   const patch = {};
   (keys || []).forEach((k) => {
@@ -411,30 +394,6 @@ function backfillExpandBracketsScoresForAllUsers() {
     updatedUsers,
     totalScoreDelta,
   };
-}
-
-function buildScoreRankingRowUser(u, req) {
-  if (!u || !u.username) return null;
-  const displayName = (u.nickname || "").trim() ? String(u.nickname).trim() : "新人";
-  const totalScore = Number(u.totalScore) || 0;
-  const avatarId = resolveUserAvatarIdOrEmpty(u);
-  let avatarUrl = "";
-  if (avatarId) {
-    const catalog = readAvatarCatalog();
-    const item = catalog.find((x) => x.id === avatarId);
-    if (item) {
-      avatarUrl = buildAvatarPublic(item, req).imageUrl || "";
-    }
-  }
-  return withEquippedBadges({ username: u.username, displayName, totalScore, avatarUrl }, req);
-}
-
-function avatarUrlForUsername(username, req) {
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const u = (usersData.users || []).find((x) => x && x.username === username);
-  if (!u) return "";
-  const row = buildScoreRankingRowUser(u, req);
-  return row && row.avatarUrl ? row.avatarUrl : "";
 }
 
 function toChinaDateKey(ts) {
@@ -1165,6 +1124,86 @@ function resolveUserAvatarIdOrEmpty(user) {
   return "";
 }
 
+/** 排行榜：一次读 users / 成就 catalog / 头像 catalog，批量查昵称、头像、佩戴徽章 */
+function createRankingLookupContext(req) {
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const userByName = {};
+  users.forEach((u) => {
+    if (u && u.username) userByName[u.username] = u;
+  });
+  const achievementCatalog = readAchievementsCatalog();
+  const avatarCatalog = readAvatarCatalog();
+  const avatarById = {};
+  avatarCatalog.forEach((item) => {
+    if (item && item.id) avatarById[item.id] = item;
+  });
+  const badgeCache = {};
+
+  function equippedBadgesFor(username) {
+    if (!username) return [];
+    if (Object.prototype.hasOwnProperty.call(badgeCache, username)) {
+      return badgeCache[username];
+    }
+    const u = userByName[username];
+    if (!u) {
+      badgeCache[username] = [];
+      return badgeCache[username];
+    }
+    achievementEngine.sanitizeEquippedBadges(u, achievementCatalog);
+    const badges = achievementEngine.buildEquippedBadgesSummary(u, achievementCatalog).map((b) => ({
+      ...b,
+      imageUrl: buildAchievementImageUrl({ imagePath: b.imagePath }, req),
+    }));
+    badgeCache[username] = badges;
+    return badges;
+  }
+
+  function avatarUrlForUser(u) {
+    if (!u) return "";
+    const avatarId = typeof u.avatarId === "string" ? u.avatarId.trim() : "";
+    if (!avatarId) return "";
+    const item = avatarById[avatarId];
+    if (!item || item.enabled === false) return "";
+    if (!isAvatarUnlockedForUser(u, item)) return "";
+    return buildAvatarPublic(item, req).imageUrl || "";
+  }
+
+  function avatarUrlForUsername(username) {
+    return avatarUrlForUser(userByName[username]);
+  }
+
+  function nicknameFor(username) {
+    const u = userByName[username];
+    const n = u && (u.nickname || "").trim();
+    return n ? String(n).trim() : "新人";
+  }
+
+  function withEquippedBadges(row) {
+    if (!row || !row.username) return row;
+    return Object.assign({}, row, { equippedBadges: equippedBadgesFor(row.username) });
+  }
+
+  function buildScoreRankingRowUser(u) {
+    if (!u || !u.username) return null;
+    const displayName = (u.nickname || "").trim() ? String(u.nickname).trim() : "新人";
+    const totalScore = Number(u.totalScore) || 0;
+    const avatarUrl = avatarUrlForUser(u);
+    return withEquippedBadges({ username: u.username, displayName, totalScore, avatarUrl });
+  }
+
+  return {
+    users,
+    userByName,
+    equippedBadgesFor,
+    avatarUrlForUser,
+    avatarUrlForUsername,
+    nicknameFor,
+    withEquippedBadges,
+    buildScoreRankingRowUser,
+  };
+}
+
 function validateAndNormalizeAvatarIdForUser(user, avatarId) {
   const id = avatarId == null ? "" : String(avatarId).trim();
   if (!id) return { ok: true, value: "" };
@@ -1822,8 +1861,8 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
 
 // ========== 总积分榜：按 totalScore 降序；返回前 50 + 当前用户名次（可选 ?username=） ==========
 app.get("/api/score-ranking", (req, res) => {
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const users = Array.isArray(usersData.users) ? usersData.users.slice() : [];
+  const ctx = createRankingLookupContext(req);
+  const users = ctx.users.slice();
   users.sort((a, b) => {
     const sa = Number(a && a.totalScore) || 0;
     const sb = Number(b && b.totalScore) || 0;
@@ -1831,7 +1870,7 @@ app.get("/api/score-ranking", (req, res) => {
     return String((a && a.username) || "").localeCompare(String((b && b.username) || ""));
   });
   const top = users.slice(0, SCORE_RANKING_MAX).map((u, i) => {
-    const row = buildScoreRankingRowUser(u, req);
+    const row = ctx.buildScoreRankingRowUser(u);
     return row ? { rank: i + 1, ...row } : null;
   }).filter(Boolean);
   const username = (req.query.username || "").trim();
@@ -1841,7 +1880,7 @@ app.get("/api/score-ranking", (req, res) => {
     const idx = users.findIndex((u) => u && u.username === username);
     if (idx >= 0) {
       myRank = idx + 1;
-      const row = buildScoreRankingRowUser(users[idx], req);
+      const row = ctx.buildScoreRankingRowUser(users[idx]);
       if (row) myEntry = { rank: myRank, ...row };
     }
   }
@@ -1874,21 +1913,16 @@ app.get("/api/survival-ranking", (req, res) => {
     if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
     return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
   });
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const nicknameMap = {};
-  (usersData.users || []).forEach((u) => {
-    const n = (u.nickname || "").trim();
-    nicknameMap[u.username] = n ? n : "新人";
-  });
-  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => withEquippedBadges({
+  const ctx = createRankingLookupContext(req);
+  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ctx.withEquippedBadges({
     rank: i + 1,
     username: e.username,
-    displayName: nicknameMap[e.username] || "新人",
+    displayName: ctx.nicknameFor(e.username),
     survivalTimeSec: e.survivalTimeSec ?? 0,
     wrongCount: e.wrongCount ?? 0,
     ts: e.ts,
-    avatarUrl: avatarUrlForUsername(e.username, req),
-  }, req));
+    avatarUrl: ctx.avatarUrlForUsername(e.username),
+  }));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -1897,15 +1931,15 @@ app.get("/api/survival-ranking", (req, res) => {
     if (idx >= 0) {
       myRank = idx + 1;
       const e = list[idx];
-      myEntry = withEquippedBadges({
+      myEntry = ctx.withEquippedBadges({
         rank: myRank,
         username: e.username,
-        displayName: nicknameMap[e.username] || "新人",
+        displayName: ctx.nicknameFor(e.username),
         survivalTimeSec: e.survivalTimeSec ?? 0,
         wrongCount: e.wrongCount ?? 0,
         ts: e.ts,
-        avatarUrl: avatarUrlForUsername(e.username, req),
-      }, req);
+        avatarUrl: ctx.avatarUrlForUsername(e.username),
+      });
     }
   }
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
@@ -1933,20 +1967,15 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
     if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
     return (a.ts || 0) - (b.ts || 0);
   });
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const nicknameMap = {};
-  (usersData.users || []).forEach((u) => {
-    const n = (u.nickname || "").trim();
-    nicknameMap[u.username] = n ? n : "新人";
-  });
-  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => withEquippedBadges({
+  const ctx = createRankingLookupContext(req);
+  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ctx.withEquippedBadges({
     rank: i + 1,
     username: e.username,
-    displayName: nicknameMap[e.username] || "新人",
+    displayName: ctx.nicknameFor(e.username),
     survivalTimeSec: e.survivalTimeSec ?? 0,
     ts: e.ts,
-    avatarUrl: avatarUrlForUsername(e.username, req),
-  }, req));
+    avatarUrl: ctx.avatarUrlForUsername(e.username),
+  }));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -1955,14 +1984,14 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
     if (idx >= 0) {
       myRank = idx + 1;
       const e = list[idx];
-      myEntry = withEquippedBadges({
+      myEntry = ctx.withEquippedBadges({
         rank: myRank,
         username: e.username,
-        displayName: nicknameMap[e.username] || "新人",
+        displayName: ctx.nicknameFor(e.username),
         survivalTimeSec: e.survivalTimeSec ?? 0,
         ts: e.ts,
-        avatarUrl: avatarUrlForUsername(e.username, req),
-      }, req);
+        avatarUrl: ctx.avatarUrlForUsername(e.username),
+      });
     }
   }
   res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
@@ -1970,21 +1999,19 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
 
 // ========== 耐力榜：按“最长连续挑战天数”排名；返回前 50 + 当前用户 ==========
 app.get("/api/streak-ranking", (req, res) => {
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const ctx = createRankingLookupContext(req);
+  const users = ctx.users;
 
   const rows = users
     .filter((u) => u && u.username)
-    .map((u) => {
-      return {
-        username: u.username,
-        displayName: (u.nickname || "").trim() ? String(u.nickname).trim() : "新人",
-        streakCurrent: Number(u.streakCurrent) || 0,
-        streakBest: Number(u.streakBest) || 0,
-        lastActiveDate: normalizeDateKey(u.streakLastDate || ""),
-        avatarUrl: avatarUrlForUsername(u.username, req),
-      };
-    })
+    .map((u) => ({
+      username: u.username,
+      displayName: (u.nickname || "").trim() ? String(u.nickname).trim() : "新人",
+      streakCurrent: Number(u.streakCurrent) || 0,
+      streakBest: Number(u.streakBest) || 0,
+      lastActiveDate: normalizeDateKey(u.streakLastDate || ""),
+      avatarUrl: ctx.avatarUrlForUser(u),
+    }))
     .filter((r) => r.streakBest > 0);
 
   rows.sort((a, b) => {
@@ -1994,7 +2021,7 @@ app.get("/api/streak-ranking", (req, res) => {
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
 
-  const top = rows.slice(0, STREAK_RANKING_MAX).map((r, i) => withEquippedBadges({ rank: i + 1, ...r }, req));
+  const top = rows.slice(0, STREAK_RANKING_MAX).map((r, i) => ctx.withEquippedBadges({ rank: i + 1, ...r }));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -2002,7 +2029,7 @@ app.get("/api/streak-ranking", (req, res) => {
     const idx = rows.findIndex((r) => r.username === username);
     if (idx >= 0) {
       myRank = idx + 1;
-      myEntry = withEquippedBadges({ rank: myRank, ...rows[idx] }, req);
+      myEntry = ctx.withEquippedBadges({ rank: myRank, ...rows[idx] });
     }
   }
 
@@ -2011,8 +2038,8 @@ app.get("/api/streak-ranking", (req, res) => {
 
 // ========== 连击榜：按“最高连对”排名；同分按“当前连对” ==========
 app.get("/api/combo-ranking", (req, res) => {
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const ctx = createRankingLookupContext(req);
+  const users = ctx.users;
 
   const rows = users
     .filter((u) => u && u.username)
@@ -2021,7 +2048,7 @@ app.get("/api/combo-ranking", (req, res) => {
       displayName: (u.nickname || "").trim() ? String(u.nickname).trim() : "新人",
       comboCurrent: Number(u.comboCurrent) || 0,
       comboBest: Number(u.comboBest) || 0,
-      avatarUrl: avatarUrlForUsername(u.username, req),
+      avatarUrl: ctx.avatarUrlForUser(u),
     }))
     .filter((r) => r.comboBest > 0 || r.comboCurrent > 0);
 
@@ -2031,7 +2058,7 @@ app.get("/api/combo-ranking", (req, res) => {
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
 
-  const top = rows.slice(0, COMBO_RANKING_MAX).map((r, i) => withEquippedBadges({ rank: i + 1, ...r }, req));
+  const top = rows.slice(0, COMBO_RANKING_MAX).map((r, i) => ctx.withEquippedBadges({ rank: i + 1, ...r }));
   const username = (req.query.username || "").trim();
   let myRank = 0;
   let myEntry = null;
@@ -2039,7 +2066,7 @@ app.get("/api/combo-ranking", (req, res) => {
     const idx = rows.findIndex((r) => r.username === username);
     if (idx >= 0) {
       myRank = idx + 1;
-      myEntry = withEquippedBadges({ rank: myRank, ...rows[idx] }, req);
+      myEntry = ctx.withEquippedBadges({ rank: myRank, ...rows[idx] });
     }
   }
   res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });

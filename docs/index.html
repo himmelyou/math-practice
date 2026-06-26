@@ -4410,7 +4410,7 @@
   <script src="shared/perfect-square-questions.js?v=40"></script>
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=41"></script>
-  <script src="achievements-client.js?v=8"></script>
+  <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=40"></script>
   <script src="decimal-page.js?v=3"></script>
   <script>
@@ -9526,8 +9526,15 @@
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       const sec = document.getElementById("achievement-wall-section");
       if (sec) sec.style.display = "flex";
-      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.loadState === "function") {
-        await JmlAchievementsClient.loadState();
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.openWall === "function") {
+        await JmlAchievementsClient.openWall();
+      }
+    }
+
+    function prefetchHomeAchievementBadges() {
+      if (isGuestMode) return;
+      if (window.JmlAchievementsClient && typeof JmlAchievementsClient.prefetchHomeBadges === "function") {
+        void JmlAchievementsClient.prefetchHomeBadges();
       }
     }
 
@@ -11756,6 +11763,7 @@
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       loadState();
+      prefetchHomeAchievementBadges();
       updateWrongbookBadge();
       showHome();
       updateSurvivalStatusUI();
@@ -11812,6 +11820,7 @@
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       loadState();
+      prefetchHomeAchievementBadges();
       updateWrongbookBadge();
       showHome();
       updateSurvivalStatusUI();
@@ -12257,6 +12266,7 @@
           document.getElementById("app-view").style.display = "flex";
           syncHomeSettingsAuthItems();
             loadState();
+            prefetchHomeAchievementBadges();
             updateHomePlayerLevel();
             updateSurvivalStatusUI();
             updateSurvivalButtonLabel();
