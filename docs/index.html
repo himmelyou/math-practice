@@ -4676,7 +4676,9 @@
     // ========= 生存挑战模式：全局状态 =========
     const SURVIVAL_INITIAL_SEC = 60;
     const SURVIVAL_CORRECT_PER_LEVEL = 5;
-    const LEVEL_CHALLENGE_CORRECT_PER_LEVEL = 10;
+    const LEVEL_CHALLENGE_MAIN_PER_LEVEL = 10;
+    const LEVEL_CHALLENGE_EXT_PER_LEVEL = 10;
+    const LEVEL_CHALLENGE_DECK_PER_LEVEL = 20;
     const TRAINING_QUESTIONS = 30;
 
     // ========= 错题本存储上限（自愿「错题练习」；全对可清空） =========
@@ -4712,6 +4714,11 @@
     let isPlaying = false;
     let maxLevelThisRun = 0;
     let runWrongCount = 0;
+    /** 闯关：本关主段 / 附加段进度（每关 10+10，牌库一次 20 题） */
+    let levelMainAnswered = 0;
+    let levelExtensionAnswered = 0;
+    let levelWrongInLevel = 0;
+    let levelPhase = "main";
 
     let wrongPracticeQueue = [];
     let wrongPracticeIndex = 0;
@@ -6446,7 +6453,9 @@
         "home.btn.changePassword": "修改密碼",
         "home.btn.logout": "登出",
         "game.subtitle.survival": "生存挑戰：L1 起步，答對 +2 秒 +5 分；5 連對升級，答錯降級。",
-        "game.subtitle.level": "闖關挑戰：每局從 L1 開始，正向計時、不限時；連續答對 10 題升級，答錯一局結束。",
+        "game.subtitle.level": "闖關挑戰：每局從 L1 開始，正向計時、不限時；每關 10 題全對升級，錯 1 題再加 10 題，本關錯 2 題則結束。",
+        "game.status.levelSegmentProgress": "本關進度：",
+        "game.feedback.levelTwoWrongsEnd": "本关已错2题，欢迎再次挑战。",
         "game.status.currentMode": "當前模式：",
         "game.status.scoreThisRun": "本局得分：",
         "game.status.maxLevel": "最高等級：",
@@ -6781,7 +6790,9 @@
         "home.btn.changePassword": "Password",
         "home.btn.logout": "Logout",
         "game.subtitle.survival": "Survival: start at L1; +2s +5pts per correct; level up every 5 in a row; wrong answers level down.",
-        "game.subtitle.level": "Level challenge: each run starts at L1, count-up timer, no time limit; 10 correct in a row to level up; one wrong answer ends the run.",
+        "game.subtitle.level": "Level challenge: each run starts at L1, count-up timer; clear 10/level to advance, or 10+10 with one mistake allowed; two wrong on a level ends the run.",
+        "game.status.levelSegmentProgress": "Level:",
+        "game.feedback.levelTwoWrongsEnd": "Two wrong on this level—welcome back anytime.",
         "game.status.currentMode": "Mode:",
         "game.status.scoreThisRun": "Score:",
         "game.status.maxLevel": "Highest level:",
@@ -8273,8 +8284,45 @@
 
     function getDeckSegmentCountForMode() {
       if (gameMode === "training") return TRAINING_QUESTIONS;
-      if (gameMode === "level") return LEVEL_CHALLENGE_CORRECT_PER_LEVEL;
+      if (gameMode === "level") return LEVEL_CHALLENGE_DECK_PER_LEVEL;
       return SURVIVAL_CORRECT_PER_LEVEL;
+    }
+
+    function initLevelChallengeSegmentState() {
+      levelMainAnswered = 0;
+      levelExtensionAnswered = 0;
+      levelWrongInLevel = 0;
+      levelPhase = "main";
+      resetLevelChallengeDeck();
+    }
+
+    function resetLevelChallengeDeck() {
+      if (!window.JmlArithmetic || !window.JmlArithmetic.resetLevelDeck) return;
+      window.JmlArithmetic.resetLevelDeck(currentLevelIndex, LEVEL_CHALLENGE_DECK_PER_LEVEL);
+    }
+
+    function formatLevelChallengeProgressText() {
+      const main = levelMainAnswered + "/" + LEVEL_CHALLENGE_MAIN_PER_LEVEL;
+      const extPart =
+        levelPhase === "extension" || levelExtensionAnswered > 0
+          ? levelExtensionAnswered + "/" + LEVEL_CHALLENGE_EXT_PER_LEVEL
+          : "—/" + LEVEL_CHALLENGE_EXT_PER_LEVEL;
+      return main + " · " + extPart;
+    }
+
+    function finishLevelChallengeLevelUp() {
+      if (currentLevelIndex >= DIFFICULTY_MODULE.levels.length - 1) {
+        maxLevelThisRun = 15;
+        setFeedback(t("game.feedback.allCleared16"), "correct");
+        updateLevelStatusUI();
+        setTimeout(function () { endLevelGame(true); }, 600);
+        return;
+      }
+      currentLevelIndex += 1;
+      maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
+      initLevelChallengeSegmentState();
+      setFeedback("", null);
+      updateLevelStatusUI();
     }
 
     function resetDeckLevelsAtRunStart() {
@@ -8308,7 +8356,7 @@
         dom.timerChip.classList.toggle("low", survivalTimeLeft <= 10);
       }
       if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
-      const correctPerLevel = gameMode === "level" ? LEVEL_CHALLENGE_CORRECT_PER_LEVEL : SURVIVAL_CORRECT_PER_LEVEL;
+      const correctPerLevel = SURVIVAL_CORRECT_PER_LEVEL;
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
       if (dom.runScore) dom.runScore.textContent = runScore;
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (Math.max(maxLevelThisRun, currentLevelIndex) + 1);
@@ -8324,7 +8372,7 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = t("game.status.streak");
+      if (label2) label2.textContent = t("game.status.levelSegmentProgress");
       if (label3) label3.textContent = t("game.status.scoreThisRun");
       if (label4) label4.textContent = t("game.status.levelChallengeBest");
       if (label5) label5.textContent = t("game.status.wrongCount");
@@ -8337,7 +8385,7 @@
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
       if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
-      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + LEVEL_CHALLENGE_CORRECT_PER_LEVEL;
+      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = formatLevelChallengeProgressText();
       if (dom.runScore) dom.runScore.textContent = runScore;
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (getLevelChallengeBestLevel() + 1);
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
@@ -8534,7 +8582,7 @@
       initSoftKeyboardIfNeeded();
       setSoftKeyboardVisible(true);
       survivalTimerId = setInterval(levelTick, 1000);
-      resetDeckLevelsAtRunStart();
+      initLevelChallengeSegmentState();
       showNextSurvivalQuestion();
     }
 
@@ -9047,36 +9095,45 @@
       const timeSpentMs = questionShownAt ? Date.now() - questionShownAt : 0;
       const correct = userAnswer === question.answer;
       currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
-      const isCorrect = correct;
 
-      if (isCorrect) {
+      if (correct) {
         const points = 5;
         runScore += points;
         consecutiveCorrect += 1;
-        if (consecutiveCorrect >= LEVEL_CHALLENGE_CORRECT_PER_LEVEL) {
-          if (currentLevelIndex < DIFFICULTY_MODULE.levels.length - 1) {
-            currentLevelIndex += 1;
-            consecutiveCorrect = 0;
-          } else {
-            maxLevelThisRun = 15;
-            setFeedback(t("game.feedback.allCleared16"), "correct");
-            updateLevelStatusUI();
-            setTimeout(function () { endLevelGame(true); }, 600);
-            return;
-          }
-        }
-        maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
         setFeedback(tf("game.feedback.levelPlus", { pts: points }), "correct");
       } else {
         runWrongCount += 1;
+        levelWrongInLevel += 1;
         consecutiveCorrect = 0;
-        // 答错结束：本题必须写入错题本（放弃结局见 endLevelGame abandoned，不调用 recordWrongAnswer）
         recordWrongAnswer(question.text, question.answer, userAnswer);
         setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
-        if (dom.submitBtn) dom.submitBtn.disabled = true;
-        setTimeout(function () { endLevelGame(false); }, 600);
-        return;
+        if (levelWrongInLevel >= 2) {
+          if (dom.submitBtn) dom.submitBtn.disabled = true;
+          showToast(t("game.feedback.levelTwoWrongsEnd"));
+          setTimeout(function () { endLevelGame(false); }, 600);
+          return;
+        }
       }
+
+      if (levelPhase === "main") {
+        levelMainAnswered += 1;
+        if (levelMainAnswered >= LEVEL_CHALLENGE_MAIN_PER_LEVEL) {
+          if (levelWrongInLevel === 0) {
+            finishLevelChallengeLevelUp();
+            if (gameOver) return;
+          } else {
+            levelPhase = "extension";
+          }
+        }
+      } else {
+        levelExtensionAnswered += 1;
+        if (levelExtensionAnswered >= LEVEL_CHALLENGE_EXT_PER_LEVEL) {
+          finishLevelChallengeLevelUp();
+          if (gameOver) return;
+        }
+      }
+
+      maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
       updateLevelStatusUI();
       showNextSurvivalQuestion();
     }

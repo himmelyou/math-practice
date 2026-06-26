@@ -4,7 +4,7 @@
 
 - 单局记录统一使用 **`cleared: true`** 表示通关（生存 / 闯关等由 `mode` 区分语义）。
 - 已删除 **`survivalCleared`**（代码与迁移后数据均不再使用）。
-- **闯关**：仅 `endLevelGame(completed=true)`（L16 连对 10 题通全关）写入 `cleared: true`；答错、放弃均为非通关。
+- **闯关**：仅 `endLevelGame(completed=true)`（L16 达标通关，含 10+10 附加段规则）写入 `cleared: true`；本关错 2 题结束、放弃均为非通关。
 - **生存**：与原先 `survivalCleared` 相同，通关局写 `cleared: true`。
 - 历史 **闯关** 记录**不会**根据 `maxLevel>=15` 回填 `cleared`（避免把 L16 答错误标为通关）；仅将旧 **`survivalCleared`** 迁入 **`cleared`**。
 
@@ -48,7 +48,7 @@ curl -X POST "https://你的API/api/admin/maintenance/migrate-run-cleared" \
 - 抽查 `runs.json`：不应再出现 `survivalCleared`；生存通关局应有 `cleared: true`。
 - 登录曾 survival 通关的账号：生存榜 gate 仍正常。
 - 玩一局闯关 **通全关** → 最近记录 **Cleared: 是**。
-- 玩一局闯关 **L16 答错** → **Cleared: 否**（即使 Max level 为 L16）。
+- 玩一局闯关 **L16 本关错 2 题** → **Cleared: 否**（即使 Max level 为 L16）。
 
 ### 5. 顺序提醒
 
