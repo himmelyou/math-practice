@@ -8374,11 +8374,8 @@
 
     function formatLevelChallengeProgressText() {
       const main = levelMainAnswered + "/" + LEVEL_CHALLENGE_MAIN_PER_LEVEL;
-      const extPart =
-        levelPhase === "extension" || levelExtensionAnswered > 0
-          ? levelExtensionAnswered + "/" + LEVEL_CHALLENGE_EXT_PER_LEVEL
-          : "—/" + LEVEL_CHALLENGE_EXT_PER_LEVEL;
-      return main + " · " + extPart;
+      if (levelPhase !== "extension") return main;
+      return main + " · " + levelExtensionAnswered + "/" + LEVEL_CHALLENGE_EXT_PER_LEVEL;
     }
 
     function finishLevelChallengeLevelUp() {
@@ -8416,11 +8413,8 @@
 
     function formatTrainingProgressText() {
       const main = trainingMainAnswered + "/" + TRAINING_MAIN_PER_RUN;
-      const extPart =
-        trainingPhase === "extension" || trainingExtensionAnswered > 0
-          ? trainingExtensionAnswered + "/" + TRAINING_EXT_PER_RUN
-          : "—/" + TRAINING_EXT_PER_RUN;
-      return main + " · " + extPart;
+      if (trainingPhase !== "extension") return main;
+      return main + " · " + trainingExtensionAnswered + "/" + TRAINING_EXT_PER_RUN;
     }
 
     function getTrainingQuestionProgressSubtext() {
