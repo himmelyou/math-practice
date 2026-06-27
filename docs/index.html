@@ -4679,7 +4679,10 @@
     const LEVEL_CHALLENGE_MAIN_PER_LEVEL = 10;
     const LEVEL_CHALLENGE_EXT_PER_LEVEL = 10;
     const LEVEL_CHALLENGE_DECK_PER_LEVEL = 20;
-    const TRAINING_QUESTIONS = 30;
+    const TRAINING_MAIN_PER_RUN = 20;
+    const TRAINING_EXT_PER_RUN = 10;
+    const TRAINING_DECK_PER_RUN = 30;
+    const TRAINING_PASS_ACCURACY = 0.95;
 
     // ========= 错题本存储上限（自愿「错题练习」；全对可清空） =========
     const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条；新错题顶替最旧
@@ -4725,6 +4728,10 @@
     let wrongPracticeResults = [];
     let trainingQuestionIndex = 0;
     let trainingCorrectCount = 0;
+    /** 训练：主段 / 附加段（20+10，牌库 30 题） */
+    let trainingMainAnswered = 0;
+    let trainingExtensionAnswered = 0;
+    let trainingPhase = "main";
     /** 进入训练区或开局时刷新：全通关 / 当日强制刷热图 时为 true */
     let trainingSessionBrushMode = false;
     /** 本局训练开始时快照：结算是否走刷热图分支 */
@@ -6517,6 +6524,7 @@
         "game.subtitle.survival": "生存挑戰：L1 起步，答對 +2 秒 +5 分；5 連對升級，答錯降級。",
         "game.subtitle.level": "闖關挑戰：每局從 L1 開始，正向計時、不限時；每關 10 題全對升級，錯 1 題再加 10 題，本關錯 2 題則結束。",
         "game.status.levelSegmentProgress": "本關進度：",
+        "game.status.trainingSegmentProgress": "本局進度：",
         "game.feedback.levelTwoWrongsEnd": "本关已错2题，欢迎再次挑战。",
         "game.status.currentMode": "當前模式：",
         "game.status.scoreThisRun": "本局得分：",
@@ -6558,7 +6566,7 @@
         "game.training.dailyRunPass": "本局達標！下次將挑戰下一關。",
         "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
         "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
-        "game.training.subtitle.dailyRules": "當日闖關：按梯子頂 M 穩關或開 M+1；單局 {n} 題≥95% 則推進下一關，否則同關再練（3 敗進刷熱圖）；M 以下掉線在刷熱圖 pool 內補。",
+        "game.training.subtitle.dailyRules": "當日闖關：按梯子頂 M 穩關或開 M+1；20 題全對則結束，錯 1 題再加 10 題，錯 2 題及以上則結束；達標線 ≥95%，否則同關再練（3 敗進刷熱圖）；M 以下掉線在刷熱圖 pool 內補。",
         "game.display.levelOrdinal": "第 {n} 級",
         "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
         "game.display.percent": "{pct}%",
@@ -6854,6 +6862,7 @@
         "game.subtitle.survival": "Survival: start at L1; +2s +5pts per correct; level up every 5 in a row; wrong answers level down.",
         "game.subtitle.level": "Level challenge: each run starts at L1, count-up timer; clear 10/level to advance, or 10+10 with one mistake allowed; two wrong on a level ends the run.",
         "game.status.levelSegmentProgress": "Level:",
+        "game.status.trainingSegmentProgress": "Run:",
         "game.feedback.levelTwoWrongsEnd": "Two wrong on this level—welcome back anytime.",
         "game.status.currentMode": "Mode:",
         "game.status.scoreThisRun": "Score:",
@@ -7025,7 +7034,7 @@
         "game.training.dailyRunPass": "Run cleared! Next time: the next level.",
         "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
         "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
-        "game.training.subtitle.dailyRules": "Daily: stabilize ladder top M or open M+1; pass a {n}-question run at ≥95% to advance; 3 fails → brush; regressions below M are fixed in the brush pool.",
+        "game.training.subtitle.dailyRules": "Daily: stabilize ladder top M or open M+1; clear 20/20 to finish, or 10+10 with one mistake; two or more wrong ends the run; pass at ≥95%, else retry (3 fails → brush); regressions below M are fixed in the brush pool.",
         "game.display.levelOrdinal": "Level {n}",
         "game.over.levelRunBestTitle": "Best this run: level {n}",
         "game.display.percent": "{pct}%",
@@ -8345,7 +8354,7 @@
     }
 
     function getDeckSegmentCountForMode() {
-      if (gameMode === "training") return TRAINING_QUESTIONS;
+      if (gameMode === "training") return TRAINING_DECK_PER_RUN;
       if (gameMode === "level") return LEVEL_CHALLENGE_DECK_PER_LEVEL;
       return SURVIVAL_CORRECT_PER_LEVEL;
     }
@@ -8394,7 +8403,42 @@
 
     function resetTrainingDeckForLevel() {
       if (!window.JmlArithmetic || !window.JmlArithmetic.resetLevelDeck) return;
-      window.JmlArithmetic.resetLevelDeck(currentLevelIndex, TRAINING_QUESTIONS);
+      window.JmlArithmetic.resetLevelDeck(currentLevelIndex, TRAINING_DECK_PER_RUN);
+    }
+
+    function initTrainingSegmentState() {
+      trainingMainAnswered = 0;
+      trainingExtensionAnswered = 0;
+      trainingPhase = "main";
+      trainingQuestionIndex = 0;
+      resetTrainingDeckForLevel();
+    }
+
+    function formatTrainingProgressText() {
+      const main = trainingMainAnswered + "/" + TRAINING_MAIN_PER_RUN;
+      const extPart =
+        trainingPhase === "extension" || trainingExtensionAnswered > 0
+          ? trainingExtensionAnswered + "/" + TRAINING_EXT_PER_RUN
+          : "—/" + TRAINING_EXT_PER_RUN;
+      return main + " · " + extPart;
+    }
+
+    function getTrainingQuestionProgressSubtext() {
+      if (trainingPhase === "main") {
+        return tf("game.training.questionProgress", {
+          n: trainingMainAnswered + 1,
+          total: TRAINING_MAIN_PER_RUN,
+        });
+      }
+      return tf("game.training.questionProgress", {
+        n: trainingExtensionAnswered + 1,
+        total: TRAINING_EXT_PER_RUN,
+      });
+    }
+
+    function finishTrainingRunEarly() {
+      if (dom.submitBtn) dom.submitBtn.disabled = true;
+      void endTrainingGame(false);
     }
 
     // ===== 生存模式：计时与 UI 更新 =====
@@ -8678,12 +8722,18 @@
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
       const label5 = document.getElementById("status-label-5");
-      if (label2) label2.textContent = t("game.status.correctCount");
+      if (label2) label2.textContent = isPlaying
+        ? t("game.status.trainingSegmentProgress")
+        : t("game.status.correctCount");
       if (label3) label3.textContent = t("game.status.scoreThisRun");
       if (label4) label4.textContent = t("game.status.runDifficulty");
       if (label5) label5.textContent = t("game.status.wrongCount");
       updateStatusModeLabel();
-      if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = trainingCorrectCount + " / " + TRAINING_QUESTIONS;
+      if (dom.consecutiveCorrect) {
+        dom.consecutiveCorrect.textContent = isPlaying
+          ? formatTrainingProgressText()
+          : trainingCorrectCount + " / " + TRAINING_MAIN_PER_RUN;
+      }
       if (dom.runScore) dom.runScore.textContent = runScore;
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (currentLevelIndex + 1);
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
@@ -8694,7 +8744,6 @@
       trainingRunStartMeta = snapshotTrainingRunStartMeta();
       // 档位已在「开始前」画面（进训练 / 再玩一局）算好，此处不重算
       trainingRunBrushMode = trainingSessionBrushMode;
-      trainingQuestionIndex = 0;
       trainingCorrectCount = 0;
       runScore = 0;
       runWrongCount = 0;
@@ -8724,10 +8773,10 @@
       initSoftKeyboardIfNeeded();
       setSoftKeyboardVisible(true);
       survivalTimerId = setInterval(trainingTick, 1000);
-      resetTrainingDeckForLevel();
+      initTrainingSegmentState();
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
-      if (dom.questionSubtext) dom.questionSubtext.textContent = tf("game.training.questionProgress", { n: trainingQuestionIndex + 1, total: TRAINING_QUESTIONS });
+      if (dom.questionSubtext) dom.questionSubtext.textContent = getTrainingQuestionProgressSubtext();
     }
 
     /** 生存 / 闯关：结算后回到开局前（规则 + 开始按钮），与首次进入一致 */
@@ -8800,6 +8849,9 @@
       }
       isPlaying = false;
       gameOver = false;
+      trainingMainAnswered = 0;
+      trainingExtensionAnswered = 0;
+      trainingPhase = "main";
       trainingQuestionIndex = 0;
       trainingCorrectCount = 0;
       runScore = 0;
@@ -9218,18 +9270,33 @@
         setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
       }
 
-      trainingQuestionIndex += 1;
-      updateTrainingStatusUI();
-
-      if (trainingQuestionIndex >= TRAINING_QUESTIONS) {
-        if (dom.submitBtn) dom.submitBtn.disabled = true;
-        void endTrainingGame(false);
-        return;
+      if (trainingPhase === "main") {
+        trainingMainAnswered += 1;
+        trainingQuestionIndex += 1;
+        if (trainingMainAnswered >= TRAINING_MAIN_PER_RUN) {
+          if (runWrongCount === 0) {
+            finishTrainingRunEarly();
+            return;
+          }
+          if (runWrongCount >= 2) {
+            finishTrainingRunEarly();
+            return;
+          }
+          trainingPhase = "extension";
+        }
+      } else {
+        trainingExtensionAnswered += 1;
+        trainingQuestionIndex += 1;
+        if (trainingExtensionAnswered >= TRAINING_EXT_PER_RUN) {
+          finishTrainingRunEarly();
+          return;
+        }
       }
 
+      updateTrainingStatusUI();
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
-      if (dom.questionSubtext) dom.questionSubtext.textContent = tf("game.training.questionProgress", { n: trainingQuestionIndex + 1, total: TRAINING_QUESTIONS });
+      if (dom.questionSubtext) dom.questionSubtext.textContent = getTrainingQuestionProgressSubtext();
       if (dom.submitBtn) dom.submitBtn.disabled = false;
     }
 
@@ -9285,9 +9352,10 @@
       }
 
       const correctCount = trainingCorrectCount;
-      const accuracy = TRAINING_QUESTIONS > 0 ? correctCount / TRAINING_QUESTIONS : 0;
+      const questionsAnswered = trainingMainAnswered + trainingExtensionAnswered;
+      const accuracy = questionsAnswered > 0 ? correctCount / questionsAnswered : 0;
       const levelThisRun = currentLevelIndex;
-      const runPass = accuracy >= 0.95;
+      const runPass = accuracy >= TRAINING_PASS_ACCURACY;
 
       if (trainingRunBrushMode) {
         await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
@@ -11070,6 +11138,9 @@
       // 进入模式时重置状态栏为新一局的初始值，避免显示上一局遗留数据
       if (gameMode === "training") {
         runScore = 0;
+        trainingMainAnswered = 0;
+        trainingExtensionAnswered = 0;
+        trainingPhase = "main";
         trainingQuestionIndex = 0;
         trainingCorrectCount = 0;
         gameStartTime = 0;
@@ -11670,7 +11741,7 @@
       if (m === "training") {
         sub.textContent = trainingSessionBrushMode
           ? ""
-          : tf("game.training.subtitle.dailyRules", { n: TRAINING_QUESTIONS });
+          : t("game.training.subtitle.dailyRules");
       } else if (m === "level") {
         sub.textContent = t("game.subtitle.level");
       } else if (m === "expandBrackets") {
