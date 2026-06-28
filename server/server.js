@@ -158,10 +158,8 @@ const FEEDBACK_MESSAGE_MAX_LEN = 2000;
 const FEEDBACK_RATE_WINDOW_MS = 60 * 60 * 1000;
 const FEEDBACK_RATE_MAX_PER_HOUR = 10;
 const feedbackSubmitTimestamps = new Map();
-const SURVIVAL_RANKING_MAX = 50;
-const SCORE_RANKING_MAX = 50;
-const STREAK_RANKING_MAX = 50;
-const COMBO_RANKING_MAX = 50;
+/** 学员端排行榜 API 对外可见条数（全榜仍用于 myRank；list 仅返回前 N） */
+const RANKING_PUBLIC_MAX = 10;
 
 function readRankingEvalData() {
   const usersData = readJson(USERS_FILE, { users: [] });
@@ -1859,7 +1857,63 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   res.json({ ok: true });
 });
 
-// ========== 总积分榜：按 totalScore 降序；返回前 50 + 当前用户名次（可选 ?username=） ==========
+/**
+ * 学员端排行榜 JSON：list 仅含全榜前 RANKING_PUBLIC_MAX；myRank/myEntry 按全榜排序计算。
+ * @param {Array} sortedRows 已排序的全榜行（原始数据）
+ * @param {string} usernameQuery req.query.username
+ * @param {{ getUsername?: (row: unknown) => string, toEntry: (row: unknown, rank: number) => object|null }} options
+ */
+function buildPublicRankingJson(sortedRows, usernameQuery, options) {
+  const getUsername = options.getUsername || ((row) => (row && row.username) || "");
+  const toEntry = options.toEntry;
+  const list = [];
+  const limit = Math.min(RANKING_PUBLIC_MAX, sortedRows.length);
+  for (let i = 0; i < limit; i += 1) {
+    const entry = toEntry(sortedRows[i], i + 1);
+    if (entry) list.push(entry);
+  }
+  const uname = String(usernameQuery || "").trim();
+  let myRank = 0;
+  let myEntry = null;
+  if (uname) {
+    const idx = sortedRows.findIndex((row) => getUsername(row) === uname);
+    if (idx >= 0) {
+      myRank = idx + 1;
+      myEntry = toEntry(sortedRows[idx], myRank);
+    }
+  }
+  return {
+    ok: true,
+    list,
+    myRank: uname ? myRank : undefined,
+    myEntry: uname ? myEntry : undefined,
+  };
+}
+
+function formatSurvivalRankingEntry(ctx, e, rank) {
+  return ctx.withEquippedBadges({
+    rank,
+    username: e.username,
+    displayName: ctx.nicknameFor(e.username),
+    survivalTimeSec: e.survivalTimeSec ?? 0,
+    wrongCount: e.wrongCount ?? 0,
+    ts: e.ts,
+    avatarUrl: ctx.avatarUrlForUsername(e.username),
+  });
+}
+
+function formatPrimePerfectRankingEntry(ctx, e, rank) {
+  return ctx.withEquippedBadges({
+    rank,
+    username: e.username,
+    displayName: ctx.nicknameFor(e.username),
+    survivalTimeSec: e.survivalTimeSec ?? 0,
+    ts: e.ts,
+    avatarUrl: ctx.avatarUrlForUsername(e.username),
+  });
+}
+
+// ========== 等级榜：按 totalScore 降序；返回前十名 + 当前用户全榜名次（?username=） ==========
 app.get("/api/score-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   const users = ctx.users.slice();
@@ -1869,30 +1923,17 @@ app.get("/api/score-ranking", (req, res) => {
     if (sb !== sa) return sb - sa;
     return String((a && a.username) || "").localeCompare(String((b && b.username) || ""));
   });
-  const top = users.slice(0, SCORE_RANKING_MAX).map((u, i) => {
-    const row = ctx.buildScoreRankingRowUser(u);
-    return row ? { rank: i + 1, ...row } : null;
-  }).filter(Boolean);
-  const username = (req.query.username || "").trim();
-  let myRank = 0;
-  let myEntry = null;
-  if (username) {
-    const idx = users.findIndex((u) => u && u.username === username);
-    if (idx >= 0) {
-      myRank = idx + 1;
-      const row = ctx.buildScoreRankingRowUser(users[idx]);
-      if (row) myEntry = { rank: myRank, ...row };
-    }
-  }
-  res.json({
-    ok: true,
-    list: top,
-    myRank: username ? myRank : undefined,
-    myEntry: username ? myEntry : undefined,
-  });
+  res.json(
+    buildPublicRankingJson(users, req.query.username, {
+      toEntry: (u, rank) => {
+        const row = ctx.buildScoreRankingRowUser(u);
+        return row ? { rank, ...row } : null;
+      },
+    })
+  );
 });
 
-// ========== 生存通关排行榜：每人只保留一条最佳，全量排名；返回前 50 + 当前用户的名次与记录 ==========
+// ========== 生存通关排行榜：每人只保留一条最佳，全量排名；前十名 + 当前用户 ==========
 function dedupeBestPerUser(list) {
   const byUser = {};
   list.forEach((e) => {
@@ -1914,38 +1955,14 @@ app.get("/api/survival-ranking", (req, res) => {
     return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
   });
   const ctx = createRankingLookupContext(req);
-  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ctx.withEquippedBadges({
-    rank: i + 1,
-    username: e.username,
-    displayName: ctx.nicknameFor(e.username),
-    survivalTimeSec: e.survivalTimeSec ?? 0,
-    wrongCount: e.wrongCount ?? 0,
-    ts: e.ts,
-    avatarUrl: ctx.avatarUrlForUsername(e.username),
-  }));
-  const username = (req.query.username || "").trim();
-  let myRank = 0;
-  let myEntry = null;
-  if (username) {
-    const idx = list.findIndex((e) => e.username === username);
-    if (idx >= 0) {
-      myRank = idx + 1;
-      const e = list[idx];
-      myEntry = ctx.withEquippedBadges({
-        rank: myRank,
-        username: e.username,
-        displayName: ctx.nicknameFor(e.username),
-        survivalTimeSec: e.survivalTimeSec ?? 0,
-        wrongCount: e.wrongCount ?? 0,
-        ts: e.ts,
-        avatarUrl: ctx.avatarUrlForUsername(e.username),
-      });
-    }
-  }
-  res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+  res.json(
+    buildPublicRankingJson(list, req.query.username, {
+      toEntry: (e, rank) => formatSurvivalRankingEntry(ctx, e, rank),
+    })
+  );
 });
 
-// ========== 质数达人榜：质数合数 50 题全对的最短用时；每人一条最佳；前 50 + 当前用户 ==========
+// ========== 质数达人榜：50 题全对最短用时；前十名 + 当前用户 ==========
 function dedupeBestPrimePerfect(list) {
   const byUser = {};
   (list || []).forEach((e) => {
@@ -1968,36 +1985,14 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
     return (a.ts || 0) - (b.ts || 0);
   });
   const ctx = createRankingLookupContext(req);
-  const top50 = list.slice(0, SURVIVAL_RANKING_MAX).map((e, i) => ctx.withEquippedBadges({
-    rank: i + 1,
-    username: e.username,
-    displayName: ctx.nicknameFor(e.username),
-    survivalTimeSec: e.survivalTimeSec ?? 0,
-    ts: e.ts,
-    avatarUrl: ctx.avatarUrlForUsername(e.username),
-  }));
-  const username = (req.query.username || "").trim();
-  let myRank = 0;
-  let myEntry = null;
-  if (username) {
-    const idx = list.findIndex((e) => e.username === username);
-    if (idx >= 0) {
-      myRank = idx + 1;
-      const e = list[idx];
-      myEntry = ctx.withEquippedBadges({
-        rank: myRank,
-        username: e.username,
-        displayName: ctx.nicknameFor(e.username),
-        survivalTimeSec: e.survivalTimeSec ?? 0,
-        ts: e.ts,
-        avatarUrl: ctx.avatarUrlForUsername(e.username),
-      });
-    }
-  }
-  res.json({ ok: true, list: top50, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+  res.json(
+    buildPublicRankingJson(list, req.query.username, {
+      toEntry: (e, rank) => formatPrimePerfectRankingEntry(ctx, e, rank),
+    })
+  );
 });
 
-// ========== 耐力榜：按“最长连续挑战天数”排名；返回前 50 + 当前用户 ==========
+// ========== 耐力榜：按最长连续挑战天数；前十名 + 当前用户 ==========
 app.get("/api/streak-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   const users = ctx.users;
@@ -2021,22 +2016,14 @@ app.get("/api/streak-ranking", (req, res) => {
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
 
-  const top = rows.slice(0, STREAK_RANKING_MAX).map((r, i) => ctx.withEquippedBadges({ rank: i + 1, ...r }));
-  const username = (req.query.username || "").trim();
-  let myRank = 0;
-  let myEntry = null;
-  if (username) {
-    const idx = rows.findIndex((r) => r.username === username);
-    if (idx >= 0) {
-      myRank = idx + 1;
-      myEntry = ctx.withEquippedBadges({ rank: myRank, ...rows[idx] });
-    }
-  }
-
-  res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+  res.json(
+    buildPublicRankingJson(rows, req.query.username, {
+      toEntry: (r, rank) => ctx.withEquippedBadges({ rank, ...r }),
+    })
+  );
 });
 
-// ========== 连击榜：按“最高连对”排名；同分按“当前连对” ==========
+// ========== 连击榜：按最高连对；前十名 + 当前用户 ==========
 app.get("/api/combo-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   const users = ctx.users;
@@ -2058,18 +2045,11 @@ app.get("/api/combo-ranking", (req, res) => {
     return String(a.username || "").localeCompare(String(b.username || ""));
   });
 
-  const top = rows.slice(0, COMBO_RANKING_MAX).map((r, i) => ctx.withEquippedBadges({ rank: i + 1, ...r }));
-  const username = (req.query.username || "").trim();
-  let myRank = 0;
-  let myEntry = null;
-  if (username) {
-    const idx = rows.findIndex((r) => r.username === username);
-    if (idx >= 0) {
-      myRank = idx + 1;
-      myEntry = ctx.withEquippedBadges({ rank: myRank, ...rows[idx] });
-    }
-  }
-  res.json({ ok: true, list: top, myRank: username ? myRank : undefined, myEntry: username ? myEntry : undefined });
+  res.json(
+    buildPublicRankingJson(rows, req.query.username, {
+      toEntry: (r, rank) => ctx.withEquippedBadges({ rank, ...r }),
+    })
+  );
 });
 
 // ========== 管理员：获取所有学员 ==========
