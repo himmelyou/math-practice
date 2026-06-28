@@ -8379,6 +8379,7 @@
     }
 
     function finishLevelChallengeLevelUp() {
+      updateLevelStatusUI();
       if (currentLevelIndex >= DIFFICULTY_MODULE.levels.length - 1) {
         maxLevelThisRun = 15;
         setFeedback(t("game.feedback.allCleared16"), "correct");
@@ -8432,6 +8433,7 @@
 
     function finishTrainingRunEarly() {
       if (dom.submitBtn) dom.submitBtn.disabled = true;
+      updateTrainingStatusUI();
       void endTrainingGame(false);
     }
 
@@ -9217,6 +9219,7 @@
         setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
         if (levelWrongInLevel >= 2) {
           if (dom.submitBtn) dom.submitBtn.disabled = true;
+          updateLevelStatusUI();
           showToast(t("game.feedback.levelTwoWrongsEnd"));
           setTimeout(function () { endLevelGame(false); }, 600);
           return;

@@ -607,7 +607,16 @@
   function openDeleteModal(username) {
     openModal(
       '删除账户',
-      '<div class="muted" style="margin:0;">确认删除 <code>' + username + '</code>？此操作不可撤销。</div>',
+      '<div class="muted" style="margin:0;line-height:1.55;">' +
+        '确认删除 <code>' + username + '</code>？此操作<strong>不可撤销</strong>。' +
+        '</div>' +
+        '<ul class="muted" style="margin:10px 0 0;padding-left:1.2em;line-height:1.5;font-size:0.9rem;">' +
+        '<li>学员档案（积分、成就、进度、错题等）</li>' +
+        '<li>完整练习记录（runs）</li>' +
+        '<li>生存榜 / 质数达人榜中的该用户条目</li>' +
+        '<li>该用户提交的反馈</li>' +
+        '</ul>' +
+        '<p class="muted" style="margin:10px 0 0;font-size:0.85rem;">建议先在「系统备份」中下载全部备份。</p>',
       [
         { label: '取消', onClick: closeModal },
         {
@@ -616,9 +625,17 @@
           onClick: async function () {
             try {
               setStatus('删除中…', '');
-              await apiFetch('/api/admin/users/' + encodeURIComponent(username), { method: 'DELETE' });
+              var data = await apiFetch('/api/admin/users/' + encodeURIComponent(username), { method: 'DELETE' });
               closeModal();
               await loadUsers();
+              var p = data && data.purged ? data.purged : {};
+              var parts = ['账户已删除：' + username];
+              if (p.runs != null) parts.push('runs ' + p.runs + ' 条');
+              if (p.feedback != null && p.feedback > 0) parts.push('反馈 ' + p.feedback + ' 条');
+              if ((p.survivalRanking || 0) + (p.primeRanking || 0) > 0) {
+                parts.push('榜单 ' + ((p.survivalRanking || 0) + (p.primeRanking || 0)) + ' 条');
+              }
+              setStatus(parts.join('；'), 'ok');
             } catch (e) {
               setStatus(e.message || '删除失败', 'err');
             }

@@ -2172,23 +2172,88 @@ app.put("/api/admin/users/:username", async (req, res) => {
   res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
+function removeUsernameFromRankingFile(filePath, username) {
+  const data = readJson(filePath, { list: [] });
+  const list = Array.isArray(data.list) ? data.list : [];
+  const before = list.length;
+  const next = list.filter((e) => e && e.username !== username);
+  if (next.length === before) return 0;
+  data.list = next;
+  writeJson(filePath, data);
+  return before - next.length;
+}
+
+/** 永久删除学员及其关联数据（管理员删号 / 后续自助删号共用） */
+function purgeUserCompletely(username) {
+  const name = String(username || "").trim();
+  if (!name) {
+    return { ok: false, error: "无效的用户名" };
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === name);
+  if (idx === -1) {
+    return { ok: false, status: 404, error: "用户不存在" };
+  }
+  data.users.splice(idx, 1);
+  writeJson(USERS_FILE, data);
+
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runList =
+    runsData.runs && Array.isArray(runsData.runs[name]) ? runsData.runs[name] : [];
+  const runsRemoved = runList.length;
+  if (runsData.runs && Object.prototype.hasOwnProperty.call(runsData.runs, name)) {
+    delete runsData.runs[name];
+    writeJson(RUNS_FILE, runsData);
+  }
+
+  const survivalRankingRemoved = removeUsernameFromRankingFile(SURVIVAL_RANKING_FILE, name);
+  const primeRankingRemoved = removeUsernameFromRankingFile(PRIME_PERFECT_RANKING_FILE, name);
+
+  const fbStore = readJson(FEEDBACK_FILE, { items: [] });
+  const fbItems = Array.isArray(fbStore.items) ? fbStore.items : [];
+  const fbNext = fbItems.filter((i) => i && i.username !== name);
+  const feedbackRemoved = fbItems.length - fbNext.length;
+  if (feedbackRemoved > 0) {
+    writeJson(FEEDBACK_FILE, { items: fbNext });
+  }
+
+  feedbackSubmitTimestamps.delete(name);
+
+  let cohortStatsInvalidated = false;
+  try {
+    if (fs.existsSync(COHORT_LEVEL_STATS_FILE)) {
+      fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
+      cohortStatsInvalidated = true;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+
+  return {
+    ok: true,
+    username: name,
+    purged: {
+      user: true,
+      runs: runsRemoved,
+      survivalRanking: survivalRankingRemoved,
+      primeRanking: primeRankingRemoved,
+      feedback: feedbackRemoved,
+      cohortStatsInvalidated,
+    },
+    users: data.users,
+  };
+}
+
 // ========== 管理员：删除学员 ==========
 app.delete("/api/admin/users/:username", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const { username } = req.params;
-  const data = readJson(USERS_FILE, { users: [] });
-  const idx = data.users.findIndex((u) => u.username === username);
-  if (idx === -1) {
-    return res.status(404).json({ ok: false, error: "用户不存在" });
+  const result = purgeUserCompletely(req.params.username);
+  if (!result.ok) {
+    return res.status(result.status || 400).json({ ok: false, error: result.error });
   }
-  data.users.splice(idx, 1);
-  writeJson(USERS_FILE, data);
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  delete runsData.runs[username];
-  writeJson(RUNS_FILE, runsData);
-  res.json({ ok: true, users: data.users });
+  res.json(result);
 });
 
 // ========== 管理员：获取练习设置 ==========
