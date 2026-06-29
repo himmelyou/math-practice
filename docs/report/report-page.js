@@ -80,6 +80,7 @@
 
   var state = {
     usersAll: [],
+    userScope: 'all',
     runs: [],
     userDetail: null,
     selectedUsername: '',
@@ -93,6 +94,7 @@
   };
 
   var REPORT_LANG_KEY = 'jml_lang_v1';
+  var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var reportI18nRuntime = { zhHant: {}, en: {} };
 
   function getReportLang() {
@@ -269,11 +271,87 @@
     return document.getElementById('jml-report-user-select');
   }
 
+  function readStoredUserScope() {
+    try {
+      var v = localStorage.getItem(REPORT_USER_SCOPE_KEY) || '';
+      return v === 'vip' ? 'vip' : 'all';
+    } catch (e) {
+      return 'all';
+    }
+  }
+
+  function storeUserScope(scope) {
+    try {
+      localStorage.setItem(REPORT_USER_SCOPE_KEY, scope === 'vip' ? 'vip' : 'all');
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function normalizeUserRow(raw) {
+    if (typeof raw === 'string') {
+      return { username: raw, nickname: '', isVip: false };
+    }
+    return {
+      username: String((raw && raw.username) || ''),
+      nickname: String((raw && raw.nickname) || '').trim(),
+      isVip: !!(raw && raw.isVip === true),
+    };
+  }
+
+  function countVipUsers() {
+    var n = 0;
+    state.usersAll.forEach(function (u) {
+      if (u.isVip === true) n += 1;
+    });
+    return n;
+  }
+
+  function formatUserSelectLabel(u) {
+    var nick = u.nickname ? ' · ' + u.nickname : '';
+    var vipMark = u.isVip ? '★ ' : '';
+    return vipMark + u.username + nick;
+  }
+
+  function userInFilteredList(username, list) {
+    if (!username) return false;
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i].username === username) return true;
+    }
+    return false;
+  }
+
+  function updateScopeButtons() {
+    document.querySelectorAll('.jml-report-scope-btn').forEach(function (btn) {
+      var scope = btn.getAttribute('data-scope');
+      btn.classList.toggle('active', scope === state.userScope);
+      btn.setAttribute('aria-pressed', scope === state.userScope ? 'true' : 'false');
+    });
+  }
+
+  function updateScopeHint(visibleCount) {
+    var el = document.getElementById('jml-report-user-scope-hint');
+    if (!el) return;
+    var total = state.usersAll.length;
+    var vip = countVipUsers();
+    el.textContent = '共 ' + total + ' 人 · VIP ' + vip + ' · 当前 ' + (visibleCount != null ? visibleCount : 0) + ' 人';
+  }
+
+  function setUserScope(scope, keepSelection) {
+    var next = scope === 'vip' ? 'vip' : 'all';
+    state.userScope = next;
+    storeUserScope(next);
+    updateScopeButtons();
+    populateUserSelect(!!keepSelection);
+  }
+
   function filterUsers(query) {
     var q = (query || '').trim().toLowerCase();
-    if (!q) return state.usersAll.slice();
     return state.usersAll.filter(function (u) {
-      return String(u).toLowerCase().indexOf(q) >= 0;
+      if (state.userScope === 'vip' && u.isVip !== true) return false;
+      if (!q) return true;
+      var hay = (u.username + ' ' + (u.nickname || '')).toLowerCase();
+      return hay.indexOf(q) >= 0;
     });
   }
 
@@ -296,20 +374,30 @@
     sel.innerHTML = '';
     var opt0 = document.createElement('option');
     opt0.value = '';
-    opt0.textContent = list.length ? '请选择学员…' : '无匹配学员';
+    if (!list.length) {
+      if (state.userScope === 'vip') {
+        opt0.textContent = filterVal ? '无匹配 VIP 学员' : '无 VIP 学员';
+      } else {
+        opt0.textContent = filterVal ? '无匹配学员' : '请选择学员…';
+      }
+    } else {
+      opt0.textContent = '请选择学员…';
+    }
     sel.appendChild(opt0);
     list.forEach(function (u) {
       var o = document.createElement('option');
-      o.value = u;
-      o.textContent = u;
+      o.value = u.username;
+      o.textContent = formatUserSelectLabel(u);
       sel.appendChild(o);
     });
-    if (prev && list.indexOf(prev) >= 0) {
+    updateScopeHint(list.length);
+    if (prev && userInFilteredList(prev, list)) {
       sel.value = prev;
       state.selectedUsername = prev;
     } else {
       sel.value = '';
       state.selectedUsername = '';
+      if (prev) clearPanels();
     }
     syncRefreshStudentBtn(false);
   }
@@ -356,11 +444,14 @@
     showApiWarning();
     return apiFetch('/api/admin/user-list')
       .then(function (data) {
-        state.usersAll = Array.isArray(data.users) ? data.users.slice() : [];
-        state.usersAll.sort();
+        state.usersAll = Array.isArray(data.users)
+          ? data.users.map(normalizeUserRow).filter(function (u) { return !!u.username; })
+          : [];
         state.loadError = '';
         var el = document.getElementById('jml-report-load-error');
         if (el) el.style.display = 'none';
+        state.userScope = readStoredUserScope();
+        updateScopeButtons();
         populateUserSelect(true);
       })
       .catch(function (e) {
@@ -1059,9 +1150,16 @@
     var filter = getFilterInput();
     if (filter) {
       filter.addEventListener('input', function () {
-        populateUserSelect(false);
+        populateUserSelect(true);
       });
     }
+    document.querySelectorAll('.jml-report-scope-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var scope = btn.getAttribute('data-scope') || 'all';
+        if (scope === state.userScope) return;
+        setUserScope(scope, true);
+      });
+    });
     var sel = getUserSelect();
     if (sel) {
       sel.addEventListener('change', function () {
@@ -1151,6 +1249,8 @@
   window.JmlReportPage = {
     init: function () {
       showApiWarning();
+      state.userScope = readStoredUserScope();
+      updateScopeButtons();
       loadReportI18n().finally(function () {
         bindEvents();
         loadLevelCohort();

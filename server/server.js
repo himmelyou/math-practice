@@ -82,11 +82,14 @@ function normalizeWrongAnswerEntry(raw) {
   };
 }
 
-/** 学员端 API：不返回拆括号错题（仅管理端 report 使用） */
+/** 学员端 API：不返回拆括号错题（仅管理端 report 使用）；VIP 标记仅管理端使用 */
 function safeUserForStudent(u) {
   const out = safeUser(u);
   if (out && Object.prototype.hasOwnProperty.call(out, "expandBracketsWrongAnswers")) {
     delete out.expandBracketsWrongAnswers;
+  }
+  if (out && Object.prototype.hasOwnProperty.call(out, "isVip")) {
+    delete out.isVip;
   }
   return out;
 }
@@ -2120,6 +2123,7 @@ app.post("/api/admin/users", async (req, res) => {
     trainingL16Cleared: false,
     heatmapL16Passed: false,
     isTester: false,
+    isVip: false,
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users.map(safeUser) });
@@ -2137,13 +2141,13 @@ app.put("/api/admin/users/:username", async (req, res) => {
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const allowed = ["password", "levelIndex", "bestLevelIndex", "totalScore", "isTester"];
+  const allowed = ["password", "levelIndex", "bestLevelIndex", "totalScore", "isTester", "isVip"];
   for (const k of allowed) {
     if (updates[k] === undefined) continue;
     if (k === "password") {
       data.users[idx].password = await bcrypt.hash(updates.password, BCRYPT_ROUNDS);
-    } else if (k === "isTester") {
-      data.users[idx].isTester = updates[k] === true;
+    } else if (k === "isTester" || k === "isVip") {
+      data.users[idx][k] = updates[k] === true;
     } else {
       data.users[idx][k] = updates[k];
     }
@@ -2366,8 +2370,14 @@ app.get("/api/admin/user-list", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const data = readJson(USERS_FILE, { users: [] });
-  const list = data.users.map((u) => u.username);
-  res.json({ ok: true, users: list });
+  const users = data.users
+    .map((u) => ({
+      username: u.username,
+      nickname: typeof u.nickname === "string" ? u.nickname.trim() : "",
+      isVip: u.isVip === true,
+    }))
+    .sort((a, b) => String(a.username || "").localeCompare(String(b.username || "")));
+  res.json({ ok: true, users });
 });
 
 /** 报表难度热图：全体常模（仅 survival/level/training） */

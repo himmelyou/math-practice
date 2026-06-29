@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css?v=22" />
+  <link rel="stylesheet" href="report-page.css?v=24" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -41,7 +41,13 @@
 
       <div class="jml-report-user-row">
         <label for="jml-report-user-filter">筛选</label>
-        <input type="search" id="jml-report-user-filter" class="jml-report-user-filter" placeholder="输入用户名筛选…" autocomplete="off" />
+        <input type="search" id="jml-report-user-filter" class="jml-report-user-filter" placeholder="输入用户名或昵称…" autocomplete="off" />
+        <span class="jml-report-user-scope-label">范围</span>
+        <div class="jml-report-user-scope" role="group" aria-label="学员范围">
+          <button type="button" class="jml-report-scope-btn active" data-scope="all">全部</button>
+          <button type="button" class="jml-report-scope-btn" data-scope="vip">仅 VIP</button>
+        </div>
+        <span id="jml-report-user-scope-hint" class="jml-report-scope-hint" aria-live="polite"></span>
         <label for="jml-report-user-select">学员</label>
         <select id="jml-report-user-select" class="jml-report-user-select" aria-label="选择学员">
           <option value="">加载中…</option>
@@ -88,7 +94,7 @@
   <script src="../stats-aggregate-browser.js?v=22"></script>
   <script src="../stats-heatmap-browser.js?v=22"></script>
   <script src="../stats-chart-browser.js?v=22"></script>
-  <script src="report-page.js?v=23"></script>
+  <script src="report-page.js?v=24"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

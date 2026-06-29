@@ -179,6 +179,27 @@
     }
   }
 
+  async function setUserVip(username, isVip) {
+    if (!username) return;
+    setStatus('更新 VIP 标记…', '');
+    try {
+      await apiFetch('/api/admin/users/' + encodeURIComponent(username), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isVip: !!isVip }),
+      });
+      var u = state.users.find(function (x) {
+        return x.username === username;
+      });
+      if (u) u.isVip = !!isVip;
+      setStatus((isVip ? '已设为 VIP：' : '已取消 VIP：') + username, 'ok');
+      renderUsersTable();
+    } catch (e) {
+      setStatus(e.message || '更新失败', 'err');
+      renderUsersTable();
+    }
+  }
+
   function renderUsersTable() {
     var tbody = document.getElementById('jml-users-tbody');
     if (!tbody) return;
@@ -188,7 +209,7 @@
     if (!list.length) {
       var tr = document.createElement('tr');
       var td = document.createElement('td');
-      td.colSpan = 7;
+      td.colSpan = 8;
       td.style.textAlign = 'center';
       td.style.color = '#64748b';
       td.style.padding = '24px';
@@ -238,6 +259,30 @@
       });
       tdTester.appendChild(testerLabel);
       tr.appendChild(tdTester);
+
+      var tdVip = document.createElement('td');
+      tdVip.className = 'jml-col-vip';
+      var vipLabel = document.createElement('label');
+      vipLabel.className = 'jml-vip-switch';
+      vipLabel.title = 'VIP 用户标记，仅管理端可见';
+      var vipInput = document.createElement('input');
+      vipInput.type = 'checkbox';
+      vipInput.checked = u.isVip === true;
+      vipInput.setAttribute('aria-label', 'VIP：' + (u.username || ''));
+      var vipUi = document.createElement('span');
+      vipUi.className = 'jml-vip-switch-ui';
+      vipUi.setAttribute('aria-hidden', 'true');
+      vipLabel.appendChild(vipInput);
+      vipLabel.appendChild(vipUi);
+      vipInput.addEventListener('change', function () {
+        var want = vipInput.checked;
+        vipInput.disabled = true;
+        setUserVip(username, want).finally(function () {
+          vipInput.disabled = false;
+        });
+      });
+      tdVip.appendChild(vipLabel);
+      tr.appendChild(tdVip);
 
       var tdAct = document.createElement('td');
       tdAct.className = 'jml-actions-wrap';
