@@ -453,11 +453,63 @@
         state.userScope = readStoredUserScope();
         updateScopeButtons();
         populateUserSelect(true);
+        applyUserFromUrl();
       })
       .catch(function (e) {
         state.loadError = e.message || String(e);
         showGlobalError();
       });
+  }
+
+  function getUserFromUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      return (params.get('user') || '').trim();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function findUserMeta(username) {
+    if (!username) return null;
+    for (var i = 0; i < state.usersAll.length; i += 1) {
+      if (state.usersAll[i].username === username) return state.usersAll[i];
+    }
+    return null;
+  }
+
+  function applyUserFromUrl() {
+    var target = getUserFromUrl();
+    if (!target) return;
+
+    var meta = findUserMeta(target);
+    var errEl = document.getElementById('jml-report-student-error');
+    if (!meta) {
+      if (errEl) {
+        errEl.textContent = '链接中的学员不存在：' + target;
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+
+    if (state.userScope === 'vip' && meta.isVip !== true) {
+      state.userScope = 'all';
+      updateScopeButtons();
+    }
+
+    state.selectedUsername = target;
+    populateUserSelect(true);
+    var sel = getUserSelect();
+    if (sel) sel.value = target;
+    syncRefreshStudentBtn(true);
+    var p = loadStudentData();
+    if (p && typeof p.finally === 'function') {
+      p.finally(function () {
+        syncRefreshStudentBtn(false);
+      });
+    } else {
+      syncRefreshStudentBtn(false);
+    }
   }
 
   function loadStudentData() {

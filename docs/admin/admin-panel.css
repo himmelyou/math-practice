@@ -231,6 +231,16 @@
   font-variant-numeric: tabular-nums;
 }
 
+.jml-user-report-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.jml-user-report-link:hover {
+  text-decoration: underline;
+}
+
 .jml-user-table .pwd-mask {
   color: #94a3b8;
   letter-spacing: 1px;

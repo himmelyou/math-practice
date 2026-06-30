@@ -227,7 +227,14 @@
         td.textContent = text;
         return td;
       }
-      tr.appendChild(tdText(u.username || ''));
+      var tdUser = document.createElement('td');
+      var userLink = document.createElement('a');
+      userLink.className = 'jml-user-report-link';
+      userLink.href = '../report/index.html?user=' + encodeURIComponent(username);
+      userLink.textContent = username || '';
+      userLink.title = '查看学员数据';
+      tdUser.appendChild(userLink);
+      tr.appendChild(tdUser);
       var tdPwd = document.createElement('td');
       tdPwd.className = 'pwd-mask';
       tdPwd.textContent = '****';
