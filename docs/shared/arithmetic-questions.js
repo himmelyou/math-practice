@@ -727,7 +727,10 @@
   var L11_POOL_SIZE = 56;
   var L13_LEVEL_INDEX = 12;
   var L13_POOL_SIZE = 98;
-  var DEDUP_LEVEL_INDICES = [4, 5, 6, 7, 8, 11, 13, 14, 15];
+  var L14_LEVEL_INDEX = 13;
+  var L14_QUOTIENT_MIN = 11;
+  var L14_QUOTIENT_MAX = 99;
+  var DEDUP_LEVEL_INDICES = [4, 5, 6, 7, 8, 11, 14, 15];
   var DEDUP_MAX_RETRIES = 100;
   var DEFAULT_SEGMENT_COUNT = 30;
   var l1Deck = [];
@@ -740,6 +743,8 @@
   var l10Deck = [];
   var l11Deck = [];
   var l13Deck = [];
+  var l14Deck = [];
+  var l14SegmentCount = DEFAULT_SEGMENT_COUNT;
   var segmentSeenKeys = null;
   var segmentLevelIndex = null;
   var lastBuiltLevelIndex = null;
@@ -1007,6 +1012,74 @@
     };
   }
 
+  function buildL14BalancedDivisors(count) {
+    var divisors = [];
+    var base = Math.floor(count / 8);
+    var extra = count % 8;
+    var d;
+    var i;
+    for (d = 2; d <= 9; d += 1) {
+      for (i = 0; i < base; i += 1) {
+        divisors.push(d);
+      }
+    }
+    for (i = 0; i < extra; i += 1) {
+      divisors.push(randomInt(2, 9));
+    }
+    return shuffleArray(divisors);
+  }
+
+  function l14QuestionText(divisor, quotient) {
+    return divisor * quotient + " ÷ " + divisor + " = ?";
+  }
+
+  function buildL14RunDeck(count) {
+    count = Math.max(0, Math.floor(Number(count) || 0));
+    if (count === 0) return [];
+    var divisors = buildL14BalancedDivisors(count);
+    var seen = new Set();
+    var deck = [];
+    var idx;
+    for (idx = 0; idx < divisors.length; idx += 1) {
+      var divisor = divisors[idx];
+      var item = null;
+      var attempt;
+      for (attempt = 0; attempt < 120; attempt += 1) {
+        var quotient = randomInt(L14_QUOTIENT_MIN, L14_QUOTIENT_MAX);
+        var text = l14QuestionText(divisor, quotient);
+        if (!seen.has(text)) {
+          seen.add(text);
+          item = { divisor: divisor, quotient: quotient, dividend: divisor * quotient };
+          break;
+        }
+      }
+      if (!item) {
+        var q;
+        for (q = L14_QUOTIENT_MIN; q <= L14_QUOTIENT_MAX; q += 1) {
+          var fallbackText = l14QuestionText(divisor, q);
+          if (!seen.has(fallbackText)) {
+            seen.add(fallbackText);
+            item = { divisor: divisor, quotient: q, dividend: divisor * q };
+            break;
+          }
+        }
+      }
+      if (item) deck.push(item);
+    }
+    return shuffleArray(deck);
+  }
+
+  function materializeL14Question(item) {
+    return {
+      a: item.dividend,
+      b: item.divisor,
+      op: "÷",
+      text: l14QuestionText(item.divisor, item.quotient),
+      answer: item.quotient,
+      baseLevelId: "L14",
+    };
+  }
+
   function buildQuestionWithDedup(levelIndex) {
     var level = LEVEL_DEFS[levelIndex];
     var seen = segmentSeenKeys;
@@ -1067,6 +1140,12 @@
       lastBuiltLevelIndex = L13_LEVEL_INDEX;
       return;
     }
+    if (levelIndex === L14_LEVEL_INDEX) {
+      l14SegmentCount = segCount;
+      l14Deck = buildL14RunDeck(l14SegmentCount);
+      lastBuiltLevelIndex = L14_LEVEL_INDEX;
+      return;
+    }
     if (isDedupLevel(levelIndex)) {
       clearSegmentDedup(levelIndex);
       lastBuiltLevelIndex = levelIndex;
@@ -1099,6 +1178,13 @@
       l13Deck = shuffleArray(buildL13Pool());
     }
     return materializeL13Question(l13Deck.pop());
+  }
+
+  function buildL14Question() {
+    if (l14Deck.length === 0) {
+      l14Deck = buildL14RunDeck(l14SegmentCount);
+    }
+    return materializeL14Question(l14Deck.pop());
   }
 
   function buildL2Question() {
@@ -1167,6 +1253,11 @@
       lastBuiltLevelIndex = levelIndex;
       return buildL13Question();
     }
+    if (levelIndex === L14_LEVEL_INDEX) {
+      ensureSegmentReady(levelIndex);
+      lastBuiltLevelIndex = levelIndex;
+      return buildL14Question();
+    }
     if (isDedupLevel(levelIndex)) {
       ensureSegmentReady(levelIndex);
       lastBuiltLevelIndex = levelIndex;
@@ -1210,6 +1301,9 @@
     }
     if (levelIndex === L13_LEVEL_INDEX) {
       return buildDeckRun(levelIndex, count, buildL13Question);
+    }
+    if (levelIndex === L14_LEVEL_INDEX) {
+      return buildDeckRun(levelIndex, count, buildL14Question);
     }
     if (isDedupLevel(levelIndex)) {
       resetLevelDeck(levelIndex, count);
@@ -1258,6 +1352,7 @@
     L4_SUB_POOL_SIZE: L4_SUB_POOL_SIZE,
     L13_LEVEL_INDEX: L13_LEVEL_INDEX,
     L13_POOL_SIZE: L13_POOL_SIZE,
+    L14_LEVEL_INDEX: L14_LEVEL_INDEX,
     DEDUP_LEVEL_INDICES: DEDUP_LEVEL_INDICES.slice(),
     isDualDeckLevel: isDualDeckLevel,
     isDedupLevel: isDedupLevel,
