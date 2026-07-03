@@ -1422,6 +1422,10 @@
   function renderAdminVersion() {
     var el = document.getElementById('jml-admin-version');
     if (!el) return;
+    var rev =
+      typeof window.JML_ADMIN_STATIC_REV === 'string' && window.JML_ADMIN_STATIC_REV
+        ? window.JML_ADMIN_STATIC_REV
+        : '?';
     var ver =
       typeof window.JML_APP_VERSION === 'string' && window.JML_APP_VERSION
         ? window.JML_APP_VERSION
@@ -1430,7 +1434,7 @@
       typeof window.JML_BUILD_ID === 'string' && window.JML_BUILD_ID
         ? window.JML_BUILD_ID
         : '';
-    el.textContent = '管理端 ' + ver + (build ? ' · ' + build : '');
+    el.textContent = '管理端 static-' + rev + ' · ' + ver + (build ? ' · ' + build : '');
   }
 
   function bindEvents() {
