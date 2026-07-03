@@ -3493,7 +3493,7 @@
           <div class="login-field">
             <div class="login-field-row">
               <img class="login-field-icon" src="assets/home/ic_user.png" width="16" height="16" alt="" />
-              <input id="register-username" type="text" autocomplete="username" placeholder="用户名（2-20位，字母数字下划线中文）" />
+              <input id="register-username" type="text" autocomplete="username" placeholder="用户名（2-20位，字母数字下划线）" />
             </div>
           </div>
           <div class="login-field">
@@ -6396,7 +6396,7 @@
         "login.submit": "登入",
         "login.register": "註冊",
         "login.guest": "遊客試玩",
-        "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線中文）",
+        "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線）",
         "login.register.password.placeholder": "密碼（至少6位）",
         "login.register.confirm.placeholder": "確認密碼",
         "login.register.submit": "註冊",
@@ -6407,7 +6407,7 @@
         "login.error.needNet": "登入需連網，請連接網路後重試。",
         "login.error.loginFailed": "登入失敗，請檢查網路或聯絡老師。",
         "login.error.fillBoth": "請填寫使用者名稱和密碼。",
-        "login.error.usernameRule": "使用者名稱 2～20 字元，僅支援字母、數字、底線、中文。",
+        "login.error.usernameRule": "使用者名稱 2～20 字元，僅支援英文字母、數字、底線。",
         "login.error.passwordMin": "密碼至少 6 位。",
         "login.error.passwordMismatch": "兩次輸入的密碼不一致。",
         "login.error.registerNeedNet": "註冊需連網，請連接網路後重試。",
@@ -6736,7 +6736,7 @@
         "login.submit": "Sign In",
         "login.register": "Register",
         "login.guest": "Guest Demo",
-        "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore, Chinese)",
+        "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore)",
         "login.register.password.placeholder": "Password (at least 6 characters)",
         "login.register.confirm.placeholder": "Confirm password",
         "login.register.submit": "Create Account",
@@ -6747,7 +6747,7 @@
         "login.error.needNet": "Sign-in requires internet. Connect and try again.",
         "login.error.loginFailed": "Sign-in failed. Check your network or contact support.",
         "login.error.fillBoth": "Enter username and password.",
-        "login.error.usernameRule": "Username must be 2–20 characters (letters, numbers, underscore, Chinese).",
+        "login.error.usernameRule": "Username must be 2–20 characters (letters, numbers, underscore only).",
         "login.error.passwordMin": "Password must be at least 6 characters.",
         "login.error.passwordMismatch": "The two passwords do not match.",
         "login.error.registerNeedNet": "Registration requires internet. Connect and try again.",
@@ -7548,7 +7548,7 @@
 
     function isValidUsernameLocal(s) {
       if (typeof s !== "string" || s.length < 2 || s.length > 20) return false;
-      return /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/.test(s);
+      return /^[a-zA-Z0-9_]+$/.test(s);
     }
 
     async function apiGetUser(username) {

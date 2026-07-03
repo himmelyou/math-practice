@@ -22,6 +22,12 @@
     '第 16 级 · 带括号的四则运算',
   ];
 
+  /** 管理端年级下拉：0=学前，1–12 为年级 */
+  var GRADE_OPTIONS = [{ value: 0, label: '学前' }];
+  for (var _g = 1; _g <= 12; _g++) {
+    GRADE_OPTIONS.push({ value: _g, label: String(_g) });
+  }
+
   var LEVEL_DESC_ZH = LEVEL_NAMES.map(function (n) {
     return String(n || '').replace(/^第\s*\d+\s*级\s*·\s*/, '').trim();
   });
@@ -200,6 +206,46 @@
     }
   }
 
+  async function setUserGrade(username, grade) {
+    if (!username) return;
+    setStatus('更新年级…', '');
+    try {
+      await apiFetch('/api/admin/users/' + encodeURIComponent(username), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grade: grade }),
+      });
+      var u = state.users.find(function (x) {
+        return x.username === username;
+      });
+      if (u) u.grade = grade;
+      setStatus('已更新年级：' + username, 'ok');
+    } catch (e) {
+      setStatus(e.message || '更新年级失败', 'err');
+      renderUsersTable();
+    }
+  }
+
+  async function setUserAdminNote(username, adminNote) {
+    if (!username) return;
+    setStatus('更新备注…', '');
+    try {
+      await apiFetch('/api/admin/users/' + encodeURIComponent(username), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminNote: adminNote }),
+      });
+      var u = state.users.find(function (x) {
+        return x.username === username;
+      });
+      if (u) u.adminNote = adminNote;
+      setStatus('已更新备注：' + username, 'ok');
+    } catch (e) {
+      setStatus(e.message || '更新备注失败', 'err');
+      renderUsersTable();
+    }
+  }
+
   function renderUsersTable() {
     var tbody = document.getElementById('jml-users-tbody');
     if (!tbody) return;
@@ -209,7 +255,7 @@
     if (!list.length) {
       var tr = document.createElement('tr');
       var td = document.createElement('td');
-      td.colSpan = 8;
+      td.colSpan = 10;
       td.style.textAlign = 'center';
       td.style.color = '#64748b';
       td.style.padding = '24px';
@@ -235,6 +281,58 @@
       userLink.title = '查看学员数据';
       tdUser.appendChild(userLink);
       tr.appendChild(tdUser);
+
+      var tdGrade = document.createElement('td');
+      tdGrade.className = 'jml-col-grade';
+      var gradeSelect = document.createElement('select');
+      gradeSelect.setAttribute('aria-label', '年级：' + username);
+      var gradeEmpty = document.createElement('option');
+      gradeEmpty.value = '';
+      gradeEmpty.textContent = '—';
+      gradeSelect.appendChild(gradeEmpty);
+      GRADE_OPTIONS.forEach(function (opt) {
+        var o = document.createElement('option');
+        o.value = String(opt.value);
+        o.textContent = opt.label;
+        gradeSelect.appendChild(o);
+      });
+      var currentGrade = u.grade;
+      if (currentGrade === 0 || (typeof currentGrade === 'number' && currentGrade >= 1 && currentGrade <= 12)) {
+        gradeSelect.value = String(currentGrade);
+      } else {
+        gradeSelect.value = '';
+      }
+      gradeSelect.addEventListener('change', function () {
+        var raw = gradeSelect.value;
+        var nextGrade = raw === '' ? null : Number(raw);
+        gradeSelect.disabled = true;
+        setUserGrade(username, nextGrade).finally(function () {
+          gradeSelect.disabled = false;
+        });
+      });
+      tdGrade.appendChild(gradeSelect);
+      tr.appendChild(tdGrade);
+
+      var tdNote = document.createElement('td');
+      tdNote.className = 'jml-col-admin-note';
+      var noteInput = document.createElement('input');
+      noteInput.type = 'text';
+      noteInput.maxLength = 20;
+      noteInput.placeholder = '备注';
+      noteInput.value = typeof u.adminNote === 'string' ? u.adminNote : '';
+      noteInput.setAttribute('aria-label', '备注：' + username);
+      noteInput.addEventListener('blur', function () {
+        var next = noteInput.value.trim();
+        var prev = typeof u.adminNote === 'string' ? u.adminNote.trim() : '';
+        if (next === prev) return;
+        noteInput.disabled = true;
+        setUserAdminNote(username, next).finally(function () {
+          noteInput.disabled = false;
+        });
+      });
+      tdNote.appendChild(noteInput);
+      tr.appendChild(tdNote);
+
       var tdPwd = document.createElement('td');
       tdPwd.className = 'pwd-mask';
       tdPwd.textContent = '****';
@@ -568,10 +666,15 @@
     return '<div class="jml-field"><label for="' + id + '">' + label + '</label>' + inputHtml + '</div>';
   }
 
+  function isValidAdminUsername(s) {
+    if (typeof s !== 'string' || s.length < 2 || s.length > 20) return false;
+    return /^[a-zA-Z0-9_]+$/.test(s);
+  }
+
   function openCreateUserModal() {
     openModal(
       '创建账户',
-      fieldHtml('jml-new-user', '用户名', '<input id="jml-new-user" type="text" autocomplete="off" />') +
+      fieldHtml('jml-new-user', '用户名', '<input id="jml-new-user" type="text" autocomplete="off" placeholder="2-20位，字母数字下划线" />') +
         fieldHtml('jml-new-pass', '密码', '<input id="jml-new-pass" type="text" autocomplete="new-password" />'),
       [
         { label: '取消', onClick: closeModal },
@@ -582,6 +685,10 @@
             var u = (document.getElementById('jml-new-user').value || '').trim();
             var p = (document.getElementById('jml-new-pass').value || '').trim();
             if (!u || !p) return;
+            if (!isValidAdminUsername(u)) {
+              setStatus('用户名 2-20 位，仅支持字母、数字、下划线', 'err');
+              return;
+            }
             try {
               setStatus('创建中…', '');
               await apiFetch('/api/admin/users', { method: 'POST', body: JSON.stringify({ username: u, password: p }) });

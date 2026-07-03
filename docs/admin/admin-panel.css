@@ -314,6 +314,34 @@
   cursor: wait;
 }
 
+.jml-user-table th.jml-col-grade,
+.jml-user-table td.jml-col-grade {
+  width: 76px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.jml-col-grade select {
+  width: 100%;
+  max-width: 72px;
+  box-sizing: border-box;
+  font-size: inherit;
+  padding: 4px 2px;
+}
+
+.jml-user-table th.jml-col-admin-note,
+.jml-user-table td.jml-col-admin-note {
+  min-width: 100px;
+  max-width: 160px;
+}
+
+.jml-col-admin-note input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: inherit;
+  padding: 4px 6px;
+}
+
 .jml-user-table th.jml-col-vip,
 .jml-user-table td.jml-col-vip {
   width: 72px;

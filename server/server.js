@@ -91,7 +91,29 @@ function safeUserForStudent(u) {
   if (out && Object.prototype.hasOwnProperty.call(out, "isVip")) {
     delete out.isVip;
   }
+  if (out && Object.prototype.hasOwnProperty.call(out, "grade")) {
+    delete out.grade;
+  }
+  if (out && Object.prototype.hasOwnProperty.call(out, "adminNote")) {
+    delete out.adminNote;
+  }
   return out;
+}
+
+/** 管理端年级：null 未设置，0=学前，1–12 为年级 */
+function normalizeAdminGrade(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 12) return { error: "年级须为 0（学前）至 12 的整数" };
+  return { value: n };
+}
+
+/** 管理端备注：trim 后最多 20 字 */
+function normalizeAdminNote(value) {
+  if (value === null || value === undefined) return { value: "" };
+  const s = String(value).trim();
+  if (s.length > 20) return { error: "备注最多 20 个字" };
+  return { value: s };
 }
 
 /** 记局后仅返回客户端需刷新的字段 */
@@ -639,7 +661,7 @@ function legacyDefaultI18nPayload() {
       "login.submit": "登入",
       "login.register": "註冊",
       "login.guest": "遊客試玩",
-      "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線中文）",
+      "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線）",
       "login.register.password.placeholder": "密碼（至少6位）",
       "login.register.confirm.placeholder": "確認密碼",
       "login.register.submit": "註冊",
@@ -727,7 +749,7 @@ function legacyDefaultI18nPayload() {
       "login.submit": "Sign In",
       "login.register": "Register",
       "login.guest": "Guest Demo",
-      "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore, Chinese)",
+      "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore)",
       "login.register.password.placeholder": "Password (at least 6 characters)",
       "login.register.confirm.placeholder": "Confirm password",
       "login.register.submit": "Create Account",
@@ -1312,7 +1334,7 @@ function clearAuthCookie(res) {
 // ========== 学员自主注册 ==========
 function isValidUsername(s) {
   if (typeof s !== "string" || s.length < 2 || s.length > 20) return false;
-  return /^[a-zA-Z0-9_\u4e00-\u9fa5]+$/.test(s);
+  return /^[a-zA-Z0-9_]+$/.test(s);
 }
 
 app.post("/api/register", async (req, res) => {
@@ -1323,7 +1345,7 @@ app.post("/api/register", async (req, res) => {
     return res.json({ ok: false, error: "请填写用户名和密码" });
   }
   if (!isValidUsername(name)) {
-    return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线、中文" });
+    return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线" });
   }
   if (pwd.length < 6) {
     return res.json({ ok: false, error: "密码至少 6 位" });
@@ -2080,13 +2102,17 @@ app.post("/api/admin/users", async (req, res) => {
   if (!username || !password) {
     return res.json({ ok: false, error: "请填写用户名和密码" });
   }
+  const name = String(username).trim();
+  if (!isValidUsername(name)) {
+    return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线" });
+  }
   const data = readJson(USERS_FILE, { users: [] });
-  if (data.users.some((u) => u.username === username)) {
+  if (data.users.some((u) => u.username === name)) {
     return res.json({ ok: false, error: "该用户名已存在" });
   }
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   data.users.push({
-    username,
+    username: name,
     password: passwordHash,
     nickname: "",
     levelIndex: 0,
@@ -2124,6 +2150,8 @@ app.post("/api/admin/users", async (req, res) => {
     heatmapL16Passed: false,
     isTester: false,
     isVip: false,
+    grade: null,
+    adminNote: "",
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users.map(safeUser) });
@@ -2140,6 +2168,16 @@ app.put("/api/admin/users/:username", async (req, res) => {
   const idx = data.users.findIndex((u) => u.username === username);
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  if (updates.grade !== undefined) {
+    const g = normalizeAdminGrade(updates.grade);
+    if (g.error) return res.status(400).json({ ok: false, error: g.error });
+    data.users[idx].grade = g.value;
+  }
+  if (updates.adminNote !== undefined) {
+    const n = normalizeAdminNote(updates.adminNote);
+    if (n.error) return res.status(400).json({ ok: false, error: n.error });
+    data.users[idx].adminNote = n.value;
   }
   const allowed = ["password", "levelIndex", "bestLevelIndex", "totalScore", "isTester", "isVip"];
   for (const k of allowed) {
