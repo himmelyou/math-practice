@@ -520,6 +520,78 @@
     };
   }
 
+  /**
+   * 不依赖热图 cells 的当日选关（与 computeTrainingNextLevel 中不需 heat 的分支一致）。
+   * needsHeatmap=true 时 levelIndex 仅为占位，须等 buildHeatmapCells 后再算准。
+   */
+  function computeTrainingNextLevelSync(dayState, todayKey) {
+    var today = todayKey || '';
+    var st = normalizeTrainingDayState(dayState, today);
+    if (st.brushMode) {
+      var brushPool = st.brushPoolMax != null ? clampLevel(st.brushPoolMax) : LEVEL_COUNT - 1;
+      return {
+        mode: 'brush',
+        levelIndex: brushPool,
+        brushMode: true,
+        brushPoolMax: brushPool,
+        needsHeatmap: true,
+        reason: 'brush_sync_pool_max',
+      };
+    }
+    var lr = st.lastRun;
+    if (!lr) {
+      return {
+        mode: 'daily',
+        levelIndex: null,
+        brushMode: false,
+        brushPoolMax: null,
+        needsHeatmap: true,
+        reason: 'frontier_needs_heat',
+      };
+    }
+    if (lr.passed) {
+      var next = lr.levelIndex + 1;
+      if (next >= LEVEL_COUNT) {
+        return {
+          mode: 'brush',
+          levelIndex: LEVEL_COUNT - 1,
+          brushMode: true,
+          brushPoolMax: LEVEL_COUNT - 1,
+          needsHeatmap: true,
+          reason: 'daily_pass_all_clear',
+        };
+      }
+      return {
+        mode: 'daily',
+        levelIndex: next,
+        brushMode: false,
+        brushPoolMax: null,
+        needsHeatmap: false,
+        reason: 'daily_pass_next',
+      };
+    }
+    if (lr.failCount >= TRAINING_FAILS_BEFORE_BRUSH) {
+      var poolMax = lr.levelIndex - 1;
+      if (poolMax < 0) poolMax = 0;
+      return {
+        mode: 'brush',
+        levelIndex: poolMax,
+        brushMode: true,
+        brushPoolMax: poolMax,
+        needsHeatmap: true,
+        reason: 'daily_fail_enter_brush',
+      };
+    }
+    return {
+      mode: 'daily',
+      levelIndex: lr.levelIndex,
+      brushMode: false,
+      brushPoolMax: null,
+      needsHeatmap: false,
+      reason: 'retry_same',
+    };
+  }
+
   function trainingNextLevelReasonText(result, labels) {
     if (!result) return '';
     var L = labels || {};
@@ -684,6 +756,7 @@
     computeActiveLadderTopM: computeActiveLadderTopM,
     computeDailyFrontierStart: computeDailyFrontierStart,
     computeTrainingNextLevel: computeTrainingNextLevel,
+    computeTrainingNextLevelSync: computeTrainingNextLevelSync,
     normalizeTrainingDayState: normalizeTrainingDayState,
     reconstructTrainingDayStateFromRuns: reconstructTrainingDayStateFromRuns,
     localDayKeyFromTs: localDayKeyFromTs,

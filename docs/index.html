@@ -4400,7 +4400,7 @@
   <script src="prime-composite-logic.js?v=41"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=41"></script>
-  <script src="stats-heatmap-browser.js?v=41"></script>
+  <script src="stats-heatmap-browser.js?v=42"></script>
   <script src="stats-aggregate-browser.js?v=41"></script>
   <script src="stats-chart-browser.js?v=41"></script>
   <script src="shared/arithmetic-questions.js?v=41"></script>
@@ -4746,6 +4746,11 @@
     let lastTrainingEntrySource = "fallback";
     /** 本局开局时选关快照（startTrainingGame 时写入） */
     let trainingRunStartMeta = null;
+    /** 结算 finalize 后缓存的下一局选关（同日 prestart 不再异步跳关） */
+    let trainingNextEntryCache = null;
+    /** prestart 等待热图选关（禁用开始、难度格显示 Waiting） */
+    let trainingEntryPickPending = false;
+    const TRAINING_FINALIZE_TIMEOUT_MS = 12000;
 
     // ========= 拆括号（选择题）模式状态 =========
     const EXPAND_BRACKETS_MAX_LEVEL = 4;
@@ -6564,6 +6569,8 @@
         "game.training.promoteLevelUp": "升級！",
         "game.training.promoteStayHint": "準確率低於通關線，繼續在本級練習。",
         "game.training.dailyRunPass": "本局達標！下次將挑戰下一關。",
+        "game.training.finalizing": "正在更新練習進度…",
+        "game.training.pickingLevel": "正在選關…",
         "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
         "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
         "game.training.subtitle.dailyRules": "當日闖關：按梯子頂 M 穩關或開 M+1；20 題全對則結束，錯 1 題再加 10 題，錯 2 題及以上則結束；達標線 ≥95%，否則同關再練（3 敗進刷熱圖）；M 以下掉線在刷熱圖 pool 內補。",
@@ -7032,6 +7039,8 @@
         "game.training.promoteLevelUp": "Level up!",
         "game.training.promoteStayHint": "Accuracy is below the promotion line. Keep practicing at this level.",
         "game.training.dailyRunPass": "Run cleared! Next time: the next level.",
+        "game.training.finalizing": "Updating practice progress…",
+        "game.training.pickingLevel": "Waiting…",
         "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
         "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
         "game.training.subtitle.dailyRules": "Daily: stabilize ladder top M or open M+1; clear 20/20 to finish, or 10+10 with one mistake; two or more wrong ends the run; pass at ≥95%, else retry (3 fails → brush); regressions below M are fixed in the brush pool.",
@@ -8707,13 +8716,18 @@
 
     function updateTrainingStatusUI() {
       setMainGameStatusIcons("training");
+      const pickWait = trainingEntryPickPending && !isPlaying && gameMode === "training";
       const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
       const m = Math.floor(elapsed / 60);
       const s = elapsed % 60;
       const timeStr = m + ":" + String(s).padStart(2, "0");
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
-      if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
+      if (dom.currentLevelName) {
+        dom.currentLevelName.textContent = pickWait
+          ? t("game.training.pickingLevel")
+          : getLevelDisplayName(currentLevelIndex);
+      }
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -8731,11 +8745,16 @@
           : trainingCorrectCount + " / " + TRAINING_MAIN_PER_RUN;
       }
       if (dom.runScore) dom.runScore.textContent = runScore;
-      if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (currentLevelIndex + 1);
+      if (dom.bestSurvivalTime) {
+        dom.bestSurvivalTime.textContent = pickWait
+          ? t("game.training.pickingLevel")
+          : "L" + (currentLevelIndex + 1);
+      }
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
     }
 
     async function startTrainingGame() {
+      if (trainingEntryPickPending) return;
       if (survivalTimerId) clearInterval(survivalTimerId);
       trainingRunStartMeta = snapshotTrainingRunStartMeta();
       // 档位已在「开始前」画面（进训练 / 再玩一局）算好，此处不重算
@@ -8869,8 +8888,12 @@
       dom.answerInput.value = "";
 
       currentLevelIndex = getTrainingEntryLevelFallback();
-      setTrainingPracticeSubtitle();
-      void refreshTrainingEntryLevelInBackground();
+      if (!isTrainingNextEntryCacheValid()) {
+        setTrainingPickPendingUi(true);
+      } else {
+        applyTrainingNextEntryCacheIfValid();
+        setTrainingPracticeSubtitle();
+      }
 
       if (dom.timerChip) dom.timerChip.style.display = "";
       const statusGrid = document.getElementById("status-grid");
@@ -8878,17 +8901,21 @@
       const subtitle = document.getElementById("game-subtitle");
       if (subtitle) subtitle.style.display = "";
 
-      syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+      if (!trainingEntryPickPending) {
+        syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+      }
 
       updateTrainingStatusUI();
       renderRecentRuns();
 
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
       setGameCardActionSlot("start");
+      if (trainingEntryPickPending) setTrainingPickPendingUi(true);
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       updateGlobalBackButtonState();
       scheduleSyncAllRuleHints();
+      await ensureTrainingEntryReadyAsync();
     }
 
     function showNextSurvivalQuestion() {
@@ -9355,9 +9382,17 @@
       const runPass = accuracy >= TRAINING_PASS_ACCURACY;
 
       if (trainingRunBrushMode) {
-        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
-          trainingMeta: buildTrainingRunMeta({ runPass, failCount: 0, runBrushMode: true }),
-        });
+        setTrainingRunFinalizeUi(true);
+        try {
+          await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
+            trainingMeta: buildTrainingRunMeta({ runPass, failCount: 0, runBrushMode: true }),
+          });
+          await runTrainingFinalizeWithTimeout();
+        } catch (e) {
+          console.warn("训练刷热图局 finalize 失败", e);
+        } finally {
+          setTrainingRunFinalizeUi(false);
+        }
         renderRecentRuns();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
@@ -9414,18 +9449,25 @@
         });
       }
 
-      const brushSync = await syncTrainingBrushModeAfterDailyRun();
-      if (brushSync && brushSync.enterBrush) {
-        trainingSessionBrushMode = true;
+      setTrainingRunFinalizeUi(true);
+      try {
+        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
+          trainingMeta: buildTrainingRunMeta({
+            runPass,
+            failCount,
+            runBrushMode: false,
+            enterBrushAfter: false,
+          }),
+        });
+        const finalizeResult = await runTrainingFinalizeWithTimeout();
+        if (finalizeResult && finalizeResult.enterBrush) {
+          trainingSessionBrushMode = true;
+        }
+      } catch (e) {
+        console.warn("训练当日局 finalize 失败，使用同步选关占位", e);
+      } finally {
+        setTrainingRunFinalizeUi(false);
       }
-      await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
-        trainingMeta: buildTrainingRunMeta({
-          runPass,
-          failCount,
-          runBrushMode: false,
-          enterBrushAfter: !!(brushSync && brushSync.enterBrush),
-        }),
-      });
       renderRecentRuns();
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
@@ -11174,6 +11216,7 @@
       setGameCardActionSlot("start");
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
+      if (gameMode === "training" && trainingEntryPickPending) setTrainingPickPendingUi(true);
       updateTopTitleForCurrentView(false);
       updateStatusModeLabel();
       scheduleSyncAllRuleHints();
@@ -11560,18 +11603,56 @@
       saveTrainingFlowState(st);
     }
 
-    /** 闯关局结束后：用热图判断是否应进入刷热图，并写入 brushMode（与开始前 compute 规则一致） */
-    async function syncTrainingBrushModeAfterDailyRun() {
-      const HM = window.JmlStatsHeatmap;
-      if (!HM || typeof HM.computeTrainingNextLevel !== "function") return null;
+    function isTrainingNextEntryCacheValid() {
+      const c = trainingNextEntryCache;
+      return !!(c && c.dayKey === getLocalTrainingDayKey() && c.levelIndex != null && Number.isFinite(Number(c.levelIndex)));
+    }
+
+    function writeTrainingNextEntryCache(levelIndex, brushMode) {
+      trainingNextEntryCache = {
+        dayKey: getLocalTrainingDayKey(),
+        levelIndex: Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0))),
+        brushMode: !!brushMode,
+        at: Date.now(),
+      };
+    }
+
+    function applyTrainingNextEntryCacheIfValid() {
+      if (!isTrainingNextEntryCacheValid()) return false;
+      currentLevelIndex = trainingNextEntryCache.levelIndex;
+      trainingSessionBrushMode = !!trainingNextEntryCache.brushMode;
+      lastTrainingEntrySource = "heatmap";
+      return true;
+    }
+
+    function setTrainingRunFinalizeUi(pending) {
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      if (pending) {
+        setBatchSummary(t("game.training.finalizing"));
+      } else {
+        setBatchSummary("");
+      }
+    }
+
+    function runTrainingFinalizeWithTimeout() {
+      return Promise.race([
+        finalizeTrainingNextEntryAfterRun(),
+        new Promise(function (_, reject) {
+          setTimeout(function () {
+            reject(new Error("training_finalize_timeout"));
+          }, TRAINING_FINALIZE_TIMEOUT_MS);
+        }),
+      ]);
+    }
+
+    /** 本局入库后：拉 runs 建热图并算下一局，写入 session 缓存（结算卡出现前完成） */
+    async function finalizeTrainingNextEntryAfterRun() {
       const { heat } = await buildTrainingHeatmapAsync();
-      if (!heat) return null;
-      const today = getLocalTrainingDayKey();
-      let st = loadTrainingFlowState();
-      const result = HM.computeTrainingNextLevel(heat, st, today);
-      st = applyTrainingNextLevelResult(st, result);
-      if (result.enterBrush) saveTrainingFlowState(st);
-      return result;
+      trainingHeatSnapshot = heat;
+      const entry = computeTrainingEntryFromHeat(heat);
+      writeTrainingNextEntryCache(entry.levelIndex, entry.brushMode);
+      return lastTrainingPickResult;
     }
 
     async function fetchRunsForTrainingHeatmap() {
@@ -11686,22 +11767,85 @@
       const { heat } = await buildTrainingHeatmapAsync();
       trainingHeatSnapshot = heat;
       const entry = computeTrainingEntryFromHeat(heat);
+      writeTrainingNextEntryCache(entry.levelIndex, entry.brushMode);
       return entry.levelIndex;
     }
 
     /** 不拉 runs：用本地已同步等级 / 闯关进度 / 刷热图状态先展示 */
     function getTrainingEntryLevelFallback() {
       refreshTrainingDayLocalState();
+      if (applyTrainingNextEntryCacheIfValid()) {
+        return currentLevelIndex;
+      }
       lastTrainingEntrySource = "fallback";
       const st = loadTrainingFlowState();
-      trainingSessionBrushMode = !!st.brushMode;
+      const HM = window.JmlStatsHeatmap;
+      const today = getLocalTrainingDayKey();
+      if (HM && typeof HM.computeTrainingNextLevelSync === "function") {
+        const sync = HM.computeTrainingNextLevelSync(st, today);
+        trainingSessionBrushMode = !!sync.brushMode;
+        if (sync.levelIndex != null && Number.isFinite(Number(sync.levelIndex))) {
+          return Math.min(15, Math.max(0, Math.floor(Number(sync.levelIndex))));
+        }
+      } else {
+        trainingSessionBrushMode = !!st.brushMode;
+      }
       const saved = getLevelTrainingCurrentLevel();
       if (saved >= 0) return Math.min(15, Math.max(0, saved));
       return getTrainingStartLevel();
     }
 
+    function setTrainingPickPendingUi(pending) {
+      trainingEntryPickPending = !!pending;
+      if (dom.startGameBtn) {
+        dom.startGameBtn.disabled = !!pending;
+        if (pending) dom.startGameBtn.setAttribute("aria-busy", "true");
+        else dom.startGameBtn.removeAttribute("aria-busy");
+      }
+    }
+
     function cancelTrainingEntryRefresh() {
       trainingEntryRefreshGen += 1;
+    }
+
+    /** 无缓存时阻塞选关：Waiting + 禁用开始，算完再展示关卡 */
+    async function ensureTrainingEntryReadyAsync() {
+      if (gameMode !== "training") return;
+      if (isTrainingNextEntryCacheValid()) {
+        applyTrainingNextEntryCacheIfValid();
+        setTrainingPickPendingUi(false);
+        setTrainingPracticeSubtitle();
+        updateTrainingStatusUI();
+        return;
+      }
+      setTrainingPickPendingUi(true);
+      updateTrainingStatusUI();
+      const gen = ++trainingEntryRefreshGen;
+      try {
+        const idx = await Promise.race([
+          resolveTrainingEntryLevelAsync(),
+          new Promise(function (_, reject) {
+            setTimeout(function () {
+              reject(new Error("training_pick_timeout"));
+            }, TRAINING_FINALIZE_TIMEOUT_MS);
+          }),
+        ]);
+        if (gen !== trainingEntryRefreshGen || gameMode !== "training") return;
+        currentLevelIndex = idx;
+      } catch (e) {
+        console.warn("训练选关未完成，使用同步占位", e);
+        if (gen !== trainingEntryRefreshGen || gameMode !== "training") return;
+        currentLevelIndex = getTrainingEntryLevelFallback();
+      } finally {
+        if (gen !== trainingEntryRefreshGen || gameMode !== "training") return;
+        setTrainingPickPendingUi(false);
+        setTrainingPracticeSubtitle();
+        updateTrainingStatusUI();
+        if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
+          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+          scheduleSyncAllRuleHints();
+        }
+      }
     }
 
     /** 进入训练或 prestart 后后台用热图校正关卡（不阻塞 UI） */
@@ -11712,6 +11856,7 @@
         const idx = await resolveTrainingEntryLevelAsync();
         if (gen !== trainingEntryRefreshGen || gameMode !== "training") return;
         currentLevelIndex = idx;
+        writeTrainingNextEntryCache(idx, trainingSessionBrushMode);
         setTrainingPracticeSubtitle();
         updateTrainingStatusUI();
         if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
@@ -11894,8 +12039,14 @@
       gameMode = "training";
       currentLevelIndex = getTrainingEntryLevelFallback();
       writeGameSubtitleForMode("training");
+      if (!isTrainingNextEntryCacheValid()) {
+        setTrainingPickPendingUi(true);
+      } else {
+        applyTrainingNextEntryCacheIfValid();
+      }
       showGameSection();
-      void refreshTrainingEntryLevelInBackground();
+      if (trainingEntryPickPending) setTrainingPickPendingUi(true);
+      await ensureTrainingEntryReadyAsync();
     }
 
     function handleModeExpandBrackets() {
@@ -12180,6 +12331,7 @@
         });
       }
       if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", function () {
+        if (gameMode === "training" && trainingEntryPickPending) return;
         if (gameMode === "training") void startTrainingGame();
         else if (gameMode === "level") startLevelGame();
         else startSurvivalGame();
