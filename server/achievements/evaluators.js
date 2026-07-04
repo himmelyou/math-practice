@@ -32,6 +32,33 @@ function isZeroWrongClearRun(run) {
   return true;
 }
 
+/** 指定 mode 通关局：非放弃、cleared=true */
+function isModeClearRun(run, mode) {
+  if (!run || run.comboOnly === true) return false;
+  if (isRunAbandoned(run)) return false;
+  if (normalizeRunMode(run.mode) !== normalizeRunMode(mode)) return false;
+  return run.cleared === true;
+}
+
+/** 质数合数无错完成：wrongCount=0 且答完 questionCount 题 */
+function isPrimePerfectRun(run, questionCount) {
+  if (!run || run.comboOnly === true) return false;
+  if (isRunAbandoned(run)) return false;
+  if (normalizeRunMode(run.mode) !== "primecomposite") return false;
+  if ((run.wrongCount ?? 0) !== 0) return false;
+  const minQuestions = Math.max(1, Math.floor(Number(questionCount) || 50));
+  const attempts = Array.isArray(run.attempts) ? run.attempts.length : 0;
+  return attempts >= minQuestions;
+}
+
+function primePerfectRunQuestionCount(run) {
+  if (!run || run.comboOnly === true) return 0;
+  if (isRunAbandoned(run)) return 0;
+  if (normalizeRunMode(run.mode) !== "primecomposite") return 0;
+  if ((run.wrongCount ?? 0) !== 0) return 0;
+  return Array.isArray(run.attempts) ? run.attempts.length : 0;
+}
+
 function any_run(params, ctx) {
   const minCount = params && params.minCount != null ? params.minCount : 1;
   return evaluateMinCount(ctx.totalRunCount || 0, minCount);
@@ -67,6 +94,29 @@ function ranking_any_top_n(params, ctx) {
   return { met, progress: null };
 }
 
+function level_cleared(params, ctx) {
+  const minCount = params && params.minCount != null ? params.minCount : 1;
+  const current = Number(ctx.levelClearCount) || 0;
+  return evaluateMinCount(current, minCount);
+}
+
+function survival_cleared(params, ctx) {
+  const minCount = params && params.minCount != null ? params.minCount : 1;
+  const current = Number(ctx.survivalClearCount) || 0;
+  return evaluateMinCount(current, minCount);
+}
+
+function prime_perfect_run(params, ctx) {
+  const questionCount = params && params.questionCount != null ? params.questionCount : 50;
+  const minQuestions = Math.max(1, Math.floor(Number(questionCount) || 50));
+  const current = Number(ctx.primePerfectMaxQuestions) || 0;
+  const met = current >= minQuestions;
+  return {
+    met,
+    progress: met ? null : { current: 0, target: 1 },
+  };
+}
+
 function notImplemented() {
   return { met: false, progress: null };
 }
@@ -78,18 +128,19 @@ const EVALUATORS = {
   any_zero_wrong_clear,
   distinct_modes: notImplemented,
   level_challenge_best: notImplemented,
+  level_cleared,
   level_perfect_run: notImplemented,
   training_heatmap_pass: notImplemented,
   wrongbook_cleared: notImplemented,
   survival_unlocked: notImplemented,
-  survival_cleared: notImplemented,
+  survival_cleared,
   survival_run_best: notImplemented,
   decimal_best_level: notImplemented,
   expand_unlock_level: notImplemented,
   expand_perfect_run: notImplemented,
   perfect_square_unlock: notImplemented,
   perfect_square_perfect_run: notImplemented,
-  prime_perfect_run: notImplemented,
+  prime_perfect_run,
   prime_run_count: notImplemented,
   streak_best,
   ranking_any_top_n,
@@ -115,6 +166,9 @@ module.exports = {
   normalizeRunMode,
   isRunAbandoned,
   isZeroWrongClearRun,
+  isModeClearRun,
+  isPrimePerfectRun,
+  primePerfectRunQuestionCount,
   evaluateRule,
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,

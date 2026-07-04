@@ -1,7 +1,13 @@
-const { evaluateRule, normalizeRunMode, isZeroWrongClearRun } = require("./evaluators");
+const {
+  evaluateRule,
+  normalizeRunMode,
+  isZeroWrongClearRun,
+  isModeClearRun,
+  primePerfectRunQuestionCount,
+} = require("./evaluators");
 
 const MAX_EQUIPPED_BADGES = 3;
-const ACHIEVEMENT_STATS_VERSION = 2;
+const ACHIEVEMENT_STATS_VERSION = 3;
 
 function ensureUserAchievementFields(user) {
   if (!user) return;
@@ -13,15 +19,25 @@ function rebuildAchievementStatsFromRuns(runs) {
   const validRuns = (runs || []).filter((r) => r && r.comboOnly !== true);
   const modeCounts = {};
   let hasZeroWrongClear = false;
+  let levelClearCount = 0;
+  let survivalClearCount = 0;
+  let primePerfectMaxQuestions = 0;
   validRuns.forEach((r) => {
     const mode = normalizeRunMode(r.mode);
     modeCounts[mode] = (modeCounts[mode] || 0) + 1;
     if (!hasZeroWrongClear && isZeroWrongClearRun(r)) hasZeroWrongClear = true;
+    if (isModeClearRun(r, "level")) levelClearCount += 1;
+    if (isModeClearRun(r, "survival")) survivalClearCount += 1;
+    const primeQ = primePerfectRunQuestionCount(r);
+    if (primeQ > primePerfectMaxQuestions) primePerfectMaxQuestions = primeQ;
   });
   return {
     totalRunCount: validRuns.length,
     modeCounts,
     hasZeroWrongClear,
+    levelClearCount,
+    survivalClearCount,
+    primePerfectMaxQuestions,
   };
 }
 
@@ -33,7 +49,10 @@ function hasValidAchievementStats(user) {
     typeof user.achievementStats.totalRunCount === "number" &&
     user.achievementStats.modeCounts &&
     typeof user.achievementStats.modeCounts === "object" &&
-    typeof user.achievementStats.hasZeroWrongClear === "boolean"
+    typeof user.achievementStats.hasZeroWrongClear === "boolean" &&
+    typeof user.achievementStats.levelClearCount === "number" &&
+    typeof user.achievementStats.survivalClearCount === "number" &&
+    typeof user.achievementStats.primePerfectMaxQuestions === "number"
   );
 }
 
@@ -49,7 +68,14 @@ function ensureAchievementStats(user, runs) {
 function bumpAchievementStatsFromRun(user, runEntry) {
   if (!user || !runEntry || runEntry.comboOnly === true) return;
   if (!hasValidAchievementStats(user)) {
-    user.achievementStats = { totalRunCount: 0, modeCounts: {}, hasZeroWrongClear: false };
+    user.achievementStats = {
+      totalRunCount: 0,
+      modeCounts: {},
+      hasZeroWrongClear: false,
+      levelClearCount: 0,
+      survivalClearCount: 0,
+      primePerfectMaxQuestions: 0,
+    };
     user.achievementStatsVersion = ACHIEVEMENT_STATS_VERSION;
   }
   const mode = normalizeRunMode(runEntry.mode);
@@ -59,6 +85,16 @@ function bumpAchievementStatsFromRun(user, runEntry) {
   user.achievementStats.modeCounts = mc;
   if (!user.achievementStats.hasZeroWrongClear && isZeroWrongClearRun(runEntry)) {
     user.achievementStats.hasZeroWrongClear = true;
+  }
+  if (isModeClearRun(runEntry, "level")) {
+    user.achievementStats.levelClearCount = (user.achievementStats.levelClearCount || 0) + 1;
+  }
+  if (isModeClearRun(runEntry, "survival")) {
+    user.achievementStats.survivalClearCount = (user.achievementStats.survivalClearCount || 0) + 1;
+  }
+  const primeQ = primePerfectRunQuestionCount(runEntry);
+  if (primeQ > (user.achievementStats.primePerfectMaxQuestions || 0)) {
+    user.achievementStats.primePerfectMaxQuestions = primeQ;
   }
 }
 
@@ -74,6 +110,9 @@ function buildAchievementContext(user, runs, options) {
     totalRunCount: 0,
     modeCounts: {},
     hasZeroWrongClear: false,
+    levelClearCount: 0,
+    survivalClearCount: 0,
+    primePerfectMaxQuestions: 0,
   };
   const rankingCtx = options && options.rankingCtx ? options.rankingCtx : null;
   return {
@@ -82,6 +121,9 @@ function buildAchievementContext(user, runs, options) {
     totalRunCount: stats.totalRunCount || 0,
     modeCounts: stats.modeCounts || {},
     hasZeroWrongClear: !!stats.hasZeroWrongClear,
+    levelClearCount: stats.levelClearCount || 0,
+    survivalClearCount: stats.survivalClearCount || 0,
+    primePerfectMaxQuestions: stats.primePerfectMaxQuestions || 0,
     rankingBestRank: rankingCtx ? Number(rankingCtx.bestRank) || 0 : 0,
     rankingRanksByBoard: rankingCtx && rankingCtx.ranksByBoard ? rankingCtx.ranksByBoard : {},
   };

@@ -1,21 +1,8 @@
 {
-  "version": 2,
-  "categoryOrder": [
-    "getting-started",
-    "honor",
-    "level",
-    "survival",
-    "special"
-  ],
-  "categories": {
-    "getting-started": {
-      "name": "新手任务",
-      "nameEn": "Getting Started"
-    },
-    "honor": {
-      "name": "荣誉",
-      "nameEn": "Honor"
-    },
+  "schema": "jml-achievement-import",
+  "version": 1,
+  "comment": "模式入门（闯关/训练/生存各 1 局）+ 三项通关类（闯关全通/生存通关/质数 50 题无错）",
+  "addCategories": {
     "level": {
       "name": "闯关",
       "nameEn": "Level Challenge"
@@ -27,55 +14,10 @@
     "special": {
       "name": "专项",
       "nameEn": "Special Modes"
-    },
-    "other": {
-      "name": "其他",
-      "nameEn": "Other"
     }
   },
-  "items": [
-    {
-      "id": "first_run",
-      "name": "初次挑战",
-      "nameEn": "First Run",
-      "icon": "🎯",
-      "category": "getting-started",
-      "xpReward": 10,
-      "hint": "完成任意 1 局挑战",
-      "hintEn": "Complete any 1 run",
-      "ruleType": "any_run",
-      "ruleParams": { "minCount": 1 },
-      "sortOrder": 10,
-      "enabled": true
-    },
-    {
-      "id": "zero_wrong_clear_once",
-      "name": "零失误初体验",
-      "nameEn": "Flawless Run",
-      "icon": "💯",
-      "category": "getting-started",
-      "xpReward": 15,
-      "hint": "任意模式 0 错完成 1 局",
-      "hintEn": "Complete any run with zero wrong answers",
-      "ruleType": "any_zero_wrong_clear",
-      "ruleParams": {},
-      "sortOrder": 20,
-      "enabled": true
-    },
-    {
-      "id": "streak_3",
-      "name": "三日打卡",
-      "nameEn": "3-Day Streak",
-      "icon": "📅",
-      "category": "getting-started",
-      "xpReward": 15,
-      "hint": "最长连续挑战天 ≥3",
-      "hintEn": "Reach a best streak of 3 days",
-      "ruleType": "streak_best",
-      "ruleParams": { "minDays": 3 },
-      "sortOrder": 30,
-      "enabled": true
-    },
+  "appendCategoryOrder": ["level", "survival", "special"],
+  "addItems": [
     {
       "id": "level_run_once",
       "name": "开始闯关",
@@ -116,20 +58,6 @@
       "ruleType": "mode_run_count",
       "ruleParams": { "mode": "survival", "minCount": 1 },
       "sortOrder": 60,
-      "enabled": true
-    },
-    {
-      "id": "rank_any_first",
-      "name": "榜一学员",
-      "nameEn": "Rank #1",
-      "icon": "👑",
-      "category": "honor",
-      "xpReward": 50,
-      "hint": "在任意排行榜中拿到第 1 名",
-      "hintEn": "Reach #1 on any leaderboard",
-      "ruleType": "ranking_any_top_n",
-      "ruleParams": { "maxRank": 1 },
-      "sortOrder": 10,
       "enabled": true
     },
     {
