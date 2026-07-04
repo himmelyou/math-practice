@@ -772,7 +772,7 @@
         '<ul class="muted" style="margin:10px 0 0;padding-left:1.2em;line-height:1.5;font-size:0.9rem;">' +
         '<li>学员档案（积分、成就、进度、错题等）</li>' +
         '<li>完整练习记录（runs）</li>' +
-        '<li>生存榜 / 质数达人榜中的该用户条目</li>' +
+        '<li>生存榜 / 闯关达人榜 / 质数达人榜中的该用户条目</li>' +
         '<li>该用户提交的反馈</li>' +
         '</ul>' +
         '<p class="muted" style="margin:10px 0 0;font-size:0.85rem;">建议先在「系统备份」中下载全部备份。</p>',
@@ -791,8 +791,8 @@
               var parts = ['账户已删除：' + username];
               if (p.runs != null) parts.push('runs ' + p.runs + ' 条');
               if (p.feedback != null && p.feedback > 0) parts.push('反馈 ' + p.feedback + ' 条');
-              if ((p.survivalRanking || 0) + (p.primeRanking || 0) > 0) {
-                parts.push('榜单 ' + ((p.survivalRanking || 0) + (p.primeRanking || 0)) + ' 条');
+              if ((p.survivalRanking || 0) + (p.levelRanking || 0) + (p.primeRanking || 0) > 0) {
+                parts.push('榜单 ' + ((p.survivalRanking || 0) + (p.levelRanking || 0) + (p.primeRanking || 0)) + ' 条');
               }
               setStatus(parts.join('；'), 'ok');
             } catch (e) {
@@ -1370,6 +1370,27 @@
     }
   }
 
+  async function backfillLevelRanking() {
+    try {
+      var msg = '将从 runs.json 扫描闯关全通（mode=level, cleared=true）记录，'
+        + '重建 level-ranking.json，并同步 hasClearedLevel。\n\n'
+        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('回填闯关达人榜中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-level-ranking', { method: 'POST' });
+      var entries = Number(data && data.entries) || 0;
+      var scanned = Number(data && data.clearedRunsScanned) || 0;
+      var flags = Number(data && data.usersFlagUpdated) || 0;
+      setStatus(
+        '回填完成：榜内 ' + entries + ' 人，扫描全通局 ' + scanned + ' 条，更新 hasClearedLevel ' + flags + ' 人',
+        'ok'
+      );
+      loadUsers();
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   function i18nTextareaValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || "") : "";
@@ -1514,6 +1535,8 @@
     if (backfillLastGameTsBtn) backfillLastGameTsBtn.addEventListener('click', backfillLastGameTs);
     var backfillExpandScoreBtn = document.getElementById('jml-btn-backfill-expand-score');
     if (backfillExpandScoreBtn) backfillExpandScoreBtn.addEventListener('click', backfillExpandBracketsScore);
+    var backfillLevelRankingBtn = document.getElementById('jml-btn-backfill-level-ranking');
+    if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');

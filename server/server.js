@@ -170,6 +170,7 @@ const COHORT_LEVEL_STATS_FILE = path.join(DATA_DIR, "cohort-level-stats.json");
 /** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
 const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
+const LEVEL_RANKING_FILE = path.join(DATA_DIR, "level-ranking.json");
 const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.json");
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
@@ -189,10 +190,12 @@ const RANKING_PUBLIC_MAX = 10;
 function readRankingEvalData() {
   const usersData = readJson(USERS_FILE, { users: [] });
   const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
+  const levelData = readJson(LEVEL_RANKING_FILE, { list: [] });
   const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
   return {
     users: usersData.users || [],
     survivalList: Array.isArray(survivalData.list) ? survivalData.list : [],
+    levelList: Array.isArray(levelData.list) ? levelData.list : [],
     primeList: Array.isArray(primeData.list) ? primeData.list : [],
   };
 }
@@ -219,6 +222,100 @@ function runIsCleared(r) {
 
 function userHasClearedSurvivalFromRuns(runs) {
   return (runs || []).some((r) => normalizeRunMode(r.mode) === "survival" && runIsCleared(r));
+}
+
+function userHasClearedLevelFromRuns(runs) {
+  return (runs || []).some((r) => normalizeRunMode(r.mode) === "level" && runIsCleared(r));
+}
+
+/** 闯关达人榜：用时 → 错题 → 更早 ts 优先 */
+function compareLevelRankingEntries(a, b) {
+  const ta = Number(a && a.survivalTimeSec) || 0;
+  const tb = Number(b && b.survivalTimeSec) || 0;
+  if (ta !== tb) return ta - tb;
+  const wa = Number(a && a.wrongCount) || 0;
+  const wb = Number(b && b.wrongCount) || 0;
+  if (wa !== wb) return wa - wb;
+  return (Number(a && a.ts) || 0) - (Number(b && b.ts) || 0);
+}
+
+function isLevelRankingBetter(a, b) {
+  return compareLevelRankingEntries(a, b) < 0;
+}
+
+function dedupeBestLevelRanking(list) {
+  const byUser = {};
+  (list || []).forEach((e) => {
+    if (!e || !e.username) return;
+    const cur = byUser[e.username];
+    if (!cur || isLevelRankingBetter(e, cur)) byUser[e.username] = e;
+  });
+  return Object.values(byUser);
+}
+
+function sortLevelRankingList(list) {
+  return (list || []).slice().sort(compareLevelRankingEntries);
+}
+
+function upsertLevelRankingEntry(username, runEntry) {
+  const rankingData = readJson(LEVEL_RANKING_FILE, { list: [] });
+  let list = Array.isArray(rankingData.list) ? rankingData.list : [];
+  const entry = {
+    username,
+    survivalTimeSec: Number(runEntry.survivalTimeSec) || 0,
+    wrongCount: runEntry.wrongCount ?? 0,
+    ts: runEntry.ts || Date.now(),
+  };
+  const existing = list.find((e) => e && e.username === username);
+  if (!existing || isLevelRankingBetter(entry, existing)) {
+    list = list.filter((e) => e && e.username !== username);
+    list.push(entry);
+    rankingData.list = sortLevelRankingList(list);
+    writeJson(LEVEL_RANKING_FILE, rankingData);
+    return true;
+  }
+  return false;
+}
+
+function rebuildLevelRankingFromRuns() {
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const byUser = {};
+  let clearedRunsScanned = 0;
+  Object.keys(runsData.runs || {}).forEach((username) => {
+    const runs = runsData.runs[username] || [];
+    runs.forEach((r) => {
+      if (normalizeRunMode(r.mode) !== "level") return;
+      if (!runIsCleared(r)) return;
+      clearedRunsScanned += 1;
+      const entry = {
+        username,
+        survivalTimeSec: Number(r.survivalTimeSec) || 0,
+        wrongCount: r.wrongCount ?? 0,
+        ts: r.ts || 0,
+      };
+      const cur = byUser[username];
+      if (!cur || isLevelRankingBetter(entry, cur)) byUser[username] = entry;
+    });
+  });
+  const list = sortLevelRankingList(Object.values(byUser));
+  writeJson(LEVEL_RANKING_FILE, { list });
+  let usersFlagUpdated = 0;
+  usersData.users.forEach((u) => {
+    if (!u || !u.username) return;
+    const should = !!byUser[u.username];
+    if (should && u.hasClearedLevel !== true) {
+      u.hasClearedLevel = true;
+      usersFlagUpdated += 1;
+    }
+  });
+  writeJson(USERS_FILE, usersData);
+  return {
+    entries: list.length,
+    clearedRunsScanned,
+    usersFlagUpdated,
+    usernamesScanned: Object.keys(runsData.runs || {}).length,
+  };
 }
 
 const SURVIVAL_UNLOCK_L16_INDEX = 15;
@@ -687,6 +784,7 @@ function legacyDefaultI18nPayload() {
       "ranking.title": "排行榜",
       "ranking.score": "等級榜",
       "ranking.survival": "生存榜",
+      "ranking.levelClear": "闖關達人",
       "ranking.primePerfect": "質數達人",
       "ranking.streak": "耐力榜",
       "ranking.combo": "連擊榜",
@@ -775,6 +873,7 @@ function legacyDefaultI18nPayload() {
       "ranking.title": "Leaderboard",
       "ranking.score": "Level Rank",
       "ranking.survival": "Survival",
+      "ranking.levelClear": "Level Master",
       "ranking.primePerfect": "Prime Master",
       "ranking.streak": "Streak",
       "ranking.combo": "Combo",
@@ -1439,6 +1538,16 @@ app.post("/api/login", async (req, res) => {
       writeJson(USERS_FILE, data);
     }
   }
+  if (user.hasClearedLevel === undefined) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
+    const uIdx = data.users.findIndex((u) => u.username === username);
+    if (uIdx >= 0) {
+      data.users[uIdx].hasClearedLevel = user.hasClearedLevel;
+      writeJson(USERS_FILE, data);
+    }
+  }
   const token = setAuthCookie(res, username);
   res.json({ ok: true, user: safeUserForStudent(user), token });
 });
@@ -1538,6 +1647,16 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     const idx = data.users.findIndex((u) => u.username === username);
     if (idx >= 0) {
       data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
+      writeJson(USERS_FILE, data);
+    }
+  }
+  if (user.hasClearedLevel === undefined) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
+    const idx = data.users.findIndex((u) => u.username === username);
+    if (idx >= 0) {
+      data.users[idx].hasClearedLevel = user.hasClearedLevel;
       writeJson(USERS_FILE, data);
     }
   }
@@ -1860,6 +1979,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       userData.users[uIdx].hasClearedSurvival = true;
     }
     writeJson(USERS_FILE, userData);
+  } else if (!comboOnly && runEntry.mode === "level" && runEntry.cleared === true) {
+    upsertLevelRankingEntry(username, runEntry);
+    if (uIdx >= 0) {
+      userData.users[uIdx].hasClearedLevel = true;
+    }
+    writeJson(USERS_FILE, userData);
   } else if (uIdx >= 0) {
     writeJson(USERS_FILE, userData);
   }
@@ -1979,6 +2104,20 @@ app.get("/api/survival-ranking", (req, res) => {
     if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
     return (a.wrongCount ?? 0) - (b.wrongCount ?? 0);
   });
+  const ctx = createRankingLookupContext(req);
+  res.json(
+    buildPublicRankingJson(list, req.query.username, {
+      toEntry: (e, rank) => formatSurvivalRankingEntry(ctx, e, rank),
+    })
+  );
+});
+
+// ========== 闯关达人榜：L1–L16 全通最短用时；前十名 + 当前用户 ==========
+app.get("/api/level-ranking", (req, res) => {
+  const data = readJson(LEVEL_RANKING_FILE, { list: [] });
+  let list = Array.isArray(data.list) ? data.list : [];
+  list = dedupeBestLevelRanking(list);
+  list = sortLevelRankingList(list);
   const ctx = createRankingLookupContext(req);
   res.json(
     buildPublicRankingJson(list, req.query.username, {
@@ -2229,6 +2368,7 @@ function purgeUserCompletely(username) {
   }
 
   const survivalRankingRemoved = removeUsernameFromRankingFile(SURVIVAL_RANKING_FILE, name);
+  const levelRankingRemoved = removeUsernameFromRankingFile(LEVEL_RANKING_FILE, name);
   const primeRankingRemoved = removeUsernameFromRankingFile(PRIME_PERFECT_RANKING_FILE, name);
 
   const fbStore = readJson(FEEDBACK_FILE, { items: [] });
@@ -2258,6 +2398,7 @@ function purgeUserCompletely(username) {
       user: true,
       runs: runsRemoved,
       survivalRanking: survivalRankingRemoved,
+      levelRanking: levelRankingRemoved,
       primeRanking: primeRankingRemoved,
       feedback: feedbackRemoved,
       cohortStatsInvalidated,
@@ -2396,6 +2537,16 @@ app.get("/api/admin/user/:username", (req, res) => {
     const idx = data.users.findIndex((u) => u.username === username);
     if (idx >= 0) {
       data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
+      writeJson(USERS_FILE, data);
+    }
+  }
+  if (user.hasClearedLevel === undefined) {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs[username] || [];
+    user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
+    const idx = data.users.findIndex((u) => u.username === username);
+    if (idx >= 0) {
+      data.users[idx].hasClearedLevel = user.hasClearedLevel;
       writeJson(USERS_FILE, data);
     }
   }
@@ -2763,6 +2914,19 @@ app.post("/api/admin/maintenance/backfill-expand-brackets-score", (req, res) => 
   }
   try {
     const stats = backfillExpandBracketsScoresForAllUsers();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：从 runs 回填闯关达人榜 ==========
+app.post("/api/admin/maintenance/backfill-level-ranking", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const stats = rebuildLevelRankingFromRuns();
     return res.json({ ok: true, ...stats });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });

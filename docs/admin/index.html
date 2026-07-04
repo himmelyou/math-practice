@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="admin-worksheet.css?v=23" />
 </head>
 <body>
-  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-32</p>
+  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-33</p>
   <div id="admin-gate-root"></div>
 
   <div id="admin-app" class="jml-shell" hidden>
@@ -246,6 +246,7 @@
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-backfill-last-game-ts" class="jml-btn jml-btn-primary">回填最后挑战时间</button>
           <button type="button" id="jml-btn-backfill-expand-score" class="jml-btn jml-btn-primary">回填拆括号得分（×5）</button>
+          <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>最后挑战时间（lastGameTs）</strong></p>
@@ -264,6 +265,15 @@
             <li>已回填过的局带 <code>expandScorePerCorrect: 5</code> 标记，重复点击不会二次乘算</li>
           </ol>
           <p class="muted" style="margin:0;">部署新版主站后，请先备份再点击「回填拆括号得分（×5）」。</p>
+        </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>闯关达人榜（level-ranking.json）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>仅统计 <code>mode=level</code> 且 <code>cleared=true</code>（L1–L16 全通）的局</li>
+            <li>每人保留一条最佳：用时最短 → 错题更少 → 更早通关（<code>ts</code> 更小）</li>
+            <li>从 <code>runs.json</code> 扫描全库并写入 <code>level-ranking.json</code>，同步 <code>hasClearedLevel</code></li>
+          </ol>
+          <p class="muted" style="margin:0;">部署新版后端后，请先备份再点击「回填闯关达人榜」。</p>
         </div>
       </div>
     </div>
@@ -302,7 +312,7 @@
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=46"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-  <script src="admin-panel.js?v=32"></script>
+  <script src="admin-panel.js?v=33"></script>
   <script src="admin-worksheet.js?v=23"></script>
   <script src="admin-achievements.js?v=8"></script>
   <script>

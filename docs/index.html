@@ -1079,6 +1079,20 @@
     .ranking-table-v2.ranking-mode-survival .user-meta .name {
       max-width: 100%;
     }
+    .ranking-table-v2.ranking-mode-levelClear .r-col-time {
+      width: 72px;
+      min-width: 4.8em;
+    }
+    .ranking-table-v2.ranking-mode-levelClear .r-col-wrong {
+      width: 40px;
+    }
+    .ranking-table-v2.ranking-mode-levelClear .r-col-date {
+      width: 86px;
+      font-size: 0.76rem;
+    }
+    .ranking-table-v2.ranking-mode-levelClear .user-meta .name {
+      max-width: 100%;
+    }
     .ranking-table-v2.ranking-mode-primePerfect th,
     .ranking-table-v2.ranking-mode-primePerfect td {
       padding: 8px 4px;
@@ -3948,6 +3962,12 @@
                   <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
                 </span>
               </button>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="levelClear">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-levelClear" class="ranking-mode-text">闯关达人</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
+              </button>
               <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="primePerfect">
                 <span class="ranking-mode-row">
                   <span id="ranking-mode-label-primePerfect" class="ranking-mode-text">质数达人</span>
@@ -3978,6 +3998,12 @@
             <p class="gate-title" id="ranking-gate-title">生存榜</p>
             <p class="gate-text" id="ranking-gate-body-1">该榜单仅对已通关生存挑战的用户开放。</p>
             <p class="gate-text" id="ranking-gate-body-2">你尚未在生存模式中通关。请先完成一局生存挑战并通关后，再来查看本榜。</p>
+          </div>
+
+          <div class="gate-card" id="ranking-level-gate" style="display:none;">
+            <p class="gate-title" id="ranking-level-gate-title">闯关达人</p>
+            <p class="gate-text" id="ranking-level-gate-body-1">该榜单仅对已通关闯关模式（L1–L16 全通）的用户开放。</p>
+            <p class="gate-text" id="ranking-level-gate-body-2">你尚未在闯关模式中全通。请先完成一局闯关并通关后，再来查看本榜。</p>
           </div>
 
           <div class="ranking-table-scroll" id="ranking-table-scroll">
@@ -5096,6 +5122,7 @@
     const RANKING_TAB_I18N = {
       score: "ranking.score",
       survival: "ranking.survival",
+      levelClear: "ranking.levelClear",
       primePerfect: "ranking.primePerfect",
       streak: "ranking.streak",
       combo: "ranking.combo",
@@ -5180,6 +5207,7 @@
       if (trigger) trigger.setAttribute("aria-label", t("ranking.selectAria"));
       setTextById("ranking-mode-label-score", "ranking.score");
       setTextById("ranking-mode-label-survival", "ranking.survival");
+      setTextById("ranking-mode-label-levelClear", "ranking.levelClear");
       setTextById("ranking-mode-label-primePerfect", "ranking.primePerfect");
       setTextById("ranking-mode-label-streak", "ranking.streak");
       setTextById("ranking-mode-label-combo", "ranking.combo");
@@ -6433,6 +6461,7 @@
         "ranking.title": "排行榜",
         "ranking.score": "等級榜",
         "ranking.survival": "生存榜",
+        "ranking.levelClear": "闖關達人",
         "ranking.primePerfect": "質數達人",
         "ranking.streak": "耐力榜",
         "ranking.combo": "連擊榜",
@@ -6606,6 +6635,10 @@
         "ranking.hint.survival.needNet": "生存榜 · 需要連接伺服器",
         "ranking.hint.survival.desc": "生存榜 · 通關用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
         "ranking.hint.survival.fail": "生存榜 · 載入失敗，請稍後重試",
+        "ranking.hint.levelClear.loading": "闖關達人 · 載入中…",
+        "ranking.hint.levelClear.needNet": "闖關達人 · 需要連接伺服器",
+        "ranking.hint.levelClear.desc": "闖關達人 · 全通用時越短越好，同用時錯題更少優先，再同則更早通關者優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.levelClear.fail": "闖關達人 · 載入失敗，請稍後重試",
         "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
         "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
         "ranking.hint.prime.desc": "質數達人榜 · 質數合數 50 題全對的最短用時（展示前十名；未進前十會顯示你的名次）",
@@ -6620,6 +6653,7 @@
         "ranking.hint.combo.fail": "連擊榜 · 載入失敗，請稍後重試",
         "ranking.hint.tabLoading.score": "等級榜 · 載入中…",
         "ranking.hint.tabLoading.survival": "生存榜 · 載入中…",
+        "ranking.hint.tabLoading.levelClear": "闖關達人 · 載入中…",
         "ranking.hint.tabLoading.prime": "質數達人榜 · 載入中…",
         "ranking.hint.tabLoading.streak": "耐力榜 · 載入中…",
         "ranking.hint.tabLoading.combo": "連擊榜 · 載入中…",
@@ -6627,6 +6661,10 @@
         "ranking.gate.survivalBody1": "該榜單僅對已通關生存挑戰的用戶開放。",
         "ranking.gate.survivalBody2": "你尚未在生存模式中通關。請先完成一局生存挑戰並通關後，再來查看本榜。",
         "ranking.gate.survivalHint": "生存榜 · 僅對已通關生存挑戰的用戶開放",
+        "ranking.gate.levelClearTitle": "闖關達人",
+        "ranking.gate.levelClearBody1": "該榜單僅對已通關闖關模式（L1–L16 全通）的用戶開放。",
+        "ranking.gate.levelClearBody2": "你尚未在闖關模式中全通。請先完成一局闖關並通關後，再來查看本榜。",
+        "ranking.gate.levelClearHint": "闖關達人 · 僅對已全通闖關模式的用戶開放",
         "ranking.empty": "暫無排行數據。",
         "ranking.comingSoon": "敬請期待",
         "ranking.th.rank": "排名",
@@ -6773,6 +6811,7 @@
         "ranking.title": "Leaderboard",
         "ranking.score": "Level Rank",
         "ranking.survival": "Survival",
+        "ranking.levelClear": "Level Master",
         "ranking.primePerfect": "Prime Master",
         "ranking.streak": "Streak",
         "ranking.combo": "Combo",
@@ -6931,6 +6970,10 @@
         "ranking.hint.survival.needNet": "Survival · Server required",
         "ranking.hint.survival.desc": "Survival · Faster clear wins; fewer wrongs tie-break (top 10; your row if outside)",
         "ranking.hint.survival.fail": "Survival · Load failed, try again",
+        "ranking.hint.levelClear.loading": "Level master · Loading…",
+        "ranking.hint.levelClear.needNet": "Level master · Server required",
+        "ranking.hint.levelClear.desc": "Level master · Faster full clear wins; fewer wrongs, then earlier clear (top 10; your row if outside)",
+        "ranking.hint.levelClear.fail": "Level master · Load failed, try again",
         "ranking.hint.prime.loading": "Prime master · Loading…",
         "ranking.hint.prime.needNet": "Prime master · Server required",
         "ranking.hint.prime.desc": "Prime master · Fastest perfect 50-question run (top 10; your row if outside)",
@@ -6945,6 +6988,7 @@
         "ranking.hint.combo.fail": "Combo · Load failed, try again",
         "ranking.hint.tabLoading.score": "Level rank · Loading…",
         "ranking.hint.tabLoading.survival": "Survival · Loading…",
+        "ranking.hint.tabLoading.levelClear": "Level master · Loading…",
         "ranking.hint.tabLoading.prime": "Prime master · Loading…",
         "ranking.hint.tabLoading.streak": "Streak · Loading…",
         "ranking.hint.tabLoading.combo": "Combo · Loading…",
@@ -6952,6 +6996,10 @@
         "ranking.gate.survivalBody1": "This board is only for users who have cleared survival at least once.",
         "ranking.gate.survivalBody2": "You have not cleared survival yet. Finish one cleared survival run, then come back.",
         "ranking.gate.survivalHint": "Survival · Only for users who cleared survival",
+        "ranking.gate.levelClearTitle": "Level Master",
+        "ranking.gate.levelClearBody1": "This board is only for users who cleared all levels (L1–L16) in Level mode.",
+        "ranking.gate.levelClearBody2": "You have not cleared Level mode yet. Finish one full clear run, then come back.",
+        "ranking.gate.levelClearHint": "Level master · Only for users who cleared Level mode",
         "ranking.empty": "No ranking data.",
         "ranking.comingSoon": "Coming soon",
         "ranking.th.rank": "Rank",
@@ -7199,6 +7247,9 @@
       setT("ranking-gate-title", "ranking.gate.survivalTitle");
       setT("ranking-gate-body-1", "ranking.gate.survivalBody1");
       setT("ranking-gate-body-2", "ranking.gate.survivalBody2");
+      setT("ranking-level-gate-title", "ranking.gate.levelClearTitle");
+      setT("ranking-level-gate-body-1", "ranking.gate.levelClearBody1");
+      setT("ranking-level-gate-body-2", "ranking.gate.levelClearBody2");
       setT("ranking-empty-v2", "ranking.empty");
       setT("ranking-coming-soon", "ranking.comingSoon");
       const expGrid = byId("expand-status-grid");
@@ -9553,6 +9604,7 @@
       saveLevelChallengeLastLevel(endLevel);
       saveLevelChallengeBestLevel(endLevel);
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice(), completed === true);
+      if (completed === true && cachedUser) cachedUser.hasClearedLevel = true;
       renderRecentRuns();
       updateLevelStatusUI();
       if (dom.gameOverPanel) {
@@ -9726,6 +9778,12 @@
       if (!user) return false;
       if (user.hasClearedSurvival === true) return true;
       return Array.isArray(user.recentSurvivalRuns) && user.recentSurvivalRuns.some((r) => r.cleared === true);
+    }
+
+    function userHasClearedLevel(user) {
+      if (!user) return false;
+      if (user.hasClearedLevel === true) return true;
+      return Array.isArray(user.recentLevelRuns) && user.recentLevelRuns.some((r) => r.cleared === true);
     }
 
     async function showAchievementWallView() {
@@ -10215,6 +10273,9 @@
       if (tab === "survival") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
       }
+      if (tab === "levelClear") {
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
+      }
       if (tab === "primePerfect") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
       }
@@ -10396,6 +10457,53 @@
       }
     }
 
+    async function loadLevelClearRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (!userHasClearedLevel(cachedUser)) return;
+      if (hint) hint.textContent = t("ranking.hint.levelClear.loading");
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = t("ranking.hint.levelClear.needNet");
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/level-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || t("error.loadFailed"));
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingSurvivalRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"5\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingSurvivalRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) hint.textContent = t("ranking.hint.levelClear.desc");
+      } catch (e) {
+        console.warn("加载闯关达人榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = t("ranking.hint.levelClear.fail");
+      }
+    }
+
     function buildRankingPrimePerfectRowHtml(entry, isMe) {
       const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
@@ -10552,7 +10660,7 @@
     }
 
     function setRankingActiveTab(tab) {
-      const next = (tab === "score" || tab === "survival" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
+      const next = (tab === "score" || tab === "survival" || tab === "levelClear" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
       lastRankingTab = next;
       const labelEl = document.getElementById("ranking-mode-trigger-label");
       if (labelEl) labelEl.textContent = getRankingTabLabel(next);
@@ -10563,14 +10671,16 @@
       const thead = document.getElementById("ranking-thead-v2");
       const tbody = document.getElementById("ranking-tbody-v2");
       const empty = document.getElementById("ranking-empty-v2");
-      const gate = document.getElementById("ranking-survival-gate");
+      const survivalGate = document.getElementById("ranking-survival-gate");
+      const levelGate = document.getElementById("ranking-level-gate");
       const comingSoonEl = document.getElementById("ranking-coming-soon");
       const tableEl = document.getElementById("ranking-table-v2");
 
       if (thead) thead.innerHTML = buildRankingTheadHtml(next);
       if (tbody) tbody.innerHTML = "";
       if (empty) empty.style.display = "block";
-      if (gate) gate.style.display = "none";
+      if (survivalGate) survivalGate.style.display = "none";
+      if (levelGate) levelGate.style.display = "none";
       if (comingSoonEl) comingSoonEl.style.display = "none";
       if (tableEl) {
         tableEl.style.display = "";
@@ -10581,6 +10691,7 @@
         hint.textContent =
           next === "score" ? t("ranking.hint.tabLoading.score")
           : next === "survival" ? t("ranking.hint.tabLoading.survival")
+          : next === "levelClear" ? t("ranking.hint.tabLoading.levelClear")
           : next === "primePerfect" ? t("ranking.hint.tabLoading.prime")
           : next === "streak" ? t("ranking.hint.tabLoading.streak")
           : t("ranking.hint.tabLoading.combo");
@@ -10591,9 +10702,9 @@
         return;
       }
 
-      if (next === "survival" && gate) {
+      if (next === "survival" && survivalGate) {
         const cleared = userHasClearedSurvival(cachedUser);
-        gate.style.display = cleared ? "none" : "block";
+        survivalGate.style.display = cleared ? "none" : "block";
         if (!cleared) {
           if (tbody) tbody.innerHTML = "";
           if (empty) empty.style.display = "none";
@@ -10601,6 +10712,19 @@
           return;
         }
         void loadSurvivalRankingIntoTable();
+        return;
+      }
+
+      if (next === "levelClear" && levelGate) {
+        const cleared = userHasClearedLevel(cachedUser);
+        levelGate.style.display = cleared ? "none" : "block";
+        if (!cleared) {
+          if (tbody) tbody.innerHTML = "";
+          if (empty) empty.style.display = "none";
+          if (hint) hint.textContent = t("ranking.gate.levelClearHint");
+          return;
+        }
+        void loadLevelClearRankingIntoTable();
         return;
       }
 

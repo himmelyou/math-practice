@@ -1,4 +1,4 @@
-const ALL_RANKING_BOARDS = ["score", "survival", "primePerfect", "streak", "combo"];
+const ALL_RANKING_BOARDS = ["score", "survival", "levelClear", "primePerfect", "streak", "combo"];
 
 function normalizeDateKey(s) {
   if (typeof s !== "string") return "";
@@ -69,6 +69,32 @@ function buildSurvivalRankingUsernames(survivalList) {
   return list.map((e) => e.username);
 }
 
+function compareLevelRankingEntries(a, b) {
+  const ta = Number(a && a.survivalTimeSec) || 0;
+  const tb = Number(b && b.survivalTimeSec) || 0;
+  if (ta !== tb) return ta - tb;
+  const wa = Number(a && a.wrongCount) || 0;
+  const wb = Number(b && b.wrongCount) || 0;
+  if (wa !== wb) return wa - wb;
+  return (Number(a && a.ts) || 0) - (Number(b && b.ts) || 0);
+}
+
+function dedupeBestLevelRanking(list) {
+  const byUser = {};
+  (list || []).forEach((e) => {
+    if (!e || !e.username) return;
+    const cur = byUser[e.username];
+    if (!cur || compareLevelRankingEntries(e, cur) < 0) byUser[e.username] = e;
+  });
+  return Object.values(byUser);
+}
+
+function buildLevelRankingUsernames(levelList) {
+  let list = dedupeBestLevelRanking(levelList);
+  list.sort(compareLevelRankingEntries);
+  return list.map((e) => e.username);
+}
+
 function buildPrimePerfectRankingUsernames(primeList) {
   let list = dedupeBestPrimePerfect(primeList);
   list.sort((a, b) => {
@@ -120,10 +146,12 @@ function buildComboRankingUsernames(users) {
 function getUserRanksByBoard(username, data) {
   const users = data && Array.isArray(data.users) ? data.users : [];
   const survivalList = data && Array.isArray(data.survivalList) ? data.survivalList : [];
+  const levelList = data && Array.isArray(data.levelList) ? data.levelList : [];
   const primeList = data && Array.isArray(data.primeList) ? data.primeList : [];
   return {
     score: rankFromSortedList(username, buildScoreRankingUsernames(users)),
     survival: rankFromSortedList(username, buildSurvivalRankingUsernames(survivalList)),
+    levelClear: rankFromSortedList(username, buildLevelRankingUsernames(levelList)),
     primePerfect: rankFromSortedList(username, buildPrimePerfectRankingUsernames(primeList)),
     streak: rankFromSortedList(username, buildStreakRankingUsernames(users)),
     combo: rankFromSortedList(username, buildComboRankingUsernames(users)),
