@@ -787,6 +787,41 @@
     if (hintWarn && hintEnEl) hintWarn.hidden = !!hintEnEl.value.trim();
   }
 
+  /** 徽章预览：固定 DOM，仅切换 img / 占位可见性与 src */
+  function updateAchievementImagePreview(opts) {
+    opts = opts || {};
+    var src = opts.src ? String(opts.src) : '';
+    var pending = opts.pending === true;
+    var img = document.getElementById('jml-ach-edit-preview');
+    var empty = document.getElementById('jml-ach-edit-preview-empty');
+    if (!img || !empty) return;
+    if (src) {
+      img.src = src;
+      img.hidden = false;
+      empty.hidden = true;
+      if (pending) img.classList.add('jml-ach-edit-preview-pending');
+      else img.classList.remove('jml-ach-edit-preview-pending');
+      return;
+    }
+    img.removeAttribute('src');
+    img.hidden = true;
+    img.classList.remove('jml-ach-edit-preview-pending');
+    empty.hidden = false;
+  }
+
+  function buildAchievementImageBlockHtml() {
+    return (
+      '<div class="jml-ach-edit-image-block">' +
+      '<div id="jml-ach-edit-preview-host" class="jml-ach-edit-preview-host">' +
+      '<img id="jml-ach-edit-preview" alt="" class="jml-ach-edit-preview" hidden />' +
+      '<div id="jml-ach-edit-preview-empty" class="jml-ach-edit-preview-empty muted">尚未上传</div>' +
+      '</div>' +
+      '<label class="jml-ach-file-btn"><span>选择图片</span><input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" hidden /></label>' +
+      '<div class="jml-ach-field-hint">任意尺寸，保存时自动转为 256×256</div>' +
+      '</div>'
+    );
+  }
+
   function wireEditModalInteractions(item) {
     var ruleTypeEl = document.getElementById('jml-ach-edit-rule-type');
     if (ruleTypeEl) {
@@ -806,23 +841,7 @@
         if (!file) return;
         normalizeUploadFile(file)
           .then(function (normalized) {
-            var preview = document.getElementById('jml-ach-edit-preview');
-            var empty = document.getElementById('jml-ach-edit-preview-wrap');
-            if (empty) empty.remove();
-            if (!preview) {
-              var block = document.querySelector('.jml-ach-edit-image-block');
-              if (block) {
-                preview = document.createElement('img');
-                preview.id = 'jml-ach-edit-preview';
-                preview.className = 'jml-ach-edit-preview';
-                preview.alt = '';
-                block.insertBefore(preview, imageEl);
-              }
-            }
-            if (preview) {
-              preview.src = normalized.dataUrl;
-              preview.classList.add('jml-ach-edit-preview-pending');
-            }
+            updateAchievementImagePreview({ src: normalized.dataUrl, pending: true });
           })
           .catch(function (e) {
             setStatus(e.message || String(e), 'err');
@@ -842,16 +861,8 @@
     title.textContent = '编辑成就 · ' + item.id;
     modal.classList.add('jml-modal-wide');
 
-    var preview = resolveImagePreview(item);
     var sortLabel = categorySortLabel(item);
-    var imageBlock =
-      '<div class="jml-ach-edit-image-block">' +
-      (preview
-        ? '<img id="jml-ach-edit-preview" src="' + escapeHtml(preview) + '" alt="" class="jml-ach-edit-preview" />'
-        : '<div id="jml-ach-edit-preview-wrap" class="jml-ach-edit-preview-empty muted">尚未上传</div>') +
-      '<label class="jml-ach-file-btn"><span>选择图片</span><input id="jml-ach-edit-image" type="file" accept="image/png,image/jpeg,image/webp,image/*" hidden /></label>' +
-      '<div class="jml-ach-field-hint">任意尺寸，保存时自动转为 256×256</div>' +
-      '</div>';
+    var imageBlock = buildAchievementImageBlockHtml();
 
     body.innerHTML =
       '<p class="jml-ach-edit-intro muted">保存后会立即写入服务器（含文案与图片）。排序请在列表页拖动。</p>' +
@@ -948,6 +959,7 @@
       if (e.key === 'Escape') closeModal();
     };
     document.addEventListener('keydown', modalKeyHandler);
+    updateAchievementImagePreview({ src: resolveImagePreview(item), pending: false });
     wireEditModalInteractions(item);
   }
 

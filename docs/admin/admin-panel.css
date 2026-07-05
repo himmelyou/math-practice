@@ -900,6 +900,12 @@
   background: #f8fafc;
 }
 
+.jml-ach-edit-preview-host {
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+}
+
 .jml-ach-edit-preview {
   width: 88px;
   height: 88px;

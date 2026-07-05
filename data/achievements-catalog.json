@@ -2,10 +2,7 @@
   "version": 2,
   "categoryOrder": [
     "getting-started",
-    "honor",
-    "level",
-    "survival",
-    "special"
+    "honor"
   ],
   "categories": {
     "getting-started": {
@@ -15,18 +12,6 @@
     "honor": {
       "name": "荣誉",
       "nameEn": "Honor"
-    },
-    "level": {
-      "name": "闯关",
-      "nameEn": "Level Challenge"
-    },
-    "survival": {
-      "name": "生存",
-      "nameEn": "Survival"
-    },
-    "special": {
-      "name": "专项",
-      "nameEn": "Special Modes"
     },
     "other": {
       "name": "其他",
@@ -137,7 +122,7 @@
       "name": "闯关达人",
       "nameEn": "Level Cleared",
       "icon": "🏆",
-      "category": "level",
+      "category": "other",
       "xpReward": 50,
       "hint": "闯关模式首次通关（L16 全通）",
       "hintEn": "Clear level challenge once (full L16 run)",
@@ -151,13 +136,13 @@
       "name": "生存达人",
       "nameEn": "Survival Cleared",
       "icon": "🛡️",
-      "category": "survival",
+      "category": "other",
       "xpReward": 50,
       "hint": "生存模式首次通关",
       "hintEn": "Clear survival mode once",
       "ruleType": "survival_cleared",
       "ruleParams": { "minCount": 1 },
-      "sortOrder": 10,
+      "sortOrder": 20,
       "enabled": true
     },
     {
@@ -165,13 +150,13 @@
       "name": "质数达人",
       "nameEn": "Prime Perfect",
       "icon": "🧠",
-      "category": "special",
+      "category": "other",
       "xpReward": 50,
       "hint": "质数合数 50 题全对完成 1 局",
       "hintEn": "Complete 50 prime questions with zero wrong",
       "ruleType": "prime_perfect_run",
       "ruleParams": { "questionCount": 50 },
-      "sortOrder": 10,
+      "sortOrder": 30,
       "enabled": true
     }
   ]
