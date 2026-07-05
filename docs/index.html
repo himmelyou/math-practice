@@ -1065,33 +1065,37 @@
       width: auto;
       text-align: left;
     }
-    .ranking-table-v2.ranking-mode-survival .r-col-time {
-      width: 72px;
-      min-width: 4.8em;
+    .ranking-table-v2.ranking-mode-survival .r-col-rank,
+    .ranking-table-v2.ranking-mode-levelClear .r-col-rank {
+      width: 36px;
+      max-width: 36px;
     }
-    .ranking-table-v2.ranking-mode-survival .r-col-wrong {
-      width: 40px;
+    .ranking-table-v2.ranking-mode-survival .r-col-user,
+    .ranking-table-v2.ranking-mode-levelClear .r-col-user {
+      width: auto;
+      text-align: left;
     }
-    .ranking-table-v2.ranking-mode-survival .r-col-date {
-      width: 86px;
-      font-size: 0.76rem;
-    }
-    .ranking-table-v2.ranking-mode-survival .user-meta .name {
-      max-width: 100%;
-    }
+    .ranking-table-v2.ranking-mode-survival .r-col-time,
     .ranking-table-v2.ranking-mode-levelClear .r-col-time {
-      width: 72px;
-      min-width: 4.8em;
+      width: 64px;
+      min-width: 4.2em;
     }
+    .ranking-table-v2.ranking-mode-survival .r-col-wrong,
     .ranking-table-v2.ranking-mode-levelClear .r-col-wrong {
-      width: 40px;
+      width: 36px;
     }
-    .ranking-table-v2.ranking-mode-levelClear .r-col-date {
-      width: 86px;
-      font-size: 0.76rem;
+    .ranking-table-v2.ranking-mode-survival .user-meta,
+    .ranking-table-v2.ranking-mode-levelClear .user-meta {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
     }
+    .ranking-table-v2.ranking-mode-survival .user-meta .name,
     .ranking-table-v2.ranking-mode-levelClear .user-meta .name {
       max-width: 100%;
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .ranking-table-v2.ranking-mode-primePerfect th,
     .ranking-table-v2.ranking-mode-primePerfect td {
@@ -10271,10 +10275,10 @@
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.playerLevel")) + "</th></tr>";
       }
       if (tab === "survival") {
-        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th></tr>";
       }
       if (tab === "levelClear") {
-        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th></tr>";
       }
       if (tab === "primePerfect") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
@@ -10398,7 +10402,6 @@
       const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
       const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
       const wrongStr = escapeHtml(String(entry.wrongCount != null ? entry.wrongCount : 0));
-      const dateStr = escapeHtml(formatDateOnly(entry.ts));
       let avatarInner;
       if (entry.avatarUrl) {
         const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
@@ -10407,7 +10410,7 @@
         avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
       }
       const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
-      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-wrong\">" + wrongStr + "</td><td class=\"r-col r-col-date\">" + dateStr + "</td></tr>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-wrong\">" + wrongStr + "</td></tr>";
     }
 
     async function loadSurvivalRankingIntoTable() {
@@ -10442,7 +10445,7 @@
         const myRank = data.myRank != null ? Number(data.myRank) : 0;
         const myEntry = data.myEntry;
         if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
-          rows.push("<tr class=\"ranking-gap\"><td colspan=\"5\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
           rows.push(buildRankingSurvivalRowHtml(myEntry, true));
         }
         tbody.innerHTML = rows.join("");
@@ -10489,7 +10492,7 @@
         const myRank = data.myRank != null ? Number(data.myRank) : 0;
         const myEntry = data.myEntry;
         if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
-          rows.push("<tr class=\"ranking-gap\"><td colspan=\"5\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
           rows.push(buildRankingSurvivalRowHtml(myEntry, true));
         }
         tbody.innerHTML = rows.join("");
