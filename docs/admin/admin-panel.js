@@ -345,7 +345,7 @@
       tdTester.className = 'jml-col-tester';
       var testerLabel = document.createElement('label');
       testerLabel.className = 'jml-tester-switch';
-      testerLabel.title = '开启后，该账号在拆括号内测时可看到错误选项后的错因编号';
+      testerLabel.title = '开启后，该账号在拆括号内测时可看到错误选项后的错因编号；排行榜可查看完整榜单';
       var testerInput = document.createElement('input');
       testerInput.type = 'checkbox';
       testerInput.checked = u.isTester === true;

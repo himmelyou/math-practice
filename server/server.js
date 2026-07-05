@@ -186,6 +186,7 @@ const FEEDBACK_RATE_MAX_PER_HOUR = 10;
 const feedbackSubmitTimestamps = new Map();
 /** 学员端排行榜 API 对外可见条数（全榜仍用于 myRank；list 仅返回前 N） */
 const RANKING_PUBLIC_MAX = 10;
+const RANKING_TESTER_MAX = 500;
 
 function readRankingEvalData() {
   const usersData = readJson(USERS_FILE, { users: [] });
@@ -1376,6 +1377,21 @@ function createRankingLookupContext(req) {
     return withEquippedBadges({ username: u.username, displayName, totalScore, avatarUrl });
   }
 
+  let rankingFullList = false;
+  const token = getTokenFromRequest(req);
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload && payload.role === "student" && payload.username) {
+        const u = userByName[payload.username];
+        rankingFullList = !!(u && u.isTester === true);
+      }
+    } catch (e) {
+      rankingFullList = false;
+    }
+  }
+  const rankingListLimit = rankingFullList ? RANKING_TESTER_MAX : RANKING_PUBLIC_MAX;
+
   return {
     users,
     userByName,
@@ -1385,6 +1401,8 @@ function createRankingLookupContext(req) {
     nicknameFor,
     withEquippedBadges,
     buildScoreRankingRowUser,
+    rankingListLimit,
+    rankingFullList,
   };
 }
 
@@ -2060,8 +2078,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
 function buildPublicRankingJson(sortedRows, usernameQuery, options) {
   const getUsername = options.getUsername || ((row) => (row && row.username) || "");
   const toEntry = options.toEntry;
+  const listLimit =
+    options.listLimit != null && Number.isFinite(Number(options.listLimit))
+      ? Math.max(1, Math.floor(Number(options.listLimit)))
+      : RANKING_PUBLIC_MAX;
   const list = [];
-  const limit = Math.min(RANKING_PUBLIC_MAX, sortedRows.length);
+  const limit = Math.min(listLimit, sortedRows.length);
   for (let i = 0; i < limit; i += 1) {
     const entry = toEntry(sortedRows[i], i + 1);
     if (entry) list.push(entry);
@@ -2079,6 +2101,9 @@ function buildPublicRankingJson(sortedRows, usernameQuery, options) {
   return {
     ok: true,
     list,
+    listLimit,
+    fullList: options.fullList === true,
+    totalEntries: sortedRows.length,
     myRank: uname ? myRank : undefined,
     myEntry: uname ? myEntry : undefined,
   };
@@ -2112,6 +2137,8 @@ app.get("/api/score-ranking", (req, res) => {
   });
   res.json(
     buildPublicRankingJson(users, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
       toEntry: (u, rank) => {
         const row = ctx.buildScoreRankingRowUser(u);
         return row ? { rank, ...row } : null;
@@ -2144,6 +2171,8 @@ app.get("/api/survival-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   res.json(
     buildPublicRankingJson(list, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
       toEntry: (e, rank) => formatSurvivalRankingEntry(ctx, e, rank),
     })
   );
@@ -2158,6 +2187,8 @@ app.get("/api/level-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   res.json(
     buildPublicRankingJson(list, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
       toEntry: (e, rank) => formatSurvivalRankingEntry(ctx, e, rank),
     })
   );
@@ -2182,6 +2213,8 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   res.json(
     buildPublicRankingJson(list, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
       toEntry: (e, rank) => formatPrimePerfectRankingEntry(ctx, e, rank),
     })
   );
@@ -2213,6 +2246,8 @@ app.get("/api/streak-ranking", (req, res) => {
 
   res.json(
     buildPublicRankingJson(rows, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
       toEntry: (r, rank) => ctx.withEquippedBadges({ rank, ...r }),
     })
   );
@@ -2242,6 +2277,8 @@ app.get("/api/combo-ranking", (req, res) => {
 
   res.json(
     buildPublicRankingJson(rows, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
       toEntry: (r, rank) => ctx.withEquippedBadges({ rank, ...r }),
     })
   );

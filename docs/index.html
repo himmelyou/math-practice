@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=43"></script>
+  <script src="shared/app-version.js?v=44"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -6617,26 +6617,32 @@
         "ranking.hint.score.loading": "等級榜 · 載入中…",
         "ranking.hint.score.needNet": "等級榜 · 需要連接伺服器",
         "ranking.hint.score.desc": "等級榜 · 按總經驗從高到低（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.score.descFull": "等級榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.score.fail": "等級榜 · 載入失敗，請稍後重試",
         "ranking.hint.survival.loading": "生存榜 · 載入中…",
         "ranking.hint.survival.needNet": "生存榜 · 需要連接伺服器",
         "ranking.hint.survival.desc": "生存榜 · 通關用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.survival.descFull": "生存榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.survival.fail": "生存榜 · 載入失敗，請稍後重試",
         "ranking.hint.levelClear.loading": "闖關達人 · 載入中…",
         "ranking.hint.levelClear.needNet": "闖關達人 · 需要連接伺服器",
         "ranking.hint.levelClear.desc": "闖關達人 · 全通用時越短越好，同用時錯題更少優先，再同則更早通關者優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.levelClear.descFull": "闖關達人 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.levelClear.fail": "闖關達人 · 載入失敗，請稍後重試",
         "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
         "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
         "ranking.hint.prime.desc": "質數達人榜 · 掌握 50 題用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.prime.descFull": "質數達人榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.prime.fail": "質數達人榜 · 載入失敗，請稍後重試",
         "ranking.hint.streak.loading": "耐力榜 · 載入中…",
         "ranking.hint.streak.needNet": "耐力榜 · 需要連接伺服器",
         "ranking.hint.streak.desc": "耐力榜 · 最長與當前連續挑戰天數（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.streak.descFull": "耐力榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.streak.fail": "耐力榜 · 載入失敗，請稍後重試",
         "ranking.hint.combo.loading": "連擊榜 · 載入中…",
         "ranking.hint.combo.needNet": "連擊榜 · 需要連接伺服器",
         "ranking.hint.combo.desc": "連擊榜 · 最高與當前連對（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.combo.descFull": "連擊榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.combo.fail": "連擊榜 · 載入失敗，請稍後重試",
         "ranking.hint.tabLoading.score": "等級榜 · 載入中…",
         "ranking.hint.tabLoading.survival": "生存榜 · 載入中…",
@@ -6953,26 +6959,32 @@
         "ranking.hint.score.loading": "Level rank · Loading…",
         "ranking.hint.score.needNet": "Level rank · Server required",
         "ranking.hint.score.desc": "Level rank · Top 10 by total XP; your row shown if outside the top 10",
+        "ranking.hint.score.descFull": "Level rank · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.score.fail": "Level rank · Load failed, try again",
         "ranking.hint.survival.loading": "Survival · Loading…",
         "ranking.hint.survival.needNet": "Survival · Server required",
         "ranking.hint.survival.desc": "Survival · Faster clear wins; fewer wrongs tie-break (top 10; your row if outside)",
+        "ranking.hint.survival.descFull": "Survival · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.survival.fail": "Survival · Load failed, try again",
         "ranking.hint.levelClear.loading": "Level master · Loading…",
         "ranking.hint.levelClear.needNet": "Level master · Server required",
         "ranking.hint.levelClear.desc": "Level master · Faster full clear wins; fewer wrongs, then earlier clear (top 10; your row if outside)",
+        "ranking.hint.levelClear.descFull": "Level master · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.levelClear.fail": "Level master · Load failed, try again",
         "ranking.hint.prime.loading": "Prime master · Loading…",
         "ranking.hint.prime.needNet": "Prime master · Server required",
         "ranking.hint.prime.desc": "Prime master · Faster master-50 wins; fewer wrongs tie-break (top 10; your row if outside)",
+        "ranking.hint.prime.descFull": "Prime master · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.prime.fail": "Prime master · Load failed, try again",
         "ranking.hint.streak.loading": "Streak · Loading…",
         "ranking.hint.streak.needNet": "Streak · Server required",
         "ranking.hint.streak.desc": "Streak · Longest and current daily streak (top 10; your row if outside)",
+        "ranking.hint.streak.descFull": "Streak · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.streak.fail": "Streak · Load failed, try again",
         "ranking.hint.combo.loading": "Combo · Loading…",
         "ranking.hint.combo.needNet": "Combo · Server required",
         "ranking.hint.combo.desc": "Combo · Best and current combo (top 10; your row if outside)",
+        "ranking.hint.combo.descFull": "Combo · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.combo.fail": "Combo · Load failed, try again",
         "ranking.hint.tabLoading.score": "Level rank · Loading…",
         "ranking.hint.tabLoading.survival": "Survival · Loading…",
@@ -10363,6 +10375,18 @@
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + bestStr + "</td><td class=\"r-col r-col-score\">" + currentStr + "</td></tr>";
     }
 
+    function setRankingPanelHint(hintEl, tabKey, data) {
+      if (!hintEl) return;
+      const full = !!(data && data.fullList === true);
+      if (full) {
+        const total = data.totalEntries != null ? Number(data.totalEntries) : (Array.isArray(data.list) ? data.list.length : 0);
+        const shown = Array.isArray(data.list) ? data.list.length : 0;
+        hintEl.textContent = tf("ranking.hint." + tabKey + ".descFull", { total, shown });
+        return;
+      }
+      hintEl.textContent = t("ranking.hint." + tabKey + ".desc");
+    }
+
     async function loadScoreRankingIntoTable() {
       const tbody = document.getElementById("ranking-tbody-v2");
       const empty = document.getElementById("ranking-empty-v2");
@@ -10400,7 +10424,7 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = t("ranking.hint.score.desc");
+        if (hint) setRankingPanelHint(hint, "score", data);
       } catch (e) {
         console.warn("加载等级榜失败", e);
         tbody.innerHTML = "";
@@ -10464,7 +10488,7 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = t("ranking.hint.survival.desc");
+        if (hint) setRankingPanelHint(hint, "survival", data);
       } catch (e) {
         console.warn("加载生存榜失败", e);
         tbody.innerHTML = "";
@@ -10511,7 +10535,7 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = t("ranking.hint.levelClear.desc");
+        if (hint) setRankingPanelHint(hint, "levelClear", data);
       } catch (e) {
         console.warn("加载闯关达人榜失败", e);
         tbody.innerHTML = "";
@@ -10557,7 +10581,7 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = t("ranking.hint.prime.desc");
+        if (hint) setRankingPanelHint(hint, "prime", data);
       } catch (e) {
         console.warn("加载质数达人榜失败", e);
         tbody.innerHTML = "";
@@ -10603,7 +10627,7 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = t("ranking.hint.streak.desc");
+        if (hint) setRankingPanelHint(hint, "streak", data);
       } catch (e) {
         console.warn("加载耐力榜失败", e);
         tbody.innerHTML = "";
@@ -10649,7 +10673,7 @@
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);
         empty.style.display = hasAny ? "none" : "block";
-        if (hint) hint.textContent = t("ranking.hint.combo.desc");
+        if (hint) setRankingPanelHint(hint, "combo", data);
       } catch (e) {
         console.warn("加载连击榜失败", e);
         tbody.innerHTML = "";
