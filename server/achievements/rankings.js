@@ -27,15 +27,8 @@ function dedupeBestPrimePerfect(list) {
   const byUser = {};
   (list || []).forEach((e) => {
     if (!e || !e.username) return;
-    const k = e.username;
-    const cur = byUser[k];
-    if (
-      !cur ||
-      e.survivalTimeSec < cur.survivalTimeSec ||
-      (e.survivalTimeSec === cur.survivalTimeSec && (e.ts || 0) < (cur.ts || 0))
-    ) {
-      byUser[k] = e;
-    }
+    const cur = byUser[e.username];
+    if (!cur || compareLevelRankingEntries(e, cur) < 0) byUser[e.username] = e;
   });
   return Object.values(byUser);
 }
@@ -97,10 +90,7 @@ function buildLevelRankingUsernames(levelList) {
 
 function buildPrimePerfectRankingUsernames(primeList) {
   let list = dedupeBestPrimePerfect(primeList);
-  list.sort((a, b) => {
-    if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
-    return (a.ts || 0) - (b.ts || 0);
-  });
+  list.sort(compareLevelRankingEntries);
   return list.map((e) => e.username);
 }
 

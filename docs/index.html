@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=42"></script>
-  <script src="shared/app-version.js?v=42"></script>
+  <script src="config.js?v=43"></script>
+  <script src="shared/app-version.js?v=43"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1066,33 +1066,39 @@
       text-align: left;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-rank,
-    .ranking-table-v2.ranking-mode-levelClear .r-col-rank {
+    .ranking-table-v2.ranking-mode-levelClear .r-col-rank,
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-rank {
       width: 36px;
       max-width: 36px;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-user,
-    .ranking-table-v2.ranking-mode-levelClear .r-col-user {
+    .ranking-table-v2.ranking-mode-levelClear .r-col-user,
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
       width: auto;
       text-align: left;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-time,
-    .ranking-table-v2.ranking-mode-levelClear .r-col-time {
+    .ranking-table-v2.ranking-mode-levelClear .r-col-time,
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
       width: 64px;
       min-width: 4.2em;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-wrong,
-    .ranking-table-v2.ranking-mode-levelClear .r-col-wrong {
+    .ranking-table-v2.ranking-mode-levelClear .r-col-wrong,
+    .ranking-table-v2.ranking-mode-primePerfect .r-col-wrong {
       width: 36px;
     }
     .ranking-table-v2.ranking-mode-survival .user-meta,
-    .ranking-table-v2.ranking-mode-levelClear .user-meta {
+    .ranking-table-v2.ranking-mode-levelClear .user-meta,
+    .ranking-table-v2.ranking-mode-primePerfect .user-meta {
       flex-direction: row;
       flex-wrap: wrap;
       align-items: center;
       gap: 4px;
     }
     .ranking-table-v2.ranking-mode-survival .user-meta .name,
-    .ranking-table-v2.ranking-mode-levelClear .user-meta .name {
+    .ranking-table-v2.ranking-mode-levelClear .user-meta .name,
+    .ranking-table-v2.ranking-mode-primePerfect .user-meta .name {
       max-width: 100%;
       flex: 1 1 auto;
       min-width: 0;
@@ -1100,29 +1106,6 @@
     .ranking-table-v2.ranking-mode-primePerfect th,
     .ranking-table-v2.ranking-mode-primePerfect td {
       padding: 8px 4px;
-    }
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
-      width: 86px;
-      min-width: 4.8em;
-    }
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-date {
-      width: 96px;
-      font-size: 0.76rem;
-    }
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
-      width: auto;
-      max-width: 130px;
-      text-align: left;
-    }
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-user .user-cell {
-      gap: 6px;
-    }
-    .ranking-table-v2.ranking-mode-primePerfect .avatar.sm {
-      width: 24px;
-      height: 24px;
-    }
-    .ranking-table-v2.ranking-mode-primePerfect .user-meta .name {
-      max-width: 100%;
     }
     .ranking-table-v2 .r-col-user .user-meta .name {
       max-width: 100%;
@@ -6645,7 +6628,7 @@
         "ranking.hint.levelClear.fail": "闖關達人 · 載入失敗，請稍後重試",
         "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
         "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
-        "ranking.hint.prime.desc": "質數達人榜 · 質數合數掌握 50 題的最短用時（允許錯題；展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.prime.desc": "質數達人榜 · 掌握 50 題用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
         "ranking.hint.prime.fail": "質數達人榜 · 載入失敗，請稍後重試",
         "ranking.hint.streak.loading": "耐力榜 · 載入中…",
         "ranking.hint.streak.needNet": "耐力榜 · 需要連接伺服器",
@@ -6981,7 +6964,7 @@
         "ranking.hint.levelClear.fail": "Level master · Load failed, try again",
         "ranking.hint.prime.loading": "Prime master · Loading…",
         "ranking.hint.prime.needNet": "Prime master · Server required",
-        "ranking.hint.prime.desc": "Prime master · Fastest run to master all 50 (wrong answers allowed; top 10; your row if outside)",
+        "ranking.hint.prime.desc": "Prime master · Faster master-50 wins; fewer wrongs tie-break (top 10; your row if outside)",
         "ranking.hint.prime.fail": "Prime master · Load failed, try again",
         "ranking.hint.streak.loading": "Streak · Loading…",
         "ranking.hint.streak.needNet": "Streak · Server required",
@@ -10311,7 +10294,7 @@
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th></tr>";
       }
       if (tab === "primePerfect") {
-        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-date\">" + escapeHtml(t("ranking.th.date")) + "</th></tr>";
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th></tr>";
       }
       if (tab === "streak") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.streakBest")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.streakCurrent")) + "</th></tr>";
@@ -10537,23 +10520,6 @@
       }
     }
 
-    function buildRankingPrimePerfectRowHtml(entry, isMe) {
-      const name = entry.displayName || t("display.rookie");
-      const letter = getAvatarPlaceholderLetter(name);
-      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
-      const timeStr = escapeHtml(formatCompactRunTime(entry.survivalTimeSec || 0));
-      const dateStr = escapeHtml(formatDateOnly(entry.ts));
-      let avatarInner;
-      if (entry.avatarUrl) {
-        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
-        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
-      } else {
-        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
-      }
-      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
-      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-time\">" + timeStr + "</td><td class=\"r-col r-col-date\">" + dateStr + "</td></tr>";
-    }
-
     async function loadPrimePerfectRankingIntoTable() {
       const tbody = document.getElementById("ranking-tbody-v2");
       const empty = document.getElementById("ranking-empty-v2");
@@ -10580,13 +10546,13 @@
         const meName = me ? String(me) : "";
         list.forEach((e) => {
           if (!e || !e.username) return;
-          rows.push(buildRankingPrimePerfectRowHtml(e, !!(meName && e.username === meName)));
+          rows.push(buildRankingSurvivalRowHtml(e, !!(meName && e.username === meName)));
         });
         const myRank = data.myRank != null ? Number(data.myRank) : 0;
         const myEntry = data.myEntry;
         if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
           rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
-          rows.push(buildRankingPrimePerfectRowHtml(myEntry, true));
+          rows.push(buildRankingSurvivalRowHtml(myEntry, true));
         }
         tbody.innerHTML = rows.join("");
         const hasAny = list.length > 0 || (myEntry && myRank > 0);

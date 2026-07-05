@@ -322,6 +322,9 @@ function comparePrimePerfectRankingEntries(a, b) {
   const ta = Number(a && a.survivalTimeSec) || 0;
   const tb = Number(b && b.survivalTimeSec) || 0;
   if (ta !== tb) return ta - tb;
+  const wa = Number(a && a.wrongCount) || 0;
+  const wb = Number(b && b.wrongCount) || 0;
+  if (wa !== wb) return wa - wb;
   return (Number(a && a.ts) || 0) - (Number(b && b.ts) || 0);
 }
 
@@ -334,7 +337,7 @@ function primePerfectRankingEntryFromRun(username, run) {
   if (mastered < PRIME_MASTERED_TARGET) return null;
   const elapsed = Number(run.survivalTimeSec) || 0;
   if (elapsed <= 0) return null;
-  return { username, survivalTimeSec: elapsed, ts: run.ts || 0 };
+  return { username, survivalTimeSec: elapsed, wrongCount: run.wrongCount ?? 0, ts: run.ts || 0 };
 }
 
 function upsertPrimePerfectRankingEntry(username, runEntry) {
@@ -2094,14 +2097,7 @@ function formatSurvivalRankingEntry(ctx, e, rank) {
 }
 
 function formatPrimePerfectRankingEntry(ctx, e, rank) {
-  return ctx.withEquippedBadges({
-    rank,
-    username: e.username,
-    displayName: ctx.nicknameFor(e.username),
-    survivalTimeSec: e.survivalTimeSec ?? 0,
-    ts: e.ts,
-    avatarUrl: ctx.avatarUrlForUsername(e.username),
-  });
+  return formatSurvivalRankingEntry(ctx, e, rank);
 }
 
 // ========== 等级榜：按 totalScore 降序；返回前十名 + 当前用户全榜名次（?username=） ==========
@@ -2172,11 +2168,8 @@ function dedupeBestPrimePerfect(list) {
   const byUser = {};
   (list || []).forEach((e) => {
     if (!e || !e.username) return;
-    const k = e.username;
-    const cur = byUser[k];
-    if (!cur || e.survivalTimeSec < cur.survivalTimeSec || (e.survivalTimeSec === cur.survivalTimeSec && (e.ts || 0) < (cur.ts || 0))) {
-      byUser[k] = e;
-    }
+    const cur = byUser[e.username];
+    if (!cur || isPrimePerfectRankingBetter(e, cur)) byUser[e.username] = e;
   });
   return Object.values(byUser);
 }
@@ -2185,10 +2178,7 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
   const data = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
   let list = Array.isArray(data.list) ? data.list : [];
   list = dedupeBestPrimePerfect(list);
-  list.sort((a, b) => {
-    if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
-    return (a.ts || 0) - (b.ts || 0);
-  });
+  list.sort(comparePrimePerfectRankingEntries);
   const ctx = createRankingLookupContext(req);
   res.json(
     buildPublicRankingJson(list, req.query.username, {
