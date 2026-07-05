@@ -1391,6 +1391,22 @@
     }
   }
 
+  async function backfillPrimePerfectRanking() {
+    try {
+      var msg = '将从 runs.json 扫描掌握 50 题的质数局，重建 prime-perfect-ranking.json。\n\n'
+        + '历史数据与旧榜一致，通常不必执行。仅在榜文件丢失或需重算时使用。\n\n'
+        + '不影响成就（成就仍为无错通关）。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('重建质数达人榜中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-prime-perfect-ranking', { method: 'POST' });
+      var entries = Number(data && data.entries) || 0;
+      var scanned = Number(data && data.masteredRunsScanned) || 0;
+      setStatus('重建完成：榜内 ' + entries + ' 人，扫描掌握局 ' + scanned + ' 条', 'ok');
+    } catch (e) {
+      setStatus(e.message || '重建失败', 'err');
+    }
+  }
+
   function i18nTextareaValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || "") : "";
@@ -1537,6 +1553,8 @@
     if (backfillExpandScoreBtn) backfillExpandScoreBtn.addEventListener('click', backfillExpandBracketsScore);
     var backfillLevelRankingBtn = document.getElementById('jml-btn-backfill-level-ranking');
     if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
+    var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
+    if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');

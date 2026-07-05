@@ -16,7 +16,7 @@ const achievementCatalog = require("./achievements/catalog");
 const achievementEngine = require("./achievements/engine");
 const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
-const { REGISTERED_RULE_TYPES, IMPLEMENTED_RULE_TYPES } = require("./achievements/evaluators");
+const { REGISTERED_RULE_TYPES, IMPLEMENTED_RULE_TYPES, inferPrimeMasteredFromRun, PRIME_MASTERED_TARGET } = require("./achievements/evaluators");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
@@ -314,6 +314,65 @@ function rebuildLevelRankingFromRuns() {
     entries: list.length,
     clearedRunsScanned,
     usersFlagUpdated,
+    usernamesScanned: Object.keys(runsData.runs || {}).length,
+  };
+}
+
+function comparePrimePerfectRankingEntries(a, b) {
+  const ta = Number(a && a.survivalTimeSec) || 0;
+  const tb = Number(b && b.survivalTimeSec) || 0;
+  if (ta !== tb) return ta - tb;
+  return (Number(a && a.ts) || 0) - (Number(b && b.ts) || 0);
+}
+
+function isPrimePerfectRankingBetter(a, b) {
+  return comparePrimePerfectRankingEntries(a, b) < 0;
+}
+
+function primePerfectRankingEntryFromRun(username, run) {
+  const mastered = inferPrimeMasteredFromRun(run);
+  if (mastered < PRIME_MASTERED_TARGET) return null;
+  const elapsed = Number(run.survivalTimeSec) || 0;
+  if (elapsed <= 0) return null;
+  return { username, survivalTimeSec: elapsed, ts: run.ts || 0 };
+}
+
+function upsertPrimePerfectRankingEntry(username, runEntry) {
+  const entry = primePerfectRankingEntryFromRun(username, runEntry);
+  if (!entry) return false;
+  const rankingData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  let list = Array.isArray(rankingData.list) ? rankingData.list : [];
+  const existing = list.find((e) => e && e.username === username);
+  if (!existing || isPrimePerfectRankingBetter(entry, existing)) {
+    list = list.filter((e) => e && e.username !== username);
+    list.push(entry);
+    list.sort(comparePrimePerfectRankingEntries);
+    rankingData.list = list;
+    writeJson(PRIME_PERFECT_RANKING_FILE, rankingData);
+    return true;
+  }
+  return false;
+}
+
+function rebuildPrimePerfectRankingFromRuns() {
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const byUser = {};
+  let masteredRunsScanned = 0;
+  Object.keys(runsData.runs || {}).forEach((username) => {
+    const runs = runsData.runs[username] || [];
+    runs.forEach((r) => {
+      const entry = primePerfectRankingEntryFromRun(username, r);
+      if (!entry) return;
+      masteredRunsScanned += 1;
+      const cur = byUser[username];
+      if (!cur || isPrimePerfectRankingBetter(entry, cur)) byUser[username] = entry;
+    });
+  });
+  const list = Object.values(byUser).sort(comparePrimePerfectRankingEntries);
+  writeJson(PRIME_PERFECT_RANKING_FILE, { list });
+  return {
+    entries: list.length,
+    masteredRunsScanned,
     usernamesScanned: Object.keys(runsData.runs || {}).length,
   };
 }
@@ -1860,6 +1919,9 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     runEntry.trainingMeta = run.trainingMeta;
   }
   if (run.abandoned === true) runEntry.abandoned = true;
+  if (typeof run.mastered === "number" && Number.isFinite(run.mastered)) {
+    runEntry.mastered = Math.max(0, Math.floor(run.mastered));
+  }
   if (!comboOnly) {
     runsData.runs[username].unshift(runEntry);
     if (runsData.runs[username].length > 500) {
@@ -1868,30 +1930,9 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     writeJson(RUNS_FILE, runsData);
   }
 
-  // 质数达人榜：仅统计 50 题全对（wrongCount=0）的局，每人保留最短完成时间
-  if (!comboOnly && runEntry.mode === "primeComposite" && (runEntry.wrongCount ?? 0) === 0) {
-    const elapsed = Number(runEntry.survivalTimeSec) || 0;
-    const score = Number(runEntry.score) || 0;
-    if (elapsed > 0 && score >= 250) {
-      const rankingData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
-      let list = Array.isArray(rankingData.list) ? rankingData.list : [];
-      const entry = { username, survivalTimeSec: elapsed, ts: runEntry.ts };
-      const existing = list.find((e) => e.username === username);
-      const isBetterPrime = (a, b) => {
-        if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec < b.survivalTimeSec;
-        return (a.ts || 0) < (b.ts || 0);
-      };
-      if (!existing || isBetterPrime(entry, existing)) {
-        list = list.filter((e) => e.username !== username);
-        list.push(entry);
-        list.sort((a, b) => {
-          if (a.survivalTimeSec !== b.survivalTimeSec) return a.survivalTimeSec - b.survivalTimeSec;
-          return (a.ts || 0) - (b.ts || 0);
-        });
-        rankingData.list = list;
-        writeJson(PRIME_PERFECT_RANKING_FILE, rankingData);
-      }
-    }
+  // 质数达人榜：掌握 50 题（允许错题）；每人保留最短完成时间
+  if (!comboOnly && runEntry.mode === "primeComposite") {
+    upsertPrimePerfectRankingEntry(username, runEntry);
   }
 
   const userData = readJson(USERS_FILE, { users: [] });
@@ -2126,7 +2167,7 @@ app.get("/api/level-ranking", (req, res) => {
   );
 });
 
-// ========== 质数达人榜：50 题全对最短用时；前十名 + 当前用户 ==========
+// ========== 质数达人榜：掌握 50 题最短用时（允许错题）；前十名 + 当前用户 ==========
 function dedupeBestPrimePerfect(list) {
   const byUser = {};
   (list || []).forEach((e) => {
@@ -2927,6 +2968,19 @@ app.post("/api/admin/maintenance/backfill-level-ranking", (req, res) => {
   }
   try {
     const stats = rebuildLevelRankingFromRuns();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：从 runs 重建质数达人榜（通常不必；榜文件丢失时用） ==========
+app.post("/api/admin/maintenance/backfill-prime-perfect-ranking", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const stats = rebuildPrimePerfectRankingFromRuns();
     return res.json({ ok: true, ...stats });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });

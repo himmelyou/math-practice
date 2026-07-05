@@ -40,23 +40,44 @@ function isModeClearRun(run, mode) {
   return run.cleared === true;
 }
 
-/** 质数合数无错完成：wrongCount=0 且答完 questionCount 题 */
-function isPrimePerfectRun(run, questionCount) {
-  if (!run || run.comboOnly === true) return false;
-  if (isRunAbandoned(run)) return false;
-  if (normalizeRunMode(run.mode) !== "primecomposite") return false;
-  if ((run.wrongCount ?? 0) !== 0) return false;
-  const minQuestions = Math.max(1, Math.floor(Number(questionCount) || 50));
-  const attempts = Array.isArray(run.attempts) ? run.attempts.length : 0;
-  return attempts >= minQuestions;
+const PRIME_MASTERED_TARGET = 50;
+
+/** 质数合数已掌握题数：新局用 mastered；旧局用 score/5 推断（每题只出现一次） */
+function inferPrimeMasteredFromRun(run) {
+  if (!run || run.comboOnly === true) return 0;
+  if (isRunAbandoned(run)) return 0;
+  if (normalizeRunMode(run.mode) !== "primecomposite") return 0;
+  if (typeof run.mastered === "number" && Number.isFinite(run.mastered)) {
+    return Math.min(PRIME_MASTERED_TARGET, Math.max(0, Math.floor(run.mastered)));
+  }
+  const elapsed = Number(run.survivalTimeSec) || 0;
+  if (elapsed <= 0) return 0;
+  const score = Number(run.score) || 0;
+  return Math.min(PRIME_MASTERED_TARGET, Math.floor(score / 5));
 }
 
+/** 质数合数是否算「打完一局」（新局 cleared；旧局 score≥250） */
+function isPrimeCompositeRunCompleted(run) {
+  if (run && run.cleared === true) return true;
+  const score = Number(run && run.score) || 0;
+  return score >= PRIME_MASTERED_TARGET * 5;
+}
+
+/** 质数达人成就：无错通关（wrongCount=0；与榜「掌握 50 题」不同） */
 function primePerfectRunQuestionCount(run) {
   if (!run || run.comboOnly === true) return 0;
   if (isRunAbandoned(run)) return 0;
   if (normalizeRunMode(run.mode) !== "primecomposite") return 0;
   if ((run.wrongCount ?? 0) !== 0) return 0;
-  return Array.isArray(run.attempts) ? run.attempts.length : 0;
+  const elapsed = Number(run.survivalTimeSec) || 0;
+  if (elapsed <= 0) return 0;
+  if (!isPrimeCompositeRunCompleted(run)) return 0;
+  return PRIME_MASTERED_TARGET;
+}
+
+function isPrimePerfectRun(run, questionCount) {
+  const minQuestions = Math.max(1, Math.floor(Number(questionCount) || PRIME_MASTERED_TARGET));
+  return primePerfectRunQuestionCount(run) >= minQuestions;
 }
 
 function any_run(params, ctx) {
@@ -163,10 +184,13 @@ function evaluateRule(ruleType, ruleParams, ctx) {
 }
 
 module.exports = {
+  PRIME_MASTERED_TARGET,
   normalizeRunMode,
   isRunAbandoned,
   isZeroWrongClearRun,
   isModeClearRun,
+  inferPrimeMasteredFromRun,
+  isPrimeCompositeRunCompleted,
   isPrimePerfectRun,
   primePerfectRunQuestionCount,
   evaluateRule,

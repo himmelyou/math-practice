@@ -247,6 +247,7 @@
           <button type="button" id="jml-btn-backfill-last-game-ts" class="jml-btn jml-btn-primary">回填最后挑战时间</button>
           <button type="button" id="jml-btn-backfill-expand-score" class="jml-btn jml-btn-primary">回填拆括号得分（×5）</button>
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
+          <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn">重建质数达人榜</button>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>最后挑战时间（lastGameTs）</strong></p>
@@ -275,6 +276,15 @@
           </ol>
           <p class="muted" style="margin:0;">部署新版后端后，请先备份再点击「回填闯关达人榜」。</p>
         </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>质数达人榜（prime-perfect-ranking.json）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>进榜：<code>mode=primeComposite</code> 且掌握 <strong>50 题</strong>（允许错题；新局 <code>mastered</code>，旧局 <code>score÷5</code>）</li>
+            <li>每人保留最短用时；同用时更早 <code>ts</code> 优先</li>
+            <li><strong>质数达人成就</strong>仍为无错通关（<code>wrongCount=0</code>），与榜分开；成就<strong>无需回填</strong></li>
+            <li>历史数据与旧榜一致，<strong>通常不必</strong>点重建；仅在榜文件丢失或需从 runs 重算时使用</li>
+          </ol>
+        </div>
       </div>
     </div>
   </div>
@@ -289,7 +299,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "32";
+    window.JML_ADMIN_STATIC_REV = "35";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -312,7 +322,7 @@
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=46"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-  <script src="admin-panel.js?v=33"></script>
+  <script src="admin-panel.js?v=35"></script>
   <script src="admin-worksheet.js?v=23"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>

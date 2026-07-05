@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
-  <script src="config.js?v=41"></script>
-  <script src="shared/app-version.js?v=41"></script>
+  <script src="config.js?v=42"></script>
+  <script src="shared/app-version.js?v=42"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4038,7 +4038,7 @@
       </div>
     </section>
 
-    <!-- 质数合数：2～99，50 题（25 质 + 25 合），每题 5 分 -->
+    <!-- 质数合数：2～99，50 题；错题回库直至全部掌握 -->
     <section class="game-section prime-composite-page" id="prime-composite-section" style="display:none;">
       <div class="status-grid" id="prime-status-grid">
         <div class="timer-chip" id="prime-timer-chip">
@@ -4427,7 +4427,7 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=41"></script>
+  <script src="prime-composite-logic.js?v=42"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=41"></script>
   <script src="stats-heatmap-browser.js?v=42"></script>
@@ -6645,7 +6645,7 @@
         "ranking.hint.levelClear.fail": "闖關達人 · 載入失敗，請稍後重試",
         "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
         "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
-        "ranking.hint.prime.desc": "質數達人榜 · 質數合數 50 題全對的最短用時（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.prime.desc": "質數達人榜 · 質數合數掌握 50 題的最短用時（允許錯題；展示前十名；未進前十會顯示你的名次）",
         "ranking.hint.prime.fail": "質數達人榜 · 載入失敗，請稍後重試",
         "ranking.hint.streak.loading": "耐力榜 · 載入中…",
         "ranking.hint.streak.needNet": "耐力榜 · 需要連接伺服器",
@@ -6688,7 +6688,8 @@
         "expand.ui.modeValue": "拆括號",
         "expand.go.abandoned": "已放棄",
         "expand.levelSelectAria": "選擇拆括號難度",
-        "prime.intro": "判斷 2～99 中的數是質數還是合數；每題 5 分，共 50 題，正向計時。",
+        "prime.intro": "判斷 2～99 中的數是質數還是合數；每題 5 分，須掌握 50 題才通關。答錯的題會再隨機出現，直至全部答對。",
+        "prime.progressRemaining": "待完成 {n} 題",
         "prime.startPractice": "開始練習",
         "prime.wrongReview": "錯題回顧",
         "prime.finishTitle": "本局結束",
@@ -6980,7 +6981,7 @@
         "ranking.hint.levelClear.fail": "Level master · Load failed, try again",
         "ranking.hint.prime.loading": "Prime master · Loading…",
         "ranking.hint.prime.needNet": "Prime master · Server required",
-        "ranking.hint.prime.desc": "Prime master · Fastest perfect 50-question run (top 10; your row if outside)",
+        "ranking.hint.prime.desc": "Prime master · Fastest run to master all 50 (wrong answers allowed; top 10; your row if outside)",
         "ranking.hint.prime.fail": "Prime master · Load failed, try again",
         "ranking.hint.streak.loading": "Streak · Loading…",
         "ranking.hint.streak.needNet": "Streak · Server required",
@@ -7023,7 +7024,8 @@
         "expand.ui.modeValue": "Expand brackets",
         "expand.go.abandoned": "Abandoned",
         "expand.levelSelectAria": "Expand brackets level",
-        "prime.intro": "Decide prime or composite for 2–99; 5 points each, 50 questions, count-up timer.",
+        "prime.intro": "Decide prime or composite for 2–99; 5 points each. Master all 50 to finish—wrong items reappear until correct.",
+        "prime.progressRemaining": "{n} left",
         "prime.startPractice": "Start",
         "prime.wrongReview": "Wrong review",
         "prime.finishTitle": "Run complete",
@@ -8060,6 +8062,9 @@
       if (opts && typeof opts === "object" && opts.abandoned === true) runEntry.abandoned = true;
       if (opts && typeof opts === "object" && opts.trainingMeta && typeof opts.trainingMeta === "object") {
         runEntry.trainingMeta = opts.trainingMeta;
+      }
+      if (opts && typeof opts === "object" && typeof opts.mastered === "number" && Number.isFinite(opts.mastered)) {
+        runEntry.mastered = Math.max(0, Math.floor(opts.mastered));
       }
       if (isGuestMode) {
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
@@ -9916,15 +9921,36 @@
 
     let primeCompositeTimerId = null;
     let primeCompositeFeedbackTimerId = null;
-    let primeCompositeQuestions = [];
-    let primeCompositeIndex = 0;
+    let primeCompositeQueue = [];
     let primeCompositeStartTs = 0;
     let primeCompositeSessionScore = 0;
-    let primeCompositeCorrectCount = 0;
+    let primeCompositeMastered = 0;
     let primeCompositeWrongCount = 0;
     let primeCompositeWrongItems = [];
     let primeCompositeAttempts = [];
     let primeCompositeChoicesLocked = false;
+
+    function primeCompositeRequeueWrongQuestion(q) {
+      const tailLen = primeCompositeQueue.length;
+      if (tailLen === 0) {
+        primeCompositeQueue.push(q);
+        return;
+      }
+      const insertAt = 1 + Math.floor(Math.random() * tailLen);
+      primeCompositeQueue.splice(insertAt, 0, q);
+    }
+
+    function primeCompositeAdvanceAfterWrong(q) {
+      primeCompositeQueue.shift();
+      primeCompositeRequeueWrongQuestion(q);
+      primeCompositeChoicesLocked = false;
+      const total = window.JMLPrimeComposite && window.JMLPrimeComposite.TOTAL_QUESTIONS;
+      if (total && primeCompositeMastered >= total) {
+        void primeCompositeFinish();
+      } else {
+        primeCompositeRenderQuestion();
+      }
+    }
 
     function primeCompositeCleanup() {
       if (primeCompositeTimerId) {
@@ -9976,14 +10002,13 @@
     }
 
     function resetPrimeCompositeSessionState() {
-      primeCompositeIndex = 0;
       primeCompositeStartTs = 0;
       primeCompositeSessionScore = 0;
-      primeCompositeCorrectCount = 0;
+      primeCompositeMastered = 0;
       primeCompositeWrongCount = 0;
       primeCompositeWrongItems = [];
       primeCompositeAttempts = [];
-      primeCompositeQuestions = [];
+      primeCompositeQueue = [];
     }
 
     /** 质数合数：结算后回到 idle 开始页（不直接开局） */
@@ -10041,7 +10066,7 @@
       const fw = document.getElementById("prime-finish-wrong");
       const ft = document.getElementById("prime-finish-time");
       const fs = document.getElementById("prime-finish-session");
-      if (fc) fc.textContent = String(primeCompositeCorrectCount);
+      if (fc) fc.textContent = String(primeCompositeMastered);
       if (fw) fw.textContent = String(primeCompositeWrongCount);
       if (ft) ft.textContent = formatGameElapsedClock(elapsedSec);
       if (fs) fs.textContent = abandoned ? "0" : String(primeCompositeSessionScore);
@@ -10078,7 +10103,7 @@
     function primeCompositeRenderQuestion() {
       const JML = window.JMLPrimeComposite;
       if (!JML) return;
-      const q = primeCompositeQuestions[primeCompositeIndex];
+      const q = primeCompositeQueue[0];
       if (!q) {
         void primeCompositeFinish();
         return;
@@ -10086,9 +10111,9 @@
       const nEl = document.getElementById("prime-current-n");
       if (nEl) nEl.textContent = String(q.n);
       const prog = document.getElementById("prime-progress-text");
-      if (prog) prog.textContent = (primeCompositeIndex + 1) + " / " + JML.TOTAL_QUESTIONS;
+      if (prog) prog.textContent = tf("prime.progressRemaining", { n: primeCompositeQueue.length });
       const correctStrip = document.getElementById("prime-correct-count");
-      if (correctStrip) correctStrip.textContent = primeCompositeCorrectCount + " / " + JML.TOTAL_QUESTIONS;
+      if (correctStrip) correctStrip.textContent = primeCompositeMastered + " / " + JML.TOTAL_QUESTIONS;
       primeCompositeChoicesLocked = false;
       const btnP = document.getElementById("prime-btn-prime");
       const btnC = document.getElementById("prime-btn-composite");
@@ -10105,17 +10130,17 @@
     function primeCompositeChoose(kind) {
       const JML = window.JMLPrimeComposite;
       if (!JML || primeCompositeChoicesLocked) return;
-      const q = primeCompositeQuestions[primeCompositeIndex];
+      const q = primeCompositeQueue[0];
       if (!q) return;
       const correct = q.kind === kind;
       primeCompositeAttempts.push({ levelIndex: -1, correct, timeSpentMs: 0 });
       if (correct) {
-        primeCompositeCorrectCount += 1;
+        primeCompositeQueue.shift();
+        primeCompositeMastered += 1;
         primeCompositeSessionScore += JML.SCORE_PER_CORRECT;
         const scoreEl = document.getElementById("prime-session-score");
         if (scoreEl) scoreEl.textContent = String(primeCompositeSessionScore);
-        primeCompositeIndex += 1;
-        if (primeCompositeIndex >= primeCompositeQuestions.length) {
+        if (primeCompositeMastered >= JML.TOTAL_QUESTIONS) {
           void primeCompositeFinish();
         } else {
           primeCompositeRenderQuestion();
@@ -10132,14 +10157,8 @@
         if (document.getElementById("prime-btn-composite")) document.getElementById("prime-btn-composite").disabled = true;
         primeCompositeFeedbackTimerId = setTimeout(() => {
           primeCompositeFeedbackTimerId = null;
-          primeCompositeIndex += 1;
-          primeCompositeChoicesLocked = false;
           if (wrongBtn) wrongBtn.classList.remove("prime-choice-wrong");
-          if (primeCompositeIndex >= primeCompositeQuestions.length) {
-            void primeCompositeFinish();
-          } else {
-            primeCompositeRenderQuestion();
-          }
+          primeCompositeAdvanceAfterWrong(q);
         }, 980);
       }
     }
@@ -10151,16 +10170,15 @@
         return;
       }
       try {
-        primeCompositeQuestions = JML.buildRoundQuestions();
+        primeCompositeQueue = JML.buildRoundQuestions();
       } catch (e) {
         console.warn(e);
         showToast(t("toast.primeGenFail"));
         return;
       }
-      primeCompositeIndex = 0;
       primeCompositeStartTs = Date.now();
       primeCompositeSessionScore = 0;
-      primeCompositeCorrectCount = 0;
+      primeCompositeMastered = 0;
       primeCompositeWrongCount = 0;
       primeCompositeWrongItems = [];
       primeCompositeAttempts = [];
@@ -10202,7 +10220,17 @@
       const sessionScore = primeCompositeSessionScore;
       const baseUrl = getApiBase();
       if (name && baseUrl) {
-        const synced = await appendRun(elapsedSec, sessionScore, -1, primeCompositeWrongCount, "primeComposite", primeCompositeAttempts.slice());
+        const synced = await appendRun(
+          elapsedSec,
+          sessionScore,
+          -1,
+          primeCompositeWrongCount,
+          "primeComposite",
+          primeCompositeAttempts.slice(),
+          true,
+          false,
+          { mastered: primeCompositeMastered }
+        );
         if (sessionScore > 0) {
           if (synced === true && syncOk) syncOk.style.display = "block";
           else if (synced === false && syncFail) syncFail.style.display = "block";
@@ -10217,6 +10245,8 @@
           score: sessionScore,
           maxLevel: -1,
           wrongCount: primeCompositeWrongCount,
+          mastered: primeCompositeMastered,
+          cleared: true,
           ts: Date.now(),
           mode: "primeComposite"
         });
