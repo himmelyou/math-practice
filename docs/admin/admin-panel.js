@@ -1393,8 +1393,8 @@
 
   async function backfillPrimePerfectRanking() {
     try {
-      var msg = '将从 runs.json 扫描掌握 50 题的质数局，重建 prime-perfect-ranking.json。\n\n'
-        + '历史数据与旧榜一致，通常不必执行。仅在榜文件丢失或需重算时使用。\n\n'
+      var msg = '将从 runs.json 扫描掌握 50 题且错题 ≤5 的质数局，重建 prime-perfect-ranking.json。\n\n'
+        + '部署错题上限后建议执行一次，以清理错题过多的旧榜条目。\n\n'
         + '不影响成就（成就仍为无错通关）。是否继续？';
       if (!confirm(msg)) return;
       setStatus('重建质数达人榜中…', '');

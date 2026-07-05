@@ -41,6 +41,8 @@ function isModeClearRun(run, mode) {
 }
 
 const PRIME_MASTERED_TARGET = 50;
+/** 质数达人榜：掌握 50 题且错题不超过此数（与 0 错成就分开） */
+const PRIME_RANKING_MAX_WRONG = 5;
 
 /** 质数合数已掌握题数：新局用 mastered；旧局用 score/5 推断（每题只出现一次） */
 function inferPrimeMasteredFromRun(run) {
@@ -185,6 +187,7 @@ function evaluateRule(ruleType, ruleParams, ctx) {
 
 module.exports = {
   PRIME_MASTERED_TARGET,
+  PRIME_RANKING_MAX_WRONG,
   normalizeRunMode,
   isRunAbandoned,
   isZeroWrongClearRun,

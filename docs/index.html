@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=44"></script>
+  <script src="shared/app-version.js?v=46"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4424,8 +4424,8 @@
   <script src="shared/decimal-questions.js?v=46"></script>
   <script src="shared/special-mode-run-outcome.js?v=41"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=41"></script>
-  <script src="decimal-page.js?v=3"></script>
+  <script src="perfect-square-page.js?v=42"></script>
+  <script src="decimal-page.js?v=4"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -6631,8 +6631,8 @@
         "ranking.hint.levelClear.fail": "闖關達人 · 載入失敗，請稍後重試",
         "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
         "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
-        "ranking.hint.prime.desc": "質數達人榜 · 掌握 50 題用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
-        "ranking.hint.prime.descFull": "質數達人榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
+        "ranking.hint.prime.desc": "質數達人榜 · 掌握 50 題且錯題 ≤5，用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.prime.descFull": "質數達人榜 · 測試員視圖 · 掌握 50 題且錯題 ≤5（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.prime.fail": "質數達人榜 · 載入失敗，請稍後重試",
         "ranking.hint.streak.loading": "耐力榜 · 載入中…",
         "ranking.hint.streak.needNet": "耐力榜 · 需要連接伺服器",
@@ -6973,8 +6973,8 @@
         "ranking.hint.levelClear.fail": "Level master · Load failed, try again",
         "ranking.hint.prime.loading": "Prime master · Loading…",
         "ranking.hint.prime.needNet": "Prime master · Server required",
-        "ranking.hint.prime.desc": "Prime master · Faster master-50 wins; fewer wrongs tie-break (top 10; your row if outside)",
-        "ranking.hint.prime.descFull": "Prime master · Tester view · Full list ({shown} of {total}; your row if outside the list)",
+        "ranking.hint.prime.desc": "Prime master · Master 50 with ≤5 wrongs; faster wins, fewer wrongs tie-break (top 10; your row if outside)",
+        "ranking.hint.prime.descFull": "Prime master · Tester view · Master 50 with ≤5 wrongs ({shown} of {total}; your row if outside the list)",
         "ranking.hint.prime.fail": "Prime master · Load failed, try again",
         "ranking.hint.streak.loading": "Streak · Loading…",
         "ranking.hint.streak.needNet": "Streak · Server required",
@@ -8288,7 +8288,9 @@
       }
       if (!isPlaying || gameOver) return;
       if (gameMode === "expandBrackets") {
-        // 放弃：不写 runs，但进入结算态并只显示结算卡
+        // 放弃：不写 runs 历史，但 comboOnly 上报 attempts 以维护连击榜
+        const durationSec = Math.floor((Date.now() - (expandStartTs || Date.now())) / 1000);
+        void appendRun(durationSec, 0, expandRunStartLevel, expandWrongCount, "expandBrackets", expandAttempts.slice(), false, true);
         isPlaying = false;
         gameOver = true;
         stopExpandTimer();

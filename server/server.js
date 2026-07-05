@@ -16,7 +16,13 @@ const achievementCatalog = require("./achievements/catalog");
 const achievementEngine = require("./achievements/engine");
 const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
-const { REGISTERED_RULE_TYPES, IMPLEMENTED_RULE_TYPES, inferPrimeMasteredFromRun, PRIME_MASTERED_TARGET } = require("./achievements/evaluators");
+const {
+  REGISTERED_RULE_TYPES,
+  IMPLEMENTED_RULE_TYPES,
+  inferPrimeMasteredFromRun,
+  PRIME_MASTERED_TARGET,
+  PRIME_RANKING_MAX_WRONG,
+} = require("./achievements/evaluators");
 
 const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
@@ -338,7 +344,15 @@ function primePerfectRankingEntryFromRun(username, run) {
   if (mastered < PRIME_MASTERED_TARGET) return null;
   const elapsed = Number(run.survivalTimeSec) || 0;
   if (elapsed <= 0) return null;
-  return { username, survivalTimeSec: elapsed, wrongCount: run.wrongCount ?? 0, ts: run.ts || 0 };
+  const wrongCount = Number(run.wrongCount) || 0;
+  if (wrongCount > PRIME_RANKING_MAX_WRONG) return null;
+  return { username, survivalTimeSec: elapsed, wrongCount, ts: run.ts || 0 };
+}
+
+function filterPrimePerfectRankingList(list) {
+  return (list || []).filter(
+    (e) => e && e.username && (Number(e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
+  );
 }
 
 function upsertPrimePerfectRankingEntry(username, runEntry) {
@@ -1951,7 +1965,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     writeJson(RUNS_FILE, runsData);
   }
 
-  // 质数达人榜：掌握 50 题（允许错题）；每人保留最短完成时间
+  // 质数达人榜：掌握 50 题且错题 ≤ PRIME_RANKING_MAX_WRONG；每人保留最短完成时间
   if (!comboOnly && runEntry.mode === "primeComposite") {
     upsertPrimePerfectRankingEntry(username, runEntry);
   }
@@ -2194,11 +2208,10 @@ app.get("/api/level-ranking", (req, res) => {
   );
 });
 
-// ========== 质数达人榜：掌握 50 题最短用时（允许错题）；前十名 + 当前用户 ==========
+// ========== 质数达人榜：掌握 50 题、错题 ≤5、最短用时；前十名 + 当前用户 ==========
 function dedupeBestPrimePerfect(list) {
   const byUser = {};
-  (list || []).forEach((e) => {
-    if (!e || !e.username) return;
+  filterPrimePerfectRankingList(list).forEach((e) => {
     const cur = byUser[e.username];
     if (!cur || isPrimePerfectRankingBetter(e, cur)) byUser[e.username] = e;
   });
@@ -2207,7 +2220,7 @@ function dedupeBestPrimePerfect(list) {
 
 app.get("/api/prime-perfect-ranking", (req, res) => {
   const data = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
-  let list = Array.isArray(data.list) ? data.list : [];
+  let list = filterPrimePerfectRankingList(Array.isArray(data.list) ? data.list : []);
   list = dedupeBestPrimePerfect(list);
   list.sort(comparePrimePerfectRankingEntries);
   const ctx = createRankingLookupContext(req);

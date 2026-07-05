@@ -279,10 +279,10 @@
         <div class="jml-placeholder-panel" style="margin-top:16px;">
           <p><strong>质数达人榜（prime-perfect-ranking.json）</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>进榜：<code>mode=primeComposite</code> 且掌握 <strong>50 题</strong>（允许错题；新局 <code>mastered</code>，旧局 <code>score÷5</code>）</li>
-            <li>每人保留最短用时；同用时更早 <code>ts</code> 优先</li>
+            <li>进榜：<code>mode=primeComposite</code>、掌握 <strong>50 题</strong>且错题 <strong>≤5</strong>（新局 <code>mastered</code>，旧局 <code>score÷5</code>）</li>
+            <li>每人保留最短用时；同用时错题更少，再同则更早 <code>ts</code></li>
             <li><strong>质数达人成就</strong>仍为无错通关（<code>wrongCount=0</code>），与榜分开；成就<strong>无需回填</strong></li>
-            <li>历史数据与旧榜一致，<strong>通常不必</strong>点重建；仅在榜文件丢失或需从 runs 重算时使用</li>
+            <li>部署错题上限后请点「重建质数达人榜」清理旧脏数据；平时通常不必重建</li>
           </ol>
         </div>
       </div>

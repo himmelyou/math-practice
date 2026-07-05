@@ -541,6 +541,8 @@
 
   function abandonDecimalGame() {
     if (deps.getGameMode() !== "decimal") return;
+    const durationSec = Math.floor((Date.now() - (decStartTs || Date.now())) / 1000);
+    void deps.appendRun(durationSec, 0, decRunStartLevel, decWrongCount, "decimal", decAttempts.slice(), false, true);
     deps.setIsPlaying(false);
     deps.setGameOver(true);
     stopDecTimer();

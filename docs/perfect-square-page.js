@@ -531,6 +531,8 @@
 
   function abandonPerfectSquareGame() {
     if (deps.getGameMode() !== "perfectSquare") return;
+    const durationSec = Math.floor((Date.now() - (psStartTs || Date.now())) / 1000);
+    void deps.appendRun(durationSec, 0, psRunStartLevel, psWrongCount, "perfectSquare", psAttempts.slice(), false, true);
     deps.setIsPlaying(false);
     deps.setGameOver(true);
     stopPsTimer();

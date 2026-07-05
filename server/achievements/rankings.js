@@ -1,3 +1,5 @@
+const { PRIME_RANKING_MAX_WRONG } = require("./evaluators");
+
 const ALL_RANKING_BOARDS = ["score", "survival", "levelClear", "primePerfect", "streak", "combo"];
 
 function normalizeDateKey(s) {
@@ -89,7 +91,9 @@ function buildLevelRankingUsernames(levelList) {
 }
 
 function buildPrimePerfectRankingUsernames(primeList) {
-  let list = dedupeBestPrimePerfect(primeList);
+  let list = dedupeBestPrimePerfect(primeList).filter(
+    (e) => (Number(e && e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
+  );
   list.sort(compareLevelRankingEntries);
   return list.map((e) => e.username);
 }
