@@ -1958,6 +1958,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   if (typeof run.mastered === "number" && Number.isFinite(run.mastered)) {
     runEntry.mastered = Math.max(0, Math.floor(run.mastered));
   }
+  if (
+    runEntry.abandoned === true
+    || (runEntry.trainingMeta && runEntry.trainingMeta.abandoned === true)
+  ) {
+    runEntry.score = 0;
+  }
   if (!comboOnly) {
     runsData.runs[username].unshift(runEntry);
     if (runsData.runs[username].length > 500) {

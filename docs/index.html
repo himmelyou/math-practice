@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=46"></script>
+  <script src="shared/app-version.js?v=47"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -9569,10 +9569,10 @@
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
       const persistIdx = Math.min(15, Math.max(0, Math.max(maxLevelThisRun, currentLevelIndex)));
       if (abandoned) {
-        // 放弃：按进度结算 runs，不写错题本（全程不调用 recordWrongAnswer）
+        // 放弃：保存进度、写入 runs，不计分、不写错题本
         saveLevelChallengeLastLevel(persistIdx);
         saveLevelChallengeBestLevel(persistIdx);
-        appendRun(survivalTimeSec, runScore, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false, {
+        appendRun(survivalTimeSec, 0, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false, {
           abandoned: true,
         });
         renderRecentRuns();
@@ -9595,7 +9595,7 @@
           if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
           if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
           if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = String(runScore);
+          if (scoreEl) scoreEl.textContent = "0";
           if (wrongEl) wrongEl.textContent = String(runWrongCount);
           if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
         }
