@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css?v=24" />
+  <link rel="stylesheet" href="report-page.css?v=26" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -31,7 +31,7 @@
       </div>
 
       <h1>学员数据</h1>
-      <p class="muted">选择学员后查看挑战记录、错题本与数据分析。门禁通过后，会用同一口令作为请求头 <code>X-Admin-Pin</code> 调用 <code>/api/admin/*</code>。</p>
+      <p class="muted">选择学员后查看挑战记录、错题本与数据分析；「学员概览」可一览全员进度。门禁通过后，会用同一口令作为请求头 <code>X-Admin-Pin</code> 调用 <code>/api/admin/*</code>。</p>
 
       <div id="jml-api-warning" class="jml-banner-warn" hidden>
         <strong>未配置 API 地址。</strong> 请确认已加载 <code>config.js</code>（与主站同目录），并且它能设置 <code>window.API_BASE_URL</code>（或 <code>window.__JML_API_BASE__</code>）。
@@ -54,18 +54,22 @@
         </select>
         <button type="button" class="jml-btn" id="jml-report-refresh-student-btn" title="重新拉取当前学员最新记录" disabled>刷新</button>
       </div>
-      <p class="jml-report-hint">挑战记录按时间降序；训练模式含「选关诊断」列（悬停可看完整 JSON）。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。</p>
+      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。</p>
 
       <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
 
       <div class="jml-tabs" role="tablist">
-        <button type="button" class="jml-tab active" data-tab="runs" role="tab">挑战记录</button>
+        <button type="button" class="jml-tab active" data-tab="overview" role="tab">学员概览</button>
+        <button type="button" class="jml-tab" data-tab="runs" role="tab">挑战记录</button>
         <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
         <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
         <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
       </div>
 
-      <div id="panel-runs" class="jml-tab-panel" data-panel="runs" role="tabpanel">
+      <div id="panel-overview" class="jml-tab-panel" data-panel="overview" role="tabpanel">
+        <div id="jml-report-overview-body"></div>
+      </div>
+      <div id="panel-runs" class="jml-tab-panel hidden" data-panel="runs" role="tabpanel">
         <div id="jml-report-runs-body"></div>
       </div>
       <div id="panel-wrong" class="jml-tab-panel hidden" data-panel="wrong" role="tabpanel">
@@ -94,7 +98,7 @@
   <script src="../stats-aggregate-browser.js?v=22"></script>
   <script src="../stats-heatmap-browser.js?v=22"></script>
   <script src="../stats-chart-browser.js?v=22"></script>
-  <script src="report-page.js?v=25"></script>
+  <script src="report-page.js?v=26"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

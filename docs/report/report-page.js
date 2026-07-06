@@ -91,6 +91,10 @@
     cohort: null,
     cohortError: '',
     heat: null,
+    overviewRows: [],
+    overviewLoading: false,
+    overviewError: '',
+    overviewBuiltAt: 0,
   };
 
   var REPORT_LANG_KEY = 'jml_lang_v1';
@@ -241,17 +245,164 @@
 
   function activeTabId() {
     var btn = document.querySelector('.jml-tab.active');
-    return btn ? btn.getAttribute('data-tab') : 'runs';
+    return btn ? btn.getAttribute('data-tab') : 'overview';
+  }
+
+  function dashCell(val) {
+    if (val === null || val === undefined || val === '') return '—';
+    return String(val);
+  }
+
+  function filterOverviewRows() {
+    var rows = Array.isArray(state.overviewRows) ? state.overviewRows.slice() : [];
+    if (state.selectedUsername) {
+      return rows.filter(function (r) {
+        return r && r.username === state.selectedUsername;
+      });
+    }
+    var q = getFilterInput() ? getFilterInput().value.trim().toLowerCase() : '';
+    return rows.filter(function (r) {
+      if (!r || !r.username) return false;
+      if (state.userScope === 'vip' && r.isVip !== true) return false;
+      if (!q) return true;
+      var hay = (r.username + ' ' + (r.nickname || '') + ' ' + (r.adminNote || '')).toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+
+  function loadOverview(force) {
+    if (state.overviewLoading) return Promise.resolve();
+    if (!force && state.overviewRows.length > 0) {
+      renderOverviewTable();
+      return Promise.resolve();
+    }
+    state.overviewLoading = true;
+    state.overviewError = '';
+    renderOverviewTable();
+    return apiFetch('/api/admin/student-overview')
+      .then(function (data) {
+        state.overviewRows = data && data.ok && Array.isArray(data.rows) ? data.rows : [];
+        state.overviewBuiltAt = data && data.builtAt ? Number(data.builtAt) : Date.now();
+        state.overviewError = '';
+      })
+      .catch(function (e) {
+        state.overviewRows = [];
+        state.overviewError = e.message || String(e);
+      })
+      .finally(function () {
+        state.overviewLoading = false;
+        renderOverviewTable();
+        syncRefreshStudentBtn(false);
+      });
+  }
+
+  function renderOverviewTable() {
+    var wrap = document.getElementById('jml-report-overview-body');
+    if (!wrap) return;
+    if (state.overviewLoading) {
+      wrap.innerHTML = '<div class="jml-report-empty">学员概览加载中…</div>';
+      return;
+    }
+    if (state.overviewError) {
+      wrap.innerHTML =
+        '<div class="jml-report-error">' +
+        escapeHtml(state.overviewError) +
+        '</div>';
+      return;
+    }
+    var list = filterOverviewRows();
+    if (!list.length) {
+      wrap.innerHTML = '<div class="jml-report-empty">暂无匹配的学员</div>';
+      return;
+    }
+    var builtHint = '';
+    if (state.overviewBuiltAt) {
+      builtHint =
+        '<p class="jml-report-overview-meta muted">共 ' +
+        list.length +
+        ' 人 · 更新于 ' +
+        escapeHtml(formatDateTime(state.overviewBuiltAt)) +
+        '</p>';
+    }
+    var body = list
+      .map(function (r) {
+        var userCell =
+          '<a class="jml-report-user-link" href="?user=' +
+          encodeURIComponent(r.username) +
+          '">' +
+          escapeHtml(r.username) +
+          '</a>';
+        var trainTitle = r.trainingReason ? ' title="' + escapeHtml(String(r.trainingReason)) + '"' : '';
+        return (
+          '<tr>' +
+          '<td class="jml-ov-col-user">' +
+          userCell +
+          '</td>' +
+          '<td class="jml-ov-col-grade">' +
+          escapeHtml(dashCell(r.gradeLabel)) +
+          '</td>' +
+          '<td class="jml-ov-col-note">' +
+          escapeHtml(dashCell(r.adminNote)) +
+          '</td>' +
+          '<td class="jml-ov-col-nick">' +
+          escapeHtml(dashCell(r.nickname)) +
+          '</td>' +
+          '<td class="jml-ov-col-offline num">' +
+          escapeHtml(r.daysOffline != null ? String(r.daysOffline) : '—') +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.levelProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog"' +
+          trainTitle +
+          '>' +
+          escapeHtml(dashCell(r.trainingProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.survivalProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog num">' +
+          escapeHtml(dashCell(r.primeProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.perfectSquareProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.decimalProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.expandProgress)) +
+          '</td>' +
+          '</tr>'
+        );
+      })
+      .join('');
+    wrap.innerHTML =
+      builtHint +
+      '<div class="jml-report-table-wrap jml-report-overview-wrap">' +
+      '<table class="jml-report-table jml-report-overview-table">' +
+      '<thead><tr>' +
+      '<th>用户名</th><th>年级</th><th>备注</th><th>昵称</th><th class="num">未上线(天)</th>' +
+      '<th>闯关</th><th>训练</th><th>生存</th><th class="num">质数(用时)</th>' +
+      '<th>平方数</th><th>小数</th><th>拆括号</th>' +
+      '</tr></thead><tbody>' +
+      body +
+      '</tbody></table></div>';
   }
 
   function switchTab(id) {
+    var next = id || 'overview';
     document.querySelectorAll('.jml-tab').forEach(function (btn) {
-      btn.classList.toggle('active', btn.getAttribute('data-tab') === id);
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === next);
     });
     document.querySelectorAll('.jml-tab-panel').forEach(function (p) {
-      p.classList.toggle('hidden', p.getAttribute('data-panel') !== id);
+      p.classList.toggle('hidden', p.getAttribute('data-panel') !== next);
     });
-    if (id === 'stats') {
+    syncRefreshStudentBtn(false);
+    if (next === 'overview') {
+      void loadOverview(false);
+    }
+    if (next === 'stats') {
       redrawAllStatsCharts();
     }
   }
@@ -362,6 +513,12 @@
   function syncRefreshStudentBtn(loading) {
     var btn = getRefreshStudentBtn();
     if (!btn) return;
+    if (activeTabId() === 'overview') {
+      btn.disabled = !!loading;
+      btn.title = '重新拉取学员概览';
+      return;
+    }
+    btn.title = '重新拉取当前学员最新记录';
     btn.disabled = !!loading || !state.selectedUsername;
   }
 
@@ -400,6 +557,7 @@
       if (prev) clearPanels();
     }
     syncRefreshStudentBtn(false);
+    if (activeTabId() === 'overview') renderOverviewTable();
   }
 
   function showGlobalError() {
@@ -1203,6 +1361,7 @@
     if (filter) {
       filter.addEventListener('input', function () {
         populateUserSelect(true);
+        if (activeTabId() === 'overview') renderOverviewTable();
       });
     }
     document.querySelectorAll('.jml-report-scope-btn').forEach(function (btn) {
@@ -1217,6 +1376,11 @@
       sel.addEventListener('change', function () {
         state.selectedUsername = sel.value || '';
         syncRefreshStudentBtn(true);
+        if (activeTabId() === 'overview') {
+          renderOverviewTable();
+          syncRefreshStudentBtn(false);
+          return;
+        }
         var p = loadStudentData();
         if (p && typeof p.finally === 'function') {
           p.finally(function () {
@@ -1230,10 +1394,23 @@
     var refreshStudent = getRefreshStudentBtn();
     if (refreshStudent) {
       refreshStudent.addEventListener('click', function () {
-        if (refreshStudent.disabled || !state.selectedUsername) return;
+        if (refreshStudent.disabled) return;
         var prevLabel = refreshStudent.textContent;
         refreshStudent.textContent = '刷新中…';
         syncRefreshStudentBtn(true);
+        if (activeTabId() === 'overview') {
+          var pOv = loadOverview(true);
+          if (!pOv || typeof pOv.finally !== 'function') {
+            refreshStudent.textContent = prevLabel;
+            syncRefreshStudentBtn(false);
+            return;
+          }
+          pOv.finally(function () {
+            refreshStudent.textContent = prevLabel;
+            syncRefreshStudentBtn(false);
+          });
+          return;
+        }
         var p = loadStudentData();
         if (!p || typeof p.finally !== 'function') {
           refreshStudent.textContent = prevLabel;
@@ -1307,7 +1484,7 @@
         bindEvents();
         loadLevelCohort();
         loadUserList().then(function () {
-          // no-op
+          switchTab('overview');
         });
       });
     },

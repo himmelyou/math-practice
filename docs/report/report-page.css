@@ -140,9 +140,49 @@
   border-bottom-color: #2563eb;
 }
 
-.jml-tab-panel.hidden {
-  display: none;
+.jml-report-overview-meta {
+  margin: 0 0 10px;
+  font-size: 13px;
 }
+
+.jml-report-overview-wrap {
+  max-width: 100%;
+}
+
+.jml-report-overview-table {
+  table-layout: auto;
+  min-width: 960px;
+  font-size: 12px;
+}
+
+.jml-report-overview-table th,
+.jml-report-overview-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.jml-report-overview-table .jml-ov-col-note {
+  white-space: normal;
+  max-width: 120px;
+  word-break: break-word;
+}
+
+.jml-report-overview-table .jml-ov-col-nick {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jml-report-user-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.jml-report-user-link:hover {
+  text-decoration: underline;
+}
+
 
 .jml-report-table-wrap {
   overflow-x: auto;

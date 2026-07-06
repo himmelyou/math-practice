@@ -16,6 +16,7 @@ const achievementCatalog = require("./achievements/catalog");
 const achievementEngine = require("./achievements/engine");
 const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
+const { buildStudentOverviewRows } = require("./student-overview");
 const {
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,
@@ -2311,6 +2312,36 @@ app.get("/api/admin/users", (req, res) => {
     return safeUser(out);
   });
   res.json({ ok: true, users });
+});
+
+// ========== 管理员：学员概览表（各模式进度、未上线天数） ==========
+app.get("/api/admin/student-overview", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  const primeList = (Array.isArray(primeData.list) ? primeData.list : []).filter(
+    (e) => e && e.username && (Number(e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
+  );
+  const cohort = readCohortResultForHeatmap();
+  const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+  const users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
+    const userRuns =
+      runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    const out = { ...u };
+    out.lastGameTs = latestRunTsFromRuns(userRuns);
+    return out;
+  });
+  const rows = buildStudentOverviewRows({
+    users,
+    runsByUser: runsData.runs || {},
+    primeList,
+    cohort,
+    capMs,
+  });
+  res.json({ ok: true, rows, builtAt: Date.now() });
 });
 
 // ========== 管理员：添加学员 ==========
