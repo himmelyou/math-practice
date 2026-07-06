@@ -84,6 +84,7 @@
     runs: [],
     userDetail: null,
     selectedUsername: '',
+    loadedStudentUsername: '',
     agg: null,
     chartModel: null,
     statsLevelIndex: 0,
@@ -514,6 +515,8 @@
     syncRefreshStudentBtn(false);
     if (next === 'overview') {
       void loadOverview(false);
+    } else if (state.selectedUsername && state.loadedStudentUsername !== state.selectedUsername) {
+      void loadStudentData();
     }
     if (next === 'stats') {
       redrawAllStatsCharts();
@@ -684,6 +687,7 @@
   function clearPanels() {
     state.runs = [];
     state.userDetail = null;
+    state.loadedStudentUsername = '';
     state.agg = null;
     state.chartModel = null;
     state.heat = null;
@@ -825,6 +829,7 @@
         renderWrongBook();
         renderExpandWrongBook();
         renderStatsPanel();
+        state.loadedStudentUsername = u;
         if (activeTabId() === 'stats') {
           redrawAllStatsCharts();
         }

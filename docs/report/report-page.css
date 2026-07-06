@@ -140,6 +140,10 @@
   border-bottom-color: #2563eb;
 }
 
+.jml-tab-panel.hidden {
+  display: none;
+}
+
 .jml-report-overview-meta {
   margin: 0 0 10px;
   font-size: 13px;
