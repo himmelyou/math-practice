@@ -95,8 +95,12 @@ function hasRunMode(runs, mode) {
 }
 
 function formatLevelChallengeProgress(u, runs) {
-  if (!hasRunMode(runs, "level") && u.hasClearedLevel !== true) return { text: null, cleared: false };
-  if (userHasClearedLevel(u, runs)) return { text: "通关", cleared: true };
+  if (!hasRunMode(runs, "level") && u.hasClearedLevel !== true) {
+    return { text: null, cleared: false, sortKey: null };
+  }
+  if (userHasClearedLevel(u, runs)) {
+    return { text: "通关", cleared: true, sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1 };
+  }
   let best =
     typeof u.levelChallengeBestLevel === "number" && Number.isFinite(u.levelChallengeBestLevel)
       ? Math.floor(u.levelChallengeBestLevel)
@@ -106,27 +110,60 @@ function formatLevelChallengeProgress(u, runs) {
     const ml = Number(r.maxLevel);
     if (Number.isFinite(ml) && Math.floor(ml) > best) best = Math.floor(ml);
   });
-  if (best < 0) return { text: null, cleared: false };
+  if (best < 0) return { text: null, cleared: false, sortKey: null };
   best = Math.min(LEVEL_CHALLENGE_MAX_INDEX, Math.max(0, best));
-  return { text: "L" + (best + 1), cleared: false };
+  return { text: "L" + (best + 1), cleared: false, sortKey: best };
 }
 
 function formatSurvivalProgress(u, runs) {
-  if (!hasRunMode(runs, "survival") && u.hasClearedSurvival !== true) return { text: null, cleared: false };
-  if (userHasClearedSurvival(u, runs)) return { text: "通关", cleared: true };
+  if (!hasRunMode(runs, "survival") && u.hasClearedSurvival !== true) {
+    return { text: null, cleared: false, sortKey: null };
+  }
+  if (userHasClearedSurvival(u, runs)) {
+    return { text: "通关", cleared: true, sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1 };
+  }
   const best = maxSurvivalLevelFromRuns(runs);
-  if (best < 0) return { text: null, cleared: false };
-  return { text: "L" + (Math.min(LEVEL_CHALLENGE_MAX_INDEX, best) + 1), cleared: false };
+  if (best < 0) return { text: null, cleared: false, sortKey: null };
+  const idx = Math.min(LEVEL_CHALLENGE_MAX_INDEX, best);
+  return { text: "L" + (idx + 1), cleared: false, sortKey: idx };
 }
 
 function formatSpecialModeProgress(unlockedMax, maxLevelIndex, prefix, runs, mode) {
   const hasRuns = hasRunMode(runs, mode);
   const u = Math.max(0, Math.floor(Number(unlockedMax) || 0));
-  if (!hasRuns && u <= 0) return { text: null, cleared: false };
+  if (!hasRuns && u <= 0) return { text: null, cleared: false, sortKey: null };
   const max = Math.max(0, Math.floor(Number(maxLevelIndex) || 0));
   const capped = Math.min(max, u);
-  if (capped >= max) return { text: "通关", cleared: true };
-  return { text: prefix + (capped + 1), cleared: false };
+  if (capped >= max) return { text: "通关", cleared: true, sortKey: max + 1 };
+  return { text: prefix + (capped + 1), cleared: false, sortKey: capped };
+}
+
+function gradeSortKey(grade) {
+  if (grade === null || grade === undefined || grade === "") return null;
+  const n = Number(grade);
+  if (!Number.isInteger(n) || n < 0 || n > 12) return null;
+  return n;
+}
+
+function progressSortFromLevelResult(result, maxLevelIndex) {
+  if (!result || !result.text) return null;
+  if (result.cleared || result.text === "通关") return maxLevelIndex + 1;
+  const lm = /^L(\d+)$/.exec(result.text);
+  if (lm) return Math.min(maxLevelIndex, Math.max(0, parseInt(lm[1], 10) - 1));
+  const dm = /^D(\d+)$/.exec(result.text);
+  if (dm) return Math.min(maxLevelIndex, Math.max(0, parseInt(dm[1], 10) - 1));
+  return null;
+}
+
+function trainingProgressSortKey(trainingP) {
+  if (!trainingP || !trainingP.text) return null;
+  const lm = /L(\d+)/.exec(trainingP.text);
+  const li = lm ? Math.min(15, Math.max(0, parseInt(lm[1], 10) - 1)) : 0;
+  if (trainingP.mode === "brush" || trainingP.text.indexOf("刷热图") >= 0) {
+    return li + 0.5;
+  }
+  if (/^L\d+$/.test(trainingP.text)) return li;
+  return null;
 }
 
 function formatTrainingProgress(runs, cohort, capMs, HM, todayKey) {
@@ -231,29 +268,39 @@ function buildStudentOverviewRows(options) {
           ? u.levelExpandBracketsCurrentLevel
           : 0;
     const primeEntry = primeMap[username];
+    const psP = formatSpecialModeProgress(psUnlocked, PS_MAX_LEVEL, "L", runs, "perfectSquare");
+    const decP = formatSpecialModeProgress(decUnlocked, DECIMAL_MAX_LEVEL, "D", runs, "decimal");
+    const expP = formatSpecialModeProgress(expUnlocked, EXPAND_MAX_LEVEL, "L", runs, "expandBrackets");
 
     rows.push({
       username,
       nickname: typeof u.nickname === "string" ? u.nickname.trim() : "",
       grade: u.grade != null ? u.grade : null,
       gradeLabel: formatGradeLabel(u.grade),
+      gradeSort: gradeSortKey(u.grade),
       adminNote: typeof u.adminNote === "string" ? u.adminNote.trim() : "",
       isVip: u.isVip === true,
       lastGameTs: lastTs > 0 ? lastTs : 0,
       daysOffline: daysOff,
       levelProgress: levelP.text,
+      levelProgressSort: levelP.sortKey,
       survivalProgress: survivalP.text,
+      survivalProgressSort: survivalP.sortKey,
       trainingProgress: trainingP.text,
+      trainingProgressSort: trainingProgressSortKey(trainingP),
       trainingMode: trainingP.mode,
       trainingReason: trainingP.reason,
       primeProgress: primeEntry ? formatCompactRunTime(primeEntry.survivalTimeSec) : null,
-      perfectSquareProgress: formatSpecialModeProgress(psUnlocked, PS_MAX_LEVEL, "L", runs, "perfectSquare").text,
-      decimalProgress: formatSpecialModeProgress(decUnlocked, DECIMAL_MAX_LEVEL, "D", runs, "decimal").text,
-      expandProgress: formatSpecialModeProgress(expUnlocked, EXPAND_MAX_LEVEL, "L", runs, "expandBrackets").text,
+      primeProgressSec: primeEntry ? Number(primeEntry.survivalTimeSec) || null : null,
+      perfectSquareProgress: psP.text,
+      perfectSquareProgressSort: psP.sortKey,
+      decimalProgress: decP.text,
+      decimalProgressSort: decP.sortKey,
+      expandProgress: expP.text,
+      expandProgressSort: expP.sortKey,
     });
   });
 
-  rows.sort((a, b) => String(a.username).localeCompare(String(b.username)));
   return rows;
 }
 

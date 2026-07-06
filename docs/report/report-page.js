@@ -95,10 +95,25 @@
     overviewLoading: false,
     overviewError: '',
     overviewBuiltAt: 0,
+    overviewSortKey: 'daysOffline',
+    overviewSortDir: 'desc',
   };
 
   var REPORT_LANG_KEY = 'jml_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
+  var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
+  var OVERVIEW_SORTABLE_KEYS = {
+    username: 'username',
+    grade: 'gradeSort',
+    daysOffline: 'daysOffline',
+    levelProgress: 'levelProgressSort',
+    trainingProgress: 'trainingProgressSort',
+    survivalProgress: 'survivalProgressSort',
+    primeProgress: 'primeProgressSec',
+    perfectSquareProgress: 'perfectSquareProgressSort',
+    decimalProgress: 'decimalProgressSort',
+    expandProgress: 'expandProgressSort',
+  };
   var reportI18nRuntime = { zhHant: {}, en: {} };
 
   function getReportLang() {
@@ -248,6 +263,95 @@
     return btn ? btn.getAttribute('data-tab') : 'overview';
   }
 
+  function readStoredOverviewSort() {
+    try {
+      var raw = localStorage.getItem(REPORT_OVERVIEW_SORT_KEY);
+      if (!raw) return;
+      var o = JSON.parse(raw);
+      if (o && o.key && OVERVIEW_SORTABLE_KEYS[o.key]) {
+        state.overviewSortKey = o.key;
+        state.overviewSortDir = o.dir === 'asc' ? 'asc' : 'desc';
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function storeOverviewSort() {
+    try {
+      localStorage.setItem(
+        REPORT_OVERVIEW_SORT_KEY,
+        JSON.stringify({ key: state.overviewSortKey, dir: state.overviewSortDir })
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function isOverviewSortNull(val) {
+    return val == null || val === '' || (typeof val === 'number' && !Number.isFinite(val));
+  }
+
+  function compareOverviewNullable(a, b, dir) {
+    var aNull = isOverviewSortNull(a);
+    var bNull = isOverviewSortNull(b);
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;
+    if (bNull) return -1;
+    var diff = a < b ? -1 : a > b ? 1 : 0;
+    return dir === 'desc' ? -diff : diff;
+  }
+
+  function sortOverviewRows(rows) {
+    var list = rows.slice();
+    var key = state.overviewSortKey || 'daysOffline';
+    var dir = state.overviewSortDir === 'asc' ? 'asc' : 'desc';
+    var field = OVERVIEW_SORTABLE_KEYS[key] || 'daysOffline';
+    list.sort(function (a, b) {
+      var cmp = 0;
+      if (key === 'username') {
+        cmp = String(a.username || '').localeCompare(String(b.username || ''), 'zh-CN');
+        if (dir === 'desc') cmp = -cmp;
+      } else {
+        cmp = compareOverviewNullable(a[field], b[field], dir);
+      }
+      if (cmp !== 0) return cmp;
+      return String(a.username || '').localeCompare(String(b.username || ''), 'zh-CN');
+    });
+    return list;
+  }
+
+  function overviewSortLabel(key, title, extraClass) {
+    var active = state.overviewSortKey === key;
+    var arrow = '';
+    if (active) arrow = state.overviewSortDir === 'asc' ? ' ▲' : ' ▼';
+    var cls = 'jml-ov-sort-th' + (active ? ' jml-ov-sort-active' : '') + (extraClass ? ' ' + extraClass : '');
+    return (
+      '<th scope="col" class="' +
+      cls +
+      '" data-sort-key="' +
+      escapeHtml(key) +
+      '" role="columnheader" aria-sort="' +
+      (active ? (state.overviewSortDir === 'asc' ? 'ascending' : 'descending') : 'none') +
+      '">' +
+      escapeHtml(title) +
+      arrow +
+      '</th>'
+    );
+  }
+
+  function toggleOverviewSort(key) {
+    if (!OVERVIEW_SORTABLE_KEYS[key]) return;
+    if (state.overviewSortKey === key) {
+      state.overviewSortDir = state.overviewSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      state.overviewSortKey = key;
+      state.overviewSortDir = key === 'username' || key === 'grade' ? 'asc' : 'desc';
+    }
+    storeOverviewSort();
+    renderOverviewTable();
+  }
+
   function dashCell(val) {
     if (val === null || val === undefined || val === '') return '—';
     return String(val);
@@ -265,7 +369,7 @@
       if (!r || !r.username) return false;
       if (state.userScope === 'vip' && r.isVip !== true) return false;
       if (!q) return true;
-      var hay = (r.username + ' ' + (r.nickname || '') + ' ' + (r.adminNote || '')).toLowerCase();
+      var hay = (r.username + ' ' + (r.adminNote || '')).toLowerCase();
       return hay.indexOf(q) >= 0;
     });
   }
@@ -310,7 +414,7 @@
         '</div>';
       return;
     }
-    var list = filterOverviewRows();
+    var list = sortOverviewRows(filterOverviewRows());
     if (!list.length) {
       wrap.innerHTML = '<div class="jml-report-empty">暂无匹配的学员</div>';
       return;
@@ -382,9 +486,18 @@
       '<div class="jml-report-table-wrap jml-report-overview-wrap">' +
       '<table class="jml-report-table jml-report-overview-table">' +
       '<thead><tr>' +
-      '<th>用户名</th><th>年级</th><th>备注</th><th>昵称</th><th class="num">未上线(天)</th>' +
-      '<th>闯关</th><th>训练</th><th>生存</th><th class="num">质数(用时)</th>' +
-      '<th>平方数</th><th>小数</th><th>拆括号</th>' +
+      overviewSortLabel('username', '用户名') +
+      overviewSortLabel('grade', '年级') +
+      '<th scope="col">备注</th>' +
+      '<th scope="col">昵称</th>' +
+      overviewSortLabel('daysOffline', '未上线(天)', 'num') +
+      overviewSortLabel('levelProgress', '闯关') +
+      overviewSortLabel('trainingProgress', '训练') +
+      overviewSortLabel('survivalProgress', '生存') +
+      overviewSortLabel('primeProgress', '质数(用时)', 'num') +
+      overviewSortLabel('perfectSquareProgress', '平方数') +
+      overviewSortLabel('decimalProgress', '小数') +
+      overviewSortLabel('expandProgress', '拆括号') +
       '</tr></thead><tbody>' +
       body +
       '</tbody></table></div>';
@@ -1357,6 +1470,16 @@
         switchTab(btn.getAttribute('data-tab'));
       });
     });
+    var overviewBody = document.getElementById('jml-report-overview-body');
+    if (overviewBody && !overviewBody.dataset.sortBound) {
+      overviewBody.dataset.sortBound = '1';
+      overviewBody.addEventListener('click', function (ev) {
+        var th = ev.target.closest('.jml-ov-sort-th');
+        if (!th || !overviewBody.contains(th)) return;
+        var key = th.getAttribute('data-sort-key');
+        if (key) toggleOverviewSort(key);
+      });
+    }
     var filter = getFilterInput();
     if (filter) {
       filter.addEventListener('input', function () {
@@ -1478,6 +1601,7 @@
   window.JmlReportPage = {
     init: function () {
       showApiWarning();
+      readStoredOverviewSort();
       state.userScope = readStoredUserScope();
       updateScopeButtons();
       loadReportI18n().finally(function () {

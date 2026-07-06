@@ -183,6 +183,20 @@
   text-decoration: underline;
 }
 
+.jml-ov-sort-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.jml-ov-sort-th:hover {
+  background: #eceff1;
+}
+
+.jml-ov-sort-th.jml-ov-sort-active {
+  color: #1565c0;
+  background: #e3f2fd;
+}
 
 .jml-report-table-wrap {
   overflow-x: auto;
