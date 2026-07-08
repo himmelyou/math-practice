@@ -109,7 +109,7 @@ function safeUserForStudent(u) {
 
 /** 管理端年级：null 未设置，0=学前，1–12 为年级 */
 function normalizeAdminGrade(value) {
-  if (value === null || value === undefined || value === "") return null;
+  if (value === null || value === undefined || value === "") return { value: null };
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0 || n > 12) return { error: "年级须为 0（学前）至 12 的整数" };
   return { value: n };
