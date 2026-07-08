@@ -51,7 +51,7 @@ const WRONG_ANSWER_LEVEL_MAX = {
   level: 15,
   training: 15,
   decimal: 4,
-  perfectSquare: 2,
+  perfectSquare: 3,
 };
 
 function normalizeWrongAnswerMode(mode) {

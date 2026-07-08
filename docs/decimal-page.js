@@ -101,16 +101,21 @@
     return typeof v === "number" && Number.isFinite(v) ? Math.min(decMaxLevel(), Math.max(0, Math.floor(v))) : 0;
   }
 
-  function getDecimalUnlockedMaxLevel() {
+  function getDecimalStoredUnlockedMax() {
     const user = deps.getCurrentUser();
     if (!user) return 0;
     deps.ensureUserProgressDefault(user);
     const current = getDecimalCurrentLevel();
+    const cap = decMaxLevel() + 1;
     const stored =
       typeof user.levelDecimalUnlockedMax === "number" && Number.isFinite(user.levelDecimalUnlockedMax)
-        ? Math.min(decMaxLevel(), Math.max(0, Math.floor(user.levelDecimalUnlockedMax)))
+        ? Math.min(cap, Math.max(0, Math.floor(user.levelDecimalUnlockedMax)))
         : current;
     return Math.max(current, stored);
+  }
+
+  function getDecimalUnlockedMaxLevel() {
+    return Math.min(decMaxLevel(), getDecimalStoredUnlockedMax());
   }
 
   function resolveDecRunOutcome(startLevel, wrongCount, unlockedMaxBefore) {
@@ -133,7 +138,7 @@
 
   async function saveDecimalProgress(currentLevel, unlockedMax) {
     currentLevel = Math.min(decMaxLevel(), Math.max(0, Math.floor(Number(currentLevel) || 0)));
-    unlockedMax = Math.min(decMaxLevel(), Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
+    unlockedMax = Math.min(decMaxLevel() + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
     if (deps.isGuestMode) return;
     const name = deps.loadCurrentUsername();
     if (!name) return;
@@ -468,7 +473,7 @@
       if (Number.isFinite(picked)) decLevel = Math.max(0, Math.min(decMaxLevel(), Math.floor(picked)));
     }
     decRunStartLevel = decLevel;
-    decUnlockedMaxBeforeRun = getDecimalUnlockedMaxLevel();
+    decUnlockedMaxBeforeRun = getDecimalStoredUnlockedMax();
     setDecGameCardGameOver(false);
     deps.setIsPlaying(true);
     deps.setGameOver(false);

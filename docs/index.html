@@ -4420,12 +4420,12 @@
   <script src="shared/expand-brackets-questions.js?v=48"></script>
   <script src="shared/soft-keyboard.js?v=41"></script>
   <script src="shared/answer-input.js?v=41"></script>
-  <script src="shared/perfect-square-questions.js?v=41"></script>
+  <script src="shared/perfect-square-questions.js?v=43"></script>
   <script src="shared/decimal-questions.js?v=46"></script>
-  <script src="shared/special-mode-run-outcome.js?v=41"></script>
+  <script src="shared/special-mode-run-outcome.js?v=42"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=42"></script>
-  <script src="decimal-page.js?v=4"></script>
+  <script src="perfect-square-page.js?v=45"></script>
+  <script src="decimal-page.js?v=5"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5923,7 +5923,7 @@
       if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
     }
 
-    function getExpandBracketsUnlockedMaxLevel() {
+    function getExpandBracketsStoredUnlockedMax() {
       const user = getCurrentUser();
       if (!user) return 0;
       ensureUserProgressDefault(user);
@@ -5931,11 +5931,16 @@
         typeof user.levelExpandBracketsCurrentLevel === "number" && Number.isFinite(user.levelExpandBracketsCurrentLevel)
           ? Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(user.levelExpandBracketsCurrentLevel)))
           : 0;
+      const cap = EXPAND_BRACKETS_MAX_LEVEL + 1;
       const stored =
         typeof user.levelExpandBracketsUnlockedMax === "number" && Number.isFinite(user.levelExpandBracketsUnlockedMax)
-          ? Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(user.levelExpandBracketsUnlockedMax)))
+          ? Math.min(cap, Math.max(0, Math.floor(user.levelExpandBracketsUnlockedMax)))
           : current;
       return Math.max(current, stored);
+    }
+
+    function getExpandBracketsUnlockedMaxLevel() {
+      return Math.min(EXPAND_BRACKETS_MAX_LEVEL, getExpandBracketsStoredUnlockedMax());
     }
 
     function hideExpandQuestionSubtext() {
@@ -6099,7 +6104,7 @@
         if (Number.isFinite(picked)) expandLevel = Math.max(0, Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.floor(picked)));
       }
       expandRunStartLevel = expandLevel;
-      expandUnlockedMaxBeforeRun = getExpandBracketsUnlockedMaxLevel();
+      expandUnlockedMaxBeforeRun = getExpandBracketsStoredUnlockedMax();
       setExpandGameCardGameOver(false);
       isPlaying = true;
       gameOver = false;
@@ -6480,6 +6485,7 @@
         "ps.level.L1": "2～11 的平方",
         "ps.level.L2": "2～20 的平方",
         "ps.level.L3": "2～30 的平方",
+        "ps.level.L4": "2/3/5 质因数的幂",
         "dec.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
         "dec.levelSelectAria": "選擇小數運算難度",
         "dec.level.L1": "一位小數與整數混合加減",
@@ -6837,6 +6843,7 @@
         "ps.level.L1": "Squares 2–11",
         "ps.level.L2": "Squares 2–20",
         "ps.level.L3": "Squares 2–30",
+        "ps.level.L4": "Powers (2,3,5 only)",
         "dec.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
         "dec.levelSelectAria": "Decimals level",
         "dec.level.L1": "One-decimal ± integer",
@@ -8082,7 +8089,7 @@
       level: 15,
       training: 15,
       decimal: 4,
-      perfectSquare: 2,
+      perfectSquare: 3,
     };
 
     function normalizeWrongAnswerMode(mode) {
@@ -12113,7 +12120,7 @@
 
     async function saveExpandBracketsProgress(currentLevel, unlockedMax) {
       currentLevel = Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(Number(currentLevel) || 0)));
-      unlockedMax = Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
+      unlockedMax = Math.min(EXPAND_BRACKETS_MAX_LEVEL + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
       if (isGuestMode) return;
       const name = loadCurrentUsername();
       if (!name) return;

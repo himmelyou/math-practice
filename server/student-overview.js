@@ -5,7 +5,7 @@ const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
 
 const LEVEL_CHALLENGE_MAX_INDEX = 15;
 const EXPAND_MAX_LEVEL = 4;
-const PS_MAX_LEVEL = 2;
+const PS_MAX_LEVEL = 3;
 const DECIMAL_MAX_LEVEL = 4;
 const PRIME_RANKING_MAX_WRONG = 5;
 
@@ -133,9 +133,8 @@ function formatSpecialModeProgress(unlockedMax, maxLevelIndex, prefix, runs, mod
   const u = Math.max(0, Math.floor(Number(unlockedMax) || 0));
   if (!hasRuns && u <= 0) return { text: null, cleared: false, sortKey: null };
   const max = Math.max(0, Math.floor(Number(maxLevelIndex) || 0));
-  const capped = Math.min(max, u);
-  if (capped >= max) return { text: "通关", cleared: true, sortKey: max + 1 };
-  return { text: prefix + (capped + 1), cleared: false, sortKey: capped };
+  if (u > max) return { text: "通关", cleared: true, sortKey: max + 1 };
+  return { text: prefix + (u + 1), cleared: false, sortKey: u };
 }
 
 function gradeSortKey(grade) {
