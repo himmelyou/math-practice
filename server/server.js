@@ -594,6 +594,88 @@ function backfillExpandBracketsScoresForAllUsers() {
   };
 }
 
+/** 平方数 L3（index 2）前沿 0/1 错打完 → 解锁 L4（unlockedMax 3） */
+const PS_L3_LEVEL_INDEX = 2;
+const PS_L4_UNLOCK_MAX = 3;
+
+function perfectSquareRunQualifiesForL4Backfill(run) {
+  if (!run || normalizeRunMode(run.mode) !== "perfectSquare") return false;
+  if (run.comboOnly === true || run.abandoned === true) return false;
+  if (Math.floor(Number(run.maxLevel) || 0) !== PS_L3_LEVEL_INDEX) return false;
+  return Math.max(0, Math.floor(Number(run.wrongCount) || 0)) <= 1;
+}
+
+/**
+ * 从 runs.json 回填：曾在 L3 以 0/1 错打完的学员解锁 L4 并默认 current=L4。
+ * 仅扫 runs.json，无兜底；dryRun 时只返回名单不写库。
+ */
+function backfillPerfectSquareL4UnlockFromRuns(opts) {
+  opts = opts || {};
+  const dryRun = opts.dryRun === true;
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const userByName = new Map(users.filter((u) => u && u.username).map((u) => [u.username, u]));
+
+  const matched = [];
+  const updated = [];
+  const skippedAlreadyUnlocked = [];
+  const skippedNoUser = [];
+
+  Object.keys(runsData.runs || {}).forEach((username) => {
+    const arr = runsData.runs[username];
+    if (!Array.isArray(arr) || !arr.some(perfectSquareRunQualifiesForL4Backfill)) return;
+    matched.push(username);
+
+    const u = userByName.get(username);
+    if (!u) {
+      skippedNoUser.push(username);
+      return;
+    }
+
+    const unlockedRaw =
+      typeof u.levelPerfectSquareUnlockedMax === "number" && Number.isFinite(u.levelPerfectSquareUnlockedMax)
+        ? Math.floor(u.levelPerfectSquareUnlockedMax)
+        : typeof u.levelPerfectSquareCurrentLevel === "number" && Number.isFinite(u.levelPerfectSquareCurrentLevel)
+          ? Math.floor(u.levelPerfectSquareCurrentLevel)
+          : 0;
+
+    if (unlockedRaw >= PS_L4_UNLOCK_MAX) {
+      skippedAlreadyUnlocked.push({ username, unlockedMax: unlockedRaw });
+      return;
+    }
+
+    const before = {
+      current: u.levelPerfectSquareCurrentLevel,
+      unlockedMax: u.levelPerfectSquareUnlockedMax,
+    };
+    u.levelPerfectSquareUnlockedMax = PS_L4_UNLOCK_MAX;
+    u.levelPerfectSquareCurrentLevel = PS_L4_UNLOCK_MAX;
+    updated.push({
+      username,
+      nickname: typeof u.nickname === "string" ? u.nickname.trim() : "",
+      before,
+      after: { current: PS_L4_UNLOCK_MAX, unlockedMax: PS_L4_UNLOCK_MAX },
+    });
+  });
+
+  if (!dryRun && updated.length > 0) {
+    writeJson(USERS_FILE, usersData);
+  }
+
+  return {
+    dryRun,
+    matchedCount: matched.length,
+    matched,
+    updatedCount: updated.length,
+    updated,
+    skippedAlreadyUnlockedCount: skippedAlreadyUnlocked.length,
+    skippedAlreadyUnlocked,
+    skippedNoUserCount: skippedNoUser.length,
+    skippedNoUser,
+  };
+}
+
 function toChinaDateKey(ts) {
   const d = new Date(Number(ts) || 0);
   if (Number.isNaN(d.getTime())) return "";
@@ -3058,6 +3140,20 @@ app.post("/api/admin/maintenance/backfill-prime-perfect-ranking", (req, res) => 
   }
   try {
     const stats = rebuildPrimePerfectRankingFromRuns();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：平方数 L3 前沿 0/1 错打完 → 解锁 L4（仅 runs.json，?dryRun=1 预览） ==========
+app.post("/api/admin/maintenance/backfill-perfect-square-l4-unlock", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const dryRun = req.query.dryRun === "1" || req.query.dryRun === "true";
+    const stats = backfillPerfectSquareL4UnlockFromRuns({ dryRun });
     return res.json({ ok: true, ...stats });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });

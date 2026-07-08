@@ -248,6 +248,8 @@
           <button type="button" id="jml-btn-backfill-expand-score" class="jml-btn jml-btn-primary">回填拆括号得分（×5）</button>
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
           <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn">重建质数达人榜</button>
+          <button type="button" id="jml-btn-preview-ps-l4-unlock" class="jml-btn">预览平方数 L4 解锁</button>
+          <button type="button" id="jml-btn-backfill-ps-l4-unlock" class="jml-btn jml-btn-primary">执行平方数 L4 解锁回填</button>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>最后挑战时间（lastGameTs）</strong></p>
@@ -285,6 +287,16 @@
             <li>部署错题上限后请点「重建质数达人榜」清理旧脏数据；平时通常不必重建</li>
           </ol>
         </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>平方数 L4 解锁（runs.json）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>条件：<code>mode=perfectSquare</code>、从 <strong>L3</strong> 开打（<code>maxLevel=2</code>）、局末错题 <strong>≤1</strong>、非放弃局</li>
+            <li>仅扫描 <code>runs.json</code>；无记录的不处理</li>
+            <li>写入 <code>levelPerfectSquareUnlockedMax=3</code>、<code>levelPerfectSquareCurrentLevel=3</code>（下次打开默认 L4）</li>
+            <li>已解锁 L4 或已通关（<code>unlockedMax≥3</code>）的学员跳过</li>
+          </ol>
+          <p class="muted" style="margin:0;">请先点「预览」核对名单，备份后再点「执行」。</p>
+        </div>
       </div>
     </div>
   </div>
@@ -299,7 +311,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "35";
+    window.JML_ADMIN_STATIC_REV = "36";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -322,7 +334,7 @@
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=46"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-  <script src="admin-panel.js?v=35"></script>
+  <script src="admin-panel.js?v=36"></script>
   <script src="admin-worksheet.js?v=23"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>
