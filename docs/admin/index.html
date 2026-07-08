@@ -244,58 +244,28 @@
 
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
-          <button type="button" id="jml-btn-backfill-last-game-ts" class="jml-btn jml-btn-primary">回填最后挑战时间</button>
-          <button type="button" id="jml-btn-backfill-expand-score" class="jml-btn jml-btn-primary">回填拆括号得分（×5）</button>
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
-          <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn">重建质数达人榜</button>
-          <button type="button" id="jml-btn-preview-ps-l4-unlock" class="jml-btn">预览平方数 L4 解锁</button>
-          <button type="button" id="jml-btn-backfill-ps-l4-unlock" class="jml-btn jml-btn-primary">执行平方数 L4 解锁回填</button>
+          <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn jml-btn-primary">重建质数达人榜</button>
         </div>
         <div class="jml-placeholder-panel">
-          <p><strong>最后挑战时间（lastGameTs）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>学员管理列表与 report 挑战记录均以 <code>runs.json</code> 最新入库局的 <code>ts</code> 为准</li>
-            <li>生存放弃（comboOnly）不入库，不会刷新该时间</li>
-            <li>若历史数据曾受 comboOnly 污染，部署后请备份 → 点击「回填最后挑战时间」写回 <code>users.json</code></li>
-          </ol>
-          <p class="muted" style="margin:0;">说明：新记局仅在写入 runs 时更新 lastGameTs；列表展示始终按 runs 最大 ts 计算，与 report 第一行一致。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>拆括号得分（5 分/题）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>旧版拆括号 <code>runs.score</code> 按「答对 1 题 +1 分」写入；新版与其它模式一致为 <strong>5 分/题</strong></li>
-            <li>回填会更新 <code>runs.json</code> 中 <code>mode=expandBrackets</code> 的历史局、同步 <code>recentExpandBracketsRuns</code>，并按 runs 重算 <code>totalScore</code></li>
-            <li>已回填过的局带 <code>expandScorePerCorrect: 5</code> 标记，重复点击不会二次乘算</li>
-          </ol>
-          <p class="muted" style="margin:0;">部署新版主站后，请先备份再点击「回填拆括号得分（×5）」。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
           <p><strong>闯关达人榜（level-ranking.json）</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
             <li>仅统计 <code>mode=level</code> 且 <code>cleared=true</code>（L1–L16 全通）的局</li>
             <li>每人保留一条最佳：用时最短 → 错题更少 → 更早通关（<code>ts</code> 更小）</li>
             <li>从 <code>runs.json</code> 扫描全库并写入 <code>level-ranking.json</code>，同步 <code>hasClearedLevel</code></li>
+            <li>日常新通关会增量更新；榜文件丢失、恢复备份或需全库重算时使用</li>
           </ol>
-          <p class="muted" style="margin:0;">部署新版后端后，请先备份再点击「回填闯关达人榜」。</p>
+          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
         </div>
         <div class="jml-placeholder-panel" style="margin-top:16px;">
           <p><strong>质数达人榜（prime-perfect-ranking.json）</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
             <li>进榜：<code>mode=primeComposite</code>、掌握 <strong>50 题</strong>且错题 <strong>≤5</strong>（新局 <code>mastered</code>，旧局 <code>score÷5</code>）</li>
             <li>每人保留最短用时；同用时错题更少，再同则更早 <code>ts</code></li>
-            <li><strong>质数达人成就</strong>仍为无错通关（<code>wrongCount=0</code>），与榜分开；成就<strong>无需回填</strong></li>
-            <li>部署错题上限后请点「重建质数达人榜」清理旧脏数据；平时通常不必重建</li>
+            <li><strong>质数达人成就</strong>仍为无错通关（<code>wrongCount=0</code>），与榜分开</li>
+            <li>日常新局会增量更新；榜文件丢失、恢复备份或改榜规则后需全库重算时使用</li>
           </ol>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>平方数 L4 解锁（runs.json）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>条件：<code>mode=perfectSquare</code>、从 <strong>L3</strong> 开打（<code>maxLevel=2</code>）、局末错题 <strong>≤1</strong>、非放弃局</li>
-            <li>仅扫描 <code>runs.json</code>；无记录的不处理</li>
-            <li>写入 <code>levelPerfectSquareUnlockedMax=3</code>、<code>levelPerfectSquareCurrentLevel=3</code>（下次打开默认 L4）</li>
-            <li>已解锁 L4 或已通关（<code>unlockedMax≥3</code>）的学员跳过</li>
-          </ol>
-          <p class="muted" style="margin:0;">请先点「预览」核对名单，备份后再点「执行」。</p>
+          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
         </div>
       </div>
     </div>
@@ -311,7 +281,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "36";
+    window.JML_ADMIN_STATIC_REV = "37";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -334,7 +304,7 @@
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=46"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-  <script src="admin-panel.js?v=36"></script>
+  <script src="admin-panel.js?v=37"></script>
   <script src="admin-worksheet.js?v=23"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>

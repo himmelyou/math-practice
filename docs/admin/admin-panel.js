@@ -1332,44 +1332,6 @@
     }
   }
 
-  async function backfillLastGameTs() {
-    try {
-      var msg = '将按每位学员 runs.json 中最新入库局的 ts 写回 lastGameTs，'
-        + '与 report 挑战记录第一行对齐。\n\n'
-        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('回填最后挑战时间中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-last-game-ts', { method: 'POST' });
-      var total = Number(data && data.totalUsers) || 0;
-      var updated = Number(data && data.updatedUsers) || 0;
-      setStatus('回填完成：共 ' + total + ' 人，更新 ' + updated + ' 人', 'ok');
-      loadUsers();
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
-    }
-  }
-
-  async function backfillExpandBracketsScore() {
-    try {
-      var msg = '将把历史拆括号局中 score=答对题数 的记录改为 5 分/题，'
-        + '并同步 recentExpandBracketsRuns、按 runs 重算 totalScore。\n\n'
-        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('回填拆括号得分中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-expand-brackets-score', { method: 'POST' });
-      var runs = Number(data && data.updatedRuns) || 0;
-      var users = Number(data && data.updatedUsers) || 0;
-      var delta = Number(data && data.totalScoreDelta) || 0;
-      setStatus(
-        '回填完成：更新 ' + runs + ' 局，重算 ' + users + ' 人总积分（runs 得分增量合计 +' + delta + '）',
-        'ok'
-      );
-      loadUsers();
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
-    }
-  }
-
   async function backfillLevelRanking() {
     try {
       var msg = '将从 runs.json 扫描闯关全通（mode=level, cleared=true）记录，'
@@ -1394,7 +1356,7 @@
   async function backfillPrimePerfectRanking() {
     try {
       var msg = '将从 runs.json 扫描掌握 50 题且错题 ≤5 的质数局，重建 prime-perfect-ranking.json。\n\n'
-        + '部署错题上限后建议执行一次，以清理错题过多的旧榜条目。\n\n'
+        + '榜文件丢失、恢复备份或改榜规则后使用。\n\n'
         + '不影响成就（成就仍为无错通关）。是否继续？';
       if (!confirm(msg)) return;
       setStatus('重建质数达人榜中…', '');
@@ -1404,52 +1366,6 @@
       setStatus('重建完成：榜内 ' + entries + ' 人，扫描掌握局 ' + scanned + ' 条', 'ok');
     } catch (e) {
       setStatus(e.message || '重建失败', 'err');
-    }
-  }
-
-  function formatPsL4UnlockPreview(data) {
-    var lines = [];
-    lines.push('runs 命中：' + (Number(data.matchedCount) || 0) + ' 人');
-    lines.push('将更新：' + (Number(data.updatedCount) || 0) + ' 人');
-    lines.push('已解锁跳过：' + (Number(data.skippedAlreadyUnlockedCount) || 0) + ' 人');
-    if (Array.isArray(data.updated) && data.updated.length) {
-      lines.push('');
-      lines.push('待更新名单：');
-      data.updated.forEach(function (row) {
-        var nick = row.nickname ? '（' + row.nickname + '）' : '';
-        lines.push('- ' + row.username + nick);
-      });
-    }
-    return lines.join('\n');
-  }
-
-  async function previewPerfectSquareL4Unlock() {
-    try {
-      setStatus('预览平方数 L4 解锁…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-perfect-square-l4-unlock?dryRun=1', { method: 'POST' });
-      alert(formatPsL4UnlockPreview(data));
-      setStatus('预览完成：将更新 ' + (Number(data.updatedCount) || 0) + ' 人', 'ok');
-    } catch (e) {
-      setStatus(e.message || '预览失败', 'err');
-    }
-  }
-
-  async function backfillPerfectSquareL4Unlock() {
-    try {
-      var preview = await apiFetch('/api/admin/maintenance/backfill-perfect-square-l4-unlock?dryRun=1', { method: 'POST' });
-      var n = Number(preview && preview.updatedCount) || 0;
-      if (n <= 0) {
-        setStatus('无需回填：0 人符合条件且尚未解锁 L4', 'ok');
-        return;
-      }
-      var msg = formatPsL4UnlockPreview(preview) + '\n\n请确认已在「系统备份」Tab 下载过备份。是否写入 users.json？';
-      if (!confirm(msg)) return;
-      setStatus('平方数 L4 解锁回填中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-perfect-square-l4-unlock', { method: 'POST' });
-      setStatus('回填完成：更新 ' + (Number(data.updatedCount) || 0) + ' 人', 'ok');
-      loadUsers();
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
     }
   }
 
@@ -1593,18 +1509,10 @@
       });
     }
 
-    var backfillLastGameTsBtn = document.getElementById('jml-btn-backfill-last-game-ts');
-    if (backfillLastGameTsBtn) backfillLastGameTsBtn.addEventListener('click', backfillLastGameTs);
-    var backfillExpandScoreBtn = document.getElementById('jml-btn-backfill-expand-score');
-    if (backfillExpandScoreBtn) backfillExpandScoreBtn.addEventListener('click', backfillExpandBracketsScore);
     var backfillLevelRankingBtn = document.getElementById('jml-btn-backfill-level-ranking');
     if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
     var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
     if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
-    var previewPsL4UnlockBtn = document.getElementById('jml-btn-preview-ps-l4-unlock');
-    if (previewPsL4UnlockBtn) previewPsL4UnlockBtn.addEventListener('click', previewPerfectSquareL4Unlock);
-    var backfillPsL4UnlockBtn = document.getElementById('jml-btn-backfill-ps-l4-unlock');
-    if (backfillPsL4UnlockBtn) backfillPsL4UnlockBtn.addEventListener('click', backfillPerfectSquareL4Unlock);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');
