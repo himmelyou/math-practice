@@ -1,6 +1,9 @@
 /**
  * 拆括号 / 平方数 / 小数：局末升降级与再玩选关（只升不降，解锁不写 runs）
  * unlockedMax 可到 maxLevel+1，表示全模式通关（Report：u > maxLevel → 通关）
+ *
+ * 前沿：下一档解锁目标 > 已存 unlockedMax（用 raw，含通关位）。
+ * 顶关的「下一档」即 maxLevel+1，与中间关同一套判断，无需 atMax 特例。
  */
 (function (global) {
   /**
@@ -18,7 +21,6 @@
     var clearedUnlockMax = maxLevel + 1;
     var unlockedMaxBeforeRaw = Math.max(0, Math.floor(Number(opts.unlockedMaxBefore) || 0));
     unlockedMaxBeforeRaw = Math.min(unlockedMaxBeforeRaw, clearedUnlockMax);
-    var unlockedMaxBefore = Math.min(unlockedMaxBeforeRaw, maxLevel);
     startLevel = Math.min(startLevel, maxLevel);
 
     function finish(outcome) {
@@ -29,21 +31,23 @@
       return outcome;
     }
 
-    var atMax = startLevel >= maxLevel;
-    var next = startLevel + 1;
-    var hasNext = !atMax;
-    var frontier = hasNext && next > unlockedMaxBefore;
+    // 下一档解锁目标（顶关为通关位 maxLevel+1）
+    var unlockTarget = Math.min(startLevel + 1, clearedUnlockMax);
+    var frontier = unlockTarget > unlockedMaxBeforeRaw;
+    // 可玩等级上限
+    var playableNext = Math.min(unlockTarget, maxLevel);
 
     if (wrongCount === 0) {
       if (frontier) {
         return finish({
           resultKey: "unlockNew",
-          savedCurrent: next,
-          savedUnlockedMax: next,
-          playAgainLevel: next,
+          savedCurrent: playableNext,
+          savedUnlockedMax: unlockTarget,
+          playAgainLevel: playableNext,
         });
       }
-      if (atMax) {
+      // 非前沿 0 错：共享模块仍偏向「冲下一关」；小数局末会用热图覆盖
+      if (startLevel >= maxLevel) {
         return finish({
           resultKey: "perfect",
           savedCurrent: startLevel,
@@ -53,9 +57,9 @@
       }
       return finish({
         resultKey: "perfect",
-        savedCurrent: next,
-        savedUnlockedMax: next,
-        playAgainLevel: next,
+        savedCurrent: playableNext,
+        savedUnlockedMax: Math.max(unlockedMaxBeforeRaw, playableNext),
+        playAgainLevel: playableNext,
       });
     }
 
@@ -63,16 +67,7 @@
       return finish({
         resultKey: "unlockNew",
         savedCurrent: startLevel,
-        savedUnlockedMax: next,
-        playAgainLevel: startLevel,
-      });
-    }
-
-    if (wrongCount === 1 && atMax) {
-      return finish({
-        resultKey: "unlockNew",
-        savedCurrent: startLevel,
-        savedUnlockedMax: clearedUnlockMax,
+        savedUnlockedMax: unlockTarget,
         playAgainLevel: startLevel,
       });
     }

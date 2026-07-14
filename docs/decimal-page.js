@@ -499,17 +499,88 @@
     nextDecQuestion();
   }
 
+  async function fetchDecimalRunsForHeat() {
+    if (typeof deps.fetchUserRuns === "function") {
+      try {
+        return await deps.fetchUserRuns();
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  async function fetchDecimalCohortForHeat() {
+    if (typeof deps.fetchDecimalCohort === "function") {
+      try {
+        return await deps.fetchDecimalCohort();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 非前沿 0 错：在已解锁关里按加权正确率刷选（有 p 才参与）。
+   * @returns {number|null} levelIndex
+   */
+  async function pickDecimalBrushLevel(unlockedPoolMax) {
+    const HM = global.JmlStatsHeatmap;
+    if (!HM || typeof HM.buildHeatmapCells !== "function" || typeof HM.recommendUnlockedWeightedBrush !== "function") {
+      return null;
+    }
+    const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("decimal") : null;
+    const levelCount = cat && cat.levelCount > 0 ? cat.levelCount : 5;
+    const modes = cat && cat.modes ? cat.modes : ["decimal"];
+    const poolMax = Math.max(
+      0,
+      Math.min(decMaxLevel(), levelCount - 1, Math.floor(Number(unlockedPoolMax) || 0))
+    );
+    const [runs, cohort] = await Promise.all([fetchDecimalRunsForHeat(), fetchDecimalCohortForHeat()]);
+    const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+    const heat = HM.buildHeatmapCells({
+      runs: runs || [],
+      cohort: cohort && cohort.ok ? cohort : null,
+      modes: modes,
+      levelCount: levelCount,
+      maxTimeSpentMs: capMs,
+    });
+    const pick = HM.recommendUnlockedWeightedBrush(heat, poolMax);
+    if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+    return Math.max(0, Math.min(poolMax, Math.floor(Number(pick.levelIndex))));
+  }
+
   async function endDecimalGame() {
     if (deps.getGameMode() !== "decimal") return;
     deps.setIsPlaying(false);
     stopDecTimer();
     const durationSec = Math.floor((Date.now() - (decStartTs || Date.now())) / 1000);
     const startLevel = decRunStartLevel;
-    const outcome = resolveDecRunOutcome(startLevel, decWrongCount, decUnlockedMaxBeforeRun);
+    let outcome = resolveDecRunOutcome(startLevel, decWrongCount, decUnlockedMaxBeforeRun);
+
+    // 先入库，再用含本局的 attempts 建小数热图
+    // 非前沿（perfect / keepGoing）：不新开关时，再玩关与默认关都走刷选型热图
+    // 前沿 unlockNew 不动（0 错进下一关 / 1 错留本关并解锁）
+    await deps.appendRun(durationSec, decScore, startLevel, decWrongCount, "decimal", decAttempts.slice());
+
+    if (outcome.resultKey === "perfect" || outcome.resultKey === "keepGoing") {
+      const poolCap = Math.min(decMaxLevel(), Math.floor(Number(outcome.savedUnlockedMax) || 0));
+      let brushLv = null;
+      try {
+        brushLv = await pickDecimalBrushLevel(poolCap);
+      } catch (e) {
+        console.warn("小数刷选型选关失败，留在本关", e);
+      }
+      outcome = Object.assign({}, outcome, {
+        playAgainLevel: brushLv != null ? brushLv : startLevel,
+        savedCurrent: brushLv != null ? brushLv : startLevel,
+      });
+    }
+
     decPrestartLevel = outcome.playAgainLevel;
     decLevel = outcome.playAgainLevel;
 
-    await deps.appendRun(durationSec, decScore, startLevel, decWrongCount, "decimal", decAttempts.slice());
     saveDecimalProgress(outcome.savedCurrent, outcome.savedUnlockedMax);
 
     setDecSoftKeyboardVisible(false);

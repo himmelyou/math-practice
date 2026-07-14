@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=49"></script>
+  <script src="shared/app-version.js?v=52"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4454,8 +4454,8 @@
 
   <script src="prime-composite-logic.js?v=42"></script>
   <script src="shared/player-level.js?v=1"></script>
-  <script src="shared/stats-i18n-pack.js?v=49"></script>
-  <script src="stats-heatmap-browser.js?v=49"></script>
+  <script src="shared/stats-i18n-pack.js?v=50"></script>
+  <script src="stats-heatmap-browser.js?v=51"></script>
   <script src="stats-aggregate-browser.js?v=49"></script>
   <script src="stats-chart-browser.js?v=41"></script>
   <script src="shared/arithmetic-questions.js?v=41"></script>
@@ -4464,10 +4464,10 @@
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=43"></script>
   <script src="shared/decimal-questions.js?v=47"></script>
-  <script src="shared/special-mode-run-outcome.js?v=42"></script>
+  <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=45"></script>
-  <script src="decimal-page.js?v=6"></script>
+  <script src="decimal-page.js?v=8"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5025,6 +5025,12 @@
         setIsPlaying: function (v) { isPlaying = v; },
         getGameOver: function () { return gameOver; },
         setGameOver: function (v) { gameOver = v; },
+        fetchUserRuns: async function () {
+          return fetchRunsForTrainingHeatmap();
+        },
+        fetchDecimalCohort: async function () {
+          return fetchPublicDecimalCohort();
+        },
       });
     }
 
@@ -7253,6 +7259,7 @@
         dailyClear: t("stats.training.reason.dailyClear"),
         dailyPassAllClear: t("stats.training.reason.dailyPassAllClear"),
         dailyFailEnterBrush: t("stats.training.reason.dailyFailEnterBrush"),
+        altAfterDaily: t("stats.training.reason.altAfterDaily"),
         dailyPassNext: t("stats.training.reason.dailyPassNext"),
         brush: t("stats.training.reason.brush"),
         scanBelow: t("stats.training.reason.scanBelow"),
@@ -9476,6 +9483,7 @@
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
+        recordTrainingCompletedTrack(!!trainingSessionBrushMode);
         appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
           abandoned: true,
           trainingMeta: buildTrainingRunMeta({ abandoned: true }),
@@ -9493,6 +9501,7 @@
       if (trainingRunBrushMode) {
         setTrainingRunFinalizeUi(true);
         try {
+          recordTrainingCompletedTrack(true);
           await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
             trainingMeta: buildTrainingRunMeta({ runPass, failCount: 0, runBrushMode: true }),
           });
@@ -9546,6 +9555,7 @@
         }
       }
       recordTrainingLastRun(levelThisRun, runPass, failCount);
+      recordTrainingCompletedTrack(false);
       let tipText = "";
       if (runPass) {
         tipText = t("game.training.dailyRunPass");
@@ -11875,6 +11885,7 @@
         brushMode: false,
         brushPoolMax: null,
         lastRun: null,
+        lastCompletedTrack: null,
       };
     }
 
@@ -11885,11 +11896,26 @@
         return HM.normalizeTrainingDayState(o, today);
       }
       const d = defaultTrainingFlowState();
-      if (!o || typeof o !== "object" || o.dayKey !== today) return d;
+      const prevTrack =
+        o && (o.lastCompletedTrack === "daily" || o.lastCompletedTrack === "brush")
+          ? o.lastCompletedTrack
+          : null;
+      if (!o || typeof o !== "object") return d;
+      if (o.dayKey !== today) {
+        return {
+          dayKey: today,
+          brushMode: false,
+          brushPoolMax: null,
+          lastRun: null,
+          lastCompletedTrack: prevTrack,
+        };
+      }
       return {
         dayKey: today,
         brushMode: !!(o.brushMode || o.forcedBrush),
+        brushPoolMax: o.brushPoolMax != null ? o.brushPoolMax : null,
         lastRun: o.lastRun && typeof o.lastRun === "object" ? o.lastRun : null,
+        lastCompletedTrack: prevTrack,
       };
     }
 
@@ -11917,7 +11943,16 @@
       const today = getLocalTrainingDayKey();
       const st = loadTrainingFlowState();
       if (st.dayKey !== today) {
-        saveTrainingFlowState(defaultTrainingFlowState());
+        saveTrainingFlowState({
+          dayKey: today,
+          brushMode: false,
+          brushPoolMax: null,
+          lastRun: null,
+          lastCompletedTrack:
+            st.lastCompletedTrack === "daily" || st.lastCompletedTrack === "brush"
+              ? st.lastCompletedTrack
+              : null,
+        });
       }
     }
 
@@ -11932,6 +11967,13 @@
         st.lastRun = null;
       }
       return st;
+    }
+
+    function recordTrainingCompletedTrack(isBrush) {
+      const st = loadTrainingFlowState();
+      st.dayKey = getLocalTrainingDayKey();
+      st.lastCompletedTrack = isBrush ? "brush" : "daily";
+      saveTrainingFlowState(st);
     }
 
     function snapshotTrainingRunStartMeta() {
@@ -11973,6 +12015,10 @@
                 failCount: st.lastRun.failCount || 0,
               }
             : null,
+          lastCompletedTrack:
+            st.lastCompletedTrack === "daily" || st.lastCompletedTrack === "brush"
+              ? st.lastCompletedTrack
+              : null,
         },
       });
       return meta;

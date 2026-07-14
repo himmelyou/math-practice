@@ -184,6 +184,7 @@
       dailyClear: rt('stats.training.reason.dailyClear'),
       dailyPassAllClear: rt('stats.training.reason.dailyPassAllClear'),
       dailyFailEnterBrush: rt('stats.training.reason.dailyFailEnterBrush'),
+      altAfterDaily: rt('stats.training.reason.altAfterDaily'),
       dailyPassNext: rt('stats.training.reason.dailyPassNext'),
       brush: rt('stats.training.reason.brush'),
       scanBelow: rt('stats.training.reason.scanBelow'),

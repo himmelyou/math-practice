@@ -373,7 +373,7 @@
   }
 
   var TRAINING_DAY_PASS_ACCURACY = 0.95;
-  var TRAINING_FLOW_STORAGE_PREFIX = 'jml_training_flow_v4:';
+  var TRAINING_FLOW_STORAGE_PREFIX = 'jml_training_flow_v5:';
   var TRAINING_FAILS_BEFORE_BRUSH = 3;
 
   function getCell(cellsResult, levelIndex) {
@@ -519,6 +519,57 @@
     return { levelIndex: maxIdx, reason: 'brush_pick_speed' };
   }
 
+  /**
+   * 小数等：在已解锁 pool 内选关（不要求 active）。
+   * 只要有加权正确率 p 即可比较：先 p&lt;95% 最低，再 ≥95% 中速度分位最慢。
+   * @returns {{ levelIndex: number, reason: string }|null}
+   */
+  function recommendUnlockedWeightedBrush(cellsResult, poolMax) {
+    var maxIdx = Math.max(0, Math.floor(Number(poolMax) || 0));
+    var list = (cellsResult && cellsResult.cells) || [];
+    var withP = [];
+    for (var i = 0; i < list.length; i++) {
+      var c = list[i];
+      if (!c || c.levelIndex > maxIdx) continue;
+      if (c.p == null || !Number.isFinite(Number(c.p))) continue;
+      withP.push(c);
+    }
+    if (!withP.length) return null;
+
+    var belowPass = [];
+    for (var b = 0; b < withP.length; b++) {
+      if (withP[b].p < TRAINING_BRUSH_PASS_ACCURACY) belowPass.push(withP[b]);
+    }
+    if (belowPass.length) {
+      var bestBelow = belowPass[0];
+      for (var k = 1; k < belowPass.length; k++) {
+        if (cmpMinWeightedP(belowPass[k], bestBelow) < 0) bestBelow = belowPass[k];
+      }
+      return { levelIndex: bestBelow.levelIndex, reason: 'brush_fix_red' };
+    }
+
+    var withPct = [];
+    for (var u = 0; u < withP.length; u++) {
+      if (withP[u].timePct != null && Number.isFinite(Number(withP[u].timePct))) {
+        withPct.push(withP[u]);
+      }
+    }
+    if (withPct.length) {
+      var bt = withPct[0];
+      for (var v = 1; v < withPct.length; v++) {
+        var du = withPct[v].timePct - bt.timePct;
+        if (du > 0 || (du === 0 && withPct[v].levelIndex < bt.levelIndex)) bt = withPct[v];
+      }
+      return { levelIndex: bt.levelIndex, reason: 'brush_pick_speed' };
+    }
+
+    var bestP = withP[0];
+    for (var w = 1; w < withP.length; w++) {
+      if (cmpMinWeightedP(withP[w], bestP) < 0) bestP = withP[w];
+    }
+    return { levelIndex: bestP.levelIndex, reason: 'brush_pick_speed' };
+  }
+
   function makeBrushPickResult(cellsResult, brushPoolMax, enterBrush, enterReason) {
     var poolMax = clampLevel(brushPoolMax != null ? brushPoolMax : LEVEL_COUNT - 1);
     var pick = recommendTrainingBrushInPool(cellsResult, poolMax);
@@ -541,8 +592,21 @@
   }
 
   function normalizeTrainingDayState(o, todayKey) {
-    var d = { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
+    var prevTrack = null;
+    if (o && typeof o === 'object') {
+      if (o.lastCompletedTrack === 'daily' || o.lastCompletedTrack === 'brush') {
+        prevTrack = o.lastCompletedTrack;
+      }
+    }
+    var d = {
+      dayKey: todayKey,
+      brushMode: false,
+      brushPoolMax: null,
+      lastRun: null,
+      lastCompletedTrack: prevTrack,
+    };
     if (!o || typeof o !== 'object') return d;
+    // 跨日：保留 lastCompletedTrack，清空当日推进链 / 刷热图会话
     if (o.dayKey !== todayKey) return d;
     var lr = o.lastRun;
     var lastRun = null;
@@ -570,12 +634,18 @@
       brushMode: brushMode,
       brushPoolMax: brushPoolMax,
       lastRun: brushMode ? null : lastRun,
+      lastCompletedTrack: prevTrack,
     };
   }
 
   /**
    * 训练 / Report 统一：根据热图 + 当日状态计算下一局关卡。
-   * dayState: { dayKey, brushMode, brushPoolMax, lastRun|null }
+   * dayState: { dayKey, brushMode, brushPoolMax, lastRun|null, lastCompletedTrack:'daily'|'brush'|null }
+   *
+   * 推/刷 1:1：看「最近一次已完成训练局」类型——
+   * 上次完成推进 → 下一次新开局（无当日 lastRun、未在刷热图会话）优先刷热图；
+   * 上次完成刷热图 → 走推进 frontier。
+   * 推进失败进入刷热图但未打完刷热图局：lastCompletedTrack 仍为 daily → 下次仍刷热图。
    */
   function computeTrainingNextLevel(cellsResult, dayState, todayKey) {
     var today = todayKey || '';
@@ -585,6 +655,10 @@
     }
     var lr = st.lastRun;
     if (!lr) {
+      // 隔轨：上一完成局是推进 → 本局刷热图
+      if (st.lastCompletedTrack === 'daily') {
+        return makeBrushPickResult(cellsResult, LEVEL_COUNT - 1, true, 'alt_after_daily');
+      }
       var start = computeDailyFrontierStart(cellsResult);
       if (start.enterBrush) {
         return makeBrushPickResult(cellsResult, start.brushPoolMax, true, start.reason);
@@ -647,6 +721,17 @@
     }
     var lr = st.lastRun;
     if (!lr) {
+      if (st.lastCompletedTrack === 'daily') {
+        return {
+          mode: 'brush',
+          levelIndex: LEVEL_COUNT - 1,
+          brushMode: true,
+          brushPoolMax: LEVEL_COUNT - 1,
+          needsHeatmap: true,
+          reason: 'alt_after_daily',
+          enterBrush: true,
+        };
+      }
       return {
         mode: 'daily',
         levelIndex: null,
@@ -716,6 +801,9 @@
     if (result.reason === 'daily_fail_enter_brush') {
       return L.dailyFailEnterBrush || '本关三败，进刷热图（不含本关及以上）';
     }
+    if (result.reason === 'alt_after_daily') {
+      return L.altAfterDaily || '隔轨：上一完成局为推进，本局刷热图';
+    }
     if (result.reason === 'daily_pass_next') return L.dailyPassNext || '当日闯关：上局达标，下一关';
     if (result.reason === 'retry_same') return L.retrySame || '当日闯关：本关继续（未达单局95%）';
     if (result.reason === 'scan_below') return L.scanBelow || '当日闯关：第一个加权准确率<95%';
@@ -765,18 +853,35 @@
    * buildHeatOpts: { cohort, maxTimeSpentMs }
    */
   function reconstructTrainingDayStateFromRuns(runs, todayKey, buildHeatOpts) {
-    var st = { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
-    if (!todayKey) return normalizeTrainingDayState(st, todayKey);
-    var trainingToday = (runs || [])
+    var priorTrack = null;
+    var allTraining = (runs || [])
       .filter(function (r) {
         return String(r && r.mode ? r.mode : '').toLowerCase() === 'training';
       })
       .filter(function (r) {
-        return localDayKeyFromTs(r.ts) === todayKey;
+        return r && r.comboOnly !== true;
       })
+      .slice()
       .sort(function (a, b) {
         return (a.ts || 0) - (b.ts || 0);
       });
+    for (var pi = 0; pi < allTraining.length; pi++) {
+      var pr = allTraining[pi];
+      if (localDayKeyFromTs(pr.ts) === todayKey) break;
+      priorTrack = pr.trainingMeta && pr.trainingMeta.runBrushMode ? 'brush' : 'daily';
+    }
+
+    var st = {
+      dayKey: todayKey,
+      brushMode: false,
+      brushPoolMax: null,
+      lastRun: null,
+      lastCompletedTrack: priorTrack,
+    };
+    if (!todayKey) return normalizeTrainingDayState(st, todayKey);
+    var trainingToday = allTraining.filter(function (r) {
+      return localDayKeyFromTs(r.ts) === todayKey;
+    });
     var arith = filterArithmeticRuns(runs || []);
     var capMs =
       buildHeatOpts && Number(buildHeatOpts.maxTimeSpentMs)
@@ -786,8 +891,15 @@
 
     for (var i = 0; i < trainingToday.length; i++) {
       var run = trainingToday[i];
+      var runBrush = !!(run.trainingMeta && run.trainingMeta.runBrushMode);
+      st.lastCompletedTrack = runBrush ? 'brush' : 'daily';
+
       if (run.trainingMeta && run.trainingMeta.dayStateAfter) {
         var da = run.trainingMeta.dayStateAfter;
+        var trackAfter =
+          da.lastCompletedTrack === 'daily' || da.lastCompletedTrack === 'brush'
+            ? da.lastCompletedTrack
+            : st.lastCompletedTrack;
         st = {
           dayKey: todayKey,
           brushMode: !!da.brushMode,
@@ -798,12 +910,12 @@
                 ? LEVEL_COUNT - 1
                 : null,
           lastRun: da.brushMode ? null : da.lastRun && typeof da.lastRun === 'object' ? da.lastRun : null,
+          lastCompletedTrack: trackAfter,
         };
         continue;
       }
       var levelIndex = Math.min(15, Math.max(0, Math.floor(Number(run.maxLevel) || 0)));
       var runPass = run.cleared === true;
-      var runBrush = !!(run.trainingMeta && run.trainingMeta.runBrushMode);
 
       if (runBrush) {
         continue;
@@ -871,6 +983,7 @@
     recommendTrainingBrushLevel: recommendTrainingBrushLevel,
     recommendTrainingBrushSlowAmongPass: recommendTrainingBrushSlowAmongPass,
     recommendTrainingBrushInPool: recommendTrainingBrushInPool,
+    recommendUnlockedWeightedBrush: recommendUnlockedWeightedBrush,
     computeActiveLadderTopM: computeActiveLadderTopM,
     computeDailyFrontierStart: computeDailyFrontierStart,
     computeTrainingNextLevel: computeTrainingNextLevel,
