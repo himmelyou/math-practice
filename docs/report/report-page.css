@@ -448,18 +448,15 @@
   border-radius: 10px;
   background: #fff;
   overflow: hidden;
+  width: 100%;
   max-width: 720px;
-  width: fit-content;
-  min-width: 220px;
 }
 
 .jml-heat-cat-toggle {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-  width: auto;
-  max-width: 100%;
+  justify-content: space-between;
+  width: 100%;
   padding: 10px 14px;
   border: none;
   background: #f8fafc;
@@ -470,10 +467,6 @@
   cursor: pointer;
   text-align: left;
   box-sizing: border-box;
-}
-
-.jml-heat-cat.open {
-  width: 100%;
 }
 
 .jml-heat-cat-toggle:hover {
