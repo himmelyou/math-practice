@@ -442,6 +442,55 @@
   max-width: 720px;
 }
 
+.jml-heat-cat {
+  margin-bottom: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.jml-heat-cat-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: #f8fafc;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.jml-heat-cat-toggle:hover {
+  background: #f1f5f9;
+}
+
+.jml-heat-cat-chevron {
+  color: #64748b;
+  font-size: 0.75rem;
+  transition: transform 0.15s ease;
+}
+
+.jml-heat-cat.open .jml-heat-cat-chevron {
+  transform: rotate(90deg);
+}
+
+.jml-heat-cat-body {
+  display: none;
+  padding: 10px 12px 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.jml-heat-cat.open .jml-heat-cat-body {
+  display: block;
+}
+
 .jml-heatmap-cell {
   cursor: pointer;
   border-radius: 10px;

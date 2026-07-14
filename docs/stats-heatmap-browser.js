@@ -6,20 +6,117 @@
  */
 (function (global) {
   var LEVEL_COUNT = 16;
+  var DECIMAL_LEVEL_COUNT = 5;
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
 
-  function clampLevel(i) {
-    return Math.max(0, Math.min(LEVEL_COUNT - 1, Number(i) || 0));
+  /** 热图分类注册表（后期加平方数等在此扩展） */
+  var HEATMAP_CATEGORIES = [
+    {
+      id: 'arithmetic',
+      modes: ['survival', 'level', 'training'],
+      levelCount: LEVEL_COUNT,
+      levelPrefix: 'L',
+      labelKey: 'stats.cat.arithmetic',
+      labelFallback: '四则运算',
+      cohortKind: 'level',
+    },
+    {
+      id: 'decimal',
+      modes: ['decimal'],
+      levelCount: DECIMAL_LEVEL_COUNT,
+      levelPrefix: 'D',
+      labelKey: 'stats.cat.decimal',
+      labelFallback: '小数运算',
+      cohortKind: 'decimal',
+    },
+  ];
+
+  function normalizeMode(mode) {
+    return String(mode || 'survival')
+      .toLowerCase()
+      .replace(/[_-]/g, '');
+  }
+
+  function clampLevel(i, levelCount) {
+    var n = levelCount > 0 && Number.isFinite(Number(levelCount)) ? Math.floor(Number(levelCount)) : LEVEL_COUNT;
+    return Math.max(0, Math.min(n - 1, Number(i) || 0));
+  }
+
+  function filterRunsByModes(runs, modes) {
+    var set = {};
+    (modes || []).forEach(function (m) {
+      set[normalizeMode(m)] = true;
+    });
+    return (runs || []).filter(function (r) {
+      return !!set[normalizeMode(r && r.mode)];
+    });
   }
 
   function filterArithmeticRuns(runs) {
-    return (runs || []).filter(function (r) {
-      var m = String(r && r.mode ? r.mode : 'survival').toLowerCase();
-      if (m === 'expandbrackets' || m === 'primecomposite' || m === 'perfectsquare') return false;
-      return m === 'survival' || m === 'level' || m === 'training';
+    return filterRunsByModes(runs, ['survival', 'level', 'training']);
+  }
+
+  function filterDecimalRuns(runs) {
+    return filterRunsByModes(runs, ['decimal']);
+  }
+
+  function getHeatmapCategories() {
+    return HEATMAP_CATEGORIES.slice();
+  }
+
+  function getHeatmapCategory(id) {
+    for (var i = 0; i < HEATMAP_CATEGORIES.length; i += 1) {
+      if (HEATMAP_CATEGORIES[i].id === id) return HEATMAP_CATEGORIES[i];
+    }
+    return HEATMAP_CATEGORIES[0];
+  }
+
+  function categoryForMode(mode) {
+    var m = normalizeMode(mode);
+    for (var i = 0; i < HEATMAP_CATEGORIES.length; i += 1) {
+      var cat = HEATMAP_CATEGORIES[i];
+      for (var j = 0; j < cat.modes.length; j += 1) {
+        if (normalizeMode(cat.modes[j]) === m) return cat;
+      }
+    }
+    return null;
+  }
+
+  function isHeatmapRelatedRun(r) {
+    if (!r || r.comboOnly === true) return false;
+    return !!categoryForMode(r.mode);
+  }
+
+  /** 最近一局热图相关练习 → 默认展开分类 + 折线关卡 */
+  function findLatestHeatmapRelatedSelection(runs) {
+    var best = null;
+    var bestCat = null;
+    (runs || []).forEach(function (r) {
+      if (!isHeatmapRelatedRun(r)) return;
+      var cat = categoryForMode(r.mode);
+      if (!cat) return;
+      if (!best || (Number(r.ts) || 0) > (Number(best.ts) || 0)) {
+        best = r;
+        bestCat = cat;
+      }
     });
+    if (!best || !bestCat) {
+      return { categoryId: 'arithmetic', levelIndex: 0, run: null };
+    }
+    var levelIndex = 0;
+    if (typeof best.maxLevel === 'number' && Number.isFinite(best.maxLevel) && best.maxLevel >= 0) {
+      levelIndex = clampLevel(best.maxLevel, bestCat.levelCount);
+    } else if (Array.isArray(best.attempts) && best.attempts.length) {
+      var last = best.attempts[best.attempts.length - 1];
+      levelIndex = clampLevel(last && last.levelIndex, bestCat.levelCount);
+    }
+    return { categoryId: bestCat.id, levelIndex: levelIndex, run: best };
+  }
+
+  function levelLabel(prefix, levelIndex) {
+    return String(prefix || 'L') + (Number(levelIndex) + 1);
   }
 
   /** 分位点摘要 → 近似百分位排名 0–100（值越大排名越高：ln(t) 越大越慢） */
@@ -53,7 +150,7 @@
    * 每档：按 run.ts 排序后取最近 window 条，再按「年龄整天数」指数权重聚合。
    * @returns {Array<{ n, weightedP, meanLnCorrect, sumW, nEff, minAgeDays, maxAgeDays }>}
    */
-  function personalWeightedByLevel(filteredRuns, maxTimeMs, nowMs, windowMax, halfLifeDays) {
+  function personalWeightedByLevel(filteredRuns, maxTimeMs, nowMs, windowMax, halfLifeDays, levelCount) {
     nowMs = Number(nowMs) && Number.isFinite(nowMs) ? nowMs : Date.now();
     windowMax =
       Number(windowMax) > 0 && Number.isFinite(Number(windowMax))
@@ -64,11 +161,13 @@
         ? Number(halfLifeDays)
         : PERSONAL_HALF_LIFE_DAYS;
     var lambda = Math.LN2 / halfLife;
+    var nLevels =
+      levelCount > 0 && Number.isFinite(Number(levelCount)) ? Math.floor(Number(levelCount)) : LEVEL_COUNT;
 
     var cap = Number(maxTimeMs);
     if (!Number.isFinite(cap) || cap <= 0) cap = 60 * 1000;
 
-    var buckets = Array.from({ length: LEVEL_COUNT }, function () {
+    var buckets = Array.from({ length: nLevels }, function () {
       return [];
     });
 
@@ -76,7 +175,7 @@
       if (!Array.isArray(r.attempts)) return;
       var runTs = Number(r.ts) || 0;
       r.attempts.forEach(function (a) {
-        var k = clampLevel(a.levelIndex);
+        var k = clampLevel(a.levelIndex, nLevels);
         var ageDays = runTs > 0 ? Math.max(0, Math.floor((nowMs - runTs) / MS_PER_DAY)) : 0;
         var wRaw = Math.exp(-lambda * ageDays);
         buckets[k].push({
@@ -90,7 +189,7 @@
     });
 
     var by = [];
-    for (var k = 0; k < LEVEL_COUNT; k++) {
+    for (var k = 0; k < nLevels; k++) {
       var arr = buckets[k];
       arr.sort(function (u, v) {
         return u.runTs - v.runTs;
@@ -154,16 +253,24 @@
 
   /**
    * @param {object} opts
-   * @param {Array} opts.runs 原始 runs（内部会筛 survival/level/training）
-   * @param {object|null} opts.cohort GET /api/admin/stats/level-cohort 的 JSON
+   * @param {Array} opts.runs
+   * @param {object|null} ops.cohort
+   * @param {number} [opts.levelCount] 默认 16
+   * @param {string[]} [opts.modes] 默认 survival/level/training
    * @param {number} [opts.minAttempts]
-   * @param {number} [opts.maxTimeSpentMs] 与常模一致
-   * @param {number} [opts.nowTs] 默认 Date.now()，便于测试
-   * @param {number} [opts.personalWindowAttempts] 默认 200
-   * @param {number} [opts.personalHalfLifeDays] 默认 14
+   * @param {number} [opts.maxTimeSpentMs]
+   * @param {number} [opts.nowTs]
+   * @param {number} [opts.personalWindowAttempts]
+   * @param {number} [opts.personalHalfLifeDays]
    */
   function buildHeatmapCells(opts) {
-    var runs = filterArithmeticRuns(opts.runs);
+    opts = opts || {};
+    var levelCount =
+      opts.levelCount > 0 && Number.isFinite(Number(opts.levelCount))
+        ? Math.floor(Number(opts.levelCount))
+        : LEVEL_COUNT;
+    var modes = opts.modes || ['survival', 'level', 'training'];
+    var runs = filterRunsByModes(opts.runs, modes);
     var cohort = opts.cohort && opts.cohort.ok ? opts.cohort : null;
     var minAttempts =
       Number(opts.minAttempts) ||
@@ -179,11 +286,11 @@
     var halfLifeDays =
       Number(opts.personalHalfLifeDays) > 0 ? Number(opts.personalHalfLifeDays) : PERSONAL_HALF_LIFE_DAYS;
 
-    var by = personalWeightedByLevel(runs, maxTimeMs, nowMs, windowAttempts, halfLifeDays);
+    var by = personalWeightedByLevel(runs, maxTimeMs, nowMs, windowAttempts, halfLifeDays, levelCount);
     var cohortLevels = cohort && Array.isArray(cohort.levels) ? cohort.levels : [];
 
     var cells = [];
-    for (var k = 0; k < LEVEL_COUNT; k++) {
+    for (var k = 0; k < levelCount; k++) {
       var b = by[k];
       var p = b.weightedP;
       var pText = p != null ? (Math.round(p * 1000) / 10).toFixed(1) + '%' : '-';
@@ -197,7 +304,6 @@
 
       var avgSecText = '-';
       if (meanLn != null && Number.isFinite(meanLn)) {
-        // meanLn 为加权 ln(timeSpentMs)，ms 为毫秒；exp 得几何平均耗时（毫秒），再换「秒」展示
         var geoMeanMs = Math.exp(meanLn);
         var secDisplay = geoMeanMs / 1000;
         if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
@@ -228,6 +334,7 @@
       personalWindowAttempts: windowAttempts,
       personalHalfLifeDays: halfLifeDays,
       personalNowTs: nowMs,
+      levelCount: levelCount,
     };
   }
 
@@ -742,11 +849,22 @@
 
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
+    DECIMAL_LEVEL_COUNT: DECIMAL_LEVEL_COUNT,
+    HEATMAP_CATEGORIES: HEATMAP_CATEGORIES,
+    getHeatmapCategories: getHeatmapCategories,
+    getHeatmapCategory: getHeatmapCategory,
+    categoryForMode: categoryForMode,
+    isHeatmapRelatedRun: isHeatmapRelatedRun,
+    findLatestHeatmapRelatedSelection: findLatestHeatmapRelatedSelection,
+    levelLabel: levelLabel,
     fullLevelPoolIndices: fullLevelPoolIndices,
     MS_PER_DAY: MS_PER_DAY,
     PERSONAL_WINDOW_ATTEMPTS: PERSONAL_WINDOW_ATTEMPTS,
     PERSONAL_HALF_LIFE_DAYS: PERSONAL_HALF_LIFE_DAYS,
+    normalizeMode: normalizeMode,
+    filterRunsByModes: filterRunsByModes,
     filterArithmeticRuns: filterArithmeticRuns,
+    filterDecimalRuns: filterDecimalRuns,
     buildHeatmapCells: buildHeatmapCells,
     recommendLevelIndex: recommendLevelIndex,
     recommendLevelIndexAccuracyBrush: recommendLevelIndexAccuracyBrush,

@@ -86,12 +86,17 @@
     selectedUsername: '',
     loadedStudentUsername: '',
     agg: null,
+    aggByCategory: {},
     chartModel: null,
     statsLevelIndex: 0,
+    chartCategoryId: 'arithmetic',
+    expandedCategoryId: 'arithmetic',
     loadError: '',
     cohort: null,
+    cohortByCategory: {},
     cohortError: '',
     heat: null,
+    heatByCategory: {},
     overviewRows: [],
     overviewLoading: false,
     overviewError: '',
@@ -689,8 +694,10 @@
     state.userDetail = null;
     state.loadedStudentUsername = '';
     state.agg = null;
+    state.aggByCategory = {};
     state.chartModel = null;
     state.heat = null;
+    state.heatByCategory = {};
     renderRunsTable();
     renderWrongBook();
     renderExpandWrongBook();
@@ -699,13 +706,34 @@
 
   function loadLevelCohort() {
     state.cohortError = '';
-    return apiFetch('/api/admin/stats/level-cohort')
-      .then(function (d) {
-        state.cohort = d && d.ok ? d : null;
-        if (!d || !d.ok) state.cohortError = '常模接口返回异常';
+    return Promise.all([
+      apiFetch('/api/admin/stats/level-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
+      apiFetch('/api/admin/stats/decimal-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
+    ])
+      .then(function (results) {
+        var level = results[0];
+        var decimal = results[1];
+        state.cohortByCategory = {
+          arithmetic: level && level.ok ? level : null,
+          decimal: decimal && decimal.ok ? decimal : null,
+        };
+        state.cohort = state.cohortByCategory.arithmetic;
+        var errs = [];
+        if (!state.cohortByCategory.arithmetic) {
+          errs.push('四则：' + ((level && level.error) || '常模接口返回异常'));
+        }
+        if (!state.cohortByCategory.decimal) {
+          errs.push('小数：' + ((decimal && decimal.error) || '常模接口返回异常'));
+        }
+        state.cohortError = errs.length ? errs.join('；') : '';
       })
       .catch(function (e) {
         state.cohort = null;
+        state.cohortByCategory = {};
         state.cohortError = e.message || String(e);
       })
       .then(function () {
@@ -814,12 +842,57 @@
         state.userDetail = userData && userData.user ? userData.user : userData;
 
         var Agg = window.JmlStatsAggregate;
-        if (Agg) {
+        var HM = window.JmlStatsHeatmap;
+        state.aggByCategory = {};
+        if (Agg && HM && HM.getHeatmapCategories) {
+          HM.getHeatmapCategories().forEach(function (cat) {
+            state.aggByCategory[cat.id] = Agg.aggregateFromRuns(runs, {
+              modes: cat.modes,
+              levelCount: cat.levelCount,
+            });
+          });
+          var sel = HM.findLatestHeatmapRelatedSelection
+            ? HM.findLatestHeatmapRelatedSelection(runs)
+            : { categoryId: 'arithmetic', levelIndex: 0 };
+          state.expandedCategoryId = sel.categoryId;
+          state.chartCategoryId = sel.categoryId;
+          var chartAgg = state.aggByCategory[sel.categoryId];
+          var levelIdx = sel.levelIndex;
+          if (chartAgg && chartAgg.hasAny) {
+            if (!(chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0)) {
+              levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
+            }
+          } else {
+            var cats = HM.getHeatmapCategories();
+            for (var ci = 0; ci < cats.length; ci += 1) {
+              var a = state.aggByCategory[cats[ci].id];
+              if (a && a.hasAny) {
+                state.expandedCategoryId = cats[ci].id;
+                state.chartCategoryId = cats[ci].id;
+                levelIdx = Agg.firstLevelWithData(a.byLevel);
+                chartAgg = a;
+                break;
+              }
+            }
+          }
+          state.statsLevelIndex = levelIdx;
+          state.agg = chartAgg || null;
+          var chartCat = HM.getHeatmapCategory(state.chartCategoryId) || {};
+          state.chartModel =
+            chartAgg && chartAgg.hasAny
+              ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
+                  levelCount: chartCat.levelCount || 16,
+                })
+              : null;
+        } else if (Agg) {
           var agg = Agg.aggregateFromRuns(runs);
           state.agg = agg;
-          var levelIdx = Agg.firstLevelWithData(agg.byLevel);
-          state.statsLevelIndex = levelIdx;
-          state.chartModel = agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx) : null;
+          state.aggByCategory = { arithmetic: agg };
+          var levelIdx2 = Agg.firstLevelWithData(agg.byLevel);
+          state.statsLevelIndex = levelIdx2;
+          state.chartCategoryId = 'arithmetic';
+          state.expandedCategoryId = 'arithmetic';
+          state.chartModel = agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
         } else {
           state.agg = null;
           state.chartModel = null;
@@ -1080,113 +1153,16 @@
     );
   }
 
-  function buildHeatmapSectionHtml() {
-    var HM = window.JmlStatsHeatmap;
-    if (!HM || !HM.buildHeatmapCells) {
-      return '<p class="jml-stats-cohort-warn">' + escapeHtml(rt('stats.heat.scriptMissing')) + '</p>';
-    }
-    var cohort = state.cohort;
-    var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
-    var capStr =
-      capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's';
-    var capNote =
-      cohort && cohort.timeSpentMsCapNote
-        ? cohort.timeSpentMsCapNote
-        : rtf('stats.heat.capNote', { cap: capStr });
-
-    var heat = HM.buildHeatmapCells({
-      runs: state.runs,
-      cohort: cohort,
-      maxTimeSpentMs: capMs,
-    });
-    state.heat = heat;
-    var todayKey = (function () {
-      var now = new Date();
-      var y = now.getFullYear();
-      var m = String(now.getMonth() + 1).padStart(2, '0');
-      var day = String(now.getDate()).padStart(2, '0');
-      return y + '-' + m + '-' + day;
-    })();
-    var dayState = null;
-    if (HM.reconstructTrainingDayStateFromRuns) {
-      dayState = HM.reconstructTrainingDayStateFromRuns(state.runs, todayKey, {
-        cohort: cohort && cohort.ok ? cohort : null,
-        maxTimeSpentMs: capMs,
-      });
-    }
-    var trainingNext = HM.computeTrainingNextLevel
-      ? HM.computeTrainingNextLevel(heat, dayState, todayKey)
-      : null;
-    var recK = trainingNext != null ? trainingNext.levelIndex : null;
-    var recMode = trainingNext ? trainingNext.mode : '';
-    var recReason =
-      trainingNext && HM.trainingNextLevelReasonText
-        ? HM.trainingNextLevelReasonText(trainingNext, getReportTrainingReasonLabels())
-        : '';
-
-    var cohortWarn = '';
-    if (state.cohortError) {
-      cohortWarn =
-        '<div class="jml-stats-cohort-warn"><strong>' +
-        escapeHtml(rt('stats.heat.cohortWarn')) +
-        '</strong> ' +
-        escapeHtml(state.cohortError) +
-        ' ' +
-        escapeHtml(rt('stats.heat.cohortWarnTail')) +
-        '</div>';
-    }
-
-    var legendBody = rtf('stats.heat.legend.body', {
-      window: heat.personalWindowAttempts || 200,
-      halfLife: heat.personalHalfLifeDays || 14,
-      minAttempts: heat.minAttempts,
-    });
-    var legend =
-      '<div class="jml-heatmap-legend">' +
-      '<strong>' +
-      escapeHtml(rt('stats.heat.legend.title')) +
-      '</strong>' +
-      escapeHtml(legendBody) +
-      '<br /><strong>' +
-      escapeHtml(rt('stats.heat.legend.speedCap')) +
-      '</strong>' +
-      escapeHtml(capNote) +
-      (cohort && cohort.builtAt
-        ? '<br /><strong>' +
-          escapeHtml(rt('stats.heat.legend.cohortSnap')) +
-          '</strong>' +
-          escapeHtml(
-            rtf('stats.heat.legend.cohortBuilt', {
-              built: formatDateTime(cohort.builtAt),
-              expires: formatDateTime(cohort.expiresAt),
-            })
-          ) +
-          (cohort.servedFromCache
-            ? ' ' + escapeHtml(rt('stats.heat.legend.cohortCache'))
-            : ' ' + escapeHtml(rt('stats.heat.legend.cohortRebuilt')))
-        : '') +
-      (recK != null
-        ? '<br /><strong>' +
-          escapeHtml(rt('stats.heat.legend.recommend')) +
-          '</strong>' +
-          escapeHtml(
-            rtf('stats.heat.legend.recommendDetail', {
-              level: recK + 1,
-              mode: recMode === 'brush' ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily'),
-              reason: recReason || (trainingNext && trainingNext.reason) || '',
-              brush: String(!!(trainingNext.brushMode || (dayState && dayState.brushMode))),
-            })
-          )
-        : '') +
-      '</div>';
-
+  function buildHeatmapCellsHtmlForCategory(heat, categoryId, levelPrefix) {
+    if (!heat || !Array.isArray(heat.cells)) return '';
     var lblAcc = rt('stats.heat.accuracy');
     var lblTime = rt('stats.heat.avgTimeCorrect');
     var lblW = rt('stats.heat.weighted');
-
-    var cellsHtml = heat.cells
+    var prefix = levelPrefix || 'L';
+    var chartCat = state.chartCategoryId;
+    return heat.cells
       .map(function (c) {
-        var label = 'L' + (c.levelIndex + 1);
+        var label = prefix + (c.levelIndex + 1);
         var cls = 'jml-heatmap-cell' + (c.active ? '' : ' inactive');
         var st = heatmapCellInlineStyle(c);
         var timeT =
@@ -1201,7 +1177,10 @@
           c.active && c.ageDaysMin != null && c.ageDaysMax != null
             ? rtf('stats.heat.ageDays', { min: c.ageDaysMin, max: c.ageDaysMax })
             : '';
-        var selCls = c.levelIndex === state.statsLevelIndex ? ' jml-heatmap-cell-selected' : '';
+        var selCls =
+          categoryId === chartCat && c.levelIndex === state.statsLevelIndex
+            ? ' jml-heatmap-cell-selected'
+            : '';
         var title = rtf('stats.heat.cellTitle', {
           label: label,
           p: c.pText != null ? String(c.pText) : '-',
@@ -1211,6 +1190,9 @@
           '<div class="' +
           cls +
           selCls +
+          '"' +
+          ' data-category-id="' +
+          escapeHtml(categoryId) +
           '"' +
           ' data-level-index="' +
           c.levelIndex +
@@ -1254,15 +1236,165 @@
         );
       })
       .join('');
+  }
+
+  function buildHeatmapSectionHtml() {
+    var HM = window.JmlStatsHeatmap;
+    if (!HM || !HM.buildHeatmapCells || !HM.getHeatmapCategories) {
+      return '<p class="jml-stats-cohort-warn">' + escapeHtml(rt('stats.heat.scriptMissing')) + '</p>';
+    }
+
+    var cats = HM.getHeatmapCategories();
+    state.heatByCategory = {};
+    var anyLegendHeat = null;
+    var trainingRecHtml = '';
+
+    cats.forEach(function (cat) {
+      var cohort = (state.cohortByCategory && state.cohortByCategory[cat.id]) || null;
+      if (cat.id === 'arithmetic' && !cohort) cohort = state.cohort;
+      var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+      var heat = HM.buildHeatmapCells({
+        runs: state.runs,
+        cohort: cohort && cohort.ok ? cohort : null,
+        modes: cat.modes,
+        levelCount: cat.levelCount,
+        maxTimeSpentMs: capMs,
+      });
+      state.heatByCategory[cat.id] = heat;
+      if (!anyLegendHeat) anyLegendHeat = heat;
+
+      if (cat.id === 'arithmetic' && HM.reconstructTrainingDayStateFromRuns && HM.computeTrainingNextLevel) {
+        var todayKey = (function () {
+          var now = new Date();
+          return (
+            now.getFullYear() +
+            '-' +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            '-' +
+            String(now.getDate()).padStart(2, '0')
+          );
+        })();
+        var dayState = HM.reconstructTrainingDayStateFromRuns(state.runs, todayKey, {
+          cohort: cohort && cohort.ok ? cohort : null,
+          maxTimeSpentMs: capMs,
+        });
+        var trainingNext = HM.computeTrainingNextLevel(heat, dayState, todayKey);
+        var recK = trainingNext != null ? trainingNext.levelIndex : null;
+        var recMode = trainingNext ? trainingNext.mode : '';
+        var recReason =
+          trainingNext && HM.trainingNextLevelReasonText
+            ? HM.trainingNextLevelReasonText(trainingNext, getReportTrainingReasonLabels())
+            : '';
+        if (recK != null) {
+          trainingRecHtml =
+            '<br /><strong>' +
+            escapeHtml(rt('stats.heat.legend.recommend')) +
+            '</strong>' +
+            escapeHtml(
+              rtf('stats.heat.legend.recommendDetail', {
+                level: recK + 1,
+                mode: recMode === 'brush' ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily'),
+                reason: recReason || (trainingNext && trainingNext.reason) || '',
+                brush: String(!!(trainingNext.brushMode || (dayState && dayState.brushMode))),
+              })
+            );
+        }
+      }
+    });
+
+    state.heat = state.heatByCategory[state.chartCategoryId] || anyLegendHeat;
+
+    var cohortWarn = '';
+    if (state.cohortError) {
+      cohortWarn =
+        '<div class="jml-stats-cohort-warn"><strong>' +
+        escapeHtml(rt('stats.heat.cohortWarn')) +
+        '</strong> ' +
+        escapeHtml(state.cohortError) +
+        ' ' +
+        escapeHtml(rt('stats.heat.cohortWarnTail')) +
+        '</div>';
+    }
+
+    var heat = anyLegendHeat || { personalWindowAttempts: 200, personalHalfLifeDays: 14, minAttempts: 10 };
+    var chartCohort =
+      (state.cohortByCategory && state.cohortByCategory[state.chartCategoryId]) || state.cohort;
+    var capMs =
+      chartCohort && Number(chartCohort.timeSpentMsCap) ? Number(chartCohort.timeSpentMsCap) : 60 * 1000;
+    var capStr = capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's';
+    var capNote =
+      chartCohort && chartCohort.timeSpentMsCapNote
+        ? chartCohort.timeSpentMsCapNote
+        : rtf('stats.heat.capNote', { cap: capStr });
+
+    var legendBody = rtf('stats.heat.legend.body', {
+      window: heat.personalWindowAttempts || 200,
+      halfLife: heat.personalHalfLifeDays || 14,
+      minAttempts: heat.minAttempts,
+    });
+    var legend =
+      '<div class="jml-heatmap-legend">' +
+      '<strong>' +
+      escapeHtml(rt('stats.heat.legend.title')) +
+      '</strong>' +
+      escapeHtml(legendBody) +
+      '<br /><strong>' +
+      escapeHtml(rt('stats.heat.legend.speedCap')) +
+      '</strong>' +
+      escapeHtml(capNote) +
+      (chartCohort && chartCohort.builtAt
+        ? '<br /><strong>' +
+          escapeHtml(rt('stats.heat.legend.cohortSnap')) +
+          '</strong>' +
+          escapeHtml(
+            rtf('stats.heat.legend.cohortBuilt', {
+              built: formatDateTime(chartCohort.builtAt),
+              expires: formatDateTime(chartCohort.expiresAt),
+            })
+          ) +
+          (chartCohort.servedFromCache
+            ? ' ' + escapeHtml(rt('stats.heat.legend.cohortCache'))
+            : ' ' + escapeHtml(rt('stats.heat.legend.cohortRebuilt')))
+        : '') +
+      trainingRecHtml +
+      '</div>';
+
+    var catsHtml = cats
+      .map(function (cat) {
+        var cHeat = state.heatByCategory[cat.id];
+        var open = state.expandedCategoryId === cat.id;
+        var label = rt(cat.labelKey);
+        if (!label || label === cat.labelKey) label = cat.labelFallback || cat.id;
+        return (
+          '<div class="jml-heat-cat' +
+          (open ? ' open' : '') +
+          '" data-category-id="' +
+          escapeHtml(cat.id) +
+          '">' +
+          '<button type="button" class="jml-heat-cat-toggle" data-category-id="' +
+          escapeHtml(cat.id) +
+          '" aria-expanded="' +
+          (open ? 'true' : 'false') +
+          '">' +
+          '<span>' +
+          escapeHtml(label) +
+          '</span>' +
+          '<span class="jml-heat-cat-chevron" aria-hidden="true">▶</span>' +
+          '</button>' +
+          '<div class="jml-heat-cat-body">' +
+          '<div class="jml-heatmap-grid">' +
+          buildHeatmapCellsHtmlForCategory(cHeat, cat.id, cat.levelPrefix) +
+          '</div></div></div>'
+        );
+      })
+      .join('');
 
     var debugPayload = {
-      cohortResponse: cohort,
-      heatmapBuild: heat,
-      trainingDayState: dayState,
-      trainingNextLevel: trainingNext,
-      recommendTrainingBrushLevel: recK,
+      cohortByCategory: state.cohortByCategory,
+      heatmapByCategory: state.heatByCategory,
+      chartCategoryId: state.chartCategoryId,
+      expandedCategoryId: state.expandedCategoryId,
       runsCount: state.runs.length,
-      arithmeticRunsCount: HM.filterArithmeticRuns(state.runs).length,
     };
     var debugJson = '';
     try {
@@ -1270,7 +1402,6 @@
     } catch (e) {
       debugJson = String(e);
     }
-
     var debugBlock =
       '<details class="jml-stats-debug">' +
       '<summary>' +
@@ -1285,12 +1416,21 @@
       cohortWarn +
       '<div class="jml-heatmap-section">' +
       legend +
-      '<div class="jml-heatmap-grid" id="jml-heatmap-grid">' +
-      cellsHtml +
+      '<div class="jml-heatmap-categories" id="jml-heatmap-categories">' +
+      catsHtml +
       '</div>' +
       debugBlock +
       '</div>'
     );
+  }
+
+  function anyStatsCategoryHasData() {
+    var cats = Object.keys(state.aggByCategory || {});
+    for (var i = 0; i < cats.length; i += 1) {
+      var a = state.aggByCategory[cats[i]];
+      if (a && a.hasAny) return true;
+    }
+    return !!(state.agg && state.agg.hasAny);
   }
 
   function renderStatsPanel() {
@@ -1300,13 +1440,11 @@
       wrap.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
       return;
     }
-    var agg = state.agg;
-    if (!agg || !agg.hasAny) {
+    if (!anyStatsCategoryHasData()) {
       wrap.innerHTML =
-        '<div class="jml-report-empty">暂无四则相关 attempts（仅 survival / level / training；学员多玩几局后再看）</div>';
+        '<div class="jml-report-empty">暂无热图相关 attempts（四则：survival / level / training；小数：decimal）</div>';
       return;
     }
-    var Agg = window.JmlStatsAggregate;
 
     var heatmapBlock = buildHeatmapSectionHtml();
 
@@ -1325,7 +1463,8 @@
   }
 
   function getHeatCellForLevel(levelIndex) {
-    var heat = state.heat;
+    var heat =
+      (state.heatByCategory && state.heatByCategory[state.chartCategoryId]) || state.heat;
     if (!heat || !Array.isArray(heat.cells)) return null;
     for (var i = 0; i < heat.cells.length; i += 1) {
       if (heat.cells[i].levelIndex === levelIndex) return heat.cells[i];
@@ -1334,7 +1473,8 @@
   }
 
   function getCohortRowForLevel(levelIndex) {
-    var cohort = state.cohort;
+    var cohort =
+      (state.cohortByCategory && state.cohortByCategory[state.chartCategoryId]) || state.cohort;
     if (!cohort || !Array.isArray(cohort.levels)) return null;
     for (var i = 0; i < cohort.levels.length; i += 1) {
       if (cohort.levels[i].levelIndex === levelIndex) return cohort.levels[i];
@@ -1342,9 +1482,16 @@
     return cohort.levels[levelIndex] || null;
   }
 
-  function updateStatsChartHeadings() {
+  function reportChartLevelName() {
+    var HM = window.JmlStatsHeatmap;
+    var cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(state.chartCategoryId) : null;
     var li = state.statsLevelIndex;
-    var name = LEVEL_NAMES[li] || 'L' + (li + 1);
+    if (cat) return (cat.levelPrefix || 'L') + (li + 1);
+    return LEVEL_NAMES[li] || 'L' + (li + 1);
+  }
+
+  function updateStatsChartHeadings() {
+    var name = reportChartLevelName();
     var chartHeading = document.getElementById('jml-stats-chart-heading');
     if (chartHeading) {
       chartHeading.textContent = rtf('stats.report.chartHeading', { name: name });
@@ -1554,17 +1701,52 @@
     var statsBody = document.getElementById('jml-report-stats-body');
     if (statsBody) {
       statsBody.addEventListener('click', function (ev) {
+        var toggle = ev.target.closest('.jml-heat-cat-toggle');
+        if (toggle && statsBody.contains(toggle)) {
+          var cid = toggle.getAttribute('data-category-id');
+          if (!cid) return;
+          if (state.expandedCategoryId === cid) {
+            state.expandedCategoryId = null;
+          } else {
+            state.expandedCategoryId = cid;
+          }
+          statsBody.querySelectorAll('.jml-heat-cat').forEach(function (el) {
+            var open = el.getAttribute('data-category-id') === state.expandedCategoryId;
+            el.classList.toggle('open', open);
+            var btn = el.querySelector('.jml-heat-cat-toggle');
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          });
+          return;
+        }
         var cell = ev.target.closest('.jml-heatmap-cell');
         if (!cell || !statsBody.contains(cell)) return;
         var AggInner = window.JmlStatsAggregate;
-        if (!AggInner || !state.agg || !state.selectedUsername) return;
+        var HM = window.JmlStatsHeatmap;
+        if (!AggInner || !state.selectedUsername) return;
+        var catId = cell.getAttribute('data-category-id') || 'arithmetic';
         var idx = parseInt(cell.getAttribute('data-level-index'), 10);
-        if (!Number.isFinite(idx) || idx < 0 || idx > 15) return;
+        var cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(catId) : null;
+        var maxIdx = cat ? cat.levelCount - 1 : 15;
+        if (!Number.isFinite(idx) || idx < 0 || idx > maxIdx) return;
+        state.chartCategoryId = catId;
         state.statsLevelIndex = idx;
-        state.chartModel = AggInner.buildChartSeries(state.agg.byDay, state.statsLevelIndex);
+        state.heat = (state.heatByCategory && state.heatByCategory[catId]) || state.heat;
+        state.agg = (state.aggByCategory && state.aggByCategory[catId]) || state.agg;
+        state.cohort = (state.cohortByCategory && state.cohortByCategory[catId]) || state.cohort;
+        if (state.agg && state.agg.hasAny) {
+          state.chartModel = AggInner.buildChartSeries(state.agg.byDay, state.statsLevelIndex, {
+            levelCount: cat ? cat.levelCount : 16,
+          });
+        } else {
+          state.chartModel = null;
+        }
         statsBody.querySelectorAll('.jml-heatmap-cell').forEach(function (el) {
+          var elCat = el.getAttribute('data-category-id');
           var i = parseInt(el.getAttribute('data-level-index'), 10);
-          el.classList.toggle('jml-heatmap-cell-selected', i === state.statsLevelIndex);
+          el.classList.toggle(
+            'jml-heatmap-cell-selected',
+            elCat === state.chartCategoryId && i === state.statsLevelIndex
+          );
         });
         updateStatsChartHeadings();
         redrawAllStatsCharts();
@@ -1588,6 +1770,10 @@
         })
           .then(function (d) {
             state.cohort = d && d.ok ? d : null;
+            state.cohortByCategory = {
+              arithmetic: state.cohort,
+              decimal: d && d.decimal && d.decimal.ok ? d.decimal : null,
+            };
             state.cohortError = d && d.ok ? '' : '常模重建返回异常';
             if (state.selectedUsername) renderStatsPanel();
           })

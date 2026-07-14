@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css?v=28" />
+  <link rel="stylesheet" href="report-page.css?v=29" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -26,7 +26,7 @@
     <div class="jml-shell-inner jml-admin-wide">
       <div class="jml-admin-toolbar">
         <a class="jml-toolbar-link" href="../admin/index.html">后台管理</a>
-        <button type="button" class="jml-btn" id="jml-cohort-rebuild-btn" title="全量重扫 runs 并写入常模快照（与定时过期逻辑相同）">刷新全体常模</button>
+        <button type="button" class="jml-btn" id="jml-cohort-rebuild-btn" title="全量重扫 runs 并写入四则+小数常模快照（与定时过期逻辑相同）">刷新全体常模</button>
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
 
@@ -94,11 +94,11 @@
     })();
   </script>
   <script src="../shared/admin-auth.js?v=21"></script>
-  <script src="../shared/stats-i18n-pack.js?v=22"></script>
-  <script src="../stats-aggregate-browser.js?v=22"></script>
-  <script src="../stats-heatmap-browser.js?v=22"></script>
+  <script src="../shared/stats-i18n-pack.js?v=48"></script>
+  <script src="../stats-aggregate-browser.js?v=48"></script>
+  <script src="../stats-heatmap-browser.js?v=48"></script>
   <script src="../stats-chart-browser.js?v=22"></script>
-  <script src="report-page.js?v=29"></script>
+  <script src="report-page.js?v=30"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

@@ -174,6 +174,7 @@ const SETTINGS_FILE = path.join(DATA_DIR, "settings.json");
 const I18N_FILE = path.join(DATA_DIR, "i18n.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
 const COHORT_LEVEL_STATS_FILE = path.join(DATA_DIR, "cohort-level-stats.json");
+const COHORT_DECIMAL_STATS_FILE = path.join(DATA_DIR, "cohort-decimal-stats.json");
 /** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
 const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
@@ -2396,6 +2397,10 @@ function purgeUserCompletely(username) {
       fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
       cohortStatsInvalidated = true;
     }
+    if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) {
+      fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
+      cohortStatsInvalidated = true;
+    }
   } catch (e) {
     /* ignore */
   }
@@ -2736,9 +2741,141 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const result = computeLevelCohortResult();
   const builtAt = Date.now();
+  const result = computeLevelCohortResult();
   writeCohortLevelStatsCache(builtAt, result);
+  const decimalResult = computeDecimalCohortResult();
+  writeCohortDecimalStatsCache(builtAt, decimalResult);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+    rebuilt: true,
+    decimal: {
+      ...decimalResult,
+      builtAt,
+      ttlMs: COHORT_STATS_TTL_MS,
+      expiresAt: builtAt + COHORT_STATS_TTL_MS,
+      servedFromCache: false,
+      rebuilt: true,
+    },
+  });
+});
+
+/** 小数运算全体常模（D1–D5） */
+const COHORT_DECIMAL_LEVEL_COUNT = 5;
+
+function computeDecimalCohortResult() {
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const lnTimesByLevel = Array.from({ length: COHORT_DECIMAL_LEVEL_COUNT }, () => []);
+
+  const usernames = Object.keys(runsData.runs || {});
+  usernames.forEach((username) => {
+    const runs = runsData.runs[username] || [];
+    runs.forEach((r) => {
+      const mode = normalizeRunMode(r.mode);
+      if (mode !== "decimal") return;
+      if (!Array.isArray(r.attempts)) return;
+      r.attempts.forEach((a) => {
+        const idx = Math.max(0, Math.min(COHORT_DECIMAL_LEVEL_COUNT - 1, Number(a.levelIndex) || 0));
+        if (!a.correct) return;
+        const ms = Number(a.timeSpentMs);
+        if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
+          lnTimesByLevel[idx].push(Math.log(ms));
+        }
+      });
+    });
+  });
+
+  const levels = [];
+  for (let k = 0; k < COHORT_DECIMAL_LEVEL_COUNT; k++) {
+    const lnQ = summarizeQuantiles(lnTimesByLevel[k]);
+    levels.push({
+      levelIndex: k,
+      cohortLnTimeCorrect: lnQ,
+      cohortLnTimeHistogram: buildLnHistogram(lnTimesByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+    });
+  }
+  return {
+    ok: true,
+    kind: "decimal",
+    levelCount: COHORT_DECIMAL_LEVEL_COUNT,
+    minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
+    timeSpentMsCapNote:
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入全体/个人速度侧统计（排除挂机、长时间切屏等异常偏慢）",
+    levels,
+  };
+}
+
+function readCohortDecimalStatsCache() {
+  const raw = readJson(COHORT_DECIMAL_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortDecimalStatsCache(builtAt, result) {
+  writeJson(COHORT_DECIMAL_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/public/decimal-cohort", (req, res) => {
+  const cache = readCohortDecimalStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({ ok: false, error: "暂无小数常模，请管理员在后台拉取或刷新常模后再试" });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
+app.get("/api/admin/stats/decimal-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortDecimalStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computeDecimalCohortResult();
+  const builtAt = now;
+  writeCohortDecimalStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+  });
+});
+
+app.post("/api/admin/stats/decimal-cohort/rebuild", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const result = computeDecimalCohortResult();
+  const builtAt = Date.now();
+  writeCohortDecimalStatsCache(builtAt, result);
   return res.json({
     ...result,
     builtAt,
@@ -2879,6 +3016,7 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
       writeJson(RUNS_FILE, (r.runs && typeof r.runs === "object") ? r : { runs: typeof r === "object" ? r : {} });
       try {
         if (fs.existsSync(COHORT_LEVEL_STATS_FILE)) fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
+        if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
       } catch (e2) {
         /* 忽略：常模快照删除失败不影响恢复 */
       }

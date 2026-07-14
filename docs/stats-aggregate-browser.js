@@ -1,8 +1,10 @@
 /**
  * 与小程序端 stats 聚合一致（浏览器版）；canonical 位于 docs/，report 与主站共用。
+ * 支持按模式分类：四则（L1–L16）/ 小数（D1–D5）等。
  */
 (function (global) {
   var LEVEL_COUNT = 16;
+  var DECIMAL_LEVEL_COUNT = 5;
   /** 折线图：该难度下「有答题」的最近多少个日历日（无则向前不填充） */
   var CHART_PRACTICE_DAYS = 14;
 
@@ -10,20 +12,47 @@
     return { total: 0, correct: 0, totalTimeMs: 0 };
   }
 
-  function filterArithmeticRuns(runs) {
+  function normalizeMode(mode) {
+    return String(mode || 'survival')
+      .toLowerCase()
+      .replace(/[_-]/g, '');
+  }
+
+  function filterRunsByModes(runs, modes) {
+    var set = {};
+    (modes || []).forEach(function (m) {
+      set[normalizeMode(m)] = true;
+    });
     return (runs || []).filter(function (r) {
-      var m = String(r && r.mode ? r.mode : 'survival').toLowerCase();
-      return m === 'survival' || m === 'level' || m === 'training';
+      return !!set[normalizeMode(r && r.mode)];
     });
   }
 
-  function aggregateFromRuns(runs) {
-    var byLevel = Array.from({ length: LEVEL_COUNT }, function () {
+  function filterArithmeticRuns(runs) {
+    return filterRunsByModes(runs, ['survival', 'level', 'training']);
+  }
+
+  function filterDecimalRuns(runs) {
+    return filterRunsByModes(runs, ['decimal']);
+  }
+
+  /**
+   * @param {Array} runs
+   * @param {{ levelCount?: number, modes?: string[] }} [opts]
+   */
+  function aggregateFromRuns(runs, opts) {
+    opts = opts || {};
+    var levelCount =
+      opts.levelCount > 0 && Number.isFinite(Number(opts.levelCount))
+        ? Math.floor(Number(opts.levelCount))
+        : LEVEL_COUNT;
+    var modes = opts.modes || ['survival', 'level', 'training'];
+    var byLevel = Array.from({ length: levelCount }, function () {
       return emptyLevelAgg();
     });
     var byDay = {};
 
-    filterArithmeticRuns(runs).forEach(function (r) {
+    filterRunsByModes(runs, modes).forEach(function (r) {
       var ts = r.ts || 0;
       var d = new Date(ts);
       var dateStr =
@@ -33,13 +62,13 @@
         '-' +
         String(d.getDate()).padStart(2, '0');
       if (!byDay[dateStr]) {
-        byDay[dateStr] = Array.from({ length: LEVEL_COUNT }, function () {
+        byDay[dateStr] = Array.from({ length: levelCount }, function () {
           return emptyLevelAgg();
         });
       }
       if (!Array.isArray(r.attempts)) return;
       r.attempts.forEach(function (a) {
-        var idx = Math.max(0, Math.min(LEVEL_COUNT - 1, Number(a.levelIndex) || 0));
+        var idx = Math.max(0, Math.min(levelCount - 1, Number(a.levelIndex) || 0));
         byLevel[idx].total += 1;
         if (a.correct) byLevel[idx].correct += 1;
         byLevel[idx].totalTimeMs += Number(a.timeSpentMs) || 0;
@@ -53,12 +82,22 @@
     var hasAny = byLevel.some(function (l) {
       return l.total > 0;
     });
-    return { byLevel: byLevel, byDay: byDay, hasAny: hasAny };
+    return { byLevel: byLevel, byDay: byDay, hasAny: hasAny, levelCount: levelCount };
   }
 
-  function buildChartSeries(byDay, levelIndex) {
+  /**
+   * @param {object} byDay
+   * @param {number} levelIndex
+   * @param {{ levelCount?: number }} [opts]
+   */
+  function buildChartSeries(byDay, levelIndex, opts) {
     if (!byDay || typeof byDay !== 'object') return null;
-    var li = Math.max(0, Math.min(LEVEL_COUNT - 1, Number(levelIndex) || 0));
+    opts = opts || {};
+    var levelCount =
+      opts.levelCount > 0 && Number.isFinite(Number(opts.levelCount))
+        ? Math.floor(Number(opts.levelCount))
+        : LEVEL_COUNT;
+    var li = Math.max(0, Math.min(levelCount - 1, Number(levelIndex) || 0));
     var dates = Object.keys(byDay)
       .filter(function (d) {
         var L = byDay[d] && byDay[d][li];
@@ -121,6 +160,7 @@
   }
 
   function firstLevelWithData(byLevel) {
+    if (!Array.isArray(byLevel)) return 0;
     var i = byLevel.findIndex(function (l) {
       return l.total > 0;
     });
@@ -129,8 +169,12 @@
 
   global.JmlStatsAggregate = {
     LEVEL_COUNT: LEVEL_COUNT,
+    DECIMAL_LEVEL_COUNT: DECIMAL_LEVEL_COUNT,
     CHART_PRACTICE_DAYS: CHART_PRACTICE_DAYS,
+    normalizeMode: normalizeMode,
+    filterRunsByModes: filterRunsByModes,
     filterArithmeticRuns: filterArithmeticRuns,
+    filterDecimalRuns: filterDecimalRuns,
     aggregateFromRuns: aggregateFromRuns,
     buildChartSeries: buildChartSeries,
     buildTableRows: buildTableRows,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=47"></script>
+  <script src="shared/app-version.js?v=48"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -2457,6 +2457,48 @@
       padding: 4px 0;
       box-sizing: border-box;
     }
+    .stats-heat-cat {
+      margin-bottom: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .stats-heat-cat-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 10px 12px;
+      border: none;
+      background: #f8fafc;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      text-align: left;
+      box-sizing: border-box;
+    }
+    .stats-heat-cat-toggle:hover {
+      background: #f1f5f9;
+    }
+    .stats-heat-cat-toggle .stats-heat-cat-chevron {
+      color: #64748b;
+      font-size: 0.75rem;
+      transition: transform 0.15s ease;
+    }
+    .stats-heat-cat.open .stats-heat-cat-chevron {
+      transform: rotate(90deg);
+    }
+    .stats-heat-cat-body {
+      display: none;
+      padding: 6px 8px 8px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .stats-heat-cat.open .stats-heat-cat-body {
+      display: block;
+    }
     .stats-heat-cell {
       cursor: pointer;
       border-radius: 6px;
@@ -4412,9 +4454,9 @@
 
   <script src="prime-composite-logic.js?v=42"></script>
   <script src="shared/player-level.js?v=1"></script>
-  <script src="shared/stats-i18n-pack.js?v=41"></script>
-  <script src="stats-heatmap-browser.js?v=42"></script>
-  <script src="stats-aggregate-browser.js?v=41"></script>
+  <script src="shared/stats-i18n-pack.js?v=48"></script>
+  <script src="stats-heatmap-browser.js?v=48"></script>
+  <script src="stats-aggregate-browser.js?v=48"></script>
   <script src="stats-chart-browser.js?v=41"></script>
   <script src="shared/arithmetic-questions.js?v=41"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
@@ -6706,6 +6748,8 @@
         "avatar.pageSubtitle": "點擊頭像更換；未解鎖頭像會顯示所需等級。",
         "avatar.needLevel": "需 Lv.{level}",
         "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
+        "stats.cat.arithmetic": "四則運算",
+        "stats.cat.decimal": "小數運算",
         "stats.scriptNotLoaded": "統計腳本未載入。",
         "stats.needServer": "需連接伺服器才能查看數據統計，請設定 API 後重試。",
         "stats.loading": "載入中…",
@@ -7049,6 +7093,8 @@
         "avatar.pageSubtitle": "Tap to change; locked avatars show required level.",
         "avatar.needLevel": "Lv.{level} required",
         "stats.levelEmpty": "No per-question stats yet. Play more runs.",
+        "stats.cat.arithmetic": "Arithmetic",
+        "stats.cat.decimal": "Decimals",
         "stats.scriptNotLoaded": "Stats scripts failed to load.",
         "stats.needServer": "Statistics require a server connection. Configure API and try again.",
         "stats.loading": "Loading…",
@@ -7535,13 +7581,10 @@
         updateWrongbookBadge();
       }
       const statsSec = document.getElementById("stats-section");
-      if (statsSec && statsSec.classList.contains("visible") && studentStatsState.heat) {
+      if (statsSec && statsSec.classList.contains("visible") && studentStatsState.heatByCategory) {
         const heatHost = document.getElementById("stats-heatmap-host");
-        if (heatHost) {
-          heatHost.innerHTML =
-            '<div class="stats-heatmap-grid-compact">' +
-            buildStudentStatsHeatmapCellsHtml(studentStatsState.heat) +
-            "</div>";
+        if (heatHost && Object.keys(studentStatsState.heatByCategory).length) {
+          heatHost.innerHTML = buildStudentStatsCategoriesHtml();
         }
         updateStudentStatsChartTitle();
         requestAnimationFrame(drawStudentStatsChart);
@@ -10952,10 +10995,15 @@
     }
 
     const studentStatsState = {
-      agg: null,
+      aggByCategory: {},
+      heatByCategory: {},
+      cohortByCategory: {},
       chartModel: null,
       statsLevelIndex: 0,
+      chartCategoryId: 'arithmetic',
+      expandedCategoryId: 'arithmetic',
       heat: null,
+      agg: null,
     };
     let studentStatsHeatmapBound = false;
 
@@ -10994,16 +11042,30 @@
       );
     }
 
-    function buildStudentStatsHeatmapCellsHtml(heat) {
+    function getStudentStatsCategoryLabel(cat) {
+      if (!cat) return "";
+      if (cat.labelKey && typeof t === "function") {
+        const v = t(cat.labelKey);
+        if (v && v !== cat.labelKey) return v;
+      }
+      return cat.labelFallback || cat.id;
+    }
+
+    function buildStudentStatsHeatmapCellsHtml(heat, categoryId, levelPrefix) {
       if (!heat || !Array.isArray(heat.cells)) return "";
       const lblAcc = t("stats.heat.accuracy");
       const lblTime = t("stats.heat.avgTimeCorrect");
+      const prefix = levelPrefix || "L";
+      const chartCat = studentStatsState.chartCategoryId;
       return heat.cells
         .map(function (c) {
-          const label = "L" + (c.levelIndex + 1);
+          const label = prefix + (c.levelIndex + 1);
           const cls = "stats-heat-cell" + (c.active ? "" : " inactive");
           const st = studentHeatmapCellStyle(c);
-          const sel = c.levelIndex === studentStatsState.statsLevelIndex ? " stats-heat-cell-selected" : "";
+          const sel =
+            categoryId === chartCat && c.levelIndex === studentStatsState.statsLevelIndex
+              ? " stats-heat-cell-selected"
+              : "";
           const sec = c.avgSecText != null ? escapeHtml(String(c.avgSecText)) : "-";
           const pTxt = escapeHtml(c.pText != null ? String(c.pText) : "-");
           const title = escapeHtml(
@@ -11017,6 +11079,8 @@
             '<div class="' +
             cls +
             sel +
+            '" data-category-id="' +
+            escapeHtml(categoryId) +
             '" data-level-index="' +
             c.levelIndex +
             '" role="button" tabindex="0" title="' +
@@ -11042,21 +11106,93 @@
         .join("");
     }
 
-    function setStudentStatsHeatmapSelection(levelIdx) {
+    function buildStudentStatsCategoriesHtml() {
+      const HM = window.JmlStatsHeatmap;
+      if (!HM || !HM.getHeatmapCategories) return "";
+      const cats = HM.getHeatmapCategories();
+      return cats
+        .map(function (cat) {
+          const heat = studentStatsState.heatByCategory[cat.id];
+          const open = studentStatsState.expandedCategoryId === cat.id;
+          const cells =
+            '<div class="stats-heatmap-grid-compact">' +
+            buildStudentStatsHeatmapCellsHtml(heat, cat.id, cat.levelPrefix) +
+            "</div>";
+          return (
+            '<div class="stats-heat-cat' +
+            (open ? " open" : "") +
+            '" data-category-id="' +
+            escapeHtml(cat.id) +
+            '">' +
+            '<button type="button" class="stats-heat-cat-toggle" data-category-id="' +
+            escapeHtml(cat.id) +
+            '" aria-expanded="' +
+            (open ? "true" : "false") +
+            '">' +
+            '<span>' +
+            escapeHtml(getStudentStatsCategoryLabel(cat)) +
+            "</span>" +
+            '<span class="stats-heat-cat-chevron" aria-hidden="true">▶</span>' +
+            "</button>" +
+            '<div class="stats-heat-cat-body">' +
+            cells +
+            "</div></div>"
+          );
+        })
+        .join("");
+    }
+
+    function syncStudentStatsCategoryOpenState() {
+      const host = document.getElementById("stats-heatmap-host");
+      if (!host) return;
+      host.querySelectorAll(".stats-heat-cat").forEach(function (el) {
+        const id = el.getAttribute("data-category-id");
+        const open = id === studentStatsState.expandedCategoryId;
+        el.classList.toggle("open", open);
+        const btn = el.querySelector(".stats-heat-cat-toggle");
+        if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    }
+
+    function setStudentStatsHeatmapSelection(categoryId, levelIdx) {
       const host = document.getElementById("stats-heatmap-host");
       if (!host) return;
       host.querySelectorAll(".stats-heat-cell").forEach(function (el) {
+        const cid = el.getAttribute("data-category-id");
         const i = parseInt(el.getAttribute("data-level-index"), 10);
-        el.classList.toggle("stats-heat-cell-selected", i === levelIdx);
+        el.classList.toggle("stats-heat-cell-selected", cid === categoryId && i === levelIdx);
       });
+    }
+
+    function studentStatsChartLevelName() {
+      const HM = window.JmlStatsHeatmap;
+      const cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(studentStatsState.chartCategoryId) : null;
+      if (!cat) return getLevelDisplayName(studentStatsState.statsLevelIndex);
+      return (cat.levelPrefix || "L") + (studentStatsState.statsLevelIndex + 1);
     }
 
     function updateStudentStatsChartTitle() {
       const titleEl = document.getElementById("stats-chart-title");
       const nameEl = document.getElementById("stats-chart-level-name");
-      const i = studentStatsState.statsLevelIndex;
       if (titleEl) titleEl.textContent = t("stats.chart.dailyTitle");
-      if (nameEl) nameEl.textContent = getLevelDisplayName(i);
+      if (nameEl) nameEl.textContent = studentStatsChartLevelName();
+    }
+
+    function rebuildStudentStatsChartModel() {
+      const Agg = window.JmlStatsAggregate;
+      const HM = window.JmlStatsHeatmap;
+      if (!Agg) return;
+      const cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(studentStatsState.chartCategoryId) : null;
+      const agg = studentStatsState.aggByCategory[studentStatsState.chartCategoryId];
+      if (!agg || !agg.hasAny) {
+        studentStatsState.chartModel = null;
+        studentStatsState.agg = agg || null;
+        return;
+      }
+      studentStatsState.agg = agg;
+      studentStatsState.chartModel = Agg.buildChartSeries(agg.byDay, studentStatsState.statsLevelIndex, {
+        levelCount: cat ? cat.levelCount : 16,
+      });
     }
 
     function drawStudentStatsChart() {
@@ -11101,22 +11237,43 @@
       }
     }
 
+    function selectStudentStatsLevel(categoryId, levelIdx) {
+      const HM = window.JmlStatsHeatmap;
+      const cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(categoryId) : null;
+      if (!cat) return;
+      const maxIdx = (cat.levelCount || 16) - 1;
+      if (!Number.isFinite(levelIdx) || levelIdx < 0 || levelIdx > maxIdx) return;
+      studentStatsState.chartCategoryId = categoryId;
+      studentStatsState.statsLevelIndex = levelIdx;
+      studentStatsState.heat = studentStatsState.heatByCategory[categoryId] || null;
+      rebuildStudentStatsChartModel();
+      setStudentStatsHeatmapSelection(categoryId, levelIdx);
+      updateStudentStatsChartTitle();
+      requestAnimationFrame(drawStudentStatsChart);
+    }
+
     function bindStudentStatsHeatmapOnce() {
       if (studentStatsHeatmapBound) return;
       const section = document.getElementById("stats-section");
       if (!section) return;
       section.addEventListener("click", function (ev) {
+        const toggle = ev.target.closest(".stats-heat-cat-toggle");
+        if (toggle && section.contains(toggle)) {
+          const cid = toggle.getAttribute("data-category-id");
+          if (!cid) return;
+          if (studentStatsState.expandedCategoryId === cid) {
+            studentStatsState.expandedCategoryId = null;
+          } else {
+            studentStatsState.expandedCategoryId = cid;
+          }
+          syncStudentStatsCategoryOpenState();
+          return;
+        }
         const cell = ev.target.closest(".stats-heat-cell");
         if (!cell || !section.contains(cell)) return;
-        const Agg = window.JmlStatsAggregate;
-        if (!Agg || !studentStatsState.agg) return;
+        const cid = cell.getAttribute("data-category-id") || "arithmetic";
         const idx = parseInt(cell.getAttribute("data-level-index"), 10);
-        if (!Number.isFinite(idx) || idx < 0 || idx > 15) return;
-        studentStatsState.statsLevelIndex = idx;
-        studentStatsState.chartModel = Agg.buildChartSeries(studentStatsState.agg.byDay, idx);
-        setStudentStatsHeatmapSelection(idx);
-        updateStudentStatsChartTitle();
-        requestAnimationFrame(drawStudentStatsChart);
+        selectStudentStatsLevel(cid, idx);
       });
       studentStatsHeatmapBound = true;
     }
@@ -11129,7 +11286,7 @@
       scheduleSyncAllRuleHints();
     });
 
-    function renderStudentStatsFromRuns(runs, cohort) {
+    function renderStudentStatsFromRuns(runs, cohortByCategory) {
       const heatHost = document.getElementById("stats-heatmap-host");
       const chartBlock = document.getElementById("stats-chart-block");
       const empty = document.getElementById("stats-level-empty");
@@ -11137,23 +11294,44 @@
       if (!heatHost || !empty || !chartWrap || !chartBlock) return;
       const HM = window.JmlStatsHeatmap;
       const Agg = window.JmlStatsAggregate;
-      if (!HM || !Agg) {
+      if (!HM || !Agg || !HM.getHeatmapCategories) {
         heatHost.style.display = "none";
         chartBlock.style.display = "none";
         empty.style.display = "block";
         empty.textContent = t("stats.scriptNotLoaded");
         return;
       }
-      const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
-      const heat = HM.buildHeatmapCells({
-        runs: runs || [],
-        cohort: cohort && cohort.ok ? cohort : null,
-        maxTimeSpentMs: capMs,
+
+      const cohorts = cohortByCategory && typeof cohortByCategory === "object" ? cohortByCategory : {};
+      // 兼容旧缓存：单常模对象
+      if (cohorts.ok && !cohorts.arithmetic) {
+        cohorts.arithmetic = cohorts;
+      }
+
+      studentStatsState.aggByCategory = {};
+      studentStatsState.heatByCategory = {};
+      studentStatsState.cohortByCategory = {};
+
+      const cats = HM.getHeatmapCategories();
+      let anyData = false;
+      cats.forEach(function (cat) {
+        const cohort = cohorts[cat.id] && cohorts[cat.id].ok ? cohorts[cat.id] : null;
+        studentStatsState.cohortByCategory[cat.id] = cohort;
+        const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+        const heat = HM.buildHeatmapCells({
+          runs: runs || [],
+          cohort: cohort,
+          modes: cat.modes,
+          levelCount: cat.levelCount,
+          maxTimeSpentMs: capMs,
+        });
+        const agg = Agg.aggregateFromRuns(runs || [], { modes: cat.modes, levelCount: cat.levelCount });
+        studentStatsState.heatByCategory[cat.id] = heat;
+        studentStatsState.aggByCategory[cat.id] = agg;
+        if (agg.hasAny) anyData = true;
       });
-      studentStatsState.heat = heat;
-      const agg = Agg.aggregateFromRuns(runs || []);
-      studentStatsState.agg = agg;
-      if (!agg.hasAny) {
+
+      if (!anyData) {
         heatHost.style.display = "none";
         chartBlock.style.display = "none";
         chartWrap.style.display = "none";
@@ -11161,21 +11339,45 @@
         empty.textContent = t("stats.levelEmpty");
         return;
       }
+
+      const sel = HM.findLatestHeatmapRelatedSelection(runs || []);
+      studentStatsState.expandedCategoryId = sel.categoryId;
+      studentStatsState.chartCategoryId = sel.categoryId;
+      let levelIdx = sel.levelIndex;
+      const chartAgg = studentStatsState.aggByCategory[sel.categoryId];
+      if (chartAgg && chartAgg.hasAny) {
+        const hasThat =
+          chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0;
+        if (!hasThat) levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
+      } else {
+        // 最近局所属分类无数据时，回退到有数据的分类
+        for (let i = 0; i < cats.length; i += 1) {
+          const a = studentStatsState.aggByCategory[cats[i].id];
+          if (a && a.hasAny) {
+            studentStatsState.expandedCategoryId = cats[i].id;
+            studentStatsState.chartCategoryId = cats[i].id;
+            levelIdx = Agg.firstLevelWithData(a.byLevel);
+            break;
+          }
+        }
+      }
+      studentStatsState.statsLevelIndex = levelIdx;
+      studentStatsState.heat = studentStatsState.heatByCategory[studentStatsState.chartCategoryId] || null;
+      rebuildStudentStatsChartModel();
+
       empty.style.display = "none";
-      studentStatsState.statsLevelIndex = Agg.firstLevelWithData(agg.byLevel);
-      studentStatsState.chartModel = Agg.buildChartSeries(agg.byDay, studentStatsState.statsLevelIndex);
-      heatHost.innerHTML = '<div class="stats-heatmap-grid-compact">' + buildStudentStatsHeatmapCellsHtml(heat) + "</div>";
+      heatHost.innerHTML = buildStudentStatsCategoriesHtml();
       heatHost.style.display = "block";
       chartBlock.style.display = "block";
       chartWrap.style.display = "block";
-      setStudentStatsHeatmapSelection(studentStatsState.statsLevelIndex);
+      setStudentStatsHeatmapSelection(studentStatsState.chartCategoryId, studentStatsState.statsLevelIndex);
       updateStudentStatsChartTitle();
       bindStudentStatsHeatmapOnce();
       requestAnimationFrame(drawStudentStatsChart);
     }
 
     function getStudentStatsCacheKey(username) {
-      return "jml_student_stats_v1_" + String(username || "");
+      return "jml_student_stats_v2_" + String(username || "");
     }
 
     function loadStudentStatsCache(username) {
@@ -11184,17 +11386,17 @@
         if (!raw) return null;
         const o = JSON.parse(raw);
         if (!o || !Array.isArray(o.runs)) return null;
-        return { runs: o.runs, cohort: o.cohort || null };
+        return { runs: o.runs, cohorts: o.cohorts || null, cohort: o.cohort || null };
       } catch (e) {
         return null;
       }
     }
 
-    function saveStudentStatsCache(username, runs, cohort) {
+    function saveStudentStatsCache(username, runs, cohorts) {
       try {
         sessionStorage.setItem(
           getStudentStatsCacheKey(username),
-          JSON.stringify({ runs, cohort, ts: Date.now() })
+          JSON.stringify({ runs, cohorts, ts: Date.now() })
         );
       } catch (e) { /* ignore */ }
     }
@@ -11209,6 +11411,19 @@
       }
       if (heatHost) heatHost.style.display = "none";
       if (chartBlock) chartBlock.style.display = "none";
+    }
+
+    async function fetchPublicDecimalCohort() {
+      const base = getApiBase();
+      if (!base) return null;
+      try {
+        const res = await fetch(base + "/api/public/decimal-cohort", { credentials: "include" });
+        if (!res.ok) return null;
+        const d = await res.json();
+        return d && d.ok ? d : null;
+      } catch (e) {
+        return null;
+      }
     }
 
     async function showStatsView() {
@@ -11247,21 +11462,26 @@
       }
       const cached = loadStudentStatsCache(name);
       if (cached) {
-        renderStudentStatsFromRuns(cached.runs, cached.cohort);
+        renderStudentStatsFromRuns(cached.runs, cached.cohorts || { arithmetic: cached.cohort });
       } else {
         showStudentStatsLoading();
       }
       try {
-        const [cohort, runsRes] = await Promise.all([
+        const [levelCohort, decimalCohort, runsRes] = await Promise.all([
           fetchPublicLevelCohortForTraining(),
+          fetchPublicDecimalCohort(),
           fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() }),
         ]);
         const runsData = await runsRes.json();
         if (runsRes.status === 401) { handleAuthRequired(); return; }
         if (!statsSection || !statsSection.classList.contains("visible")) return;
         const runs = runsData.ok ? runsData.runs : [];
-        saveStudentStatsCache(name, runs, cohort);
-        renderStudentStatsFromRuns(runs, cohort);
+        const cohorts = {
+          arithmetic: levelCohort && levelCohort.ok ? levelCohort : null,
+          decimal: decimalCohort && decimalCohort.ok ? decimalCohort : null,
+        };
+        saveStudentStatsCache(name, runs, cohorts);
+        renderStudentStatsFromRuns(runs, cohorts);
       } catch (e) {
         console.warn("加载数据统计失败", e);
         if (!cached) {
@@ -11280,6 +11500,9 @@
       if (statsSection) statsSection.classList.remove("visible");
       if (dom.homeSection) dom.homeSection.classList.remove("hidden");
       studentStatsState.agg = null;
+      studentStatsState.aggByCategory = {};
+      studentStatsState.heatByCategory = {};
+      studentStatsState.cohortByCategory = {};
       studentStatsState.chartModel = null;
       studentStatsState.heat = null;
     }
