@@ -254,17 +254,12 @@ function buildStudentOverviewRows(options) {
         : typeof u.levelPerfectSquareCurrentLevel === "number"
           ? u.levelPerfectSquareCurrentLevel
           : 0;
-    const decUnlockedRaw =
+    const decUnlocked =
       typeof u.levelDecimalUnlockedMax === "number"
         ? u.levelDecimalUnlockedMax
         : typeof u.levelDecimalCurrentLevel === "number"
           ? u.levelDecimalCurrentLevel
           : 0;
-    let decUnlocked = Math.max(0, Math.floor(Number(decUnlockedRaw) || 0));
-    // 未登录触发 remap 前：概览侧对旧 unlockedMax≥3 虚拟 +1，与 insert D4 后语义对齐
-    if (u.decimalD4InsertedRemap !== true && decUnlocked >= 3) {
-      decUnlocked = Math.min(DECIMAL_MAX_LEVEL + 1, decUnlocked + 1);
-    }
     const expUnlocked =
       typeof u.levelExpandBracketsUnlockedMax === "number"
         ? u.levelExpandBracketsUnlockedMax
