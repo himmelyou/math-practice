@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=53"></script>
+  <script src="shared/app-version.js?v=54"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1965,6 +1965,17 @@
       font-weight: 600;
       line-height: 1.2;
     }
+    .training-level-desc {
+      margin-left: 8px;
+      font-weight: 500;
+      color: var(--muted, #64748b);
+      font-size: 0.88rem;
+      max-width: min(52vw, 280px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
     .expand-explain {
       margin-top: 8px;
       padding: 0;
@@ -3777,6 +3788,7 @@
           <span class="status-label" id="status-label-difficulty">当前难度：</span>
           <span class="status-value" id="current-level-name">-</span>
           <select class="expand-level-select" id="training-level-select" style="display:none;" aria-label="选择训练难度"></select>
+          <span class="status-value training-level-desc" id="training-level-desc" style="display:none;"></span>
         </div>
       </div>
 
@@ -4838,6 +4850,7 @@
       dom.expandSection = document.getElementById("expand-brackets-section");
       dom.currentLevelName = document.getElementById("current-level-name");
       dom.trainingLevelSelect = document.getElementById("training-level-select");
+      dom.trainingLevelDesc = document.getElementById("training-level-desc");
       dom.survivalTime = document.getElementById("survival-time");
       dom.consecutiveCorrect = document.getElementById("consecutive-correct");
       dom.runScore = document.getElementById("run-score");
@@ -12077,6 +12090,17 @@
       if (dom.currentLevelName) {
         dom.currentLevelName.style.display = visible ? "none" : "";
       }
+      if (dom.trainingLevelDesc) {
+        dom.trainingLevelDesc.style.display = visible ? "" : "none";
+        if (!visible) dom.trainingLevelDesc.textContent = "";
+      }
+    }
+
+    function syncTrainingLevelDescText() {
+      if (!dom.trainingLevelDesc) return;
+      const desc = getLevelDescText(currentLevelIndex);
+      dom.trainingLevelDesc.textContent = desc || "";
+      dom.trainingLevelDesc.title = desc || "";
     }
 
     /**
@@ -12134,6 +12158,7 @@
       }
       setTrainingLevelSelectVisible(true);
       sel.disabled = false;
+      syncTrainingLevelDescText();
     }
 
     function onTrainingLevelSelectChange() {
@@ -12141,6 +12166,7 @@
       const v = Number(dom.trainingLevelSelect.value);
       if (!Number.isFinite(v)) return;
       currentLevelIndex = Math.min(15, Math.max(0, Math.floor(v)));
+      syncTrainingLevelDescText();
       updateTrainingStatusUI();
       syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
       scheduleSyncAllRuleHints();
