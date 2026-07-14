@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=52"></script>
+  <script src="shared/app-version.js?v=53"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3776,6 +3776,7 @@
         <div class="question-label">
           <span class="status-label" id="status-label-difficulty">当前难度：</span>
           <span class="status-value" id="current-level-name">-</span>
+          <select class="expand-level-select" id="training-level-select" style="display:none;" aria-label="选择训练难度"></select>
         </div>
       </div>
 
@@ -4789,6 +4790,8 @@
     let trainingPhase = "main";
     /** 进入训练区或开局时刷新：全通关 / 当日强制刷热图 时为 true */
     let trainingSessionBrushMode = false;
+    /** 系统自动选关的关卡（下拉默认项）；学员手改后若与此不同，本局记为刷热图 */
+    let trainingAutoPickLevelIndex = 0;
     /** 本局训练开始时快照：结算是否走刷热图分支 */
     let trainingRunBrushMode = false;
     /** 取消进行中的后台训练选关刷新 */
@@ -4834,6 +4837,7 @@
       dom.gameSection = document.getElementById("game-section");
       dom.expandSection = document.getElementById("expand-brackets-section");
       dom.currentLevelName = document.getElementById("current-level-name");
+      dom.trainingLevelSelect = document.getElementById("training-level-select");
       dom.survivalTime = document.getElementById("survival-time");
       dom.consecutiveCorrect = document.getElementById("consecutive-correct");
       dom.runScore = document.getElementById("run-score");
@@ -8583,6 +8587,7 @@
         dom.timerChip.classList.toggle("low", survivalTimeLeft <= 10);
       }
       if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
+      setTrainingLevelSelectVisible(false);
       const correctPerLevel = SURVIVAL_CORRECT_PER_LEVEL;
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
       if (dom.runScore) dom.runScore.textContent = runScore;
@@ -8612,6 +8617,7 @@
       if (dom.timerValue) dom.timerValue.textContent = timeStr;
       if (dom.timerChip) dom.timerChip.classList.remove("low");
       if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
+      setTrainingLevelSelectVisible(false);
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = formatLevelChallengeProgressText();
       if (dom.runScore) dom.runScore.textContent = runScore;
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (getLevelChallengeBestLevel() + 1);
@@ -8844,6 +8850,11 @@
           ? t("game.training.pickingLevel")
           : getLevelDisplayName(currentLevelIndex);
       }
+      if (gameMode === "training" && !isPlaying) {
+        renderTrainingLevelSelect();
+      } else if (dom.trainingLevelSelect) {
+        setTrainingLevelSelectVisible(false);
+      }
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -8873,8 +8884,9 @@
       if (trainingEntryPickPending) return;
       if (survivalTimerId) clearInterval(survivalTimerId);
       trainingRunStartMeta = snapshotTrainingRunStartMeta();
-      // 档位已在「开始前」画面（进训练 / 再玩一局）算好，此处不重算
-      trainingRunBrushMode = trainingSessionBrushMode;
+      // 档位已在「开始前」画面（进训练 / 再玩一局）算好；手改非自动关 → 本局按刷热图记轨
+      trainingRunBrushMode = resolveTrainingRunBrushMode();
+      setTrainingLevelSelectVisible(false);
       trainingCorrectCount = 0;
       runScore = 0;
       runWrongCount = 0;
@@ -9483,10 +9495,10 @@
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         const abandonRow = document.getElementById("abandon-row");
         if (abandonRow) abandonRow.style.display = "none";
-        recordTrainingCompletedTrack(!!trainingSessionBrushMode);
+        recordTrainingCompletedTrack(!!trainingRunBrushMode);
         appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
           abandoned: true,
-          trainingMeta: buildTrainingRunMeta({ abandoned: true }),
+          trainingMeta: buildTrainingRunMeta({ abandoned: true, runBrushMode: !!trainingRunBrushMode }),
         });
         renderRecentRuns();
         return;
@@ -11979,13 +11991,20 @@
     function snapshotTrainingRunStartMeta() {
       const st = loadTrainingFlowState();
       const pick = lastTrainingPickResult;
+      const autoLv = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
+      const playedLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const manualOverride = playedLv !== autoLv;
+      const effectiveBrush = !!trainingSessionBrushMode || manualOverride;
       return {
-        pickedLevel: currentLevelIndex,
+        pickedLevel: playedLv,
+        autoPickLevel: autoLv,
+        manualOverride: manualOverride,
         pickMode: trainingSessionBrushMode ? "brush" : "daily",
+        effectivePickMode: effectiveBrush ? "brush" : "daily",
         pickReason: pick && pick.pickReason ? String(pick.pickReason) : pick && pick.reason ? String(pick.reason) : "",
         brushPoolMax: st.brushMode && st.brushPoolMax != null ? st.brushPoolMax : null,
         brushMode: !!st.brushMode,
-        runBrushMode: !!trainingSessionBrushMode,
+        runBrushMode: effectiveBrush,
         lastRunBefore: st.lastRun
           ? {
               levelIndex: st.lastRun.levelIndex,
@@ -12040,19 +12059,110 @@
       return !!(c && c.dayKey === getLocalTrainingDayKey() && c.levelIndex != null && Number.isFinite(Number(c.levelIndex)));
     }
 
+    function isTrainingManualLevelOverride() {
+      const played = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const auto = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
+      return played !== auto;
+    }
+
+    /** 系统刷热图轨，或推进轨下手改了关 → 本局按刷热图结算/记轨 */
+    function resolveTrainingRunBrushMode() {
+      return !!trainingSessionBrushMode || isTrainingManualLevelOverride();
+    }
+
+    function setTrainingLevelSelectVisible(visible) {
+      const sel = dom.trainingLevelSelect;
+      if (!sel) return;
+      sel.style.display = visible ? "" : "none";
+      if (dom.currentLevelName) {
+        dom.currentLevelName.style.display = visible ? "none" : "";
+      }
+    }
+
+    /**
+     * 训练难度下拉：热图 n>0 的关 + 始终包含自动关/当前关。
+     * 自动选关只改默认项；学员可改，仅影响本局。
+     */
+    function renderTrainingLevelSelect() {
+      const sel = dom.trainingLevelSelect;
+      if (!sel) return;
+      const show =
+        gameMode === "training" &&
+        !isPlaying &&
+        !trainingEntryPickPending &&
+        !!dom.gameSection &&
+        dom.gameSection.classList.contains("training-prestart");
+      if (!show) {
+        setTrainingLevelSelectVisible(false);
+        return;
+      }
+      const allowed = {};
+      const cells = (trainingHeatSnapshot && trainingHeatSnapshot.cells) || [];
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i];
+        if (!c || !(c.n > 0)) continue;
+        const li = Math.min(15, Math.max(0, Math.floor(Number(c.levelIndex) || 0)));
+        allowed[li] = true;
+      }
+      const autoLv = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
+      const curLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      allowed[autoLv] = true;
+      allowed[curLv] = true;
+      const idxs = Object.keys(allowed)
+        .map(function (k) {
+          return Number(k);
+        })
+        .filter(function (n) {
+          return Number.isFinite(n);
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
+      const opts = [];
+      for (let j = 0; j < idxs.length; j++) {
+        const lv = idxs[j];
+        opts.push('<option value="' + lv + '">L' + (lv + 1) + "</option>");
+      }
+      sel.innerHTML = opts.join("");
+      if (!idxs.length) {
+        sel.innerHTML = '<option value="' + curLv + '">L' + (curLv + 1) + "</option>";
+      }
+      sel.value = String(curLv);
+      if (idxs.indexOf(curLv) < 0 && sel.options.length) {
+        sel.value = String(sel.options[0].value);
+        currentLevelIndex = Math.min(15, Math.max(0, Math.floor(Number(sel.value) || 0)));
+      }
+      setTrainingLevelSelectVisible(true);
+      sel.disabled = false;
+    }
+
+    function onTrainingLevelSelectChange() {
+      if (isPlaying || gameMode !== "training" || !dom.trainingLevelSelect) return;
+      const v = Number(dom.trainingLevelSelect.value);
+      if (!Number.isFinite(v)) return;
+      currentLevelIndex = Math.min(15, Math.max(0, Math.floor(v)));
+      updateTrainingStatusUI();
+      syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+      scheduleSyncAllRuleHints();
+    }
+
     function writeTrainingNextEntryCache(levelIndex, brushMode) {
+      const li = Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0)));
       trainingNextEntryCache = {
         dayKey: getLocalTrainingDayKey(),
-        levelIndex: Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0))),
+        levelIndex: li,
         brushMode: !!brushMode,
         at: Date.now(),
       };
+      trainingAutoPickLevelIndex = li;
+      trainingSessionBrushMode = !!brushMode;
     }
 
     function applyTrainingNextEntryCacheIfValid() {
       if (!isTrainingNextEntryCacheValid()) return false;
       currentLevelIndex = trainingNextEntryCache.levelIndex;
       trainingSessionBrushMode = !!trainingNextEntryCache.brushMode;
+      trainingAutoPickLevelIndex = trainingNextEntryCache.levelIndex;
       lastTrainingEntrySource = "heatmap";
       return true;
     }
@@ -12213,22 +12323,28 @@
       const st = loadTrainingFlowState();
       const HM = window.JmlStatsHeatmap;
       const today = getLocalTrainingDayKey();
+      let idx = null;
       if (HM && typeof HM.computeTrainingNextLevelSync === "function") {
         const sync = HM.computeTrainingNextLevelSync(st, today);
         trainingSessionBrushMode = !!sync.brushMode;
         if (sync.levelIndex != null && Number.isFinite(Number(sync.levelIndex))) {
-          return Math.min(15, Math.max(0, Math.floor(Number(sync.levelIndex))));
+          idx = Math.min(15, Math.max(0, Math.floor(Number(sync.levelIndex))));
         }
       } else {
         trainingSessionBrushMode = !!st.brushMode;
       }
-      const saved = getLevelTrainingCurrentLevel();
-      if (saved >= 0) return Math.min(15, Math.max(0, saved));
-      return getTrainingStartLevel();
+      if (idx == null) {
+        const saved = getLevelTrainingCurrentLevel();
+        if (saved >= 0) idx = Math.min(15, Math.max(0, saved));
+        else idx = getTrainingStartLevel();
+      }
+      trainingAutoPickLevelIndex = idx;
+      return idx;
     }
 
     function setTrainingPickPendingUi(pending) {
       trainingEntryPickPending = !!pending;
+      if (pending) setTrainingLevelSelectVisible(false);
       if (dom.startGameBtn) {
         dom.startGameBtn.disabled = !!pending;
         if (pending) dom.startGameBtn.setAttribute("aria-busy", "true");
@@ -12248,6 +12364,7 @@
         setTrainingPickPendingUi(false);
         setTrainingPracticeSubtitle();
         updateTrainingStatusUI();
+        renderTrainingLevelSelect();
         return;
       }
       setTrainingPickPendingUi(true);
@@ -12273,6 +12390,7 @@
         setTrainingPickPendingUi(false);
         setTrainingPracticeSubtitle();
         updateTrainingStatusUI();
+        renderTrainingLevelSelect();
         if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
           syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
           scheduleSyncAllRuleHints();
@@ -12291,6 +12409,7 @@
         writeTrainingNextEntryCache(idx, trainingSessionBrushMode);
         setTrainingPracticeSubtitle();
         updateTrainingStatusUI();
+        renderTrainingLevelSelect();
         if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
           syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
           scheduleSyncAllRuleHints();
@@ -12313,7 +12432,7 @@
       if (!sub) return;
       const m = mode || gameMode;
       if (m === "training") {
-        sub.textContent = trainingSessionBrushMode
+        sub.textContent = resolveTrainingRunBrushMode()
           ? ""
           : t("game.training.subtitle.dailyRules");
       } else if (m === "level") {
@@ -12336,7 +12455,7 @@
       ) {
         return;
       }
-      if (trainingSessionBrushMode) {
+      if (resolveTrainingRunBrushMode()) {
         const cell = getHeatCellForLevel(heat != null ? heat : trainingHeatSnapshot, currentLevelIndex);
         const p = cell && cell.pText != null ? String(cell.pText) : "—";
         const sec = cell && cell.avgSecText != null ? String(cell.avgSecText) : "—";
@@ -12784,6 +12903,9 @@
           expandLevel = Math.max(0, Math.min(4, Math.floor(v)));
           syncExpandLevelTexts();
         });
+      }
+      if (dom.trainingLevelSelect) {
+        dom.trainingLevelSelect.addEventListener("change", onTrainingLevelSelectChange);
       }
       const globalBackHomeBtn = document.getElementById("global-back-home-btn");
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
