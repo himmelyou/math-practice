@@ -925,6 +925,35 @@
       });
   }
 
+  function formatTrainingSpeedSec(v) {
+    if (v == null || !Number.isFinite(Number(v))) {
+      return '<span class="jml-runs-pick-muted">—</span>';
+    }
+    return escapeHtml(String(Number(v)) + 's');
+  }
+
+  function formatTrainingRunHeatSpeedCell(r) {
+    if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
+      return '<span class="jml-runs-pick-muted">—</span>';
+    }
+    var m = r.trainingMeta;
+    if (!m || typeof m !== 'object') {
+      return '<span class="jml-runs-pick-muted" title="旧记录无速度快照">—</span>';
+    }
+    return formatTrainingSpeedSec(m.heatAvgSecAtStart);
+  }
+
+  function formatTrainingRunAvgSpeedCell(r) {
+    if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
+      return '<span class="jml-runs-pick-muted">—</span>';
+    }
+    var m = r.trainingMeta;
+    if (!m || typeof m !== 'object') {
+      return '<span class="jml-runs-pick-muted" title="旧记录无速度快照">—</span>';
+    }
+    return formatTrainingSpeedSec(m.runAvgSec);
+  }
+
   function formatTrainingRunPickCell(r) {
     if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
       return '<span class="jml-runs-pick-muted">—</span>';
@@ -1000,6 +1029,12 @@
           '<td class="jml-runs-col-pick">' +
           formatTrainingRunPickCell(r) +
           '</td>' +
+          '<td class="num jml-runs-col-heat-spd" title="开局时该关热图加权均时">' +
+          formatTrainingRunHeatSpeedCell(r) +
+          '</td>' +
+          '<td class="num jml-runs-col-run-spd" title="本局答对题几何均时">' +
+          formatTrainingRunAvgSpeedCell(r) +
+          '</td>' +
           '</tr>'
         );
       })
@@ -1007,7 +1042,7 @@
 
     wrap.innerHTML =
       '<div class="jml-report-table-wrap"><table class="jml-report-table jml-report-runs-table">' +
-      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th>选关诊断</th></tr></thead>' +
+      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th>选关诊断</th><th class="num">开局加权速</th><th class="num">本局均速</th></tr></thead>' +
       '<tbody>' +
       rows +
       '</tbody></table></div>';

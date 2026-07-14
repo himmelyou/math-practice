@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=55"></script>
+  <script src="shared/app-version.js?v=56"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -12018,6 +12018,7 @@
       const playedLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
       const manualOverride = playedLv !== autoLv;
       const effectiveBrush = !!trainingSessionBrushMode || manualOverride;
+      const heatSpeed = captureTrainingHeatSpeedMeta(playedLv);
       return {
         pickedLevel: playedLv,
         autoPickLevel: autoLv,
@@ -12028,6 +12029,8 @@
         brushPoolMax: st.brushMode && st.brushPoolMax != null ? st.brushPoolMax : null,
         brushMode: !!st.brushMode,
         runBrushMode: effectiveBrush,
+        heatMeanLnAtStart: heatSpeed.heatMeanLnAtStart,
+        heatAvgSecAtStart: heatSpeed.heatAvgSecAtStart,
         lastRunBefore: st.lastRun
           ? {
               levelIndex: st.lastRun.levelIndex,
@@ -12045,7 +12048,12 @@
     function buildTrainingRunMeta(extra) {
       const st = loadTrainingFlowState();
       const base = trainingRunStartMeta ? Object.assign({}, trainingRunStartMeta) : snapshotTrainingRunStartMeta();
-      const meta = Object.assign({}, base, extra || {}, {
+      const playedLv =
+        base.pickedLevel != null && Number.isFinite(Number(base.pickedLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(base.pickedLevel))))
+          : Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const runSpeed = captureTrainingRunSpeedMeta(playedLv, currentRunAttempts);
+      const meta = Object.assign({}, base, runSpeed, extra || {}, {
         dayStateAfter: {
           dayKey: st.dayKey,
           brushMode: !!st.brushMode,
@@ -12461,6 +12469,37 @@
         if (heat.cells[i].levelIndex === levelIndex) return heat.cells[i];
       }
       return heat.cells[levelIndex] || null;
+    }
+
+    function secFromMeanLn(meanLn) {
+      if (meanLn == null || !Number.isFinite(Number(meanLn))) return null;
+      const sec = Math.exp(Number(meanLn)) / 1000;
+      if (!(sec > 0 && sec < 600 && Number.isFinite(sec))) return null;
+      return Math.round(sec * 10) / 10;
+    }
+
+    function captureTrainingHeatSpeedMeta(levelIndex) {
+      const cell = getHeatCellForLevel(trainingHeatSnapshot, levelIndex);
+      const meanLn =
+        cell && cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))
+          ? Number(cell.meanLnCorrect)
+          : null;
+      return {
+        heatMeanLnAtStart: meanLn,
+        heatAvgSecAtStart: secFromMeanLn(meanLn),
+      };
+    }
+
+    function captureTrainingRunSpeedMeta(levelIndex, attempts) {
+      const cap =
+        trainingHeatSnapshot && Number(trainingHeatSnapshot.maxTimeSpentMs) > 0
+          ? Number(trainingHeatSnapshot.maxTimeSpentMs)
+          : 60 * 1000;
+      const meanLn = meanLnCorrectFromTrainingAttempts(attempts, levelIndex, cap);
+      return {
+        runMeanLn: meanLn,
+        runAvgSec: secFromMeanLn(meanLn),
+      };
     }
 
     function meanLnCorrectFromTrainingAttempts(attempts, levelIndex, maxTimeMs) {
