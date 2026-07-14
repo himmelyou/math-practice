@@ -237,10 +237,11 @@
   text-align: right;
 }
 
-/* 挑战记录：列顺序与首页「最近十次」一致（日期时间最左） */
+/* 挑战记录：auto 布局 + min-width，窄屏横向滚动，速度列不被挤没 */
 .jml-report-runs-table {
-  table-layout: fixed;
-  width: 100%;
+  table-layout: auto;
+  width: max-content;
+  min-width: 100%;
 }
 
 .jml-report-runs-table th,
@@ -258,7 +259,6 @@
 
 .jml-report-runs-table th:nth-child(1),
 .jml-report-runs-table td.jml-runs-col-time {
-  width: 22%;
   min-width: 148px;
   text-align: center;
   white-space: nowrap;
@@ -268,56 +268,60 @@
 
 .jml-report-runs-table th:nth-child(2),
 .jml-report-runs-table td.jml-runs-col-mode {
-  width: 14%;
+  min-width: 72px;
   text-align: center;
+  white-space: nowrap;
 }
 
-/* 用时、得分、错误题数、最高难度：表头与数据均靠右 */
+/* 用时、得分、错误题数、最高难度、速度：表头与数据均靠右 */
 .jml-report-runs-table thead th.num {
   text-align: right;
 }
 
 .jml-report-runs-table th:nth-child(3),
 .jml-report-runs-table td.jml-runs-col-dur {
-  width: 14%;
+  min-width: 64px;
+  white-space: nowrap;
 }
 
 .jml-report-runs-table th:nth-child(4),
 .jml-report-runs-table td.jml-runs-col-score {
-  width: 12%;
+  min-width: 56px;
+  white-space: nowrap;
 }
 
 .jml-report-runs-table th:nth-child(5),
 .jml-report-runs-table td.jml-runs-col-wrong {
-  width: 12%;
+  min-width: 64px;
+  white-space: nowrap;
 }
 
 .jml-report-runs-table th:nth-child(6),
 .jml-report-runs-table td.jml-runs-col-level {
-  width: 10%;
+  min-width: 56px;
+  white-space: nowrap;
 }
 
 .jml-report-runs-table th:nth-child(7),
-.jml-report-runs-table td.jml-runs-col-pick {
-  width: 18%;
-  min-width: 140px;
-  max-width: 240px;
-  font-size: 0.78rem;
-  line-height: 1.35;
-  text-align: left;
-  word-break: break-word;
+.jml-report-runs-table td.jml-runs-col-heat-spd {
+  min-width: 88px;
+  white-space: nowrap;
 }
 
 .jml-report-runs-table th:nth-child(8),
-.jml-report-runs-table td.jml-runs-col-heat-spd {
-  min-width: 72px;
+.jml-report-runs-table td.jml-runs-col-run-spd {
+  min-width: 80px;
   white-space: nowrap;
 }
 
 .jml-report-runs-table th:nth-child(9),
-.jml-report-runs-table td.jml-runs-col-run-spd {
-  min-width: 72px;
-  white-space: nowrap;
+.jml-report-runs-table td.jml-runs-col-pick {
+  min-width: 160px;
+  max-width: 280px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: left;
+  word-break: break-word;
 }
 
 .jml-runs-pick {

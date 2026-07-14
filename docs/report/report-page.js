@@ -1026,14 +1026,14 @@
           '<td class="num jml-runs-col-level">' +
           escapeHtml(maxDisplay) +
           '</td>' +
-          '<td class="jml-runs-col-pick">' +
-          formatTrainingRunPickCell(r) +
-          '</td>' +
           '<td class="num jml-runs-col-heat-spd" title="开局时该关热图加权均时">' +
           formatTrainingRunHeatSpeedCell(r) +
           '</td>' +
           '<td class="num jml-runs-col-run-spd" title="本局答对题几何均时">' +
           formatTrainingRunAvgSpeedCell(r) +
+          '</td>' +
+          '<td class="jml-runs-col-pick">' +
+          formatTrainingRunPickCell(r) +
           '</td>' +
           '</tr>'
         );
@@ -1042,7 +1042,7 @@
 
     wrap.innerHTML =
       '<div class="jml-report-table-wrap"><table class="jml-report-table jml-report-runs-table">' +
-      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th>选关诊断</th><th class="num">开局加权速</th><th class="num">本局均速</th></tr></thead>' +
+      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num">本局均速</th><th>选关诊断</th></tr></thead>' +
       '<tbody>' +
       rows +
       '</tbody></table></div>';
