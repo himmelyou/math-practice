@@ -21,6 +21,14 @@
     '第 16 级 · 带括号的四则运算',
   ];
 
+  var DECIMAL_LEVEL_NAMES = [
+    '第 1 级 · 一位小数与整数混合加减',
+    '第 2 级 · 一位与两位小数混合加减',
+    '第 3 级 · 乘或除以 10ⁿ',
+    '第 4 级 · 单位分数与小数互化',
+    '第 5 级 · 小数乘除一位整数',
+  ];
+
   var MODE_LABEL = {
     survival: '生存模式',
     level: '闯关模式',
@@ -41,7 +49,7 @@
     survival: 15,
     level: 15,
     training: 15,
-    decimal: 4,
+    decimal: 5,
     perfectSquare: 3,
   };
 
@@ -1486,7 +1494,9 @@
     var HM = window.JmlStatsHeatmap;
     var cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(state.chartCategoryId) : null;
     var li = state.statsLevelIndex;
-    if (cat) return (cat.levelPrefix || 'L') + (li + 1);
+    if (cat && cat.id === 'decimal') {
+      return DECIMAL_LEVEL_NAMES[li] || 'D' + (li + 1);
+    }
     return LEVEL_NAMES[li] || 'L' + (li + 1);
   }
 

@@ -1,10 +1,10 @@
 /**
  * 与小程序端 stats 聚合一致（浏览器版）；canonical 位于 docs/，report 与主站共用。
- * 支持按模式分类：四则（L1–L16）/ 小数（D1–D5）等。
+ * 支持按模式分类：四则（L1–L16）/ 小数（D1–D6）等。
  */
 (function (global) {
   var LEVEL_COUNT = 16;
-  var DECIMAL_LEVEL_COUNT = 5;
+  var DECIMAL_LEVEL_COUNT = 6;
   /** 折线图：该难度下「有答题」的最近多少个日历日（无则向前不填充） */
   var CHART_PRACTICE_DAYS = 14;
 

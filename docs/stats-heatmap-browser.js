@@ -6,7 +6,7 @@
  */
 (function (global) {
   var LEVEL_COUNT = 16;
-  var DECIMAL_LEVEL_COUNT = 5;
+  var DECIMAL_LEVEL_COUNT = 6;
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;

@@ -1,5 +1,5 @@
 /**
- * 小数运算 D1–D5 出题（见《小数等级说明.md》）
+ * 小数运算 D1–D6 出题（见《小数等级说明.md》）
  */
 (function (global) {
   function randomInt(min, max) {
@@ -7,14 +7,17 @@
   }
 
   var QUESTIONS_PER_RUN = 20;
-  var DECIMAL_MAX_LEVEL = 4;
+  var DECIMAL_MAX_LEVEL = 5;
+  var D4_FRACTION_LEVEL_INDEX = 3;
+  var D4_QUESTIONS_PER_RUN = 36;
 
   var LEVEL_DEFS = [
     { id: "D1", name: "第 1 级 · 一位小数与整数混合加减" },
     { id: "D2", name: "第 2 级 · 一位与两位小数混合加减" },
     { id: "D3", name: "第 3 级 · 乘或除以 10ⁿ" },
-    { id: "D4", name: "第 4 级 · 小数乘除一位整数" },
-    { id: "D5", name: "第 5 级 · 小数乘除小数" },
+    { id: "D4", name: "第 4 级 · 单位分数与小数互化" },
+    { id: "D5", name: "第 5 级 · 小数乘除一位整数" },
+    { id: "D6", name: "第 6 级 · 小数乘除小数" },
   ];
 
   var D3_POWERS = [10, 100, 1000, 10000];
@@ -380,6 +383,88 @@
     });
   }
 
+  /** D4：分母 = 2^{0..3}×10ⁿ 或 5^{0..3}×10ⁿ，∈(1,1000]，分子恒 1 → 18 个分母 × 2 挖空 = 36 题 */
+  var D4_UNIT_DENOMS = (function () {
+    var set = {};
+    var list = [];
+    function add(d) {
+      if (!(d > 1) || d > 1000) return;
+      if (set[d]) return;
+      set[d] = true;
+      list.push(d);
+    }
+    var a;
+    var n;
+    var b;
+    for (a = 0; a <= 3; a += 1) {
+      for (n = 0; n <= 4; n += 1) {
+        add(Math.pow(2, a) * Math.pow(10, n));
+      }
+    }
+    for (b = 0; b <= 3; b += 1) {
+      for (n = 0; n <= 4; n += 1) {
+        add(Math.pow(5, b) * Math.pow(10, n));
+      }
+    }
+    list.sort(function (x, y) {
+      return x - y;
+    });
+    return list;
+  })();
+
+  function formatUnitFractionDecimalText(denom) {
+    var v = 1 / denom;
+    if (Math.abs(v - Math.round(v)) < 1e-12) return String(Math.round(v));
+    var text = formatDecimalTrim(v, 8);
+    if (text) return text;
+    return String(parseFloat(v.toPrecision(12)));
+  }
+
+  function buildD4AllCards() {
+    var cards = [];
+    for (var i = 0; i < D4_UNIT_DENOMS.length; i += 1) {
+      var denom = D4_UNIT_DENOMS[i];
+      var decText = formatUnitFractionDecimalText(denom);
+      cards.push(
+        wrapQuestion({
+          text: "1/" + denom + " = ?",
+          answer: decText,
+          baseLevelId: "D4",
+          op: "=",
+          a: 1,
+          b: denom,
+        })
+      );
+      cards.push(
+        wrapQuestion({
+          text: "1/? = " + decText,
+          answer: String(denom),
+          baseLevelId: "D4",
+          op: "=",
+          a: 1,
+          b: parseFloat(decText),
+        })
+      );
+    }
+    return cards;
+  }
+
+  function shuffleCopy(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i -= 1) {
+      var j = randomInt(0, i);
+      var tmp = a[i];
+      a[i] = a[j];
+      a[j] = tmp;
+    }
+    return a;
+  }
+
+  function buildD4Question() {
+    var cards = buildD4AllCards();
+    return cards[randomInt(0, cards.length - 1)];
+  }
+
   function pickD4SigFigs() {
     return pickWeighted([
       { v: 3, w: 0.25 },
@@ -463,7 +548,7 @@
     return wrapQuestion({
       text: first.text + " × " + n + " = ?",
       answer: formatAnswer(ans),
-      baseLevelId: "D4",
+      baseLevelId: "D5",
       op: "×",
       a: first.value,
       b: n,
@@ -495,14 +580,14 @@
     return wrapQuestion({
       text: first.text + " ÷ " + n + " = ?",
       answer: formatAnswer(quotient),
-      baseLevelId: "D4",
+      baseLevelId: "D5",
       op: "÷",
       a: first.value,
       b: n,
     });
   }
 
-  function buildD4Question() {
+  function buildD5MulDivQuestion() {
     for (var t = 0; t < 80; t += 1) {
       var q = Math.random() < 0.5 ? buildD4Multiply() : buildD4Divide();
       if (q) return q;
@@ -510,7 +595,7 @@
     return wrapQuestion({
       text: "2.4 × 3 = ?",
       answer: "7.2",
-      baseLevelId: "D4",
+      baseLevelId: "D5",
       op: "×",
       a: 2.4,
       b: 3,
@@ -667,7 +752,7 @@
     return wrapQuestion({
       text: first.text + " × " + picked.second.text + " = ?",
       answer: formatAnswer(picked.result),
-      baseLevelId: "D5",
+      baseLevelId: "D6",
       op: "×",
       a: first.value,
       b: picked.second.value,
@@ -699,14 +784,14 @@
     return wrapQuestion({
       text: first.text + " ÷ " + picked.second.text + " = ?",
       answer: formatAnswer(picked.result),
-      baseLevelId: "D5",
+      baseLevelId: "D6",
       op: "÷",
       a: first.value,
       b: picked.second.value,
     });
   }
 
-  function buildD5Question() {
+  function buildD6Question() {
     for (var t = 0; t < 80; t += 1) {
       var q = Math.random() < 0.5 ? buildD5Multiply() : buildD5Divide();
       if (q) return q;
@@ -714,14 +799,21 @@
     return wrapQuestion({
       text: "1.2 × 0.3 = ?",
       answer: "0.36",
-      baseLevelId: "D5",
+      baseLevelId: "D6",
       op: "×",
       a: 1.2,
       b: 0.3,
     });
   }
 
-  var BUILDERS = [buildD1Question, buildD2Question, buildD3Question, buildD4Question, buildD5Question];
+  var BUILDERS = [
+    buildD1Question,
+    buildD2Question,
+    buildD3Question,
+    buildD4Question,
+    buildD5MulDivQuestion,
+    buildD6Question,
+  ];
 
   function buildRawQuestion(levelIndex) {
     return BUILDERS[clampLevelIndex(levelIndex)]();
@@ -751,12 +843,21 @@
   }
 
   function questionsPerRun(levelIndex) {
-    clampLevelIndex(levelIndex);
+    levelIndex = clampLevelIndex(levelIndex);
+    if (levelIndex === D4_FRACTION_LEVEL_INDEX) return D4_QUESTIONS_PER_RUN;
     return QUESTIONS_PER_RUN;
   }
 
   function buildRun(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
+    if (levelIndex === D4_FRACTION_LEVEL_INDEX) {
+      var deck = shuffleCopy(buildD4AllCards());
+      if (count == null || count === "") count = D4_QUESTIONS_PER_RUN;
+      count = Math.max(0, Math.floor(Number(count) || 0));
+      resetLevelSegment(levelIndex, count);
+      if (count >= deck.length) return deck;
+      return deck.slice(0, count);
+    }
     if (count == null || count === "") count = QUESTIONS_PER_RUN;
     count = Math.max(0, Math.floor(Number(count) || 0));
     resetLevelSegment(levelIndex, count);
@@ -775,6 +876,8 @@
   global.JmlDecimal = {
     LEVEL_COUNT: LEVEL_DEFS.length,
     DECIMAL_MAX_LEVEL: DECIMAL_MAX_LEVEL,
+    D4_FRACTION_LEVEL_INDEX: D4_FRACTION_LEVEL_INDEX,
+    D4_UNIT_DENOMS: D4_UNIT_DENOMS.slice(),
     QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
     LEVEL_LABELS: LEVEL_LABELS,
     questionsPerRun: questionsPerRun,

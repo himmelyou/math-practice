@@ -50,7 +50,7 @@ const WRONG_ANSWER_LEVEL_MAX = {
   survival: 15,
   level: 15,
   training: 15,
-  decimal: 4,
+  decimal: 5,
   perfectSquare: 3,
 };
 
@@ -484,6 +484,89 @@ function latestRunTsFromRuns(runs) {
     if (t > max) max = t;
   });
   return max;
+}
+
+/** 小数 D4（单位分数）插入后：旧 D4/D5 索引 +1；通关态 max+1 可达 6 */
+const DECIMAL_LEVEL_MAX_INDEX = 5;
+const DECIMAL_CLEARED_UNLOCK_MAX = 6;
+
+function remapDecimalRunLevelFields(run) {
+  if (!run || normalizeRunMode(run.mode) !== "decimal") return false;
+  let changed = false;
+  const ml = Math.floor(Number(run.maxLevel) || 0);
+  if (ml >= 3) {
+    run.maxLevel = ml + 1;
+    changed = true;
+  }
+  if (Array.isArray(run.attempts)) {
+    run.attempts.forEach((a) => {
+      if (!a) return;
+      const li = Math.floor(Number(a.levelIndex) || 0);
+      if (li >= 3) {
+        a.levelIndex = li + 1;
+        changed = true;
+      }
+    });
+  }
+  return changed;
+}
+
+/**
+ * 一次性：插入分数互化关后抬高 unlocked/current，并改写该用户历史 decimal runs。
+ * @returns {{ userChanged: boolean, runsChanged: boolean }}
+ */
+function applyDecimalD4InsertRemap(user, runsArr) {
+  if (!user || user.decimalD4InsertedRemap === true) {
+    return { userChanged: false, runsChanged: false };
+  }
+  let userChanged = false;
+  let runsChanged = false;
+
+  let unlocked =
+    typeof user.levelDecimalUnlockedMax === "number" && Number.isFinite(user.levelDecimalUnlockedMax)
+      ? Math.floor(user.levelDecimalUnlockedMax)
+      : typeof user.levelDecimalCurrentLevel === "number" && Number.isFinite(user.levelDecimalCurrentLevel)
+        ? Math.floor(user.levelDecimalCurrentLevel)
+        : 0;
+  let current =
+    typeof user.levelDecimalCurrentLevel === "number" && Number.isFinite(user.levelDecimalCurrentLevel)
+      ? Math.floor(user.levelDecimalCurrentLevel)
+      : 0;
+
+  if (unlocked >= 3) {
+    user.levelDecimalUnlockedMax = Math.min(DECIMAL_CLEARED_UNLOCK_MAX, unlocked + 1);
+    userChanged = true;
+  }
+  if (current >= 3) {
+    user.levelDecimalCurrentLevel = Math.min(DECIMAL_LEVEL_MAX_INDEX, current + 1);
+    userChanged = true;
+  }
+
+  if (Array.isArray(user.recentDecimalRuns)) {
+    user.recentDecimalRuns.forEach((r) => {
+      if (remapDecimalRunLevelFields(r)) userChanged = true;
+    });
+  }
+  if (Array.isArray(user.wrongAnswers)) {
+    user.wrongAnswers.forEach((w) => {
+      if (!w || String(w.mode || "") !== "decimal") return;
+      const li = Math.floor(Number(w.levelIndex) || 0);
+      if (li >= 3) {
+        w.levelIndex = li + 1;
+        w.levelLabel = "D" + (li + 2);
+        userChanged = true;
+      }
+    });
+  }
+  if (Array.isArray(runsArr)) {
+    runsArr.forEach((r) => {
+      if (remapDecimalRunLevelFields(r)) runsChanged = true;
+    });
+  }
+
+  user.decimalD4InsertedRemap = true;
+  userChanged = true;
+  return { userChanged, runsChanged };
 }
 
 function toChinaDateKey(ts) {
@@ -1627,6 +1710,17 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
+  {
+    const runsData = readJson(RUNS_FILE, { runs: {} });
+    const runs = runsData.runs && Array.isArray(runsData.runs[username]) ? runsData.runs[username] : [];
+    const rem = applyDecimalD4InsertRemap(user, runs);
+    if (rem.userChanged || rem.runsChanged) {
+      const idxRem = data.users.findIndex((u) => u.username === username);
+      if (idxRem >= 0) data.users[idxRem] = user;
+      writeJson(USERS_FILE, data);
+      if (rem.runsChanged) writeJson(RUNS_FILE, runsData);
+    }
+  }
   if (user.hasClearedSurvival === undefined) {
     const runsData = readJson(RUNS_FILE, { runs: {} });
     const runs = runsData.runs[username] || [];
@@ -1736,7 +1830,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "decimalD4InsertedRemap", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -2219,6 +2313,18 @@ app.get("/api/admin/student-overview", (req, res) => {
   }
   const usersData = readJson(USERS_FILE, { users: [] });
   const runsData = readJson(RUNS_FILE, { runs: {} });
+  let remappedUsers = false;
+  let remappedRuns = false;
+  (Array.isArray(usersData.users) ? usersData.users : []).forEach((u) => {
+    if (!u || !u.username) return;
+    const userRuns =
+      runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    const rem = applyDecimalD4InsertRemap(u, userRuns);
+    if (rem.userChanged) remappedUsers = true;
+    if (rem.runsChanged) remappedRuns = true;
+  });
+  if (remappedUsers) writeJson(USERS_FILE, usersData);
+  if (remappedRuns) writeJson(RUNS_FILE, runsData);
   const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
   const primeList = (Array.isArray(primeData.list) ? primeData.list : []).filter(
     (e) => e && e.username && (Number(e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
@@ -2764,8 +2870,8 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   });
 });
 
-/** 小数运算全体常模（D1–D5） */
-const COHORT_DECIMAL_LEVEL_COUNT = 5;
+/** 小数运算全体常模（D1–D6） */
+const COHORT_DECIMAL_LEVEL_COUNT = 6;
 
 function computeDecimalCohortResult() {
   const runsData = readJson(RUNS_FILE, { runs: {} });

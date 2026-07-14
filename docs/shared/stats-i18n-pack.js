@@ -48,7 +48,7 @@
       "stats.heat.cohortWarnTail": "熱圖仍可顯示本學員該分類數據，但無百分位對比。",
       "stats.heat.scriptMissing": "熱圖腳本未載入（請確認已加載 stats-heatmap-browser.js）",
       "stats.report.intro":
-        "本頁熱圖按分類折疊展示（四則 L1–L16、小數 D1–D5）。點分類標題展開/收起（展開一個會收起其他）。點擊任一難度格：下方共用按日曲線與常模圖會切換到該關。默認展開最近一次熱圖相關練習所屬分類。直方圖需先點工具欄「刷新全體常模」（同時刷新四則與小數常模）重算後才有數據。",
+        "本頁熱圖按分類折疊展示（四則 L1–L16、小數 D1–D6）。點分類標題展開/收起（展開一個會收起其他）。點擊任一難度格：下方共用按日曲線與常模圖會切換到該關。默認展開最近一次熱圖相關練習所屬分類。直方圖需先點工具欄「刷新全體常模」（同時刷新四則與小數常模）重算後才有數據。",
       "stats.report.chartHeading": "按日曲線（{name} · 最近最多 14 個有練習日）",
       "stats.report.boxHeading": "全體答對耗時 · 分位箱線圖（{name}）",
       "stats.report.histHeading": "全體答對耗時 · 直方圖（{name}）",
@@ -114,7 +114,7 @@
       "stats.heat.cohortWarnTail": "Heatmap still shows this category without percentile comparison.",
       "stats.heat.scriptMissing": "Heatmap script not loaded (stats-heatmap-browser.js).",
       "stats.report.intro":
-        "Heatmaps are grouped by collapsible category (arithmetic L1–L16, decimals D1–D5). Expand one category to collapse others. Tap any cell to drive the shared daily chart and cohort plots. Default expand follows the latest heatmap-related run. Rebuild cohort (both arithmetic & decimal) for histogram bins.",
+        "Heatmaps are grouped by collapsible category (arithmetic L1–L16, decimals D1–D6). Expand one category to collapse others. Tap any cell to drive the shared daily chart and cohort plots. Default expand follows the latest heatmap-related run. Rebuild cohort (both arithmetic & decimal) for histogram bins.",
       "stats.report.chartHeading": "Daily chart ({name} · up to 14 practice days)",
       "stats.report.boxHeading": "Cohort correct time · box plot ({name})",
       "stats.report.histHeading": "Cohort correct time · histogram ({name})",

@@ -38,7 +38,7 @@
 
   function decMaxLevel() {
     const m = global.JmlDecimal && global.JmlDecimal.DECIMAL_MAX_LEVEL;
-    return typeof m === "number" ? m : 4;
+    return typeof m === "number" ? m : 5;
   }
 
   function decQuestionsTotal() {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=48"></script>
+  <script src="shared/app-version.js?v=49"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4454,20 +4454,20 @@
 
   <script src="prime-composite-logic.js?v=42"></script>
   <script src="shared/player-level.js?v=1"></script>
-  <script src="shared/stats-i18n-pack.js?v=48"></script>
-  <script src="stats-heatmap-browser.js?v=48"></script>
-  <script src="stats-aggregate-browser.js?v=48"></script>
+  <script src="shared/stats-i18n-pack.js?v=49"></script>
+  <script src="stats-heatmap-browser.js?v=49"></script>
+  <script src="stats-aggregate-browser.js?v=49"></script>
   <script src="stats-chart-browser.js?v=41"></script>
   <script src="shared/arithmetic-questions.js?v=41"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
   <script src="shared/soft-keyboard.js?v=41"></script>
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=43"></script>
-  <script src="shared/decimal-questions.js?v=46"></script>
+  <script src="shared/decimal-questions.js?v=47"></script>
   <script src="shared/special-mode-run-outcome.js?v=42"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=45"></script>
-  <script src="decimal-page.js?v=5"></script>
+  <script src="decimal-page.js?v=6"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -6533,8 +6533,9 @@
         "dec.level.L1": "一位小數與整數混合加減",
         "dec.level.L2": "一位與兩位小數混合加減",
         "dec.level.L3": "乘或除以 10ⁿ",
-        "dec.level.L4": "小數乘除一位整數",
-        "dec.level.L5": "小數乘除小數",
+        "dec.level.L4": "單位分數與小數互化",
+        "dec.level.L5": "小數乘除一位整數",
+        "dec.level.L6": "小數乘除小數",
         "dec.recentTitle": "最近十次小數運算",
         "ps.recentTitle": "最近十次平方數",
         "expand.title": "拆括號",
@@ -6893,8 +6894,9 @@
         "dec.level.L1": "One-decimal ± integer",
         "dec.level.L2": "One- and two-decimal ±",
         "dec.level.L3": "× or ÷ powers of 10",
-        "dec.level.L4": "Decimal × or ÷ one-digit integer",
-        "dec.level.L5": "Decimal × or ÷ decimal",
+        "dec.level.L4": "Unit fraction ↔ decimal",
+        "dec.level.L5": "Decimal × or ÷ one-digit integer",
+        "dec.level.L6": "Decimal × or ÷ decimal",
         "dec.recentTitle": "Last 10 decimal runs",
         "ps.recentTitle": "Last 10 square runs",
         "expand.title": "Expand Brackets",
@@ -8066,6 +8068,37 @@
       if (typeof user.levelDecimalUnlockedMax !== "number") {
         user.levelDecimalUnlockedMax = user.levelDecimalCurrentLevel;
       }
+      if (user.decimalD4InsertedRemap !== true) {
+        let unlocked =
+          typeof user.levelDecimalUnlockedMax === "number" && Number.isFinite(user.levelDecimalUnlockedMax)
+            ? Math.floor(user.levelDecimalUnlockedMax)
+            : 0;
+        let current =
+          typeof user.levelDecimalCurrentLevel === "number" && Number.isFinite(user.levelDecimalCurrentLevel)
+            ? Math.floor(user.levelDecimalCurrentLevel)
+            : 0;
+        if (unlocked >= 3) {
+          user.levelDecimalUnlockedMax = Math.min(6, unlocked + 1);
+        }
+        if (current >= 3) {
+          user.levelDecimalCurrentLevel = Math.min(5, current + 1);
+        }
+        if (Array.isArray(user.recentDecimalRuns)) {
+          user.recentDecimalRuns.forEach(function (r) {
+            if (!r || String(r.mode || "").toLowerCase() !== "decimal") return;
+            const ml = Math.floor(Number(r.maxLevel) || 0);
+            if (ml >= 3) r.maxLevel = ml + 1;
+            if (Array.isArray(r.attempts)) {
+              r.attempts.forEach(function (a) {
+                if (!a) return;
+                const li = Math.floor(Number(a.levelIndex) || 0);
+                if (li >= 3) a.levelIndex = li + 1;
+              });
+            }
+          });
+        }
+        user.decimalD4InsertedRemap = true;
+      }
       if (typeof user.survivalUnlocked !== "boolean") user.survivalUnlocked = false;
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
       if (typeof user.heatmapL16Passed !== "boolean") user.heatmapL16Passed = false;
@@ -8131,7 +8164,7 @@
       survival: 15,
       level: 15,
       training: 15,
-      decimal: 4,
+      decimal: 5,
       perfectSquare: 3,
     };
 
@@ -11166,9 +11199,14 @@
 
     function studentStatsChartLevelName() {
       const HM = window.JmlStatsHeatmap;
+      const i = studentStatsState.statsLevelIndex;
       const cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(studentStatsState.chartCategoryId) : null;
-      if (!cat) return getLevelDisplayName(studentStatsState.statsLevelIndex);
-      return (cat.levelPrefix || "L") + (studentStatsState.statsLevelIndex + 1);
+      if (!cat || cat.id === "arithmetic") return getLevelDisplayName(i);
+      if (cat.id === "decimal" && window.JmlDecimal && Array.isArray(JmlDecimal.LEVEL_LABELS)) {
+        return JmlDecimal.LEVEL_LABELS[i] || "D" + (i + 1);
+      }
+      const prefix = cat.levelPrefix || "L";
+      return prefix + (i + 1);
     }
 
     function updateStudentStatsChartTitle() {

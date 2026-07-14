@@ -6,7 +6,7 @@ const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
 const LEVEL_CHALLENGE_MAX_INDEX = 15;
 const EXPAND_MAX_LEVEL = 4;
 const PS_MAX_LEVEL = 3;
-const DECIMAL_MAX_LEVEL = 4;
+const DECIMAL_MAX_LEVEL = 5;
 const PRIME_RANKING_MAX_WRONG = 5;
 
 function formatGradeLabel(grade) {
@@ -254,12 +254,17 @@ function buildStudentOverviewRows(options) {
         : typeof u.levelPerfectSquareCurrentLevel === "number"
           ? u.levelPerfectSquareCurrentLevel
           : 0;
-    const decUnlocked =
+    const decUnlockedRaw =
       typeof u.levelDecimalUnlockedMax === "number"
         ? u.levelDecimalUnlockedMax
         : typeof u.levelDecimalCurrentLevel === "number"
           ? u.levelDecimalCurrentLevel
           : 0;
+    let decUnlocked = Math.max(0, Math.floor(Number(decUnlockedRaw) || 0));
+    // 未登录触发 remap 前：概览侧对旧 unlockedMax≥3 虚拟 +1，与 insert D4 后语义对齐
+    if (u.decimalD4InsertedRemap !== true && decUnlocked >= 3) {
+      decUnlocked = Math.min(DECIMAL_MAX_LEVEL + 1, decUnlocked + 1);
+    }
     const expUnlocked =
       typeof u.levelExpandBracketsUnlockedMax === "number"
         ? u.levelExpandBracketsUnlockedMax
