@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=54"></script>
+  <script src="shared/app-version.js?v=55"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -6654,6 +6654,8 @@
         "game.training.questionProgress": "第 {n} 題 / {total}",
         "game.celebrate.allClearedTitle": "恭喜通關",
         "game.over.trainingBrushDoneTitle": "訓練結束！",
+        "game.training.brushSpeedFaster": "速度有進步",
+        "game.training.brushSpeedSlower": "今天比平時慢了一些哦",
         "game.training.promoteLevelUp": "升級！",
         "game.training.promoteStayHint": "準確率低於通關線，繼續在本級練習。",
         "game.training.dailyRunPass": "本局達標！下次將挑戰下一關。",
@@ -7163,6 +7165,8 @@
         "game.training.questionProgress": "Q {n} / {total}",
         "game.celebrate.allClearedTitle": "Cleared!",
         "game.over.trainingBrushDoneTitle": "Training complete!",
+        "game.training.brushSpeedFaster": "Speed improved",
+        "game.training.brushSpeedSlower": "A bit slower than usual today",
         "game.training.promoteLevelUp": "Level up!",
         "game.training.promoteStayHint": "Accuracy is below the promotion line. Keep practicing at this level.",
         "game.training.dailyRunPass": "Run cleared! Next time: the next level.",
@@ -9524,6 +9528,12 @@
       const runPass = accuracy >= TRAINING_PASS_ACCURACY;
 
       if (trainingRunBrushMode) {
+        // 须在 append/finalize 前取热图，否则本局已并入加权均时
+        const brushSpeedTip = resolveTrainingBrushSpeedTip(
+          levelThisRun,
+          currentRunAttempts,
+          trainingHeatSnapshot
+        );
         setTrainingRunFinalizeUi(true);
         try {
           recordTrainingCompletedTrack(true);
@@ -9541,7 +9551,7 @@
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = t("game.over.trainingBrushDoneTitle");
+          if (titleEl) titleEl.textContent = formatTrainingBrushDoneTitle(brushSpeedTip);
           const durationLabelEl = document.getElementById("game-over-duration-label");
           const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
           const durationEl = document.getElementById("game-over-duration");
@@ -12451,6 +12461,53 @@
         if (heat.cells[i].levelIndex === levelIndex) return heat.cells[i];
       }
       return heat.cells[levelIndex] || null;
+    }
+
+    function meanLnCorrectFromTrainingAttempts(attempts, levelIndex, maxTimeMs) {
+      const cap = Number(maxTimeMs) > 0 ? Number(maxTimeMs) : 60 * 1000;
+      const lv = Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0)));
+      let sum = 0;
+      let n = 0;
+      const list = Array.isArray(attempts) ? attempts : [];
+      for (let i = 0; i < list.length; i++) {
+        const a = list[i];
+        if (!a || a.correct !== true) continue;
+        const aLv = Math.min(15, Math.max(0, Math.floor(Number(a.levelIndex) || 0)));
+        if (aLv !== lv) continue;
+        const ms = Number(a.timeSpentMs);
+        if (!(ms > 0 && ms <= cap && Number.isFinite(ms))) continue;
+        sum += Math.log(ms);
+        n += 1;
+      }
+      return n > 0 ? sum / n : null;
+    }
+
+    /**
+     * 刷热图局末：本局答对 ln 均时 vs 开局前热图加权 meanLnCorrect（无死区）。
+     * @returns {string} 提示片段；缺数据则空串
+     */
+    function resolveTrainingBrushSpeedTip(levelIndex, attempts, heatBefore) {
+      const cell = getHeatCellForLevel(heatBefore, levelIndex);
+      const baseline =
+        cell && cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))
+          ? Number(cell.meanLnCorrect)
+          : null;
+      const cap =
+        heatBefore && Number(heatBefore.maxTimeSpentMs) > 0
+          ? Number(heatBefore.maxTimeSpentMs)
+          : 60 * 1000;
+      const runLn = meanLnCorrectFromTrainingAttempts(attempts, levelIndex, cap);
+      if (runLn == null || baseline == null) return "";
+      if (runLn < baseline) return t("game.training.brushSpeedFaster");
+      return t("game.training.brushSpeedSlower");
+    }
+
+    function formatTrainingBrushDoneTitle(speedTip) {
+      const base = t("game.over.trainingBrushDoneTitle");
+      const tip = speedTip ? String(speedTip).trim() : "";
+      if (!tip) return base;
+      const head = String(base || "").replace(/[！!]\s*$/, "");
+      return head + "！" + tip;
     }
 
     function writeGameSubtitleForMode(mode) {
