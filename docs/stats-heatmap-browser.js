@@ -521,24 +521,41 @@
 
   /**
    * 小数等：在已解锁 pool 内选关（不要求 active）。
-   * 只要有加权正确率 p 即可比较：先 p&lt;95% 最低，再 ≥95% 中速度分位最慢。
+   * 优先级：无 p（已解锁未练）→ p&lt;95% 最低 → ≥95% 中速度分位最慢。
+   * 多个无 p 时取 levelIndex 最小（先补洞）。
    * @returns {{ levelIndex: number, reason: string }|null}
    */
   function recommendUnlockedWeightedBrush(cellsResult, poolMax) {
     var maxIdx = Math.max(0, Math.floor(Number(poolMax) || 0));
     var list = (cellsResult && cellsResult.cells) || [];
-    var withP = [];
+    var byIdx = {};
     for (var i = 0; i < list.length; i++) {
       var c = list[i];
-      if (!c || c.levelIndex > maxIdx) continue;
-      if (c.p == null || !Number.isFinite(Number(c.p))) continue;
-      withP.push(c);
+      if (!c || c.levelIndex == null) continue;
+      if (c.levelIndex > maxIdx) continue;
+      byIdx[c.levelIndex] = c;
     }
-    if (!withP.length) return null;
+    var pool = [];
+    for (var li = 0; li <= maxIdx; li++) {
+      pool.push(byIdx[li] || { levelIndex: li, p: null, timePct: null, n: 0 });
+    }
+    if (!pool.length) return null;
+
+    var noP = [];
+    for (var g = 0; g < pool.length; g++) {
+      if (pool[g].p == null || !Number.isFinite(Number(pool[g].p))) noP.push(pool[g]);
+    }
+    if (noP.length) {
+      var gap = noP[0];
+      for (var h = 1; h < noP.length; h++) {
+        if (noP[h].levelIndex < gap.levelIndex) gap = noP[h];
+      }
+      return { levelIndex: gap.levelIndex, reason: 'brush_fill_gap' };
+    }
 
     var belowPass = [];
-    for (var b = 0; b < withP.length; b++) {
-      if (withP[b].p < TRAINING_BRUSH_PASS_ACCURACY) belowPass.push(withP[b]);
+    for (var b = 0; b < pool.length; b++) {
+      if (pool[b].p < TRAINING_BRUSH_PASS_ACCURACY) belowPass.push(pool[b]);
     }
     if (belowPass.length) {
       var bestBelow = belowPass[0];
@@ -549,9 +566,9 @@
     }
 
     var withPct = [];
-    for (var u = 0; u < withP.length; u++) {
-      if (withP[u].timePct != null && Number.isFinite(Number(withP[u].timePct))) {
-        withPct.push(withP[u]);
+    for (var u = 0; u < pool.length; u++) {
+      if (pool[u].timePct != null && Number.isFinite(Number(pool[u].timePct))) {
+        withPct.push(pool[u]);
       }
     }
     if (withPct.length) {
@@ -563,9 +580,9 @@
       return { levelIndex: bt.levelIndex, reason: 'brush_pick_speed' };
     }
 
-    var bestP = withP[0];
-    for (var w = 1; w < withP.length; w++) {
-      if (cmpMinWeightedP(withP[w], bestP) < 0) bestP = withP[w];
+    var bestP = pool[0];
+    for (var w = 1; w < pool.length; w++) {
+      if (cmpMinWeightedP(pool[w], bestP) < 0) bestP = pool[w];
     }
     return { levelIndex: bestP.levelIndex, reason: 'brush_pick_speed' };
   }
