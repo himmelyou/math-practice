@@ -234,7 +234,7 @@
   }
 
   function wrapQuestion(q) {
-    return {
+    var out = {
       text: q.text,
       answer: q.answer,
       baseLevelId: q.baseLevelId,
@@ -242,6 +242,12 @@
       a: q.a != null ? q.a : 0,
       b: q.b != null ? q.b : 0,
     };
+    if (q.prompt != null) out.prompt = q.prompt;
+    if (q.displayKind != null) out.displayKind = q.displayKind;
+    if (q.blankSide != null) out.blankSide = q.blankSide;
+    if (q.denom != null) out.denom = q.denom;
+    if (q.decimalText != null) out.decimalText = q.decimalText;
+    return out;
   }
 
   function randomD1DecimalText() {

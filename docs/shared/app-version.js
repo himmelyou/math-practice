@@ -3,7 +3,7 @@
  */
 (function (g) {
   g.JML_APP_VERSION = "v1.6.5";
-  g.JML_BUILD_ID = "20260716c";
-  g.JML_CACHE_TAG = "59";
+  g.JML_BUILD_ID = "20260716d";
+  g.JML_CACHE_TAG = "60";
   g.JML_ADMIN_STATIC_REV = "35";
 })(typeof window !== "undefined" ? window : globalThis);
