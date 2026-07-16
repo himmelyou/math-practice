@@ -2635,44 +2635,88 @@ function summarizeQuantiles(values) {
   };
 }
 
-/** 全量扫描 runs 计算难度常模（不含 builtAt / 缓存字段）；仅全体答对 ln(耗时) 分位 */
-function computeLevelCohortResult() {
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const lnTimesByLevel = Array.from({ length: COHORT_LEVEL_COUNT }, () => []);
+/**
+ * 将某用户在某一档上的答对耗时汇总为一个人级 meanLn（几何均时）。
+ * 答对且 ≤cap 的题数 < minAttempts 时返回 null（不占一票）。
+ */
+function personMeanLnFromCorrectTimes(lnTimes, minAttempts) {
+  const need = Math.max(1, Math.floor(Number(minAttempts) || COHORT_MIN_ATTEMPTS_PER_USER_LEVEL));
+  if (!Array.isArray(lnTimes) || lnTimes.length < need) return null;
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < lnTimes.length; i++) {
+    const v = lnTimes[i];
+    if (!Number.isFinite(v)) continue;
+    sum += v;
+    n += 1;
+  }
+  if (n < need) return null;
+  return sum / n;
+}
 
+/**
+ * 按人·档聚合：每人每档只贡献 1 个 meanLn（需答对题 ≥ minAttempts）。
+ * @param {(mode: string) => boolean} modeFilter
+ * @param {number} levelCount
+ * @returns {number[][]} 每档的人级 meanLn 列表
+ */
+function collectPersonMeanLnByLevel(modeFilter, levelCount) {
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const personLnByLevel = Array.from({ length: levelCount }, () => []);
   const usernames = Object.keys(runsData.runs || {});
+  const minN = COHORT_MIN_ATTEMPTS_PER_USER_LEVEL;
+
   usernames.forEach((username) => {
+    const perLevel = Array.from({ length: levelCount }, () => []);
     const runs = runsData.runs[username] || [];
     runs.forEach((r) => {
       const mode = normalizeRunMode(r.mode);
-      if (mode !== "survival" && mode !== "level" && mode !== "training") return;
+      if (!modeFilter(mode)) return;
       if (!Array.isArray(r.attempts)) return;
       r.attempts.forEach((a) => {
-        const idx = Math.max(0, Math.min(COHORT_LEVEL_COUNT - 1, Number(a.levelIndex) || 0));
+        const idx = Math.max(0, Math.min(levelCount - 1, Number(a.levelIndex) || 0));
         if (!a.correct) return;
         const ms = Number(a.timeSpentMs);
         if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
-          lnTimesByLevel[idx].push(Math.log(ms));
+          perLevel[idx].push(Math.log(ms));
         }
       });
     });
+    for (let k = 0; k < levelCount; k++) {
+      const meanLn = personMeanLnFromCorrectTimes(perLevel[k], minN);
+      if (meanLn != null) personLnByLevel[k].push(meanLn);
+    }
   });
+
+  return personLnByLevel;
+}
+
+/** 全量扫描 runs 计算难度常模（不含 builtAt / 缓存字段）；人级 meanLn 分位 */
+function computeLevelCohortResult() {
+  const personLnByLevel = collectPersonMeanLnByLevel(
+    (mode) => mode === "survival" || mode === "level" || mode === "training",
+    COHORT_LEVEL_COUNT
+  );
 
   const levels = [];
   for (let k = 0; k < COHORT_LEVEL_COUNT; k++) {
-    const lnQ = summarizeQuantiles(lnTimesByLevel[k]);
+    const lnQ = summarizeQuantiles(personLnByLevel[k]);
     levels.push({
       levelIndex: k,
       cohortLnTimeCorrect: lnQ,
-      cohortLnTimeHistogram: buildLnHistogram(lnTimesByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
     });
   }
   return {
     ok: true,
+    sampleUnit: "person",
+    minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入全体/个人速度侧统计（排除挂机、长时间切屏等异常偏慢）",
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票：每人每档先算几何均时（答对且≤cap 题数≥" +
+      COHORT_MIN_ATTEMPTS_PER_USER_LEVEL +
+      "），再对人级 meanLn 做分位/直方图，避免高题量用户主导分布。",
     levels,
   };
 }
@@ -2768,44 +2812,32 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
 const COHORT_DECIMAL_LEVEL_COUNT = 6;
 
 function computeDecimalCohortResult() {
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const lnTimesByLevel = Array.from({ length: COHORT_DECIMAL_LEVEL_COUNT }, () => []);
-
-  const usernames = Object.keys(runsData.runs || {});
-  usernames.forEach((username) => {
-    const runs = runsData.runs[username] || [];
-    runs.forEach((r) => {
-      const mode = normalizeRunMode(r.mode);
-      if (mode !== "decimal") return;
-      if (!Array.isArray(r.attempts)) return;
-      r.attempts.forEach((a) => {
-        const idx = Math.max(0, Math.min(COHORT_DECIMAL_LEVEL_COUNT - 1, Number(a.levelIndex) || 0));
-        if (!a.correct) return;
-        const ms = Number(a.timeSpentMs);
-        if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
-          lnTimesByLevel[idx].push(Math.log(ms));
-        }
-      });
-    });
-  });
+  const personLnByLevel = collectPersonMeanLnByLevel(
+    (mode) => mode === "decimal",
+    COHORT_DECIMAL_LEVEL_COUNT
+  );
 
   const levels = [];
   for (let k = 0; k < COHORT_DECIMAL_LEVEL_COUNT; k++) {
-    const lnQ = summarizeQuantiles(lnTimesByLevel[k]);
+    const lnQ = summarizeQuantiles(personLnByLevel[k]);
     levels.push({
       levelIndex: k,
       cohortLnTimeCorrect: lnQ,
-      cohortLnTimeHistogram: buildLnHistogram(lnTimesByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
     });
   }
   return {
     ok: true,
     kind: "decimal",
     levelCount: COHORT_DECIMAL_LEVEL_COUNT,
+    sampleUnit: "person",
+    minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入全体/个人速度侧统计（排除挂机、长时间切屏等异常偏慢）",
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票：每人每档先算几何均时（答对且≤cap 题数≥" +
+      COHORT_MIN_ATTEMPTS_PER_USER_LEVEL +
+      "），再对人级 meanLn 做分位/直方图。",
     levels,
   };
 }
