@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=58"></script>
+  <script src="shared/app-version.js?v=59"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3312,6 +3312,41 @@
       text-align: center;
     }
 
+    /* D4 单位分数：竖排真分数（不用斜杠） */
+    .run-mode-page .run-mode-game-card.game-card--playing > .question-body > .question-text.dec-question-frac {
+      white-space: normal;
+      text-overflow: clip;
+      gap: 0.35em;
+      line-height: 1.15;
+    }
+    .jml-frac {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      vertical-align: middle;
+      line-height: 1.05;
+      min-width: 1.4em;
+    }
+    .jml-frac-num,
+    .jml-frac-den {
+      display: block;
+      padding: 0 0.12em;
+      font-variant-numeric: tabular-nums;
+    }
+    .jml-frac-bar {
+      display: block;
+      width: 100%;
+      min-width: 1.15em;
+      height: 0;
+      border-top: 2.5px solid currentColor;
+      margin: 0.08em 0;
+    }
+    .jml-frac-eq,
+    .jml-frac-rhs {
+      font-weight: 700;
+    }
+
     .run-mode-page .run-mode-game-card.game-card--playing > .question-header,
     .run-mode-page .run-mode-game-card.game-card--playing > .answer-form {
       flex-shrink: 0;
@@ -4476,11 +4511,11 @@
   <script src="shared/soft-keyboard.js?v=41"></script>
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=43"></script>
-  <script src="shared/decimal-questions.js?v=47"></script>
+  <script src="shared/decimal-questions.js?v=48"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=45"></script>
-  <script src="decimal-page.js?v=8"></script>
+  <script src="decimal-page.js?v=9"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部

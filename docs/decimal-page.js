@@ -350,6 +350,7 @@
     }
 
     if (dom().decQuestionText) {
+      dom().decQuestionText.classList.remove("dec-question-frac");
       dom().decQuestionText.textContent = t("dec.subtitle");
       dom().decQuestionText.classList.add("rule-hint");
       dom().decQuestionText.style.display = "";
@@ -365,6 +366,46 @@
     if (deps.scheduleSyncAllRuleHints) deps.scheduleSyncAllRuleHints();
   }
 
+  function escapeDecHtml(s) {
+    if (deps.escapeHtml) return deps.escapeHtml(s);
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  /** D4 单位分数：竖排真分数，不用斜杠 */
+  function formatDecUnitFractionHtml(q) {
+    var blankDenom = q && q.blankSide === "denom";
+    var denText = blankDenom ? "?" : String(q && q.denom != null ? q.denom : "");
+    var frac =
+      '<span class="jml-frac" aria-hidden="true">' +
+      '<span class="jml-frac-num">1</span>' +
+      '<span class="jml-frac-bar"></span>' +
+      '<span class="jml-frac-den">' +
+      escapeDecHtml(denText) +
+      "</span></span>";
+    if (blankDenom) {
+      return frac + '<span class="jml-frac-eq"> = </span><span class="jml-frac-rhs">' + escapeDecHtml(q.decimalText || "") + "</span>";
+    }
+    return frac + '<span class="jml-frac-eq"> = </span><span class="jml-frac-rhs">?</span>';
+  }
+
+  function renderDecQuestionPrompt(q) {
+    const el = dom().decQuestionText;
+    if (!el) return;
+    el.style.display = "";
+    el.classList.remove("rule-hint");
+    if (q && q.displayKind === "unitFraction") {
+      el.classList.add("dec-question-frac");
+      el.innerHTML = formatDecUnitFractionHtml(q);
+      return;
+    }
+    el.classList.remove("dec-question-frac");
+    el.textContent = (q && (q.prompt || q.text)) || "";
+  }
+
   function nextDecQuestion() {
     const total = decQuestionsTotal();
     if (decQuestionIndex >= total) {
@@ -377,11 +418,7 @@
       return;
     }
     decQuestionShownAt = Date.now();
-    if (dom().decQuestionText) {
-      dom().decQuestionText.style.display = "";
-      dom().decQuestionText.textContent = decCurrent.prompt || decCurrent.text || "";
-      dom().decQuestionText.classList.remove("rule-hint");
-    }
+    renderDecQuestionPrompt(decCurrent);
     hideDecQuestionSubtext();
     if (dom().decProgressText) {
       dom().decProgressText.textContent = formatDecProgress(decQuestionIndex + 1);
@@ -586,6 +623,7 @@
     setDecSoftKeyboardVisible(false);
     setDecGameCardGameOver(true);
     if (dom().decQuestionText) {
+      dom().decQuestionText.classList.remove("dec-question-frac");
       dom().decQuestionText.textContent = "";
       dom().decQuestionText.style.display = "none";
     }
@@ -626,6 +664,7 @@
     setDecSoftKeyboardVisible(false);
     setDecGameCardGameOver(true);
     if (dom().decQuestionText) {
+      dom().decQuestionText.classList.remove("dec-question-frac");
       dom().decQuestionText.textContent = "";
       dom().decQuestionText.style.display = "none";
     }

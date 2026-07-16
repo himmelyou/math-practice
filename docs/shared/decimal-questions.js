@@ -428,8 +428,13 @@
       cards.push(
         wrapQuestion({
           text: "1/" + denom + " = ?",
+          prompt: "1/" + denom + " = ?",
           answer: decText,
           baseLevelId: "D4",
+          displayKind: "unitFraction",
+          blankSide: "decimal",
+          denom: denom,
+          decimalText: decText,
           op: "=",
           a: 1,
           b: denom,
@@ -438,8 +443,13 @@
       cards.push(
         wrapQuestion({
           text: "1/? = " + decText,
+          prompt: "1/? = " + decText,
           answer: String(denom),
           baseLevelId: "D4",
+          displayKind: "unitFraction",
+          blankSide: "denom",
+          denom: denom,
+          decimalText: decText,
           op: "=",
           a: 1,
           b: parseFloat(decText),
