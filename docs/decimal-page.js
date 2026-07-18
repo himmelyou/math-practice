@@ -732,7 +732,7 @@
 
   function handleModeDecimal() {
     if (deps.isGuestMode) {
-      deps.showToast(t("toast.decimalNeedLogin"));
+      deps.showToast(t("toast.guestNeedLogin"));
       return;
     }
     deps.setGameMode("decimal");

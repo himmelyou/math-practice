@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=60"></script>
+  <script src="shared/app-version.js?v=61"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4537,8 +4537,8 @@
   <script src="shared/decimal-questions.js?v=49"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=45"></script>
-  <script src="decimal-page.js?v=9"></script>
+  <script src="perfect-square-page.js?v=46"></script>
+  <script src="decimal-page.js?v=10"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5335,13 +5335,21 @@
       if (logoutBtn) logoutBtn.hidden = !!isGuestMode;
     }
 
-    function restoreGuestHiddenHomeModes() {
+    function setGuestNicknameEditVisible(visible) {
       const changeNickBtn = document.getElementById("change-nickname-btn");
-      if (changeNickBtn) changeNickBtn.style.display = "";
+      if (changeNickBtn) changeNickBtn.style.display = visible ? "" : "none";
+    }
+
+    function showLoggedInHomeToolModes() {
       ["mode-stats", "mode-ranking", "mode-achievement-wall"].forEach(function (id) {
         const el = document.getElementById(id);
         if (el) el.style.display = "";
       });
+    }
+
+    function restoreGuestHiddenHomeModes() {
+      setGuestNicknameEditVisible(true);
+      showLoggedInHomeToolModes();
     }
 
     function syncGuestTopActionButton() {
@@ -5614,11 +5622,11 @@
       scheduleHomeTopBreathe();
     }
 
-    /** 成就墙：已登录学员可见（游客不可见）。 */
+    /** 成就墙：登录学员与游客首页均显示入口（游客点击需登录）。 */
     function applyAchievementWallHomeMode() {
       const el = document.getElementById("mode-achievement-wall");
       if (!el) return;
-      const show = !isGuestMode && !!cachedUser;
+      const show = isGuestMode || !!cachedUser;
       el.style.display = show ? "" : "none";
       el.classList.remove("mode-btn-soon", "mode-btn-locked");
       el.removeAttribute("aria-disabled");
@@ -6519,7 +6527,6 @@
     const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
     const CURRENT_USER_KEY = "adaptive_math_current_user_v1";
     const GUEST_STORAGE_KEY = "adaptive_math_survival_guest_v1";
-    const GUEST_PLAY_LIMIT = 3;
 
     let currentUsername = null;
     let isGuestMode = false;
@@ -6598,8 +6605,8 @@
         "home.soon.lcm": "公倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "home.soon.unitConversion": "單位換算：功能即將上線",
-        "toast.perfectSquareNeedLogin": "請登入後使用平方數專項",
-        "toast.decimalNeedLogin": "請登入後使用小數運算",
+        "toast.perfectSquareNeedLogin": "請登入或註冊後再使用此功能。",
+        "toast.decimalNeedLogin": "請登入或註冊後再使用此功能。",
         "mode.running.perfectSquare": "平方數",
         "mode.running.decimal": "小數運算",
         "ps.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
@@ -6880,7 +6887,7 @@
         "wrongPractice.markLabel": "對錯：",
         "wrongPractice.correctAnswer": "正確答案：",
         "wrongPractice.okBtn": "確定",
-        "toast.primeNeedLogin": "請登入後使用質數合數專項",
+        "toast.primeNeedLogin": "請登入或註冊後再使用此功能。",
         "toast.primeBankLoadFail": "題庫未載入，請重新整理頁面重試",
         "toast.primeGenFail": "出題失敗，請重試",
         "toast.avatarUnlockNeedLevel": "需 Lv.{level} 解鎖",
@@ -6888,8 +6895,9 @@
         "toast.avatarChangeFail": "更換失敗",
         "toast.survivalNeedLevel9": "生存挑戰尚未解鎖：訓練 L16 達標、闖關到達 L16，或 L16 熱圖準確率 ≥95%",
         "toast.trainingNeedLevelOnce": "訓練模式：請先完成一局闖關模式",
+        "toast.guestNeedLogin": "請登入或註冊後再使用此功能。",
         "toast.guestNoAvatar": "遊客模式暫不支持頭像",
-        "toast.guestSurvivalOnly": "遊客模式僅支援生存挑戰。",
+        "toast.guestSurvivalOnly": "請登入或註冊後再使用此功能。",
         "api.loadAvatarsFail": "載入頭像失敗",
       },
       en: {
@@ -6961,8 +6969,8 @@
         "home.soon.lcm": "Common Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "home.soon.unitConversion": "Unit Conversion: coming soon",
-        "toast.perfectSquareNeedLogin": "Sign in to use Perfect Squares.",
-        "toast.decimalNeedLogin": "Sign in to use Decimals.",
+        "toast.perfectSquareNeedLogin": "Please sign in or register to use this feature.",
+        "toast.decimalNeedLogin": "Please sign in or register to use this feature.",
         "mode.running.perfectSquare": "Squares",
         "mode.running.decimal": "Decimals",
         "ps.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
@@ -7243,7 +7251,7 @@
         "wrongPractice.markLabel": "Mark:",
         "wrongPractice.correctAnswer": "Correct:",
         "wrongPractice.okBtn": "OK",
-        "toast.primeNeedLogin": "Sign in to use Prime/Composite.",
+        "toast.primeNeedLogin": "Please sign in or register to use this feature.",
         "toast.primeBankLoadFail": "Question bank not loaded. Refresh and try again.",
         "toast.primeGenFail": "Failed to generate question. Retry.",
         "toast.avatarUnlockNeedLevel": "Unlock at Lv.{level}",
@@ -7251,8 +7259,9 @@
         "toast.avatarChangeFail": "Update failed",
         "toast.survivalNeedLevel9": "Survival locked: pass Training L16, reach L16 in Level mode, or L16 heatmap ≥95%.",
         "toast.trainingNeedLevelOnce": "Training: finish one Level run first.",
+        "toast.guestNeedLogin": "Please sign in or register to use this feature.",
         "toast.guestNoAvatar": "Avatars are not available in guest mode.",
-        "toast.guestSurvivalOnly": "Guest mode only supports Survival.",
+        "toast.guestSurvivalOnly": "Please sign in or register to use this feature.",
         "api.loadAvatarsFail": "Failed to load avatars",
       },
     };
@@ -8200,13 +8209,8 @@
         runEntry.mastered = Math.max(0, Math.floor(opts.mastered));
       }
       if (isGuestMode) {
+        // 游客仅闯关写本机记录；其它模式入口已拦截，此处一律不落库
         if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
-        else if (mode === "training") { /* 游客暂不支持训练模式记录 */ }
-        else if (mode === "primeComposite") { /* 游客不记录质数合数 */ }
-        else if (mode === "expandBrackets") { /* 游客不记拆括号（与训练一致：需登录才写 runs） */ }
-        else if (mode === "perfectSquare") { /* 游客不记平方数 */ }
-        else if (mode === "decimal") { /* 游客不记小数运算 */ }
-        else saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, runCleared);
         return Promise.resolve();
       }
       const name = loadCurrentUsername();
@@ -8815,11 +8819,8 @@
 
     function startSurvivalGame() {
       if (isGuestMode) {
-        const guest = getGuestSurvivalData();
-        if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
-          setBatchSummary(t("trial.limitMsg"));
-          return;
-        }
+        showToast(t("toast.guestNeedLogin"));
+        return;
       }
       if (survivalTimerId) clearInterval(survivalTimerId);
       currentLevelIndex = 0;
@@ -8855,13 +8856,6 @@
     }
 
     function startLevelGame() {
-      if (isGuestMode) {
-        const guest = getGuestSurvivalData();
-        if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
-          setBatchSummary(t("trial.limitMsg"));
-          return;
-        }
-      }
       if (survivalTimerId) clearInterval(survivalTimerId);
       currentLevelIndex = 0;
       runScore = 0;
@@ -9823,7 +9817,21 @@
       const rowEl = document.getElementById("home-player-level-row");
       if (!rowEl) return;
       if (isGuestMode) {
-        rowEl.style.display = "none";
+        const prog = computePlayerLevelFromTotalXp(0);
+        rowEl.style.display = "flex";
+        const badge = document.getElementById("home-player-level-badge");
+        if (badge) badge.textContent = tf("home.playerLevel.badge", { level: prog.level });
+        const fill = document.getElementById("home-player-xp-bar-fill");
+        if (fill) fill.style.width = "0%";
+        const text = document.getElementById("home-player-xp-text");
+        if (text) text.textContent = "0/" + prog.xpToNext;
+        const bar = document.getElementById("home-player-xp-bar");
+        if (bar) {
+          bar.setAttribute("aria-valuemax", String(prog.xpToNext));
+          bar.setAttribute("aria-valuenow", "0");
+          bar.setAttribute("aria-label", tf("home.playerLevel.barAria", { current: 0, need: prog.xpToNext }));
+        }
+        scheduleHomeTopBreathe();
         return;
       }
       const user = getCurrentUser();
@@ -9948,6 +9956,10 @@
     }
 
     async function showAchievementWallView() {
+      if (isGuestMode) {
+        showToast(t("toast.guestNeedLogin"));
+        return;
+      }
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -9984,6 +9996,10 @@
     }
 
     async function showRankingView() {
+      if (isGuestMode) {
+        showToast(t("toast.guestNeedLogin"));
+        return;
+      }
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -10017,7 +10033,7 @@
 
     function showPrimeCompositePlaceholder() {
       if (isGuestMode) {
-        showToast(t("toast.primeNeedLogin"));
+        showToast(t("toast.guestNeedLogin"));
         return;
       }
       primeCompositeResetToIdle();
@@ -11537,7 +11553,10 @@
     }
 
     async function showStatsView() {
-      if (isGuestMode) return;
+      if (isGuestMode) {
+        showToast(t("toast.guestNeedLogin"));
+        return;
+      }
       const name = loadCurrentUsername();
       if (!name) return;
       setTopActionsVisible(false);
@@ -11873,9 +11892,7 @@
 
     function handleModeSurvival() {
       if (isGuestMode) {
-        gameMode = "survival";
-        writeGameSubtitleForMode("survival");
-        showGameSection();
+        showToast(t("toast.guestNeedLogin"));
         return;
       }
       if (isSurvivalLocked()) {
@@ -12730,17 +12747,14 @@
     }
 
     function handleModeLevel() {
-      if (isGuestMode) {
-        showToast(t("toast.guestSurvivalOnly"));
-        return;
-      }
       gameMode = "level";
       writeGameSubtitleForMode("level");
       showGameSection();
     }
 
     function isTrainingLocked() {
-      if (isGuestMode) return true;
+      // 游客不显示锁，点击时 toast 需登录
+      if (isGuestMode) return false;
       const u = getCurrentUser();
       if (!u) return true;
       ensureUserProgressDefault(u);
@@ -12760,7 +12774,7 @@
 
     async function handleModePractice() {
       if (isGuestMode) {
-        showToast(t("toast.guestSurvivalOnly"));
+        showToast(t("toast.guestNeedLogin"));
         return;
       }
       if (isTrainingLocked()) {
@@ -12781,6 +12795,10 @@
     }
 
     function handleModeExpandBrackets() {
+      if (isGuestMode) {
+        showToast(t("toast.guestNeedLogin"));
+        return;
+      }
       gameMode = "expandBrackets";
       writeGameSubtitleForMode("expandBrackets");
       showGameSection();
@@ -12788,7 +12806,7 @@
 
     function handleModeWrongbook() {
       if (isGuestMode) {
-        showToast(t("toast.guestSurvivalOnly"));
+        showToast(t("toast.guestNeedLogin"));
         return;
       }
       showWrongbookView();
@@ -12827,10 +12845,8 @@
       document.getElementById("app-view").style.display = "flex";
       syncHomeSettingsAuthItems();
       syncGuestTopActionButton();
-      const ms = document.getElementById("mode-stats");
-      if (ms) ms.style.display = "";
-      const mr = document.getElementById("mode-ranking");
-      if (mr) mr.style.display = "";
+      setGuestNicknameEditVisible(true);
+      showLoggedInHomeToolModes();
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       loadState();
@@ -12886,10 +12902,8 @@
       document.getElementById("app-view").style.display = "flex";
       syncHomeSettingsAuthItems();
       syncGuestTopActionButton();
-      const ms = document.getElementById("mode-stats");
-      if (ms) ms.style.display = "";
-      const mr = document.getElementById("mode-ranking");
-      if (mr) mr.style.display = "";
+      setGuestNicknameEditVisible(true);
+      showLoggedInHomeToolModes();
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       loadState();
@@ -12900,12 +12914,6 @@
     }
 
     async function handleGuestEnter() {
-      const guest = getGuestSurvivalData();
-      if ((guest.guestPlayCount || 0) >= GUEST_PLAY_LIMIT) {
-        const errorEl = document.getElementById("login-error");
-        if (errorEl) errorEl.textContent = t("trial.limitMsg");
-        return;
-      }
       isGuestMode = true;
       setCurrentUsername(null);
       await refreshGameSettings();
@@ -12913,14 +12921,10 @@
       document.getElementById("app-view").style.display = "flex";
       syncHomeSettingsAuthItems();
       syncGuestTopActionButton();
-      const changeNickBtn = document.getElementById("change-nickname-btn");
-      if (changeNickBtn) changeNickBtn.style.display = "none";
-      const ms = document.getElementById("mode-stats");
-      if (ms) ms.style.display = "none";
-      const mr = document.getElementById("mode-ranking");
-      if (mr) mr.style.display = "none";
-      const maw = document.getElementById("mode-achievement-wall");
-      if (maw) maw.style.display = "none";
+      setGuestNicknameEditVisible(false);
+      showLoggedInHomeToolModes();
+      updateRankingButtonLabel();
+      updateTrainingButtonLabel();
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();
@@ -12979,6 +12983,7 @@
     }
 
     function showNicknameModal() {
+      if (isGuestMode) return;
       const overlay = document.getElementById("change-nickname-modal-overlay");
       if (overlay) {
         const input = document.getElementById("change-nickname-input");
@@ -13106,10 +13111,6 @@
       if (modeRanking) modeRanking.addEventListener("click", showRankingView);
       const modeAchievementWall = document.getElementById("mode-achievement-wall");
       if (modeAchievementWall) modeAchievementWall.addEventListener("click", function () {
-        if (isGuestMode) {
-          showToast("请先登录");
-          return;
-        }
         void showAchievementWallView();
       });
 
@@ -13136,10 +13137,7 @@
 
       const homeAvatarBtn = document.getElementById("home-avatar-btn");
       if (homeAvatarBtn) homeAvatarBtn.addEventListener("click", async () => {
-        if (isGuestMode) {
-          showToast(t("toast.guestNoAvatar"));
-          return;
-        }
+        if (isGuestMode) return;
         await ensureAvatarCatalogLoaded();
         updateHomeAvatar();
         showAvatarPicker();
@@ -13359,10 +13357,8 @@
             setGameCardActionSlot("start");
             if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
             if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-            const ms = document.getElementById("mode-stats");
-            if (ms) ms.style.display = "";
-            const mr = document.getElementById("mode-ranking");
-            if (mr) mr.style.display = "";
+            setGuestNicknameEditVisible(true);
+            showLoggedInHomeToolModes();
             updateRankingButtonLabel();
             updateTrainingButtonLabel();
             updateWrongbookBadge();

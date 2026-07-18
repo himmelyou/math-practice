@@ -637,7 +637,7 @@
 
   function handleModePerfectSquare() {
     if (deps.isGuestMode) {
-      deps.showToast(t("toast.perfectSquareNeedLogin"));
+      deps.showToast(t("toast.guestNeedLogin"));
       return;
     }
     deps.setGameMode("perfectSquare");
