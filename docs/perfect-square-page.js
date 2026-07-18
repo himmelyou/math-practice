@@ -28,6 +28,11 @@
     return deps.t(key);
   }
 
+  function inGuestMode() {
+    if (!deps) return false;
+    return !!(typeof deps.isGuestMode === "function" ? deps.isGuestMode() : deps.isGuestMode);
+  }
+
   function psMaxLevel() {
     const m = global.JmlPerfectSquare && global.JmlPerfectSquare.PS_MAX_LEVEL;
     return typeof m === "number" ? m : 3;
@@ -157,7 +162,7 @@
   async function savePerfectSquareProgress(currentLevel, unlockedMax) {
     currentLevel = Math.min(psMaxLevel(), Math.max(0, Math.floor(Number(currentLevel) || 0)));
     unlockedMax = Math.min(psMaxLevel() + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
-    if (deps.isGuestMode) return;
+    if (inGuestMode()) return;
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
@@ -636,7 +641,7 @@
   }
 
   function handleModePerfectSquare() {
-    if (deps.isGuestMode) {
+    if (inGuestMode()) {
       deps.showToast(t("toast.guestNeedLogin"));
       return;
     }

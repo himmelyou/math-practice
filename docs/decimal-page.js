@@ -36,6 +36,11 @@
     return deps.tf(key, vars);
   }
 
+  function inGuestMode() {
+    if (!deps) return false;
+    return !!(typeof deps.isGuestMode === "function" ? deps.isGuestMode() : deps.isGuestMode);
+  }
+
   function decMaxLevel() {
     const m = global.JmlDecimal && global.JmlDecimal.DECIMAL_MAX_LEVEL;
     return typeof m === "number" ? m : 5;
@@ -139,7 +144,7 @@
   async function saveDecimalProgress(currentLevel, unlockedMax) {
     currentLevel = Math.min(decMaxLevel(), Math.max(0, Math.floor(Number(currentLevel) || 0)));
     unlockedMax = Math.min(decMaxLevel() + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
-    if (deps.isGuestMode) return;
+    if (inGuestMode()) return;
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
@@ -731,7 +736,7 @@
   }
 
   function handleModeDecimal() {
-    if (deps.isGuestMode) {
+    if (inGuestMode()) {
       deps.showToast(t("toast.guestNeedLogin"));
       return;
     }

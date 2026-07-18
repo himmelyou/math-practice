@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=61"></script>
+  <script src="shared/app-version.js?v=62"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4537,8 +4537,8 @@
   <script src="shared/decimal-questions.js?v=49"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=46"></script>
-  <script src="decimal-page.js?v=10"></script>
+  <script src="perfect-square-page.js?v=47"></script>
+  <script src="decimal-page.js?v=11"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5046,7 +5046,7 @@
         ensureUserProgressDefault: ensureUserProgressDefault,
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
-        isGuestMode: isGuestMode,
+        isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
@@ -5080,7 +5080,7 @@
         ensureUserProgressDefault: ensureUserProgressDefault,
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
-        isGuestMode: isGuestMode,
+        isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
@@ -5524,12 +5524,6 @@
       const settingsWrap = document.getElementById("home-settings-wrap");
       const globalBackBtn = document.getElementById("global-back-home-btn");
       closeHomeSettingsMenu();
-      if (isGuestMode) {
-        if (globalBackBtn) globalBackBtn.style.display = "none";
-        if (settingsWrap) settingsWrap.style.display = "";
-        syncGuestTopActionButton();
-        return;
-      }
       if (visible) {
         if (globalBackBtn) globalBackBtn.style.display = "none";
         if (settingsWrap) settingsWrap.style.display = "";
