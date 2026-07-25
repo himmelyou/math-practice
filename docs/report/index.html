@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css?v=33" />
+  <link rel="stylesheet" href="report-page.css?v=34" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -30,7 +30,7 @@
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
 
-      <h1>学员数据</h1>
+      <h1>学员数据 <span id="jml-report-title-count" class="jml-report-title-count" aria-live="polite"></span></h1>
       <p class="muted">选择学员后查看挑战记录、错题本与数据分析；「学员概览」可一览全员进度。门禁通过后，会用同一口令作为请求头 <code>X-Admin-Pin</code> 调用 <code>/api/admin/*</code>。</p>
 
       <div id="jml-api-warning" class="jml-banner-warn" hidden>
@@ -47,7 +47,7 @@
           <button type="button" class="jml-report-scope-btn active" data-scope="all">全部</button>
           <button type="button" class="jml-report-scope-btn" data-scope="vip">仅 VIP</button>
         </div>
-        <span id="jml-report-user-scope-hint" class="jml-report-scope-hint" aria-live="polite"></span>
+        <span id="jml-report-user-scope-hint" class="jml-report-scope-hint" hidden aria-hidden="true"></span>
         <label for="jml-report-user-select">学员</label>
         <select id="jml-report-user-select" class="jml-report-user-select" aria-label="选择学员">
           <option value="">加载中…</option>
@@ -85,7 +85,7 @@
   </div>
 
   <script src="../config.js?v=21"></script>
-  <script src="../shared/app-version.js?v=64"></script>
+  <script src="../shared/app-version.js?v=65"></script>
   <script>
     (function () {
       if (!window.__JML_API_BASE__ && window.API_BASE_URL) {
@@ -98,7 +98,7 @@
   <script src="../stats-aggregate-browser.js?v=48"></script>
   <script src="../stats-heatmap-browser.js?v=53"></script>
   <script src="../stats-chart-browser.js?v=58"></script>
-  <script src="report-page.js?v=37"></script>
+  <script src="report-page.js?v=38"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

@@ -89,10 +89,16 @@
   outline-offset: 2px;
 }
 
+.jml-report-title-count {
+  font-size: 0.55em;
+  font-weight: 500;
+  color: #64748b;
+  margin-left: 0.35em;
+  vertical-align: middle;
+}
+
 .jml-report-scope-hint {
-  font-size: 12px;
-  color: #78909c;
-  white-space: nowrap;
+  display: none;
 }
 
 .jml-report-user-select {

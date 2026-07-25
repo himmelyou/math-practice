@@ -456,9 +456,11 @@
       }
     }
 
+    var hadRows = Array.isArray(state.overviewRows) && state.overviewRows.length > 0;
     state.overviewLoading = true;
     state.overviewError = '';
-    renderOverviewTable();
+    // 已有表格时不要拆成「加载中」，避免切换/补拉时整表闪白
+    if (!hadRows) renderOverviewTable();
 
     var path = '/api/admin/student-overview';
     if (!fetchAll) path += '?username=' + encodeURIComponent(wantUser);
@@ -501,11 +503,12 @@
   function renderOverviewTable() {
     var wrap = document.getElementById('jml-report-overview-body');
     if (!wrap) return;
-    if (state.overviewLoading) {
+    // 仅在真正空表首次加载时显示加载文案；已有内容时保持不动
+    if (state.overviewLoading && !(state.overviewRows && state.overviewRows.length)) {
       wrap.innerHTML = '<div class="jml-report-empty">学员概览加载中…</div>';
       return;
     }
-    if (state.overviewError) {
+    if (state.overviewError && !(state.overviewRows && state.overviewRows.length)) {
       wrap.innerHTML =
         '<div class="jml-report-error">' +
         escapeHtml(state.overviewError) +
@@ -516,21 +519,6 @@
     if (!list.length) {
       wrap.innerHTML = '<div class="jml-report-empty">暂无匹配的学员</div>';
       return;
-    }
-    var builtHint = '';
-    if (state.overviewBuiltAt) {
-      builtHint =
-        '<p class="jml-report-overview-meta muted">共 ' +
-        list.length +
-        ' 人' +
-        (state.selectedUsername
-          ? '（当前学员）'
-          : state.overviewComplete
-            ? ''
-            : '（部分缓存）') +
-        ' · 更新于 ' +
-        escapeHtml(formatDateTime(state.overviewBuiltAt)) +
-        '</p>';
     }
     var body = list
       .map(function (r) {
@@ -586,7 +574,6 @@
       })
       .join('');
     wrap.innerHTML =
-      builtHint +
       '<div class="jml-report-table-wrap jml-report-overview-wrap">' +
       '<table class="jml-report-table jml-report-overview-table">' +
       '<thead><tr>' +
@@ -703,12 +690,19 @@
     });
   }
 
-  function updateScopeHint(visibleCount) {
-    var el = document.getElementById('jml-report-user-scope-hint');
+  function updateTitleCount() {
+    var el = document.getElementById('jml-report-title-count');
     if (!el) return;
-    var total = state.usersAll.length;
-    var vip = countVipUsers();
-    el.textContent = '共 ' + total + ' 人 · VIP ' + vip + ' · 当前 ' + (visibleCount != null ? visibleCount : 0) + ' 人';
+    if (state.userScope === 'vip') {
+      el.textContent = '（VIP ' + countVipUsers() + ' 人）';
+    } else {
+      el.textContent = '（' + state.usersAll.length + ' 人）';
+    }
+  }
+
+  function updateScopeHint() {
+    // 人数改到标题旁；保留空函数以免旧调用报错
+    updateTitleCount();
   }
 
   function setUserScope(scope, keepSelection) {
@@ -770,7 +764,7 @@
       o.textContent = formatUserSelectLabel(u);
       sel.appendChild(o);
     });
-    updateScopeHint(list.length);
+    updateScopeHint();
     if (prev && userInFilteredList(prev, list)) {
       sel.value = prev;
       state.selectedUsername = prev;
