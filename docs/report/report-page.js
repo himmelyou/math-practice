@@ -605,14 +605,16 @@
     syncRefreshStudentBtn(false);
     if (next === 'overview') {
       void ensureOverviewForCurrentSelection(false);
-    } else if (state.selectedUsername && state.loadedStudentUsername !== state.selectedUsername) {
+      return;
+    }
+    if (!state.selectedUsername) return;
+    if (state.loadedStudentUsername !== state.selectedUsername) {
       void loadStudentData();
+      return;
     }
     if (next === 'stats') {
-      if (state.selectedUsername && state.loadedStudentUsername === state.selectedUsername) {
-        ensureStudentStatsBuilt();
-        renderStatsPanel();
-      }
+      ensureStudentStatsBuilt();
+      renderStatsPanel();
       redrawAllStatsCharts();
     }
   }
@@ -877,42 +879,96 @@
     return null;
   }
 
-  function applyUserFromUrl() {
-    var target = getUserFromUrl();
-    if (!target) return;
+  function showOverviewTabChrome() {
+    document.querySelectorAll('.jml-tab').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tab') === 'overview');
+    });
+    document.querySelectorAll('.jml-tab-panel').forEach(function (p) {
+      p.classList.toggle('hidden', p.getAttribute('data-panel') !== 'overview');
+    });
+  }
 
-    var meta = findUserMeta(target);
+  function seedSelectWithUsername(username) {
+    var sel = getUserSelect();
+    if (!sel || !username) return;
+    var found = false;
+    for (var i = 0; i < sel.options.length; i += 1) {
+      if (sel.options[i].value === username) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      var o = document.createElement('option');
+      o.value = username;
+      o.textContent = username;
+      sel.appendChild(o);
+    }
+    sel.value = username;
+  }
+
+  /** 深链首屏：不依赖 user-list / i18n，立刻拉单人概览并上屏 */
+  function bootstrapDeepLinkOverview(username) {
+    if (!username) return Promise.resolve();
+    state.selectedUsername = username;
+    syncUserQueryInUrl(username);
+    seedSelectWithUsername(username);
+    syncRefreshStudentBtn(false);
+    showOverviewTabChrome();
+    return loadOverview({ username: username, force: false });
+  }
+
+  /** user-list 回来后：校验学员、补全下拉；detail 放到空闲时再拉 */
+  function finalizeDeepLinkAfterUserList(username) {
+    if (!username) return;
+    var meta = findUserMeta(username);
     var errEl = document.getElementById('jml-report-student-error');
     if (!meta) {
       if (errEl) {
-        errEl.textContent = '链接中的学员不存在：' + target;
+        errEl.textContent = '链接中的学员不存在：' + username;
         errEl.style.display = 'block';
       }
       return;
     }
-
+    if (errEl) {
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+    }
     if (state.userScope === 'vip' && meta.isVip !== true) {
       state.userScope = 'all';
       updateScopeButtons();
     }
-
-    state.selectedUsername = target;
+    state.selectedUsername = username;
     populateUserSelect(true);
     var sel = getUserSelect();
-    if (sel) sel.value = target;
-    syncUserQueryInUrl(target);
-    syncRefreshStudentBtn(true);
-    var pDetail = loadStudentData();
-    var pOv = ensureOverviewForCurrentSelection(false);
-    var done = 0;
-    function finishOne() {
-      done += 1;
-      if (done >= 2) syncRefreshStudentBtn(false);
+    if (sel) sel.value = username;
+    syncUserQueryInUrl(username);
+    updateTitleCount();
+    scheduleIdleStudentDetail();
+  }
+
+  function scheduleIdleStudentDetail() {
+    if (!state.selectedUsername) return;
+    if (state.loadedStudentUsername === state.selectedUsername) return;
+    var run = function () {
+      if (!state.selectedUsername) return;
+      if (state.loadedStudentUsername === state.selectedUsername) return;
+      void loadStudentData();
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 2500 });
+    } else {
+      setTimeout(run, 100);
     }
-    if (pDetail && typeof pDetail.finally === 'function') pDetail.finally(finishOne);
-    else finishOne();
-    if (pOv && typeof pOv.finally === 'function') pOv.finally(finishOne);
-    else finishOne();
+  }
+
+  function applyUserFromUrl() {
+    var target = getUserFromUrl();
+    if (!target) return;
+    void bootstrapDeepLinkOverview(target);
+    if (state.usersAll && state.usersAll.length) {
+      finalizeDeepLinkAfterUserList(target);
+    }
   }
 
   function ensureStudentStatsBuilt() {
@@ -1986,26 +2042,31 @@
       readStoredOverviewSort();
       state.userScope = readStoredUserScope();
       updateScopeButtons();
-      loadReportI18n().finally(function () {
-        bindEvents();
-        loadLevelCohort();
-        loadUserList().then(function () {
-          var urlUser = getUserFromUrl();
+      bindEvents();
+
+      var urlUser = getUserFromUrl();
+      // 深链：立刻拉单人概览上屏，不挡在 i18n / user-list 后面
+      if (urlUser) {
+        void bootstrapDeepLinkOverview(urlUser);
+      } else {
+        showOverviewTabChrome();
+      }
+
+      // 其余冷启动并行后台做
+      void loadReportI18n();
+      void loadLevelCohort();
+      loadUserList()
+        .then(function () {
+          updateTitleCount();
           if (urlUser) {
-            applyUserFromUrl();
-          }
-          // 切到概览 tab；ensureOverview 由 applyUserFromUrl 或下方全员拉取负责
-          document.querySelectorAll('.jml-tab').forEach(function (btn) {
-            btn.classList.toggle('active', btn.getAttribute('data-tab') === 'overview');
-          });
-          document.querySelectorAll('.jml-tab-panel').forEach(function (p) {
-            p.classList.toggle('hidden', p.getAttribute('data-panel') !== 'overview');
-          });
-          if (!urlUser) {
+            finalizeDeepLinkAfterUserList(urlUser);
+          } else {
             void ensureOverviewForCurrentSelection(false);
           }
+        })
+        .catch(function () {
+          /* loadUserList 已 showGlobalError */
         });
-      });
     },
   };
 })();
