@@ -2226,10 +2226,12 @@ app.get("/api/admin/users", (req, res) => {
 });
 
 // ========== 管理员：学员概览表（各模式进度、未上线天数） ==========
+// 可选 ?username=xxx：只算该学员一行（管理页深链 / 切换单人）
 app.get("/api/admin/student-overview", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
+  const onlyUsername = (req.query && req.query.username ? String(req.query.username) : "").trim();
   const usersData = readJson(USERS_FILE, { users: [] });
   const runsData = readJson(RUNS_FILE, { runs: {} });
   const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
@@ -2238,21 +2240,37 @@ app.get("/api/admin/student-overview", (req, res) => {
   );
   const cohort = readCohortResultForHeatmap();
   const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
-  const users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
+  let users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
     const userRuns =
       runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
     const out = { ...u };
     out.lastGameTs = latestRunTsFromRuns(userRuns);
     return out;
   });
+  if (onlyUsername) {
+    users = users.filter((u) => u && u.username === onlyUsername);
+    if (!users.length) {
+      return res.status(404).json({ ok: false, error: "用户不存在" });
+    }
+  }
+  const runsByUser = runsData.runs || {};
+  const scopedRuns = onlyUsername
+    ? { [onlyUsername]: Array.isArray(runsByUser[onlyUsername]) ? runsByUser[onlyUsername] : [] }
+    : runsByUser;
   const rows = buildStudentOverviewRows({
     users,
-    runsByUser: runsData.runs || {},
+    runsByUser: scopedRuns,
     primeList,
     cohort,
     capMs,
   });
-  res.json({ ok: true, rows, builtAt: Date.now() });
+  res.json({
+    ok: true,
+    rows,
+    builtAt: Date.now(),
+    scope: onlyUsername ? "user" : "all",
+    username: onlyUsername || undefined,
+  });
 });
 
 // ========== 管理员：添加学员 ==========

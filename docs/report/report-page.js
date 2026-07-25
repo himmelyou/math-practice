@@ -107,6 +107,8 @@
     heat: null,
     heatByCategory: {},
     overviewRows: [],
+    /** true = 已拉过全员概览；false = 仅有零散单人行（深链/切换补齐） */
+    overviewComplete: false,
     overviewLoading: false,
     overviewError: '',
     overviewBuiltAt: 0,
@@ -390,23 +392,96 @@
     });
   }
 
-  function loadOverview(force) {
-    if (state.overviewLoading) return Promise.resolve();
-    if (!force && state.overviewRows.length > 0) {
-      renderOverviewTable();
-      return Promise.resolve();
+  function findOverviewRow(username) {
+    if (!username) return null;
+    var rows = state.overviewRows || [];
+    for (var i = 0; i < rows.length; i += 1) {
+      if (rows[i] && rows[i].username === username) return rows[i];
     }
+    return null;
+  }
+
+  function mergeOverviewRow(row) {
+    if (!row || !row.username) return;
+    var next = [];
+    var replaced = false;
+    (state.overviewRows || []).forEach(function (r) {
+      if (r && r.username === row.username) {
+        next.push(row);
+        replaced = true;
+      } else if (r) {
+        next.push(r);
+      }
+    });
+    if (!replaced) next.push(row);
+    state.overviewRows = next;
+  }
+
+  function syncUserQueryInUrl(username) {
+    try {
+      var url = new URL(window.location.href);
+      if (username) url.searchParams.set('user', username);
+      else url.searchParams.delete('user');
+      var qs = url.searchParams.toString();
+      history.replaceState(null, '', url.pathname + (qs ? '?' + qs : '') + url.hash);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  /**
+   * 拉取概览。
+   * - 无 username（或显式 all）：全员；缓存完整且非 force 则直接渲染
+   * - 有 username：只算该人；已有该行或已有全员缓存且非 force 则直接渲染
+   */
+  function loadOverview(opts) {
+    opts = typeof opts === 'object' && opts ? opts : { force: !!opts };
+    var force = !!opts.force;
+    var wantUser =
+      opts.username !== undefined && opts.username !== null
+        ? String(opts.username || '').trim()
+        : '';
+    var fetchAll = !wantUser;
+
+    if (state.overviewLoading) return Promise.resolve();
+
+    if (!force) {
+      if (fetchAll && state.overviewComplete && state.overviewRows.length > 0) {
+        renderOverviewTable();
+        return Promise.resolve();
+      }
+      if (!fetchAll && (state.overviewComplete || findOverviewRow(wantUser))) {
+        renderOverviewTable();
+        return Promise.resolve();
+      }
+    }
+
     state.overviewLoading = true;
     state.overviewError = '';
     renderOverviewTable();
-    return apiFetch('/api/admin/student-overview')
+
+    var path = '/api/admin/student-overview';
+    if (!fetchAll) path += '?username=' + encodeURIComponent(wantUser);
+
+    return apiFetch(path)
       .then(function (data) {
-        state.overviewRows = data && data.ok && Array.isArray(data.rows) ? data.rows : [];
+        var rows = data && data.ok && Array.isArray(data.rows) ? data.rows : [];
         state.overviewBuiltAt = data && data.builtAt ? Number(data.builtAt) : Date.now();
         state.overviewError = '';
+        if (fetchAll) {
+          state.overviewRows = rows;
+          state.overviewComplete = true;
+        } else if (rows[0]) {
+          mergeOverviewRow(rows[0]);
+        } else {
+          state.overviewError = '未找到该学员的概览';
+        }
       })
       .catch(function (e) {
-        state.overviewRows = [];
+        if (fetchAll) {
+          state.overviewRows = [];
+          state.overviewComplete = false;
+        }
         state.overviewError = e.message || String(e);
       })
       .finally(function () {
@@ -414,6 +489,13 @@
         renderOverviewTable();
         syncRefreshStudentBtn(false);
       });
+  }
+
+  /** 按当前下拉选中：全员或缺人时补拉 */
+  function ensureOverviewForCurrentSelection(force) {
+    var u = state.selectedUsername || '';
+    if (!u) return loadOverview({ force: !!force });
+    return loadOverview({ username: u, force: !!force });
   }
 
   function renderOverviewTable() {
@@ -440,7 +522,13 @@
       builtHint =
         '<p class="jml-report-overview-meta muted">共 ' +
         list.length +
-        ' 人 · 更新于 ' +
+        ' 人' +
+        (state.selectedUsername
+          ? '（当前学员）'
+          : state.overviewComplete
+            ? ''
+            : '（部分缓存）') +
+        ' · 更新于 ' +
         escapeHtml(formatDateTime(state.overviewBuiltAt)) +
         '</p>';
     }
@@ -529,7 +617,7 @@
     });
     syncRefreshStudentBtn(false);
     if (next === 'overview') {
-      void loadOverview(false);
+      void ensureOverviewForCurrentSelection(false);
     } else if (state.selectedUsername && state.loadedStudentUsername !== state.selectedUsername) {
       void loadStudentData();
     }
@@ -771,7 +859,6 @@
         state.userScope = readStoredUserScope();
         updateScopeButtons();
         populateUserSelect(true);
-        applyUserFromUrl();
       })
       .catch(function (e) {
         state.loadError = e.message || String(e);
@@ -819,15 +906,19 @@
     populateUserSelect(true);
     var sel = getUserSelect();
     if (sel) sel.value = target;
+    syncUserQueryInUrl(target);
     syncRefreshStudentBtn(true);
-    var p = loadStudentData();
-    if (p && typeof p.finally === 'function') {
-      p.finally(function () {
-        syncRefreshStudentBtn(false);
-      });
-    } else {
-      syncRefreshStudentBtn(false);
+    var pDetail = loadStudentData();
+    var pOv = ensureOverviewForCurrentSelection(false);
+    var done = 0;
+    function finishOne() {
+      done += 1;
+      if (done >= 2) syncRefreshStudentBtn(false);
     }
+    if (pDetail && typeof pDetail.finally === 'function') pDetail.finally(finishOne);
+    else finishOne();
+    if (pOv && typeof pOv.finally === 'function') pOv.finally(finishOne);
+    else finishOne();
   }
 
   function ensureStudentStatsBuilt() {
@@ -1737,10 +1828,29 @@
     if (sel) {
       sel.addEventListener('change', function () {
         state.selectedUsername = sel.value || '';
+        syncUserQueryInUrl(state.selectedUsername);
         syncRefreshStudentBtn(true);
+        if (!state.selectedUsername) {
+          // 回到全员：缺全员缓存时再拉
+          var pAll = ensureOverviewForCurrentSelection(false);
+          if (pAll && typeof pAll.finally === 'function') {
+            pAll.finally(function () {
+              syncRefreshStudentBtn(false);
+            });
+          } else {
+            syncRefreshStudentBtn(false);
+          }
+          return;
+        }
         if (activeTabId() === 'overview') {
-          renderOverviewTable();
-          syncRefreshStudentBtn(false);
+          var pOv = ensureOverviewForCurrentSelection(false);
+          if (pOv && typeof pOv.finally === 'function') {
+            pOv.finally(function () {
+              syncRefreshStudentBtn(false);
+            });
+          } else {
+            syncRefreshStudentBtn(false);
+          }
           return;
         }
         var p = loadStudentData();
@@ -1761,7 +1871,7 @@
         refreshStudent.textContent = '刷新中…';
         syncRefreshStudentBtn(true);
         if (activeTabId() === 'overview') {
-          var pOv = loadOverview(true);
+          var pOv = ensureOverviewForCurrentSelection(true);
           if (!pOv || typeof pOv.finally !== 'function') {
             refreshStudent.textContent = prevLabel;
             syncRefreshStudentBtn(false);
@@ -1886,7 +1996,20 @@
         bindEvents();
         loadLevelCohort();
         loadUserList().then(function () {
-          switchTab('overview');
+          var urlUser = getUserFromUrl();
+          if (urlUser) {
+            applyUserFromUrl();
+          }
+          // 切到概览 tab；ensureOverview 由 applyUserFromUrl 或下方全员拉取负责
+          document.querySelectorAll('.jml-tab').forEach(function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-tab') === 'overview');
+          });
+          document.querySelectorAll('.jml-tab-panel').forEach(function (p) {
+            p.classList.toggle('hidden', p.getAttribute('data-panel') !== 'overview');
+          });
+          if (!urlUser) {
+            void ensureOverviewForCurrentSelection(false);
+          }
         });
       });
     },
