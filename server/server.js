@@ -2630,6 +2630,7 @@ app.get("/api/admin/user-list", (req, res) => {
     .map((u) => ({
       username: u.username,
       nickname: typeof u.nickname === "string" ? u.nickname.trim() : "",
+      adminNote: typeof u.adminNote === "string" ? u.adminNote.trim() : "",
       isVip: u.isVip === true,
     }))
     .sort((a, b) => String(a.username || "").localeCompare(String(b.username || "")));

@@ -63,6 +63,24 @@ function computeDaysOffline(lastGameTs, nowMs) {
   return daysBetweenDateKeys(lastKey, todayKey);
 }
 
+/** 最近 30 个中国日历日（含今天）内有至少一局的不同日期数，0–30 */
+function computeDaysActiveLast30(runs, nowMs) {
+  const todayKey = chinaTodayKey(nowMs);
+  const seen = Object.create(null);
+  let count = 0;
+  (runs || []).forEach((r) => {
+    const ts = Number(r && r.ts) || 0;
+    if (ts <= 0) return;
+    const key = chinaDateKeyFromTs(ts);
+    if (!key || seen[key]) return;
+    const age = daysBetweenDateKeys(key, todayKey);
+    if (age == null || age < 0 || age > 29) return;
+    seen[key] = true;
+    count += 1;
+  });
+  return count;
+}
+
 function userHasClearedLevel(u, runs) {
   if (u && u.hasClearedLevel === true) return true;
   return (runs || []).some((r) => {
@@ -245,6 +263,7 @@ function buildStudentOverviewRows(options) {
     const runs = runsByUser[username] || [];
     const lastTs = Number(u.lastGameTs) || latestRunTsFromRuns(runs);
     const daysOff = computeDaysOffline(lastTs, nowMs);
+    const daysActive30 = computeDaysActiveLast30(runs, nowMs);
     const levelP = formatLevelChallengeProgress(u, runs);
     const survivalP = formatSurvivalProgress(u, runs);
     const trainingP = formatTrainingProgress(runs, cohort, capMs, HM, todayKey);
@@ -281,6 +300,7 @@ function buildStudentOverviewRows(options) {
       isVip: u.isVip === true,
       lastGameTs: lastTs > 0 ? lastTs : 0,
       daysOffline: daysOff,
+      daysActiveLast30: daysActive30,
       levelProgress: levelP.text,
       levelProgressSort: levelP.sortKey,
       survivalProgress: survivalP.text,
@@ -318,5 +338,6 @@ module.exports = {
   formatGradeLabel,
   formatCompactRunTime,
   computeDaysOffline,
+  computeDaysActiveLast30,
   chinaTodayKey,
 };

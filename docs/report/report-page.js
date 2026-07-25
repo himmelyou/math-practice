@@ -123,6 +123,7 @@
     username: 'username',
     grade: 'gradeSort',
     daysOffline: 'daysOffline',
+    daysActiveLast30: 'daysActiveLast30',
     levelProgress: 'levelProgressSort',
     trainingProgress: 'trainingProgressSort',
     survivalProgress: 'survivalProgressSort',
@@ -543,6 +544,9 @@
           '<td class="jml-ov-col-nick">' +
           escapeHtml(dashCell(r.nickname)) +
           '</td>' +
+          '<td class="jml-ov-col-active30 num">' +
+          escapeHtml(r.daysActiveLast30 != null ? String(r.daysActiveLast30) : '—') +
+          '</td>' +
           '<td class="jml-ov-col-offline num">' +
           escapeHtml(r.daysOffline != null ? String(r.daysOffline) : '—') +
           '</td>' +
@@ -581,6 +585,7 @@
       overviewSortLabel('grade', '年级') +
       '<th scope="col">备注</th>' +
       '<th scope="col">昵称</th>' +
+      overviewSortLabel('daysActiveLast30', '最近30天上线天数', 'num') +
       overviewSortLabel('daysOffline', '未上线(天)', 'num') +
       overviewSortLabel('levelProgress', '闯关') +
       overviewSortLabel('trainingProgress', '训练') +
@@ -653,11 +658,12 @@
 
   function normalizeUserRow(raw) {
     if (typeof raw === 'string') {
-      return { username: raw, nickname: '', isVip: false };
+      return { username: raw, nickname: '', adminNote: '', isVip: false };
     }
     return {
       username: String((raw && raw.username) || ''),
       nickname: String((raw && raw.nickname) || '').trim(),
+      adminNote: String((raw && raw.adminNote) || '').trim(),
       isVip: !!(raw && raw.isVip === true),
     };
   }
@@ -671,9 +677,9 @@
   }
 
   function formatUserSelectLabel(u) {
-    var nick = u.nickname ? ' · ' + u.nickname : '';
+    var note = u.adminNote ? ' · ' + u.adminNote : '';
     var vipMark = u.isVip ? '★ ' : '';
-    return vipMark + u.username + nick;
+    return vipMark + u.username + note;
   }
 
   function userInFilteredList(username, list) {
@@ -720,7 +726,7 @@
     return state.usersAll.filter(function (u) {
       if (state.userScope === 'vip' && u.isVip !== true) return false;
       if (!q) return true;
-      var hay = (u.username + ' ' + (u.nickname || '')).toLowerCase();
+      var hay = (u.username + ' ' + (u.adminNote || '')).toLowerCase();
       return hay.indexOf(q) >= 0;
     });
   }
