@@ -1333,19 +1333,33 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, msg: "Jarvis Math Lab API" });
 });
 
-// 读取 JSON 文件
+// 读取 JSON 文件（按 mtime 缓存，避免 report 连点学员时反复解析大 runs.json）
+const jsonReadCache = new Map();
+
 function readJson(filePath, defaultValue = {}) {
   try {
+    const st = fs.statSync(filePath);
+    const hit = jsonReadCache.get(filePath);
+    if (hit && hit.mtimeMs === st.mtimeMs) return hit.data;
     const raw = fs.readFileSync(filePath, "utf8");
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+    jsonReadCache.set(filePath, { mtimeMs: st.mtimeMs, data });
+    return data;
   } catch (e) {
+    jsonReadCache.delete(filePath);
     return defaultValue;
   }
 }
 
-// 写入 JSON 文件
+// 写入 JSON 文件（同步刷新缓存，供后续读命中）
 function writeJson(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+  try {
+    const st = fs.statSync(filePath);
+    jsonReadCache.set(filePath, { mtimeMs: st.mtimeMs, data });
+  } catch (e) {
+    jsonReadCache.delete(filePath);
+  }
 }
 
 // 校验管理员口令（从 header 或 body 获取）
@@ -2533,6 +2547,41 @@ app.get("/api/admin/records/:username", (req, res) => {
   res.json({ ok: true, runs });
 });
 
+/** 补齐 hasCleared* 标记（只读一次 runs）；返回是否改动了 user */
+function ensureUserClearedFlagsFromRuns(user, runs) {
+  let dirty = false;
+  if (user.hasClearedSurvival === undefined) {
+    user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
+    dirty = true;
+  }
+  if (user.hasClearedLevel === undefined) {
+    user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
+    dirty = true;
+  }
+  return dirty;
+}
+
+// ========== 管理员：一次拉取学员资料 + 全部 runs（report 选学员） ==========
+app.get("/api/admin/student-detail/:username", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = usersData.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runs = (runsData.runs[username] || [])
+    .map((r) => ({ ...r, mode: normalizeRunMode(r.mode) }))
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  if (ensureUserClearedFlagsFromRuns(user, runs)) {
+    writeJson(USERS_FILE, usersData);
+  }
+  res.json({ ok: true, user: safeUser(user), runs });
+});
+
 // ========== 管理员：获取某学员信息（用于 report 页面） ==========
 app.get("/api/admin/user/:username", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -2544,23 +2593,10 @@ app.get("/api/admin/user/:username", (req, res) => {
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  if (user.hasClearedSurvival === undefined) {
+  if (user.hasClearedSurvival === undefined || user.hasClearedLevel === undefined) {
     const runsData = readJson(RUNS_FILE, { runs: {} });
     const runs = runsData.runs[username] || [];
-    user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
-    const idx = data.users.findIndex((u) => u.username === username);
-    if (idx >= 0) {
-      data.users[idx].hasClearedSurvival = user.hasClearedSurvival;
-      writeJson(USERS_FILE, data);
-    }
-  }
-  if (user.hasClearedLevel === undefined) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
-    user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
-    const idx = data.users.findIndex((u) => u.username === username);
-    if (idx >= 0) {
-      data.users[idx].hasClearedLevel = user.hasClearedLevel;
+    if (ensureUserClearedFlagsFromRuns(user, runs)) {
       writeJson(USERS_FILE, data);
     }
   }

@@ -899,7 +899,46 @@
     var trainingToday = allTraining.filter(function (r) {
       return localDayKeyFromTs(r.ts) === todayKey;
     });
-    var arith = filterArithmeticRuns(runs || []);
+
+    // 快路径：当日最后一局已写入 dayStateAfter 时，无需回放/重建热图
+    if (trainingToday.length) {
+      var lastToday = trainingToday[trainingToday.length - 1];
+      var lastDa = lastToday && lastToday.trainingMeta && lastToday.trainingMeta.dayStateAfter;
+      if (lastDa && typeof lastDa === 'object') {
+        var trackAfterFast =
+          lastDa.lastCompletedTrack === 'daily' || lastDa.lastCompletedTrack === 'brush'
+            ? lastDa.lastCompletedTrack
+            : lastToday.trainingMeta && lastToday.trainingMeta.runBrushMode
+              ? 'brush'
+              : 'daily';
+        return normalizeTrainingDayState(
+          {
+            dayKey: todayKey,
+            brushMode: !!lastDa.brushMode,
+            brushPoolMax:
+              lastDa.brushPoolMax != null && Number.isFinite(Number(lastDa.brushPoolMax))
+                ? clampLevel(Number(lastDa.brushPoolMax))
+                : lastDa.brushMode
+                  ? LEVEL_COUNT - 1
+                  : null,
+            lastRun: lastDa.brushMode
+              ? null
+              : lastDa.lastRun && typeof lastDa.lastRun === 'object'
+                ? lastDa.lastRun
+                : null,
+            lastCompletedTrack: trackAfterFast,
+          },
+          todayKey
+        );
+      }
+    }
+
+    var arith = filterArithmeticRuns(runs || [])
+      .slice()
+      .sort(function (a, b) {
+        return (a.ts || 0) - (b.ts || 0);
+      });
+    var arithEnd = 0;
     var capMs =
       buildHeatOpts && Number(buildHeatOpts.maxTimeSpentMs)
         ? Number(buildHeatOpts.maxTimeSpentMs)
@@ -956,11 +995,12 @@
       st.lastRun = { levelIndex: levelIndex, passed: runPass, failCount: failCount };
 
       if (typeof buildHeatmapCells === 'function' && typeof computeTrainingNextLevel === 'function') {
-        var runsUpTo = arith.filter(function (r) {
-          return (r.ts || 0) <= (run.ts || 0);
-        });
+        var runTs = run.ts || 0;
+        while (arithEnd < arith.length && (arith[arithEnd].ts || 0) <= runTs) {
+          arithEnd += 1;
+        }
         var heat = buildHeatmapCells({
-          runs: runsUpTo,
+          runs: arith.slice(0, arithEnd),
           cohort: cohort,
           maxTimeSpentMs: capMs,
         });

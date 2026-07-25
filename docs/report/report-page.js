@@ -93,6 +93,7 @@
     userDetail: null,
     selectedUsername: '',
     loadedStudentUsername: '',
+    statsBuiltFor: '',
     agg: null,
     aggByCategory: {},
     chartModel: null,
@@ -533,6 +534,10 @@
       void loadStudentData();
     }
     if (next === 'stats') {
+      if (state.selectedUsername && state.loadedStudentUsername === state.selectedUsername) {
+        ensureStudentStatsBuilt();
+        renderStatsPanel();
+      }
       redrawAllStatsCharts();
     }
   }
@@ -702,6 +707,7 @@
     state.runs = [];
     state.userDetail = null;
     state.loadedStudentUsername = '';
+    state.statsBuiltFor = '';
     state.agg = null;
     state.aggByCategory = {};
     state.chartModel = null;
@@ -824,6 +830,72 @@
     }
   }
 
+  function ensureStudentStatsBuilt() {
+    var u = state.loadedStudentUsername || state.selectedUsername;
+    if (!u || !state.runs) return;
+    if (state.statsBuiltFor === u && state.aggByCategory && Object.keys(state.aggByCategory).length) {
+      return;
+    }
+    var runs = state.runs;
+    var Agg = window.JmlStatsAggregate;
+    var HM = window.JmlStatsHeatmap;
+    state.aggByCategory = {};
+    if (Agg && HM && HM.getHeatmapCategories) {
+      HM.getHeatmapCategories().forEach(function (cat) {
+        state.aggByCategory[cat.id] = Agg.aggregateFromRuns(runs, {
+          modes: cat.modes,
+          levelCount: cat.levelCount,
+        });
+      });
+      var sel = HM.findLatestHeatmapRelatedSelection
+        ? HM.findLatestHeatmapRelatedSelection(runs)
+        : { categoryId: 'arithmetic', levelIndex: 0 };
+      state.expandedCategoryId = sel.categoryId;
+      state.chartCategoryId = sel.categoryId;
+      var chartAgg = state.aggByCategory[sel.categoryId];
+      var levelIdx = sel.levelIndex;
+      if (chartAgg && chartAgg.hasAny) {
+        if (!(chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0)) {
+          levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
+        }
+      } else {
+        var cats = HM.getHeatmapCategories();
+        for (var ci = 0; ci < cats.length; ci += 1) {
+          var a = state.aggByCategory[cats[ci].id];
+          if (a && a.hasAny) {
+            state.expandedCategoryId = cats[ci].id;
+            state.chartCategoryId = cats[ci].id;
+            levelIdx = Agg.firstLevelWithData(a.byLevel);
+            chartAgg = a;
+            break;
+          }
+        }
+      }
+      state.statsLevelIndex = levelIdx;
+      state.agg = chartAgg || null;
+      var chartCat = HM.getHeatmapCategory(state.chartCategoryId) || {};
+      state.chartModel =
+        chartAgg && chartAgg.hasAny
+          ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
+              levelCount: chartCat.levelCount || 16,
+            })
+          : null;
+    } else if (Agg) {
+      var agg = Agg.aggregateFromRuns(runs);
+      state.agg = agg;
+      state.aggByCategory = { arithmetic: agg };
+      var levelIdx2 = Agg.firstLevelWithData(agg.byLevel);
+      state.statsLevelIndex = levelIdx2;
+      state.chartCategoryId = 'arithmetic';
+      state.expandedCategoryId = 'arithmetic';
+      state.chartModel = agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
+    } else {
+      state.agg = null;
+      state.chartModel = null;
+    }
+    state.statsBuiltFor = u;
+  }
+
   function loadStudentData() {
     var u = state.selectedUsername;
     if (!u) {
@@ -836,84 +908,48 @@
       errEl.style.display = 'none';
       errEl.textContent = '';
     }
-    return Promise.all([
-      apiFetch('/api/admin/records/' + encodeURIComponent(u)),
-      apiFetch('/api/admin/user/' + encodeURIComponent(u)),
-    ])
-      .then(function (results) {
-        var rec = results[0];
-        var userData = results[1];
-        var runs = Array.isArray(rec.runs) ? rec.runs.slice() : [];
-        runs.sort(function (a, b) {
-          return (b.ts || 0) - (a.ts || 0);
-        });
-        state.runs = runs;
-        state.userDetail = userData && userData.user ? userData.user : userData;
-
-        var Agg = window.JmlStatsAggregate;
-        var HM = window.JmlStatsHeatmap;
-        state.aggByCategory = {};
-        if (Agg && HM && HM.getHeatmapCategories) {
-          HM.getHeatmapCategories().forEach(function (cat) {
-            state.aggByCategory[cat.id] = Agg.aggregateFromRuns(runs, {
-              modes: cat.modes,
-              levelCount: cat.levelCount,
-            });
-          });
-          var sel = HM.findLatestHeatmapRelatedSelection
-            ? HM.findLatestHeatmapRelatedSelection(runs)
-            : { categoryId: 'arithmetic', levelIndex: 0 };
-          state.expandedCategoryId = sel.categoryId;
-          state.chartCategoryId = sel.categoryId;
-          var chartAgg = state.aggByCategory[sel.categoryId];
-          var levelIdx = sel.levelIndex;
-          if (chartAgg && chartAgg.hasAny) {
-            if (!(chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0)) {
-              levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
-            }
-          } else {
-            var cats = HM.getHeatmapCategories();
-            for (var ci = 0; ci < cats.length; ci += 1) {
-              var a = state.aggByCategory[cats[ci].id];
-              if (a && a.hasAny) {
-                state.expandedCategoryId = cats[ci].id;
-                state.chartCategoryId = cats[ci].id;
-                levelIdx = Agg.firstLevelWithData(a.byLevel);
-                chartAgg = a;
-                break;
-              }
+    return apiFetch('/api/admin/student-detail/' + encodeURIComponent(u))
+      .then(function (data) {
+        var runs = Array.isArray(data.runs) ? data.runs.slice() : [];
+        // 服务端已按 ts 降序；仅在偶发乱序时再排
+        if (runs.length > 1) {
+          var needSort = false;
+          for (var i = 1; i < runs.length; i += 1) {
+            if ((runs[i - 1].ts || 0) < (runs[i].ts || 0)) {
+              needSort = true;
+              break;
             }
           }
-          state.statsLevelIndex = levelIdx;
-          state.agg = chartAgg || null;
-          var chartCat = HM.getHeatmapCategory(state.chartCategoryId) || {};
-          state.chartModel =
-            chartAgg && chartAgg.hasAny
-              ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
-                  levelCount: chartCat.levelCount || 16,
-                })
-              : null;
-        } else if (Agg) {
-          var agg = Agg.aggregateFromRuns(runs);
-          state.agg = agg;
-          state.aggByCategory = { arithmetic: agg };
-          var levelIdx2 = Agg.firstLevelWithData(agg.byLevel);
-          state.statsLevelIndex = levelIdx2;
-          state.chartCategoryId = 'arithmetic';
-          state.expandedCategoryId = 'arithmetic';
-          state.chartModel = agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
-        } else {
-          state.agg = null;
-          state.chartModel = null;
+          if (needSort) {
+            runs.sort(function (a, b) {
+              return (b.ts || 0) - (a.ts || 0);
+            });
+          }
         }
+        state.runs = runs;
+        state.userDetail = data && data.user ? data.user : null;
+        state.statsBuiltFor = '';
+        state.agg = null;
+        state.aggByCategory = {};
+        state.chartModel = null;
+        state.heat = null;
+        state.heatByCategory = {};
 
         renderRunsTable();
         renderWrongBook();
         renderExpandWrongBook();
-        renderStatsPanel();
         state.loadedStudentUsername = u;
+
         if (activeTabId() === 'stats') {
+          ensureStudentStatsBuilt();
+          renderStatsPanel();
           redrawAllStatsCharts();
+        } else {
+          var statsWrap = document.getElementById('jml-report-stats-body');
+          if (statsWrap) {
+            statsWrap.innerHTML =
+              '<div class="jml-report-empty">切换到「数据分析」时再计算热图与图表</div>';
+          }
         }
       })
       .catch(function (e) {
@@ -1484,6 +1520,11 @@
       wrap.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
       return;
     }
+    if (state.loadedStudentUsername !== state.selectedUsername) {
+      wrap.innerHTML = '<div class="jml-report-empty">学员数据加载中…</div>';
+      return;
+    }
+    ensureStudentStatsBuilt();
     if (!anyStatsCategoryHasData()) {
       wrap.innerHTML =
         '<div class="jml-report-empty">暂无热图相关 attempts（四则：survival / level / training；小数：decimal）</div>';
