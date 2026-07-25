@@ -196,6 +196,34 @@ const feedbackSubmitTimestamps = new Map();
 const RANKING_PUBLIC_MAX = 10;
 const RANKING_TESTER_MAX = 500;
 
+// 读取 JSON（按 mtime 缓存）。须在任何 readJson/writeJson 调用之前定义（含启动时 migrate）。
+const jsonReadCache = new Map();
+
+function readJson(filePath, defaultValue = {}) {
+  try {
+    const st = fs.statSync(filePath);
+    const hit = jsonReadCache.get(filePath);
+    if (hit && hit.mtimeMs === st.mtimeMs) return hit.data;
+    const raw = fs.readFileSync(filePath, "utf8");
+    const data = JSON.parse(raw);
+    jsonReadCache.set(filePath, { mtimeMs: st.mtimeMs, data });
+    return data;
+  } catch (e) {
+    jsonReadCache.delete(filePath);
+    return defaultValue;
+  }
+}
+
+function writeJson(filePath, data) {
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+  try {
+    const st = fs.statSync(filePath);
+    jsonReadCache.set(filePath, { mtimeMs: st.mtimeMs, data });
+  } catch (e) {
+    jsonReadCache.delete(filePath);
+  }
+}
+
 function readRankingEvalData() {
   const usersData = readJson(USERS_FILE, { users: [] });
   const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
@@ -1332,35 +1360,6 @@ function validateAndNormalizeAvatarIdForUser(user, avatarId) {
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, msg: "Jarvis Math Lab API" });
 });
-
-// 读取 JSON 文件（按 mtime 缓存，避免 report 连点学员时反复解析大 runs.json）
-const jsonReadCache = new Map();
-
-function readJson(filePath, defaultValue = {}) {
-  try {
-    const st = fs.statSync(filePath);
-    const hit = jsonReadCache.get(filePath);
-    if (hit && hit.mtimeMs === st.mtimeMs) return hit.data;
-    const raw = fs.readFileSync(filePath, "utf8");
-    const data = JSON.parse(raw);
-    jsonReadCache.set(filePath, { mtimeMs: st.mtimeMs, data });
-    return data;
-  } catch (e) {
-    jsonReadCache.delete(filePath);
-    return defaultValue;
-  }
-}
-
-// 写入 JSON 文件（同步刷新缓存，供后续读命中）
-function writeJson(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
-  try {
-    const st = fs.statSync(filePath);
-    jsonReadCache.set(filePath, { mtimeMs: st.mtimeMs, data });
-  } catch (e) {
-    jsonReadCache.delete(filePath);
-  }
-}
 
 // 校验管理员口令（从 header 或 body 获取）
 function checkAdminPin(req) {
