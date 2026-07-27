@@ -17,6 +17,7 @@ const achievementEngine = require("./achievements/engine");
 const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
 const { buildStudentOverviewRows } = require("./student-overview");
+const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const {
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,
@@ -2860,6 +2861,30 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
       rebuilt: true,
     },
   });
+});
+
+/** TEMP：全库回填 training runs 的 runMeanLn / runAvgSec（对+错几何均，≤60s）；用后删路由与报表按钮 */
+app.post("/api/admin/maintenance/backfill-training-run-speed", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const dryRun = body.dryRun === true;
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const stats = trainingRunSpeedBackfill.backfillTrainingRunSpeedInRunsData(runsData, {
+    capMs: COHORT_MAX_TIME_SPENT_MS,
+    dryRun,
+  });
+  if (!stats.ok) {
+    return res.status(400).json(stats);
+  }
+  if (!dryRun && stats.updated > 0) {
+    writeJson(RUNS_FILE, runsData);
+    stats.written = true;
+  } else {
+    stats.written = false;
+  }
+  return res.json(stats);
 });
 
 /** 小数运算全体常模（D1–D6） */

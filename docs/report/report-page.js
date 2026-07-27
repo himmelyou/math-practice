@@ -1130,25 +1130,25 @@
     if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
       return '<span class="jml-runs-pick-muted">—</span>';
     }
+    var m = r.trainingMeta;
+    if (m && typeof m === 'object' && m.runAvgSec != null && Number.isFinite(Number(m.runAvgSec))) {
+      return formatTrainingSpeedSec(m.runAvgSec);
+    }
     var Agg = window.JmlStatsAggregate;
     var picked =
-      r.trainingMeta && Number.isFinite(Number(r.trainingMeta.pickedLevel))
-        ? Number(r.trainingMeta.pickedLevel)
+      m && Number.isFinite(Number(m.pickedLevel))
+        ? Number(m.pickedLevel)
         : r.maxLevel != null && Number.isFinite(Number(r.maxLevel))
           ? Number(r.maxLevel)
           : null;
     if (Agg && typeof Agg.geoMeanSecFromAttempts === 'function' && Array.isArray(r.attempts)) {
       var g = Agg.geoMeanSecFromAttempts(r.attempts, {
         levelIndex: picked != null ? picked : undefined,
-        maxTimeSpentMs:
-          Agg.DEFAULT_MAX_TIME_SPENT_MS ||
-          (state.cohortArithmetic && Number(state.cohortArithmetic.timeSpentMsCap)) ||
-          60 * 1000,
+        maxTimeSpentMs: Agg.DEFAULT_MAX_TIME_SPENT_MS || 60 * 1000,
         levelCount: 16,
       });
       if (g && g.avgSec != null) return formatTrainingSpeedSec(g.avgSec);
     }
-    var m = r.trainingMeta;
     if (!m || typeof m !== 'object') {
       return '<span class="jml-runs-pick-muted" title="旧记录无速度快照">—</span>';
     }
@@ -2055,6 +2055,55 @@
           .finally(function () {
             cohortRebuild.disabled = false;
             cohortRebuild.textContent = prevLabel;
+          });
+      });
+    }
+    var backfillRunSpeed = document.getElementById('jml-backfill-run-speed-btn');
+    if (backfillRunSpeed) {
+      backfillRunSpeed.addEventListener('click', function () {
+        if (backfillRunSpeed.disabled) return;
+        if (
+          !window.confirm(
+            '临时维护：全库扫描 training 局，按新口径写回 runAvgSec 到 runs.json。\n\n确认执行？（Render 需已部署对应 API）'
+          )
+        ) {
+          return;
+        }
+        backfillRunSpeed.disabled = true;
+        var prevLabel = backfillRunSpeed.textContent;
+        backfillRunSpeed.textContent = '回填中…';
+        apiFetch('/api/admin/maintenance/backfill-training-run-speed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+          .then(function (d) {
+            if (!d || d.ok !== true) {
+              window.alert('回填失败：' + ((d && d.error) || '返回异常'));
+              return;
+            }
+            window.alert(
+              '回填完成\n' +
+                '学员数：' +
+                d.usersScanned +
+                '\n训练局：' +
+                d.trainingRunsScanned +
+                '\n已更新：' +
+                d.updated +
+                '\n写入磁盘：' +
+                (d.written ? '是' : '否（无变更）') +
+                (d.skippedNoAttempts ? '\n无 attempts 跳过：' + d.skippedNoAttempts : '')
+            );
+            if (state.selectedUsername) {
+              return loadStudentData();
+            }
+          })
+          .catch(function (e) {
+            window.alert('回填失败：' + (e.message || String(e)));
+          })
+          .finally(function () {
+            backfillRunSpeed.disabled = false;
+            backfillRunSpeed.textContent = prevLabel;
           });
       });
     }

@@ -26,6 +26,12 @@
   font-family: inherit;
 }
 
+.jml-btn-warn {
+  border-color: #f97316;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .jml-report-user-row {
   display: flex;
   flex-wrap: wrap;

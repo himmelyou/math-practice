@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css?v=34" />
+  <link rel="stylesheet" href="report-page.css?v=35" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -27,6 +27,7 @@
       <div class="jml-admin-toolbar">
         <a class="jml-toolbar-link" href="../admin/index.html">后台管理</a>
         <button type="button" class="jml-btn" id="jml-cohort-rebuild-btn" title="全量重扫 runs 并写入四则+小数常模快照（与定时过期逻辑相同）">刷新全体常模</button>
+        <button type="button" class="jml-btn jml-btn-warn" id="jml-backfill-run-speed-btn" title="临时：按 attempts 重算并写回 runs.json 中 training 的 runAvgSec（用后删除）">回填本局均速</button>
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
 
@@ -98,7 +99,7 @@
   <script src="../stats-aggregate-browser.js?v=50"></script>
   <script src="../stats-heatmap-browser.js?v=53"></script>
   <script src="../stats-chart-browser.js?v=58"></script>
-  <script src="report-page.js?v=42"></script>
+  <script src="report-page.js?v=43"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({
