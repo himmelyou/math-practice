@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=69"></script>
+  <script src="shared/app-version.js?v=70"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -12847,22 +12847,9 @@
 
       isGuestMode = false;
       setCurrentUsername(username);
-      ensureUserProgressDefault(cachedUser);
-      void refreshGameSettings();
       errorEl.textContent = "";
-      document.getElementById("login-view").style.display = "none";
-      document.getElementById("app-view").style.display = "flex";
-      syncHomeSettingsAuthItems();
-      syncGuestTopActionButton();
-      setGuestNicknameEditVisible(true);
-      showLoggedInHomeToolModes();
-      updateRankingButtonLabel();
-      updateTrainingButtonLabel();
-      loadState();
-      prefetchHomeAchievementBadges();
-      updateWrongbookBadge();
-      showHome();
-      updateSurvivalStatusUI();
+      // 登录成功后硬刷新，拉取最新前端（token / 用户名已写入 localStorage + cookie）
+      hardReloadAfterAuth();
     }
 
     async function handleRegister() {
@@ -12904,22 +12891,19 @@
 
       isGuestMode = false;
       setCurrentUsername(username);
-      ensureUserProgressDefault(cachedUser);
-      void refreshGameSettings();
       errorEl.textContent = "";
-      document.getElementById("login-view").style.display = "none";
-      document.getElementById("app-view").style.display = "flex";
-      syncHomeSettingsAuthItems();
-      syncGuestTopActionButton();
-      setGuestNicknameEditVisible(true);
-      showLoggedInHomeToolModes();
-      updateRankingButtonLabel();
-      updateTrainingButtonLabel();
-      loadState();
-      prefetchHomeAchievementBadges();
-      updateWrongbookBadge();
-      showHome();
-      updateSurvivalStatusUI();
+      hardReloadAfterAuth();
+    }
+
+    /** 登录/注册成功后带 cache-bust 硬刷新，避免继续跑旧前端脚本 */
+    function hardReloadAfterAuth() {
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set("_", String(Date.now()));
+        window.location.replace(u.pathname + u.search + u.hash);
+      } catch (e) {
+        window.location.reload();
+      }
     }
 
     async function handleGuestEnter() {

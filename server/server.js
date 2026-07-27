@@ -30,7 +30,8 @@ const JWT_SECRET = (process.env.JWT_SECRET || "").trim();
 if (!JWT_SECRET) {
   throw new Error("Missing required env var JWT_SECRET");
 }
-const JWT_EXPIRES_IN = "7d";
+const JWT_EXPIRES_IN = "24h";
+const AUTH_COOKIE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const BCRYPT_ROUNDS = 10;
 function isBcryptHash(s) {
@@ -1417,7 +1418,7 @@ function setAuthCookie(res, username) {
     httpOnly: true,
     secure: isProd,
     sameSite: isProd ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: AUTH_COOKIE_MAX_AGE_MS
   });
   return token;
 }
