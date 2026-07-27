@@ -1130,6 +1130,24 @@
     if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
       return '<span class="jml-runs-pick-muted">—</span>';
     }
+    var Agg = window.JmlStatsAggregate;
+    var picked =
+      r.trainingMeta && Number.isFinite(Number(r.trainingMeta.pickedLevel))
+        ? Number(r.trainingMeta.pickedLevel)
+        : r.maxLevel != null && Number.isFinite(Number(r.maxLevel))
+          ? Number(r.maxLevel)
+          : null;
+    if (Agg && typeof Agg.geoMeanSecFromAttempts === 'function' && Array.isArray(r.attempts)) {
+      var g = Agg.geoMeanSecFromAttempts(r.attempts, {
+        levelIndex: picked != null ? picked : undefined,
+        maxTimeSpentMs:
+          Agg.DEFAULT_MAX_TIME_SPENT_MS ||
+          (state.cohortArithmetic && Number(state.cohortArithmetic.timeSpentMsCap)) ||
+          60 * 1000,
+        levelCount: 16,
+      });
+      if (g && g.avgSec != null) return formatTrainingSpeedSec(g.avgSec);
+    }
     var m = r.trainingMeta;
     if (!m || typeof m !== 'object') {
       return '<span class="jml-runs-pick-muted" title="旧记录无速度快照">—</span>';
@@ -1212,7 +1230,7 @@
           '<td class="num jml-runs-col-heat-spd" title="开局时该关热图加权均时">' +
           formatTrainingRunHeatSpeedCell(r) +
           '</td>' +
-          '<td class="num jml-runs-col-run-spd" title="本局答对题几何均时">' +
+          '<td class="num jml-runs-col-run-spd" title="本局几何均时（对+错，≤60s）">' +
           formatTrainingRunAvgSpeedCell(r) +
           '</td>' +
           '<td class="jml-runs-col-pick">' +
@@ -1225,7 +1243,7 @@
 
     wrap.innerHTML =
       '<div class="jml-report-table-wrap"><table class="jml-report-table jml-report-runs-table">' +
-      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num">本局均速</th><th>选关诊断</th></tr></thead>' +
+      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num" title="对+错几何均，剔除&gt;60s">本局均速</th><th>选关诊断</th></tr></thead>' +
       '<tbody>' +
       rows +
       '</tbody></table></div>';
