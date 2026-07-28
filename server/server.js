@@ -44,7 +44,7 @@ function safeUser(u) {
   return rest;
 }
 
-const WRONGBOOK_MAX_STORE = 30;
+const WRONGBOOK_MAX_STORE = 100;
 const EXPAND_WRONG_MAX_STORE = 20;
 
 const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare"]);
@@ -88,6 +88,39 @@ function normalizeWrongAnswerEntry(raw) {
     mode,
     levelIndex,
     levelLabel: formatWrongAnswerLevelLabel(mode, levelIndex),
+  };
+}
+
+function getWrongAnswersClearedBeforeTs(user) {
+  const n = Number(user && user.wrongAnswersClearedBeforeTs);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function visibleWrongAnswers(user) {
+  const list = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+  const clearedBefore = getWrongAnswersClearedBeforeTs(user);
+  return list.filter((w) => (Number(w && w.ts) || 0) > clearedBefore);
+}
+
+/** 练习全对「清空」：不删数组，游标推进到当前可见集最新一条 ts */
+function markWrongAnswersCleared(user) {
+  const list = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+  const prev = getWrongAnswersClearedBeforeTs(user);
+  let maxTs = prev;
+  list.forEach((w) => {
+    const ts = Number(w && w.ts) || 0;
+    if (ts > prev && ts > maxTs) maxTs = ts;
+  });
+  user.wrongAnswersClearedBeforeTs = maxTs;
+  return maxTs;
+}
+
+/** 学员端 API：wrongAnswers 仅为游标后可见集；库存仍在 user.wrongAnswers */
+function wrongAnswersPayload(user) {
+  return {
+    wrongAnswers: visibleWrongAnswers(user),
+    wrongAnswersClearedBeforeTs: getWrongAnswersClearedBeforeTs(user),
+    wrongAnswersStoredCount: Array.isArray(user.wrongAnswers) ? user.wrongAnswers.length : 0,
   };
 }
 
@@ -1488,6 +1521,7 @@ app.post("/api/register", async (req, res) => {
     levelDecimalCurrentLevel: 0,
     levelDecimalUnlockedMax: 0,
     wrongAnswers: [],
+    wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
     achievements: {},
     equippedBadges: [],
@@ -1568,8 +1602,7 @@ app.get("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, 
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const wrongAnswers = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
-  res.json({ ok: true, wrongAnswers });
+  res.json({ ok: true, ...wrongAnswersPayload(user) });
 });
 
 app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
@@ -1591,7 +1624,7 @@ app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData,
     u.wrongAnswers = u.wrongAnswers.slice(0, WRONGBOOK_MAX_STORE);
   }
   writeJson(USERS_FILE, data);
-  res.json({ ok: true, wrongAnswers: u.wrongAnswers });
+  res.json({ ok: true, ...wrongAnswersPayload(u) });
 });
 
 app.delete("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
@@ -1601,9 +1634,11 @@ app.delete("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnDat
   if (idx === -1) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  data.users[idx].wrongAnswers = [];
+  const u = data.users[idx];
+  if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+  markWrongAnswersCleared(u);
   writeJson(USERS_FILE, data);
-  res.json({ ok: true, wrongAnswers: [] });
+  res.json({ ok: true, ...wrongAnswersPayload(u) });
 });
 
 app.post("/api/user/:username/expand-brackets-wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
@@ -2324,6 +2359,7 @@ app.post("/api/admin/users", async (req, res) => {
     recentPerfectSquareRuns: [],
     recentDecimalRuns: [],
     wrongAnswers: [],
+    wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
     achievements: {},
     equippedBadges: [],

@@ -1266,10 +1266,16 @@
       return (b.ts || 0) - (a.ts || 0);
     });
     wrap.innerHTML =
-      '<div class="jml-report-summary">当前错题本共 ' + escapeHtml(String(wrongs.length)) + ' 条（最多展示 200 条）</div>' +
+      '<div class="jml-report-summary">当前错题库存 ' +
+      escapeHtml(String(wrongs.length)) +
+      ' 条（最多 100；含学员端已清空的历史' +
+      (user.wrongAnswersClearedBeforeTs
+        ? '；清空游标 ts=' + escapeHtml(String(user.wrongAnswersClearedBeforeTs))
+        : '') +
+      '）</div>' +
       '<ul class="jml-wrong-list">' +
       wrongs
-        .slice(0, 200)
+        .slice(0, 100)
         .map(function (w) {
           // 兼容小程序/H5 不同历史字段：question/q/text，userAnswer/wrongAnswer/studentAnswer
           var expr = w.question || w.q || w.text || '';

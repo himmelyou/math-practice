@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=70"></script>
+  <script src="shared/app-version.js?v=71"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4810,9 +4810,10 @@
     const TRAINING_DECK_PER_RUN = 30;
     const TRAINING_PASS_ACCURACY = 0.95;
 
-    // ========= 错题本存储上限（自愿「错题练习」；全对可清空） =========
-    const WRONGBOOK_MAX_STORE = 30; // 最多保留 30 条；新错题顶替最旧
-    const WRONGBOOK_BADGE_MIN = 10; // 主页角标：错题数 ≥ 此值才显示
+    // ========= 错题本：后端最多 100；学员端只展示游标之后最近 30 条 =========
+    const WRONGBOOK_MAX_STORE = 100; // 与后端库存上限一致；新错题顶替最旧
+    const WRONGBOOK_DISPLAY_MAX = 30; // 学员端列表/练习/角标可见上限
+    const WRONGBOOK_BADGE_MIN = 10; // 主页角标：可见错题数 ≥ 此值才显示
     const EXPAND_WRONG_MAX_STORE = 20; // 拆括号错题（仅管理端 report），超出则丢弃最旧
 
     function showWrongbookViewFast() {
@@ -7838,7 +7839,11 @@
       );
       const data = await res.json();
       if (res.status === 401) { handleAuthRequired(); return null; }
-      return data.ok && Array.isArray(data.wrongAnswers) ? data.wrongAnswers : null;
+      if (!data || !data.ok || !Array.isArray(data.wrongAnswers)) return null;
+      return {
+        wrongAnswers: data.wrongAnswers,
+        wrongAnswersClearedBeforeTs: Number(data.wrongAnswersClearedBeforeTs) || 0,
+      };
     }
 
     async function apiPostWrongAnswer(username, entry) {
@@ -7858,6 +7863,10 @@
       if (!data.ok) return null;
       return {
         wrongAnswers: Array.isArray(data.wrongAnswers) ? data.wrongAnswers : null,
+        wrongAnswersClearedBeforeTs:
+          data.wrongAnswersClearedBeforeTs != null
+            ? Number(data.wrongAnswersClearedBeforeTs) || 0
+            : null,
         skipped: data.skipped === true,
       };
     }
@@ -7871,7 +7880,11 @@
       );
       const data = await res.json();
       if (res.status === 401) { handleAuthRequired(); return null; }
-      return data.ok ? (Array.isArray(data.wrongAnswers) ? data.wrongAnswers : []) : null;
+      if (!data || !data.ok) return null;
+      return {
+        wrongAnswers: Array.isArray(data.wrongAnswers) ? data.wrongAnswers : [],
+        wrongAnswersClearedBeforeTs: Number(data.wrongAnswersClearedBeforeTs) || 0,
+      };
     }
 
     async function apiPostExpandBracketsWrongAnswer(username, entry) {
@@ -8161,6 +8174,12 @@
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
       if (typeof user.heatmapL16Passed !== "boolean") user.heatmapL16Passed = false;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
+      if (
+        typeof user.wrongAnswersClearedBeforeTs !== "number"
+        || !Number.isFinite(user.wrongAnswersClearedBeforeTs)
+      ) {
+        user.wrongAnswersClearedBeforeTs = 0;
+      }
     }
 
     function loadState() {
@@ -8283,6 +8302,9 @@
         const result = await apiPostWrongAnswer(username, entry);
         if (result && Array.isArray(result.wrongAnswers)) {
           cachedUser.wrongAnswers = result.wrongAnswers;
+        }
+        if (result && result.wrongAnswersClearedBeforeTs != null) {
+          cachedUser.wrongAnswersClearedBeforeTs = Number(result.wrongAnswersClearedBeforeTs) || 0;
         }
         updateWrongbookBadge();
       } catch (e) {
@@ -9360,7 +9382,13 @@
           if (name) {
             try {
               const cleared = await apiClearWrongAnswers(name);
-              if (cleared && cachedUser) cachedUser.wrongAnswers = cleared;
+              if (cleared && cachedUser) {
+                if (Array.isArray(cleared.wrongAnswers)) {
+                  cachedUser.wrongAnswers = cleared.wrongAnswers;
+                }
+                cachedUser.wrongAnswersClearedBeforeTs =
+                  Number(cleared.wrongAnswersClearedBeforeTs) || 0;
+              }
             } catch (e) {
               console.warn("清空错题本失败", e);
             }
@@ -11753,11 +11781,25 @@
       updateStatusModeLabel();
     }
 
+    function getWrongAnswersClearedBeforeTs() {
+      const user = getCurrentUser();
+      if (!user) return 0;
+      ensureUserProgressDefault(user);
+      const n = Number(user.wrongAnswersClearedBeforeTs);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+
+    /** 学员端可见错题：游标之后，最多 WRONGBOOK_DISPLAY_MAX 条（新→旧） */
     function getWrongAnswers() {
       const user = getCurrentUser();
-      if (!user) return [];
+      if (!user || isGuestMode) return [];
       ensureUserProgressDefault(user);
-      return Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+      const all = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+      const clearedBefore = getWrongAnswersClearedBeforeTs();
+      const visible = all.filter(function (w) {
+        return (Number(w && w.ts) || 0) > clearedBefore;
+      });
+      return visible.slice(0, WRONGBOOK_DISPLAY_MAX);
     }
 
     function updateWrongbookBadge() {
@@ -11798,11 +11840,13 @@
       const name = loadCurrentUsername();
       if (!name || !getApiBase()) return;
       try {
-        const wrongs = await apiGetWrongAnswers(name);
-        if (wrongs) {
+        const payload = await apiGetWrongAnswers(name);
+        if (payload) {
           if (!cachedUser) cachedUser = { username: name };
           ensureUserProgressDefault(cachedUser);
-          cachedUser.wrongAnswers = wrongs;
+          cachedUser.wrongAnswers = payload.wrongAnswers;
+          cachedUser.wrongAnswersClearedBeforeTs =
+            Number(payload.wrongAnswersClearedBeforeTs) || 0;
           renderWrongbookList();
         }
       } catch (e) {
