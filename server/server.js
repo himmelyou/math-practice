@@ -2717,8 +2717,19 @@ function summarizeQuantiles(values) {
   if (!Array.isArray(values) || values.length === 0) return null;
   const arr = values.filter((x) => Number.isFinite(x)).slice().sort((a, b) => a - b);
   if (!arr.length) return null;
+  let sum = 0;
+  for (let i = 0; i < arr.length; i++) sum += arr[i];
+  const mean = sum / arr.length;
+  let varSum = 0;
+  for (let j = 0; j < arr.length; j++) {
+    const d = arr[j] - mean;
+    varSum += d * d;
+  }
+  const sd = arr.length > 1 ? Math.sqrt(varSum / (arr.length - 1)) : 0;
   return {
     n: arr.length,
+    mean,
+    sd,
     q10: quantileSorted(arr, 10),
     q25: quantileSorted(arr, 25),
     q50: quantileSorted(arr, 50),

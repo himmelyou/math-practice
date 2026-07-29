@@ -19,6 +19,11 @@
       histStudentPrefix: L.histStudentPrefix || '学员',
       histStudentPct: L.histStudentPct || '分位≈{pct}',
       histSampleBins: L.histSampleBins || '样本 n={n} · {bins} 档',
+      histMean: L.histMean || 'mean',
+      histSd1: L.histSd1 || '+1σ',
+      histSd2: L.histSd2 || '+2σ',
+      histMomentsHint: L.histMomentsHint || '竖线：mean / 慢侧 +1σ / +2σ（ln 空间）',
+      histMomentsNeedRebuild: L.histMomentsNeedRebuild || '无 mean/σ（请刷新全体常模）',
     };
   }
 
@@ -330,6 +335,7 @@
     var hist = payload.histogram;
     var studentSec = payload.studentSec;
     var studentPct = payload.studentPct;
+    var q = payload.quantiles;
     if (!hist || !hist.counts || !hist.counts.length || !hist.edgesLn) {
       ctx.clearRect(0, 0, cssWidth, cssHeight);
       ctx.fillStyle = '#fff';
@@ -344,7 +350,7 @@
     var counts = hist.counts;
     var edgesLn = hist.edgesLn;
     var nBins = counts.length;
-    var margin = { left: 48, right: 16, top: 32, bottom: 44 };
+    var margin = { left: 48, right: 16, top: 40, bottom: 52 };
     var plotW = Math.max(40, cssWidth - margin.left - margin.right);
     var plotH = Math.max(30, cssHeight - margin.top - margin.bottom);
     var left = margin.left;
@@ -355,13 +361,44 @@
       if (counts[i] > maxCount) maxCount = counts[i];
     }
 
+    var meanLn =
+      q && q.mean != null && Number.isFinite(Number(q.mean)) ? Number(q.mean) : null;
+    var sdLn =
+      q && q.sd != null && Number.isFinite(Number(q.sd)) && Number(q.sd) >= 0
+        ? Number(q.sd)
+        : null;
+    var meanSec = meanLn != null ? lnToSec(meanLn) : null;
+    var sd1Sec = meanLn != null && sdLn != null ? lnToSec(meanLn + sdLn) : null;
+    var sd2Sec = meanLn != null && sdLn != null ? lnToSec(meanLn + 2 * sdLn) : null;
+
     var xMin = lnToSec(edgesLn[0]);
     var xMax = lnToSec(edgesLn[edgesLn.length - 1]);
     if (xMin == null || xMax == null) return;
+    [meanSec, sd1Sec, sd2Sec, studentSec].forEach(function (sec) {
+      if (sec != null && Number.isFinite(sec)) {
+        if (sec < xMin) xMin = sec;
+        if (sec > xMax) xMax = sec;
+      }
+    });
     if (xMax <= xMin) xMax = xMin + 0.5;
+    var pad = Math.max(0.1, (xMax - xMin) * 0.04);
+    xMin = Math.max(0, xMin - pad);
+    xMax = xMax + pad;
 
     function xAt(sec) {
       return left + ((sec - xMin) / (xMax - xMin)) * plotW;
+    }
+
+    function drawMarker(sec, color, dash) {
+      if (sec == null || !Number.isFinite(sec) || sec < xMin || sec > xMax) return;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.75;
+      ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      ctx.moveTo(xAt(sec), top);
+      ctx.lineTo(xAt(sec), top + plotH);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     ctx.clearRect(0, 0, cssWidth, cssHeight);
@@ -384,14 +421,20 @@
       var lo = lnToSec(edgesLn[b]);
       var hi = lnToSec(edgesLn[b + 1]);
       if (lo == null || hi == null) continue;
-      var x0 = xAt(lo);
-      var x1 = xAt(hi);
+      var x0 = xAt(Math.max(lo, xMin));
+      var x1 = xAt(Math.min(hi, xMax));
+      if (x1 <= x0) continue;
       var barW = Math.max(1, x1 - x0 - 1);
       var barH = (counts[b] / maxCount) * plotH;
       var y0 = top + plotH - barH;
       ctx.fillRect(x0, y0, barW, barH);
       ctx.strokeRect(x0, y0, barW, barH);
     }
+
+    // 慢侧：mean / +1σ / +2σ（ln 空间）
+    drawMarker(meanSec, '#6a1b9a', []);
+    drawMarker(sd1Sec, '#ef6c00', [4, 3]);
+    drawMarker(sd2Sec, '#bf360c', [2, 3]);
 
     if (studentSec != null && Number.isFinite(studentSec) && studentSec >= xMin && studentSec <= xMax) {
       ctx.strokeStyle = '#c62828';
@@ -410,8 +453,9 @@
     ctx.textBaseline = 'top';
     var tickStep = Math.max(1, Math.floor(nBins / 6));
     for (var t = 0; t < nBins; t += tickStep) {
-      var cx = (xAt(lnToSec(edgesLn[t])) + xAt(lnToSec(edgesLn[t + 1]))) / 2;
-      ctx.fillText(formatSecShort(lnToSec(edgesLn[t])) + 's', cx, top + plotH + 6);
+      var edgeSec = lnToSec(edgesLn[t]);
+      if (edgeSec == null || edgeSec < xMin || edgeSec > xMax) continue;
+      ctx.fillText(formatSecShort(edgeSec) + 's', xAt(edgeSec), top + plotH + 6);
     }
 
     ctx.save();
@@ -426,16 +470,47 @@
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = '#37474f';
     ctx.font = '11px sans-serif';
+    var legX = left;
     ctx.fillStyle = '#2e7d32';
-    ctx.fillRect(left, 8, 12, 10);
+    ctx.fillRect(legX, 8, 12, 10);
     ctx.fillStyle = '#37474f';
-    ctx.fillText(lab.histLegend, left + 16, 6);
+    ctx.fillText(lab.histLegend, legX + 16, 6);
+    legX += 16 + Math.min(220, ctx.measureText(lab.histLegend).width) + 14;
+
+    function legendLine(color, label, dash) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      ctx.moveTo(legX, 13);
+      ctx.lineTo(legX + 14, 13);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#37474f';
+      ctx.fillText(label, legX + 18, 6);
+      legX += 18 + Math.min(120, ctx.measureText(label).width) + 12;
+    }
+
+    if (meanSec != null) {
+      legendLine('#6a1b9a', lab.histMean + ' ' + formatSecShort(meanSec) + 's', []);
+      if (sd1Sec != null) {
+        legendLine('#ef6c00', lab.histSd1 + ' ' + formatSecShort(sd1Sec) + 's', [4, 3]);
+      }
+      if (sd2Sec != null) {
+        legendLine('#bf360c', lab.histSd2 + ' ' + formatSecShort(sd2Sec) + 's', [2, 3]);
+      }
+    } else {
+      ctx.fillStyle = '#90a4ae';
+      ctx.font = '10px sans-serif';
+      ctx.fillText(lab.histMomentsNeedRebuild, legX, 7);
+    }
+
     if (studentSec != null) {
       ctx.fillStyle = '#c62828';
-      ctx.fillRect(left + 200, 12, 12, 3);
+      ctx.fillRect(left, top + plotH + 22, 12, 3);
       ctx.fillStyle = '#37474f';
+      ctx.font = '11px sans-serif';
       var leg2 =
         lab.histStudentPrefix +
         ' ' +
@@ -444,14 +519,15 @@
       if (studentPct != null) {
         leg2 += ' · ' + fillTpl(lab.histStudentPct, { pct: Math.round(studentPct) });
       }
-      ctx.fillText(leg2, left + 216, 6);
+      ctx.fillText(leg2, left + 16, top + plotH + 18);
     }
     ctx.fillStyle = '#607d8b';
     ctx.font = '10px sans-serif';
     ctx.fillText(
-      fillTpl(lab.histSampleBins, { n: hist.n != null ? hist.n : '—', bins: nBins }),
+      fillTpl(lab.histSampleBins, { n: hist.n != null ? hist.n : '—', bins: nBins }) +
+        (meanSec != null ? ' · ' + lab.histMomentsHint : ''),
       left,
-      top + plotH + 22
+      top + plotH + 34
     );
   }
 

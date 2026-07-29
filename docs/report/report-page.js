@@ -176,6 +176,11 @@
       histStudentPrefix: rt('stats.chart.histStudentPrefix'),
       histStudentPct: rt('stats.chart.histStudentPct'),
       histSampleBins: rt('stats.chart.histSampleBins'),
+      histMean: rt('stats.chart.histMean'),
+      histSd1: rt('stats.chart.histSd1'),
+      histSd2: rt('stats.chart.histSd2'),
+      histMomentsHint: rt('stats.chart.histMomentsHint'),
+      histMomentsNeedRebuild: rt('stats.chart.histMomentsNeedRebuild'),
     };
   }
 
@@ -1825,6 +1830,7 @@
         hctx.setTransform(hdpr, 0, 0, hdpr, 0, 0);
         Chart.drawCohortHistogramChart(hctx, hw, hh, {
           histogram: hist,
+          quantiles: lnQ,
           studentSec: studentSec,
           studentPct: studentPct,
           labels: getReportChartLabels(),
