@@ -18,6 +18,7 @@ const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
 const { buildStudentOverviewRows } = require("./student-overview");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
+const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const {
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,
@@ -1868,6 +1869,67 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
     }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
+});
+
+/** 训练下一关：服务端权威选关（热图 + runs 反推日状态） */
+app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  if (!data.users.some((u) => u.username === username)) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runs = (runsData.runs[username] || []).map((r) => ({
+    ...r,
+    mode: normalizeRunMode(r.mode),
+  }));
+  const cohort = readCohortResultForHeatmap();
+  let pick;
+  try {
+    pick = computeTrainingNextLevelForUser({
+      runs,
+      cohort,
+      capMs: cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS,
+    });
+  } catch (e) {
+    console.warn("[training/next-level]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  }
+  if (!pick || !pick.ok) {
+    return res.status(422).json({
+      ok: false,
+      error: (pick && pick.error) || "无法计算下一关",
+      todayKey: pick && pick.todayKey,
+    });
+  }
+  return res.json({
+    ok: true,
+    source: "server",
+    todayKey: pick.todayKey,
+    levelIndex: pick.levelIndex,
+    brushMode: pick.brushMode,
+    mode: pick.mode,
+    reason: pick.reason,
+    pickReason: pick.pickReason,
+    enterBrush: pick.enterBrush,
+    brushPoolMax: pick.brushPoolMax,
+    dayState: pick.dayState,
+    heatAvgSecAtStart: pick.heatAvgSecAtStart,
+    heatMeanLnAtStart: pick.heatMeanLnAtStart,
+    cohortLoaded: pick.cohortLoaded,
+    heat: pick.heat
+      ? {
+          cells: pick.heat.cells,
+          minAttempts: pick.heat.minAttempts,
+          maxTimeSpentMs: pick.heat.maxTimeSpentMs,
+          cohortLoaded: pick.heat.cohortLoaded,
+          personalWindowAttempts: pick.heat.personalWindowAttempts,
+          personalHalfLifeDays: pick.heat.personalHalfLifeDays,
+          levelCount: pick.heat.levelCount || 16,
+        }
+      : null,
+    result: pick.result,
+  });
 });
 
 // ========== 添加生存局记录（用于完整历史，供 report 页面使用），需登录且只能访问自己 ==========

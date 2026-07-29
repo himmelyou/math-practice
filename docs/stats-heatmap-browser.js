@@ -301,6 +301,10 @@
       var lnQ = cohortRow.cohortLnTimeCorrect || null;
 
       var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
+      var tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
+      var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
+      // 无常模 mean/σ 时 tooSlow=null，准确即视为流畅（不苛刻）
+      var fluent = accurate && tooSlow !== true;
 
       var avgSecText = '-';
       if (meanLn != null && Number.isFinite(meanLn)) {
@@ -320,6 +324,9 @@
         meanLnCorrect: meanLn,
         medianLnCorrect: meanLn,
         timePct: timePct,
+        tooSlow: tooSlow,
+        accurate: accurate,
+        fluent: fluent,
         nEff: b.nEff != null ? Math.round(b.nEff * 10) / 10 : null,
         ageDaysMin: b.minAgeDays,
         ageDaysMax: b.maxAgeDays,
@@ -364,6 +371,8 @@
   }
 
   var TRAINING_BRUSH_PASS_ACCURACY = 0.95;
+  /** 相对常模：meanLn ≥ mean + k·sd 视为过慢（未流畅）；k=1 先不苛刻 */
+  var TRAINING_SPEED_SLOW_SD = 1;
 
   function cmpMinWeightedP(a, b) {
     var pa = a.p != null ? a.p : 1;
@@ -372,20 +381,123 @@
     return a.levelIndex - b.levelIndex;
   }
 
+  function cmpSlowestFirst(a, b) {
+    var at = a.timePct;
+    var bt = b.timePct;
+    if (at != null && bt != null && Number.isFinite(at) && Number.isFinite(bt) && at !== bt) {
+      return bt - at;
+    }
+    var am = a.meanLnCorrect;
+    var bm = b.meanLnCorrect;
+    if (am != null && bm != null && Number.isFinite(am) && Number.isFinite(bm) && am !== bm) {
+      return bm - am;
+    }
+    return (a.levelIndex || 0) - (b.levelIndex || 0);
+  }
+
+  /**
+   * @returns {boolean|null} true=过慢；false=未过慢；null=无法判断（无常模 mean/sd）
+   */
+  function isTooSlowMeanLn(meanLn, lnQ) {
+    if (meanLn == null || !Number.isFinite(Number(meanLn)) || !lnQ) return null;
+    var mean = Number(lnQ.mean);
+    var sd = Number(lnQ.sd);
+    if (!Number.isFinite(mean) || !Number.isFinite(sd) || sd < 0) return null;
+    return Number(meanLn) >= mean + TRAINING_SPEED_SLOW_SD * sd;
+  }
+
+  function isCellAccurate(cell) {
+    return !!(
+      cell &&
+      cell.active &&
+      cell.p != null &&
+      Number.isFinite(cell.p) &&
+      cell.p >= TRAINING_DAY_PASS_ACCURACY
+    );
+  }
+
+  /** 准确且未判定过慢；无速度常模时准确即流畅 */
+  function isCellFluent(cell) {
+    if (!isCellAccurate(cell)) return false;
+    return cell.tooSlow !== true;
+  }
+
+  /** 已激活但未流畅（不准，或准但过慢） */
+  function cellNeedsMasteryWork(cell) {
+    if (!cell || !cell.active) return false;
+    return !isCellFluent(cell);
+  }
+
+  /**
+   * 热图格 CSS：暖色=不准；琥珀=准但过慢；绿=流畅掌握
+   */
+  function heatmapCellInlineStyle(c) {
+    if (!c || !c.active) return '';
+    var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
+    var tp = c.timePct;
+    var t = tp != null && Number.isFinite(tp) ? Math.max(0, Math.min(1, tp / 100)) : 0.5;
+    var hue;
+    var sat;
+    var light;
+    var bw;
+
+    if (p < TRAINING_BRUSH_PASS_ACCURACY) {
+      if (p < 0.9) {
+        hue = 18 + (38 - 18) * (p / 0.9);
+      } else {
+        hue = 38 + (88 - 38) * ((p - 0.9) / 0.05);
+      }
+      sat = Math.min(95, 55 + 25 * p);
+      light = Math.max(36, 58 - 12 * p);
+      bw = 1 + (tp != null ? (tp / 100) * 2 : 0);
+    } else if (c.tooSlow === true) {
+      hue = 42 + 14 * (1 - t);
+      sat = Math.max(55, Math.min(90, 78 - 12 * t));
+      light = Math.max(42, Math.min(62, 48 + 12 * t));
+      bw = 2.5 + (tp != null ? (tp / 100) * 3 : 1);
+    } else {
+      hue = 108 + 8 * (1 - t);
+      sat = Math.max(48, Math.min(92, 72 - 18 * t));
+      light = Math.max(34, Math.min(62, 38 + 22 * t));
+      bw = 1 + (tp != null ? (tp / 100) * 2 : 0);
+    }
+
+    return (
+      'background:hsl(' +
+      Math.round(hue) +
+      ',' +
+      Math.round(sat) +
+      '%,' +
+      Math.round(light) +
+      '%);border:' +
+      bw.toFixed(1) +
+      'px solid #37474f'
+    );
+  }
+
   var TRAINING_DAY_PASS_ACCURACY = 0.95;
   var TRAINING_FLOW_STORAGE_PREFIX = 'jml_training_flow_v5:';
   var TRAINING_FAILS_BEFORE_BRUSH = 3;
+
+  function isWeightedBelowPass(cell) {
+    return cellNeedsMasteryWork(cell);
+  }
 
   function getCell(cellsResult, levelIndex) {
     var list = (cellsResult && cellsResult.cells) || [];
     for (var i = 0; i < list.length; i++) {
       if (list[i].levelIndex === levelIndex) return list[i];
     }
-    return { levelIndex: levelIndex, active: false, n: 0, p: null, timePct: null };
-  }
-
-  function isWeightedBelowPass(cell) {
-    return !!(cell && cell.active && cell.p != null && cell.p < TRAINING_DAY_PASS_ACCURACY);
+    return {
+      levelIndex: levelIndex,
+      active: false,
+      n: 0,
+      p: null,
+      timePct: null,
+      tooSlow: null,
+      accurate: false,
+      fluent: false,
+    };
   }
 
   function isNewLevelCell(cell) {
@@ -402,7 +514,7 @@
     return M;
   }
 
-  /** 当日闯关起始关：稳 M 或开 M+1；全清则 enterBrush pool L1–L16 */
+  /** 当日闯关起始关：稳 M（未流畅）或开 M+1；顶已流畅且无下一关则刷热图 */
   function computeDailyFrontierStart(cellsResult) {
     var M = computeActiveLadderTopM(cellsResult);
     if (M < 0) {
@@ -415,27 +527,23 @@
       };
     }
     var cM = getCell(cellsResult, M);
-    if (cM.active && cM.p != null && cM.p < TRAINING_DAY_PASS_ACCURACY) {
+    if (cellNeedsMasteryWork(cM)) {
       return {
         mode: 'daily',
         levelIndex: M,
-        reason: 'frontier_stabilize_M',
+        reason: isCellAccurate(cM) ? 'frontier_stabilize_slow' : 'frontier_stabilize_M',
         enterBrush: false,
         brushPoolMax: null,
       };
     }
     if (M < LEVEL_COUNT - 1) {
-      var next = M + 1;
-      var cNext = getCell(cellsResult, next);
-      if (!cNext.active || cNext.p == null || cNext.p < TRAINING_DAY_PASS_ACCURACY) {
-        return {
-          mode: 'daily',
-          levelIndex: next,
-          reason: 'frontier_open_M1',
-          enterBrush: false,
-          brushPoolMax: null,
-        };
-      }
+      return {
+        mode: 'daily',
+        levelIndex: M + 1,
+        reason: 'frontier_open_M1',
+        enterBrush: false,
+        brushPoolMax: null,
+      };
     }
     return {
       mode: 'brush',
@@ -447,7 +555,7 @@
   }
 
   /**
-   * 刷热图 pool 内选关：先补 pool 内 active 且 p<95%（最低），再刷速度最慢。
+   * 刷热图 pool 内选关：①加权&lt;95% 最低 → ②准但过慢（最慢）→ ③流畅中刷相对最慢。
    * @returns {{ levelIndex: number, reason: string }|null}
    */
   function recommendTrainingBrushInPool(cellsResult, brushPoolMax) {
@@ -477,10 +585,23 @@
       return { levelIndex: bestBelow.levelIndex, reason: 'brush_fix_red' };
     }
 
+    var accurateSlow = [];
+    for (var s = 0; s < activeInPool.length; s++) {
+      if (isCellAccurate(activeInPool[s]) && activeInPool[s].tooSlow === true) {
+        accurateSlow.push(activeInPool[s]);
+      }
+    }
+    if (accurateSlow.length) {
+      var slowest = accurateSlow[0];
+      for (var sk = 1; sk < accurateSlow.length; sk++) {
+        if (cmpSlowestFirst(accurateSlow[sk], slowest) < 0) slowest = accurateSlow[sk];
+      }
+      return { levelIndex: slowest.levelIndex, reason: 'brush_fix_slow' };
+    }
+
     var passCandidates = [];
     for (var t = 0; t < activeInPool.length; t++) {
-      var pc = activeInPool[t];
-      if (pc.p != null && pc.p >= TRAINING_BRUSH_PASS_ACCURACY) passCandidates.push(pc);
+      if (isCellFluent(activeInPool[t])) passCandidates.push(activeInPool[t]);
     }
     if (passCandidates.length) {
       var withPct = [];
@@ -490,8 +611,7 @@
       if (withPct.length) {
         var bt = withPct[0];
         for (var v = 1; v < withPct.length; v++) {
-          var du = withPct[v].timePct - bt.timePct;
-          if (du > 0 || (du === 0 && withPct[v].levelIndex < bt.levelIndex)) bt = withPct[v];
+          if (cmpSlowestFirst(withPct[v], bt) < 0) bt = withPct[v];
         }
         return { levelIndex: bt.levelIndex, reason: 'brush_pick_speed' };
       }
@@ -565,6 +685,24 @@
       return { levelIndex: bestBelow.levelIndex, reason: 'brush_fix_red' };
     }
 
+    var accurateSlow = [];
+    for (var s = 0; s < pool.length; s++) {
+      if (
+        pool[s].p != null &&
+        pool[s].p >= TRAINING_BRUSH_PASS_ACCURACY &&
+        pool[s].tooSlow === true
+      ) {
+        accurateSlow.push(pool[s]);
+      }
+    }
+    if (accurateSlow.length) {
+      var slowest = accurateSlow[0];
+      for (var sk = 1; sk < accurateSlow.length; sk++) {
+        if (cmpSlowestFirst(accurateSlow[sk], slowest) < 0) slowest = accurateSlow[sk];
+      }
+      return { levelIndex: slowest.levelIndex, reason: 'brush_fix_slow' };
+    }
+
     var withPct = [];
     for (var u = 0; u < pool.length; u++) {
       if (pool[u].timePct != null && Number.isFinite(Number(pool[u].timePct))) {
@@ -574,8 +712,7 @@
     if (withPct.length) {
       var bt = withPct[0];
       for (var v = 1; v < withPct.length; v++) {
-        var du = withPct[v].timePct - bt.timePct;
-        if (du > 0 || (du === 0 && withPct[v].levelIndex < bt.levelIndex)) bt = withPct[v];
+        if (cmpSlowestFirst(withPct[v], bt) < 0) bt = withPct[v];
       }
       return { levelIndex: bt.levelIndex, reason: 'brush_pick_speed' };
     }
@@ -806,11 +943,15 @@
     var L = labels || {};
     var code = result.pickReason || result.reason;
     if (code === 'brush_fix_red') return L.brushFixRed || '刷热图：补 pool 内加权<95%（最低）';
-    if (code === 'brush_pick_speed') return L.brushPickSpeed || '刷热图：pool 内全绿，速度分位最慢';
+    if (code === 'brush_fix_slow') return L.brushFixSlow || '刷热图：补 pool 内准但过慢（≥mean+1σ）';
+    if (code === 'brush_pick_speed') return L.brushPickSpeed || '刷热图：pool 内已流畅，相对最慢';
     if (result.reason === 'frontier_stabilize_M') {
       return L.frontierStabilizeM || '当日闯关：稳梯子顶 M（加权<95%）';
     }
-    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已绿）';
+    if (result.reason === 'frontier_stabilize_slow') {
+      return L.frontierStabilizeSlow || '当日闯关：稳梯子顶 M（准但过慢）';
+    }
+    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已流畅）';
     if (result.reason === 'daily_clear') return L.dailyClear || '当日闯关全清，进刷热图 L1–L16';
     if (result.reason === 'daily_pass_all_clear') {
       return L.dailyPassAllClear || '当日线性推完，进刷热图 L1–L16';
@@ -859,10 +1000,19 @@
   function localDayKeyFromTs(ts) {
     var d = new Date(ts || 0);
     if (Number.isNaN(d.getTime())) return '';
-    var y = d.getFullYear();
-    var m = String(d.getMonth() + 1).padStart(2, '0');
-    var day = String(d.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + day;
+    try {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(d);
+    } catch (e) {
+      var y = d.getFullYear();
+      var m = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      return y + '-' + m + '-' + day;
+    }
   }
 
   /**
@@ -1049,8 +1199,14 @@
     reconstructTrainingDayStateFromRuns: reconstructTrainingDayStateFromRuns,
     localDayKeyFromTs: localDayKeyFromTs,
     trainingNextLevelReasonText: trainingNextLevelReasonText,
+    heatmapCellInlineStyle: heatmapCellInlineStyle,
+    isTooSlowMeanLn: isTooSlowMeanLn,
+    isCellAccurate: isCellAccurate,
+    isCellFluent: isCellFluent,
+    cellNeedsMasteryWork: cellNeedsMasteryWork,
     TRAINING_BRUSH_PASS_ACCURACY: TRAINING_BRUSH_PASS_ACCURACY,
     TRAINING_DAY_PASS_ACCURACY: TRAINING_DAY_PASS_ACCURACY,
+    TRAINING_SPEED_SLOW_SD: TRAINING_SPEED_SLOW_SD,
     TRAINING_FLOW_STORAGE_PREFIX: TRAINING_FLOW_STORAGE_PREFIX,
     TRAINING_FAILS_BEFORE_BRUSH: TRAINING_FAILS_BEFORE_BRUSH,
     percentileFromQuantileSummary: percentileFromQuantileSummary,

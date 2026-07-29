@@ -166,6 +166,15 @@ function buildHeatmapCells(opts) {
     const cohortRow = cohortLevels[k] || {};
     const lnQ = cohortRow.cohortLnTimeCorrect || null;
     const timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
+    const tooSlow = (() => {
+      if (!active || meanLn == null || !lnQ) return null;
+      const mean = Number(lnQ.mean);
+      const sd = Number(lnQ.sd);
+      if (!Number.isFinite(mean) || !Number.isFinite(sd) || sd < 0) return null;
+      return meanLn >= mean + 1 * sd;
+    })();
+    const accurate = !!(active && p != null && Number.isFinite(p) && p >= 0.95);
+    const fluent = accurate && tooSlow !== true;
 
     let avgSecText = "-";
     if (meanLn != null && Number.isFinite(meanLn)) {
@@ -185,6 +194,9 @@ function buildHeatmapCells(opts) {
       meanLnCorrect: meanLn,
       medianLnCorrect: meanLn,
       timePct,
+      tooSlow,
+      accurate,
+      fluent,
       nEff: b.nEff != null ? Math.round(b.nEff * 10) / 10 : null,
       ageDaysMin: b.minAgeDays,
       ageDaysMax: b.maxAgeDays,
@@ -205,8 +217,10 @@ function buildHeatmapCells(opts) {
 function isHeatmapLevelPassed(cellsResult, levelIndex, minP) {
   const cells = (cellsResult && cellsResult.cells) || [];
   const k = clampLevel(levelIndex);
-  const cell = cells[k];
+  const cell = cells.find((c) => c && c.levelIndex === k) || cells[k];
   if (!cell || !cell.active) return false;
+  if (cell.fluent === true) return true;
+  if (cell.fluent === false) return false;
   const p = cell.p;
   if (p == null || !Number.isFinite(p)) return false;
   return p >= (Number(minP) || 0.95);

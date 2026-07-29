@@ -187,8 +187,10 @@
   function getReportTrainingReasonLabels() {
     return {
       brushFixRed: rt('stats.training.reason.brushFixRed'),
+      brushFixSlow: rt('stats.training.reason.brushFixSlow'),
       brushPickSpeed: rt('stats.training.reason.brushPickSpeed'),
       frontierStabilizeM: rt('stats.training.reason.frontierStabilizeM'),
+      frontierStabilizeSlow: rt('stats.training.reason.frontierStabilizeSlow'),
       frontierOpenM1: rt('stats.training.reason.frontierOpenM1'),
       dailyClear: rt('stats.training.reason.dailyClear'),
       dailyPassAllClear: rt('stats.training.reason.dailyPassAllClear'),
@@ -1372,15 +1374,18 @@
   }
 
   function heatmapCellInlineStyle(c) {
+    var HM = window.JmlStatsHeatmap;
+    if (HM && typeof HM.heatmapCellInlineStyle === 'function') {
+      return HM.heatmapCellInlineStyle(c) || '';
+    }
     if (!c.active) return '';
     var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
     var tp = c.timePct;
     var t = tp != null && Number.isFinite(tp) ? Math.max(0, Math.min(1, tp / 100)) : 0.5;
-
     var hue;
     var sat;
     var light;
-
+    var bw = 1;
     if (p < 0.95) {
       if (p < 0.9) {
         hue = 18 + (38 - 18) * (p / 0.9);
@@ -1389,13 +1394,16 @@
       }
       sat = Math.min(95, 55 + 25 * p);
       light = Math.max(36, 58 - 12 * p);
+    } else if (c.tooSlow === true) {
+      hue = 42 + 14 * (1 - t);
+      sat = Math.max(55, Math.min(90, 78 - 12 * t));
+      light = Math.max(42, Math.min(62, 48 + 12 * t));
+      bw = 2.5;
     } else {
       hue = 108 + 8 * (1 - t);
       sat = Math.max(48, Math.min(92, 72 - 18 * t));
       light = Math.max(34, Math.min(62, 38 + 22 * t));
     }
-
-    var bw = 1 + (tp != null ? (tp / 100) * 4 : 0);
     return (
       'background:hsl(' +
       Math.round(hue) +

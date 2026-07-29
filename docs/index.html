@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=72"></script>
+  <script src="shared/app-version.js?v=74"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4525,8 +4525,8 @@
 
   <script src="prime-composite-logic.js?v=42"></script>
   <script src="shared/player-level.js?v=1"></script>
-  <script src="shared/stats-i18n-pack.js?v=59"></script>
-  <script src="stats-heatmap-browser.js?v=53"></script>
+  <script src="shared/stats-i18n-pack.js?v=60"></script>
+  <script src="stats-heatmap-browser.js?v=55"></script>
   <script src="stats-aggregate-browser.js?v=50"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=41"></script>
@@ -7341,8 +7341,10 @@
     function getTrainingReasonLabels() {
       return {
         brushFixRed: t("stats.training.reason.brushFixRed"),
+        brushFixSlow: t("stats.training.reason.brushFixSlow"),
         brushPickSpeed: t("stats.training.reason.brushPickSpeed"),
         frontierStabilizeM: t("stats.training.reason.frontierStabilizeM"),
+        frontierStabilizeSlow: t("stats.training.reason.frontierStabilizeSlow"),
         frontierOpenM1: t("stats.training.reason.frontierOpenM1"),
         dailyClear: t("stats.training.reason.dailyClear"),
         dailyPassAllClear: t("stats.training.reason.dailyPassAllClear"),
@@ -11156,6 +11158,10 @@
     let studentStatsHeatmapBound = false;
 
     function studentHeatmapCellStyle(c) {
+      const HM = window.JmlStatsHeatmap;
+      if (HM && typeof HM.heatmapCellInlineStyle === "function") {
+        return HM.heatmapCellInlineStyle(c) || "";
+      }
       if (!c.active) return "";
       const p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
       const tp = c.timePct;
@@ -11163,6 +11169,7 @@
       let hue;
       let sat;
       let light;
+      let bw = 1;
       if (p < 0.95) {
         if (p < 0.9) {
           hue = 18 + (38 - 18) * (p / 0.9);
@@ -11171,12 +11178,16 @@
         }
         sat = Math.min(95, 55 + 25 * p);
         light = Math.max(36, 58 - 12 * p);
+      } else if (c.tooSlow === true) {
+        hue = 42 + 14 * (1 - t);
+        sat = Math.max(55, Math.min(90, 78 - 12 * t));
+        light = Math.max(42, Math.min(62, 48 + 12 * t));
+        bw = 2.5;
       } else {
         hue = 108 + 8 * (1 - t);
         sat = Math.max(48, Math.min(92, 72 - 18 * t));
         light = Math.max(34, Math.min(62, 38 + 22 * t));
       }
-      const bw = 1 + (tp != null ? (tp / 100) * 4 : 0);
       return (
         "background:hsl(" +
         Math.round(hue) +
@@ -12025,11 +12036,24 @@
     }
 
     function getLocalTrainingDayKey() {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
-      return y + "-" + m + "-" + day;
+      const HM = window.JmlStatsHeatmap;
+      if (HM && typeof HM.localDayKeyFromTs === "function") {
+        return HM.localDayKeyFromTs(Date.now()) || "";
+      }
+      try {
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Shanghai",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date());
+      } catch (e) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        return y + "-" + m + "-" + day;
+      }
     }
 
     function defaultTrainingFlowState() {
@@ -12325,7 +12349,7 @@
       currentLevelIndex = trainingNextEntryCache.levelIndex;
       trainingSessionBrushMode = !!trainingNextEntryCache.brushMode;
       trainingAutoPickLevelIndex = trainingNextEntryCache.levelIndex;
-      lastTrainingEntrySource = "heatmap";
+      lastTrainingEntrySource = "cache";
       return true;
     }
 
@@ -12350,12 +12374,9 @@
       ]);
     }
 
-    /** 本局入库后：拉 runs 建热图并算下一局，写入 session 缓存（结算卡出现前完成） */
+    /** 本局入库后：拉服务端选关（失败则本地热图兜底），写入 session 缓存 */
     async function finalizeTrainingNextEntryAfterRun() {
-      const { heat } = await buildTrainingHeatmapAsync();
-      trainingHeatSnapshot = heat;
-      const entry = computeTrainingEntryFromHeat(heat);
-      writeTrainingNextEntryCache(entry.levelIndex, entry.brushMode);
+      const entry = await resolveTrainingEntryLevelAsync();
       return lastTrainingPickResult;
     }
 
@@ -12375,6 +12396,83 @@
         console.warn("拉取 runs 失败（刷热图选关）", e);
         return [];
       }
+    }
+
+    async function fetchServerTrainingNextLevel() {
+      const base = getApiBase();
+      const name = loadCurrentUsername();
+      if (!base || !name || isGuestMode) return null;
+      try {
+        const res = await fetch(
+          base + "/api/user/" + encodeURIComponent(name) + "/training/next-level",
+          { credentials: "include", headers: getAuthHeaders() }
+        );
+        const data = await res.json().catch(function () {
+          return null;
+        });
+        if (res.status === 401) {
+          handleAuthRequired();
+          return null;
+        }
+        if (!res.ok || !data || data.ok !== true || data.levelIndex == null) return null;
+        return data;
+      } catch (e) {
+        console.warn("服务端训练选关失败", e);
+        return null;
+      }
+    }
+
+    function applyServerTrainingNextLevel(data) {
+      if (!data || data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
+      const levelIndex = Math.min(15, Math.max(0, Math.floor(Number(data.levelIndex))));
+      lastTrainingEntrySource = "server";
+      lastTrainingPickResult = data.result || {
+        mode: data.mode,
+        levelIndex: levelIndex,
+        reason: data.reason,
+        pickReason: data.pickReason,
+        brushMode: data.brushMode,
+        brushPoolMax: data.brushPoolMax,
+        enterBrush: data.enterBrush,
+      };
+      trainingSessionBrushMode = !!data.brushMode;
+      trainingAutoPickLevelIndex = levelIndex;
+      if (data.heat && Array.isArray(data.heat.cells)) {
+        trainingHeatSnapshot = data.heat;
+      }
+      let st = loadTrainingFlowState();
+      if (data.dayState && typeof data.dayState === "object") {
+        st = Object.assign({}, st, data.dayState);
+      }
+      st = applyTrainingNextLevelResult(st, lastTrainingPickResult);
+      saveTrainingFlowState(st);
+      try {
+        const HM = window.JmlStatsHeatmap;
+        const reasonText =
+          HM && typeof HM.trainingNextLevelReasonText === "function"
+            ? HM.trainingNextLevelReasonText(lastTrainingPickResult, getTrainingReasonLabels())
+            : data.reason;
+        console.log(
+          "[JML 训练选关]",
+          JSON.stringify(
+            {
+              at: new Date().toISOString(),
+              source: "server",
+              dayKey: data.todayKey,
+              brushMode: trainingSessionBrushMode,
+              result: lastTrainingPickResult,
+              reasonText: reasonText,
+              pickedL: levelIndex + 1,
+            },
+            null,
+            2
+          )
+        );
+      } catch (e) {
+        console.warn("[JML 训练选关] 日志失败", e);
+      }
+      writeTrainingNextEntryCache(levelIndex, trainingSessionBrushMode);
+      return { levelIndex: levelIndex, brushMode: trainingSessionBrushMode };
     }
 
     function filterArithmeticRunsForTrainingHeatmap(runs) {
@@ -12431,7 +12529,7 @@
         console.log("[JML 训练选关]", JSON.stringify({ reason: "no_heat_or_compute", brushMode: st.brushMode, fallbackL: fb + 1 }, null, 2));
         return { levelIndex: fb, brushMode: !!st.brushMode };
       }
-      lastTrainingEntrySource = "heatmap";
+      lastTrainingEntrySource = "heatmap_local";
       const result = HM.computeTrainingNextLevel(heat, st, today);
       lastTrainingPickResult = result;
       st = applyTrainingNextLevelResult(st, result);
@@ -12468,6 +12566,11 @@
 
     async function resolveTrainingEntryLevelAsync() {
       refreshTrainingDayLocalState();
+      const serverPick = await fetchServerTrainingNextLevel();
+      if (serverPick) {
+        const applied = applyServerTrainingNextLevel(serverPick);
+        if (applied) return applied.levelIndex;
+      }
       const { heat } = await buildTrainingHeatmapAsync();
       trainingHeatSnapshot = heat;
       const entry = computeTrainingEntryFromHeat(heat);
