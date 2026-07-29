@@ -173,47 +173,81 @@ function progressSortFromLevelResult(result, maxLevelIndex) {
 }
 
 function trainingProgressSortKey(trainingP) {
-  if (!trainingP || !trainingP.text) return null;
-  const lm = /L(\d+)/.exec(trainingP.text);
-  const li = lm ? Math.min(15, Math.max(0, parseInt(lm[1], 10) - 1)) : 0;
-  if (trainingP.mode === "brush" || trainingP.text.indexOf("刷热图") >= 0) {
-    return li + 0.5;
+  if (!trainingP) return null;
+  if (typeof trainingP.fluentCount === "number" && Number.isFinite(trainingP.fluentCount)) {
+    return trainingP.fluentCount;
   }
-  if (/^L\d+$/.test(trainingP.text)) return li;
+  if (!trainingP.text) return null;
+  const m = /^(\d+)\s*\/\s*(\d+)$/.exec(String(trainingP.text).trim());
+  if (m) return Math.max(0, parseInt(m[1], 10));
   return null;
 }
 
+/** 概览「训练」列：四则热图已流畅掌握关数，如 7/16 */
 function formatTrainingProgress(runs, cohort, capMs, HM, todayKey) {
-  if (!hasRunMode(runs, "training")) return { text: null, mode: "", reason: "" };
-  if (!HM || typeof HM.buildHeatmapCells !== "function" || typeof HM.computeTrainingNextLevel !== "function") {
-    return { text: null, mode: "", reason: "" };
+  const levelCount = 16;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { text: null, mode: "", reason: "", fluentCount: null, levelCount };
   }
   const arith = HM.filterArithmeticRuns ? HM.filterArithmeticRuns(runs || []) : runs || [];
-  if (!arith.length) return { text: null, mode: "", reason: "" };
+  if (!arith.length) return { text: null, mode: "", reason: "", fluentCount: null, levelCount };
+
   const heat = HM.buildHeatmapCells({
     runs: arith,
     cohort,
     maxTimeSpentMs: capMs,
   });
-  let dayState = { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
-  if (typeof HM.reconstructTrainingDayStateFromRuns === "function") {
-    dayState = HM.reconstructTrainingDayStateFromRuns(runs || [], todayKey, {
-      cohort,
-      maxTimeSpentMs: capMs,
-    });
-  }
-  const result = HM.computeTrainingNextLevel(heat, dayState, todayKey);
-  if (!result || result.levelIndex == null || !Number.isFinite(Number(result.levelIndex))) {
-    if (result && (result.brushMode || result.mode === "brush")) {
-      return { text: "刷热图", mode: "brush", reason: result.reason || "" };
+  const cells = (heat && heat.cells) || [];
+  let fluentCount = 0;
+  cells.forEach((c) => {
+    if (!c || !c.active) return;
+    if (c.fluent === true) {
+      fluentCount += 1;
+      return;
     }
-    return { text: null, mode: "", reason: "" };
+    // 兼容旧热图脚本未带 fluent 字段：准确且未标过慢
+    if (
+      c.fluent == null &&
+      c.p != null &&
+      Number.isFinite(c.p) &&
+      c.p >= 0.95 &&
+      c.tooSlow !== true
+    ) {
+      fluentCount += 1;
+    }
+  });
+
+  let reason = "流畅掌握 " + fluentCount + "/" + levelCount;
+  let mode = "";
+  if (typeof HM.computeTrainingNextLevel === "function") {
+    let dayState = { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
+    if (typeof HM.reconstructTrainingDayStateFromRuns === "function") {
+      dayState = HM.reconstructTrainingDayStateFromRuns(runs || [], todayKey, {
+        cohort,
+        maxTimeSpentMs: capMs,
+      });
+    }
+    const result = HM.computeTrainingNextLevel(heat, dayState, todayKey);
+    if (result && result.levelIndex != null && Number.isFinite(Number(result.levelIndex))) {
+      const li = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
+      mode = result.brushMode || result.mode === "brush" ? "brush" : "daily";
+      const nextLabel =
+        mode === "brush" ? "刷热图·L" + (li + 1) : "L" + (li + 1);
+      reason =
+        reason +
+        "；推荐下一关 " +
+        nextLabel +
+        (result.reason ? "（" + result.reason + "）" : "");
+    }
   }
-  const li = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
-  if (result.brushMode || result.mode === "brush") {
-    return { text: "刷热图·L" + (li + 1), mode: "brush", reason: result.reason || "" };
-  }
-  return { text: "L" + (li + 1), mode: "daily", reason: result.reason || "" };
+
+  return {
+    text: fluentCount + "/" + levelCount,
+    mode,
+    reason,
+    fluentCount,
+    levelCount,
+  };
 }
 
 function buildPrimeRankingMap(primeList) {

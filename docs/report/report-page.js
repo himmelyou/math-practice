@@ -560,7 +560,7 @@
           '<td class="jml-ov-col-prog">' +
           escapeHtml(dashCell(r.levelProgress)) +
           '</td>' +
-          '<td class="jml-ov-col-prog"' +
+          '<td class="jml-ov-col-prog num"' +
           trainTitle +
           '>' +
           escapeHtml(dashCell(r.trainingProgress)) +
@@ -595,7 +595,7 @@
       overviewSortLabel('daysActiveLast30', '最近30天上线天数', 'num') +
       overviewSortLabel('daysOffline', '未上线(天)', 'num') +
       overviewSortLabel('levelProgress', '闯关') +
-      overviewSortLabel('trainingProgress', '训练') +
+      overviewSortLabel('trainingProgress', '训练流畅', 'num') +
       overviewSortLabel('survivalProgress', '生存') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
       overviewSortLabel('perfectSquareProgress', '平方数') +
