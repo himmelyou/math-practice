@@ -338,8 +338,12 @@
       var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
       var tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
       var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
-      // 无常模 mean/σ 时 tooSlow=null，准确即视为流畅（不苛刻）
-      var fluent = accurate && tooSlow !== true;
+      // 熟练顶与热图短板一致：≥98% 且速分位≤mean−1σ（无常模分位时准确且未过慢即视为熟练）
+      var fluent = false;
+      if (accurate && tooSlow !== true) {
+        if (timePct == null) fluent = true;
+        else fluent = heatMasteryScore({ p: p, timePct: timePct, tooSlow: tooSlow }) >= 1 - 1e-9;
+      }
 
       var avgSecText = '-';
       if (meanLn != null && Number.isFinite(meanLn)) {
@@ -451,16 +455,36 @@
     );
   }
 
-  /** 准确且未判定过慢；无速度常模时准确即流畅 */
+  /** 准确且未判定过慢；无速度常模时准确即流畅（旧口径，仍用于部分兼容） */
   function isCellFluent(cell) {
     if (!isCellAccurate(cell)) return false;
     return cell.tooSlow !== true;
   }
 
-  /** 已激活但未流畅（不准，或准但过慢） */
+  /** 与热图上色同一套短板分 0–1；橙区记 0 */
+  function heatMasteryScore(cell) {
+    if (!cell) return 0;
+    var p = cell.p != null && Number.isFinite(Number(cell.p)) ? Math.max(0, Math.min(1, Number(cell.p))) : null;
+    if (p == null) return 0;
+    var pct =
+      cell.timePct != null && Number.isFinite(Number(cell.timePct))
+        ? Math.max(0, Math.min(100, Number(cell.timePct)))
+        : null;
+    if (p < HEAT_P_ORANGE || cell.tooSlow === true || (pct != null && pct >= HEAT_PCT_PLUS1)) {
+      return 0;
+    }
+    return Math.min(heatAccuracyScore(p), heatSpeedScore(pct));
+  }
+
+  /** 达热图熟练顶：q≈1（≥98% 且速分位≤mean−1σ） */
+  function isCellHeatMastered(cell) {
+    return heatMasteryScore(cell) >= 1 - 1e-9;
+  }
+
+  /** 已激活但未达熟练顶（与热图颜色短板对齐） */
   function cellNeedsMasteryWork(cell) {
     if (!cell || !cell.active) return false;
-    return !isCellFluent(cell);
+    return !isCellHeatMastered(cell);
   }
 
   /** 热图上色阈值（二维短板） */
@@ -603,7 +627,7 @@
     return M;
   }
 
-  /** 当日闯关起始关：稳 M（未流畅）或开 M+1；顶已流畅且无下一关则刷热图 */
+  /** 当日闯关起始关：稳 M（未达熟练顶）或开 M+1；顶已熟练且无下一关则刷热图 */
   function computeDailyFrontierStart(cellsResult) {
     var M = computeActiveLadderTopM(cellsResult);
     if (M < 0) {
@@ -644,7 +668,7 @@
   }
 
   /**
-   * 刷热图 pool 内选关：①加权&lt;95% 最低 → ②准但过慢（最慢）→ ③流畅中刷相对最慢。
+   * 刷热图 pool 内选关：①加权&lt;95% 最低 → ②准但过慢（最慢）→ ③未达熟练顶（热图 q 最低）→ ④已封顶则相对最慢。
    * @returns {{ levelIndex: number, reason: string }|null}
    */
   function recommendTrainingBrushInPool(cellsResult, brushPoolMax) {
@@ -688,39 +712,58 @@
       return { levelIndex: slowest.levelIndex, reason: 'brush_fix_slow' };
     }
 
-    var passCandidates = [];
+    var needPolish = [];
     for (var t = 0; t < activeInPool.length; t++) {
-      if (isCellFluent(activeInPool[t])) passCandidates.push(activeInPool[t]);
+      if (isCellFluent(activeInPool[t]) && !isCellHeatMastered(activeInPool[t])) {
+        needPolish.push(activeInPool[t]);
+      }
+    }
+    if (needPolish.length) {
+      var bestQ = needPolish[0];
+      for (var u = 1; u < needPolish.length; u++) {
+        var qa = heatMasteryScore(needPolish[u]);
+        var qb = heatMasteryScore(bestQ);
+        if (qa < qb - 1e-9) bestQ = needPolish[u];
+        else if (Math.abs(qa - qb) <= 1e-9 && cmpSlowestFirst(needPolish[u], bestQ) < 0) {
+          bestQ = needPolish[u];
+        }
+      }
+      return { levelIndex: bestQ.levelIndex, reason: 'brush_pick_mastery' };
+    }
+
+    var passCandidates = [];
+    for (var t2 = 0; t2 < activeInPool.length; t2++) {
+      if (isCellFluent(activeInPool[t2])) passCandidates.push(activeInPool[t2]);
     }
     if (passCandidates.length) {
       var withPct = [];
-      for (var u = 0; u < passCandidates.length; u++) {
-        if (passCandidates[u].timePct != null) withPct.push(passCandidates[u]);
+      for (var v = 0; v < passCandidates.length; v++) {
+        if (passCandidates[v].timePct != null) withPct.push(passCandidates[v]);
       }
       if (withPct.length) {
         var bt = withPct[0];
-        for (var v = 1; v < withPct.length; v++) {
-          if (cmpSlowestFirst(withPct[v], bt) < 0) bt = withPct[v];
+        for (var w = 1; w < withPct.length; w++) {
+          if (cmpSlowestFirst(withPct[w], bt) < 0) bt = withPct[w];
         }
         return { levelIndex: bt.levelIndex, reason: 'brush_pick_speed' };
       }
       var bestP = passCandidates[0];
-      for (var w = 1; w < passCandidates.length; w++) {
-        if (cmpMinWeightedP(passCandidates[w], bestP) < 0) bestP = passCandidates[w];
+      for (var x = 1; x < passCandidates.length; x++) {
+        if (cmpMinWeightedP(passCandidates[x], bestP) < 0) bestP = passCandidates[x];
       }
       return { levelIndex: bestP.levelIndex, reason: 'brush_pick_speed' };
     }
 
     var withN = [];
-    for (var x = 0; x <= maxIdx; x++) {
-      if (!poolSet[x]) continue;
-      var cell = getCell(cellsResult, x);
+    for (var y = 0; y <= maxIdx; y++) {
+      if (!poolSet[y]) continue;
+      var cell = getCell(cellsResult, y);
       if (cell.n > 0) withN.push(cell);
     }
     if (withN.length) {
       var bestN = withN[0];
-      for (var y = 1; y < withN.length; y++) {
-        if (cmpMinWeightedP(withN[y], bestN) < 0) bestN = withN[y];
+      for (var z = 1; z < withN.length; z++) {
+        if (cmpMinWeightedP(withN[z], bestN) < 0) bestN = withN[z];
       }
       return { levelIndex: bestN.levelIndex, reason: 'brush_fix_red' };
     }
@@ -790,6 +833,30 @@
         if (cmpSlowestFirst(accurateSlow[sk], slowest) < 0) slowest = accurateSlow[sk];
       }
       return { levelIndex: slowest.levelIndex, reason: 'brush_fix_slow' };
+    }
+
+    var needPolish = [];
+    for (var np = 0; np < pool.length; np++) {
+      if (
+        pool[np].p != null &&
+        pool[np].p >= TRAINING_BRUSH_PASS_ACCURACY &&
+        pool[np].tooSlow !== true &&
+        !isCellHeatMastered(pool[np])
+      ) {
+        needPolish.push(pool[np]);
+      }
+    }
+    if (needPolish.length) {
+      var bestQ = needPolish[0];
+      for (var uq = 1; uq < needPolish.length; uq++) {
+        var qa = heatMasteryScore(needPolish[uq]);
+        var qb = heatMasteryScore(bestQ);
+        if (qa < qb - 1e-9) bestQ = needPolish[uq];
+        else if (Math.abs(qa - qb) <= 1e-9 && cmpSlowestFirst(needPolish[uq], bestQ) < 0) {
+          bestQ = needPolish[uq];
+        }
+      }
+      return { levelIndex: bestQ.levelIndex, reason: 'brush_pick_mastery' };
     }
 
     var withPct = [];
@@ -1033,14 +1100,17 @@
     var code = result.pickReason || result.reason;
     if (code === 'brush_fix_red') return L.brushFixRed || '刷热图：补 pool 内加权<95%（最低）';
     if (code === 'brush_fix_slow') return L.brushFixSlow || '刷热图：补 pool 内准但过慢（≥mean+1σ）';
-    if (code === 'brush_pick_speed') return L.brushPickSpeed || '刷热图：pool 内已流畅，相对最慢';
+    if (code === 'brush_pick_mastery') {
+      return L.brushPickMastery || '刷热图：补未达熟练顶（热图短板最低）';
+    }
+    if (code === 'brush_pick_speed') return L.brushPickSpeed || '刷热图：pool 内已熟练，相对最慢';
     if (result.reason === 'frontier_stabilize_M') {
       return L.frontierStabilizeM || '当日闯关：稳梯子顶 M（加权<95%）';
     }
     if (result.reason === 'frontier_stabilize_slow') {
-      return L.frontierStabilizeSlow || '当日闯关：稳梯子顶 M（准但过慢）';
+      return L.frontierStabilizeSlow || '当日闯关：稳梯子顶 M（准但未熟练顶）';
     }
-    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已流畅）';
+    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已熟练）';
     if (result.reason === 'daily_clear') return L.dailyClear || '当日闯关全清，进刷热图 L1–L16';
     if (result.reason === 'daily_pass_all_clear') {
       return L.dailyPassAllClear || '当日线性推完，进刷热图 L1–L16';
@@ -1292,6 +1362,8 @@
     isTooSlowMeanLn: isTooSlowMeanLn,
     isCellAccurate: isCellAccurate,
     isCellFluent: isCellFluent,
+    isCellHeatMastered: isCellHeatMastered,
+    heatMasteryScore: heatMasteryScore,
     cellNeedsMasteryWork: cellNeedsMasteryWork,
     TRAINING_BRUSH_PASS_ACCURACY: TRAINING_BRUSH_PASS_ACCURACY,
     TRAINING_DAY_PASS_ACCURACY: TRAINING_DAY_PASS_ACCURACY,
