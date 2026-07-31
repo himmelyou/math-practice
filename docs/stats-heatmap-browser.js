@@ -468,7 +468,7 @@
    * - 不准：暖红橙 H≈12–40
    * - 准且 ≥mean+1σ（≈速分位84）：琥珀 H≈38–48
    * - 准且 mean～+1σ（50–84）：柠黄绿 H≈78–92
-   * - 准且快于 mean（&lt;50）：青绿 H≈140–155
+   * - 准且快于 mean（&lt;50）：草绿 H≈132–145
    */
   function heatmapCellInlineStyle(c) {
     if (!c || !c.active) return '';
@@ -504,9 +504,9 @@
       bw = 1.5 + tMid;
     } else {
       var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.35;
-      hue = 155 - 15 * tFast;
-      sat = Math.max(48, Math.min(88, 72 - 12 * tFast));
-      light = Math.max(34, Math.min(55, 40 + 10 * tFast));
+      hue = 145 - 13 * tFast;
+      sat = Math.max(72, Math.min(92, 88 - 10 * tFast));
+      light = Math.max(44, Math.min(56, 48 + 8 * tFast));
       bw = 1 + (hasTp ? (pct / 100) * 1.5 : 0);
     }
 
