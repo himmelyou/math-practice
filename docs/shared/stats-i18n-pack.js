@@ -38,7 +38,7 @@
       "stats.heat.capNote": "答對題單題耗時超過 {cap} 的記錄不納入個人/全體速度側統計（排除掛機、長時間切屏等異常偏慢）。",
       "stats.heat.legend.title": "圖例：",
       "stats.heat.legend.body":
-        "按分類聚合：四則為 survival / level / training；小數為 decimal。個人：每檔取時間上最近的 {window} 題，按 run.ts 與「今天」相差的整天數做指數權重（半衰期 {halfLife} 天）。格內準確率、答對均時為加權值（僅答對且≤1 分鐘）。窗口 n≥{minAttempts} 激活著色。色相分水嶺：準確率&lt;95% 暖紅橙；≥95% 且速分位≥約84（常模 mean+1σ）琥珀；≥95% 且分位 50–84（慢於均值但未過 +1σ）檸黃綠；≥95% 且分位&lt;50（快於均值）草绿。無常模 mean/σ 時準即視為流暢（偏草绿）。",
+        "按分類聚合：四則為 survival / level / training；小數為 decimal。個人：每檔取時間上最近的 {window} 題，按 run.ts 與「今天」相差的整天數做指數權重（半衰期 {halfLife} 天）。格內準確率、答對均時為加權值（僅答對且≤1 分鐘）。窗口 n≥{minAttempts} 激活著色。色相分水嶺：準確率&lt;95% 暖紅橙；≥95% 且速分位≥約84（常模 mean+1σ）琥珀；≥95% 且分位 50–84（慢於均值但未過 +1σ）檸黃綠中間層；≥95% 且分位&lt;50 為原熟練綠。無常模 mean/σ 時準即視為流暢（熟練綠）。",
       "stats.heat.legend.speedCap": "速度上限：",
       "stats.heat.legend.cohortSnap": "常模快照：",
       "stats.heat.legend.cohortBuilt": "生成 {built}，過期 {expires}（默認 TTL 24h，環境變量 COHORT_STATS_TTL_MS 可改）。",
@@ -112,7 +112,7 @@
         "Correct-answer times over {cap} are excluded from personal/cohort speed stats (idle/tab-away outliers).",
       "stats.heat.legend.title": "Legend:",
       "stats.heat.legend.body":
-        "By category: arithmetic = survival / level / training; decimals = decimal. Per level: latest {window} attempts, day-age exponential weights (half-life {halfLife} d). Cell accuracy & avg correct time are weighted (correct only, ≤1 min). Active when window n ≥ {minAttempts}. Hue thresholds: warm red-orange if accuracy&lt;95%; amber if ≥95% and speed pct≥~84 (cohort mean+1σ); lime if ≥95% and pct 50–84 (slower than mean but fluent); grass green if ≥95% and pct&lt;50 (faster than mean). Without cohort mean/σ, accurate counts as fluent (grass-green-leaning).",
+        "By category: arithmetic = survival / level / training; decimals = decimal. Per level: latest {window} attempts, day-age exponential weights (half-life {halfLife} d). Cell accuracy & avg correct time are weighted (correct only, ≤1 min). Active when window n ≥ {minAttempts}. Hue thresholds: warm red-orange if accuracy&lt;95%; amber if ≥95% and speed pct≥~84 (cohort mean+1σ); lime mid-band if ≥95% and pct 50–84; original soft green if ≥95% and pct&lt;50. Without cohort mean/σ, accurate counts as fluent (soft green).",
       "stats.heat.legend.speedCap": "Speed cap:",
       "stats.heat.legend.cohortSnap": "Cohort snapshot:",
       "stats.heat.legend.cohortBuilt": "Built {built}, expires {expires} (default TTL 24h; COHORT_STATS_TTL_MS).",

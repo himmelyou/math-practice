@@ -1409,11 +1409,11 @@
       light = Math.max(40, Math.min(58, 46 + 8 * tMid));
       bw = 1.5 + tMid;
     } else {
-      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.35;
-      hue = 145 - 13 * tFast;
-      sat = Math.max(72, Math.min(92, 88 - 10 * tFast));
-      light = Math.max(44, Math.min(56, 48 + 8 * tFast));
-      bw = 1 + (hasTp ? (pct / 100) * 1.5 : 0);
+      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.5;
+      hue = 108 + 8 * (1 - tFast);
+      sat = Math.max(48, Math.min(92, 72 - 18 * tFast));
+      light = Math.max(34, Math.min(62, 38 + 22 * tFast));
+      bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
     }
     return (
       'background:hsl(' +

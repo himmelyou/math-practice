@@ -467,8 +467,8 @@
    * 热图格 CSS（色相分水岭：准 95% / 速度 mean / mean+1σ）
    * - 不准：暖红橙 H≈12–40
    * - 准且 ≥mean+1σ（≈速分位84）：琥珀 H≈38–48
-   * - 准且 mean～+1σ（50–84）：柠黄绿 H≈78–92
-   * - 准且快于 mean（&lt;50）：草绿 H≈132–145
+   * - 准且 mean～+1σ（50–84）：柠黄绿 H≈78–92（中间层）
+   * - 准且快于 mean（&lt;50）：原熟练绿 H≈108–116
    */
   function heatmapCellInlineStyle(c) {
     if (!c || !c.active) return '';
@@ -503,11 +503,12 @@
       light = Math.max(40, Math.min(58, 46 + 8 * tMid));
       bw = 1.5 + tMid;
     } else {
-      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.35;
-      hue = 145 - 13 * tFast;
-      sat = Math.max(72, Math.min(92, 88 - 10 * tFast));
-      light = Math.max(44, Math.min(56, 48 + 8 * tFast));
-      bw = 1 + (hasTp ? (pct / 100) * 1.5 : 0);
+      // 原熟练绿：快于 mean，或无分位时准确即流畅
+      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.5;
+      hue = 108 + 8 * (1 - tFast);
+      sat = Math.max(48, Math.min(92, 72 - 18 * tFast));
+      light = Math.max(34, Math.min(62, 38 + 22 * tFast));
+      bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
     }
 
     return (
