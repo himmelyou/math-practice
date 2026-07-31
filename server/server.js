@@ -1077,7 +1077,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(cookieParser());
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "50mb" }));
 app.use("/avatar-assets", express.static(AVATAR_ASSET_DIR));
 app.use("/achievement-assets", express.static(ACHIEVEMENT_ASSET_DIR));
 
@@ -2996,7 +2996,7 @@ app.post("/api/admin/maintenance/dedupe-usernames", (req, res) => {
     dryRun: !!dryRun,
     written: !!result.written,
     beforeCount: result.beforeCount,
-    afterCount: dryRun ? result.beforeCount : result.afterCount,
+    afterCount: result.afterCount,
     removed: result.removed,
     skippedConflict: result.skippedConflict,
     groupsChecked: result.groupsChecked,
@@ -3232,6 +3232,53 @@ app.put("/api/admin/feedback/:id", (req, res) => {
 });
 
 // ========== 管理员：备份全部数据 ==========
+const BACKUP_SCHEMA_VERSION = 2;
+
+function packImageAssetDir(dir) {
+  const out = {};
+  if (!dir || !fs.existsSync(dir)) return out;
+  let entries = [];
+  try {
+    entries = fs.readdirSync(dir);
+  } catch (e) {
+    return out;
+  }
+  entries.forEach((name) => {
+    if (!name || name.includes("..") || name.includes("/") || name.includes("\\")) return;
+    const ext = String(name.split(".").pop() || "").toLowerCase();
+    if (!IMAGE_ASSET_EXTS.has(ext)) return;
+    try {
+      const buf = fs.readFileSync(path.join(dir, name));
+      if (buf && buf.length) out[name] = buf.toString("base64");
+    } catch (e) {
+      console.warn("[backup] skip asset", name, e.message);
+    }
+  });
+  return out;
+}
+
+function unpackImageAssetDir(dir, map) {
+  if (!map || typeof map !== "object" || Array.isArray(map)) return 0;
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  let n = 0;
+  Object.keys(map).forEach((name) => {
+    if (!name || name.includes("..") || name.includes("/") || name.includes("\\")) return;
+    const ext = String(name.split(".").pop() || "").toLowerCase();
+    if (!IMAGE_ASSET_EXTS.has(ext)) return;
+    const b64 = map[name];
+    if (typeof b64 !== "string" || !b64) return;
+    try {
+      const buf = Buffer.from(b64, "base64");
+      if (!buf.length) return;
+      fs.writeFileSync(path.join(dir, name), buf);
+      n += 1;
+    } catch (e) {
+      console.warn("[restore] skip asset", name, e.message);
+    }
+  });
+  return n;
+}
+
 app.get("/api/admin/backup", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
@@ -3242,14 +3289,39 @@ app.get("/api/admin/backup", (req, res) => {
   const i18n = readJson(I18N_FILE, defaultI18nPayload());
   const feedback = readFeedbackStore();
   const achievementsCatalog = readAchievementsCatalog();
-  const backup = { users, runs, settings, i18n, feedback, achievementsCatalog, ts: Date.now() };
+  const survivalRanking = readJson(SURVIVAL_RANKING_FILE, { list: [] });
+  const levelRanking = readJson(LEVEL_RANKING_FILE, { list: [] });
+  const primePerfectRanking = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  const avatars = readJson(AVATARS_FILE, { avatars: [] });
+  const avatarAssets = packImageAssetDir(AVATAR_ASSET_DIR);
+  const achievementAssets = packImageAssetDir(ACHIEVEMENT_ASSET_DIR);
+  const backup = {
+    schemaVersion: BACKUP_SCHEMA_VERSION,
+    appVersion: process.env.npm_package_version || null,
+    ts: Date.now(),
+    users,
+    runs,
+    settings,
+    i18n,
+    feedback,
+    achievementsCatalog,
+    survivalRanking,
+    levelRanking,
+    primePerfectRanking,
+    avatars,
+    avatarAssets,
+    achievementAssets,
+  };
   res.setHeader("Content-Type", "application/json");
-  res.setHeader("Content-Disposition", "attachment; filename=jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json");
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=jarvis-math-backup-" + new Date().toISOString().slice(0, 10) + ".json"
+  );
   res.send(JSON.stringify(backup, null, 2));
 });
 
 // ========== 管理员：恢复/导入数据 ==========
-app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
+app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
@@ -3257,36 +3329,95 @@ app.post("/api/admin/restore", express.json({ limit: "5mb" }), (req, res) => {
   if (!body || typeof body !== "object") {
     return res.json({ ok: false, error: "无效的备份格式" });
   }
+  const restored = [];
+  const notes = [];
   try {
     if (body.users) {
       const u = body.users;
-      writeJson(USERS_FILE, (u.users && Array.isArray(u.users)) ? u : { users: Array.isArray(u) ? u : [] });
+      writeJson(USERS_FILE, u.users && Array.isArray(u.users) ? u : { users: Array.isArray(u) ? u : [] });
+      restored.push("users");
     }
     if (body.runs) {
       const r = body.runs;
-      writeJson(RUNS_FILE, (r.runs && typeof r.runs === "object") ? r : { runs: typeof r === "object" ? r : {} });
+      writeJson(RUNS_FILE, r.runs && typeof r.runs === "object" ? r : { runs: typeof r === "object" ? r : {} });
+      restored.push("runs");
       try {
         if (fs.existsSync(COHORT_LEVEL_STATS_FILE)) fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
         if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
+        notes.push("已清除常模快照（请在报表刷新全体常模）");
       } catch (e2) {
-        /* 忽略：常模快照删除失败不影响恢复 */
+        /* 忽略 */
       }
     }
     if (body.settings) {
       const s = body.settings;
-      writeJson(SETTINGS_FILE, (s.levels && Array.isArray(s.levels)) ? s : { levels: Array.isArray(s) ? s : [] });
+      writeJson(SETTINGS_FILE, s.levels && Array.isArray(s.levels) ? s : { levels: Array.isArray(s) ? s : [] });
+      restored.push("settings");
     }
     if (body.i18n && typeof body.i18n === "object") {
       writeJson(I18N_FILE, normalizeI18nPayload(body.i18n));
+      restored.push("i18n");
     }
     if (body.feedback && typeof body.feedback === "object") {
       const fb = body.feedback;
       writeFeedbackStore(Array.isArray(fb.items) ? fb : { items: Array.isArray(fb) ? fb : [] });
+      restored.push("feedback");
     }
     if (body.achievementsCatalog && typeof body.achievementsCatalog === "object") {
       catalogStore.writeCatalog(body.achievementsCatalog);
+      restored.push("achievementsCatalog");
     }
-    res.json({ ok: true, msg: "数据已恢复" });
+    if (body.survivalRanking && typeof body.survivalRanking === "object") {
+      const sr = body.survivalRanking;
+      writeJson(SURVIVAL_RANKING_FILE, Array.isArray(sr.list) ? sr : { list: Array.isArray(sr) ? sr : [] });
+      restored.push("survivalRanking");
+    }
+    if (body.levelRanking && typeof body.levelRanking === "object") {
+      const lr = body.levelRanking;
+      writeJson(LEVEL_RANKING_FILE, Array.isArray(lr.list) ? lr : { list: Array.isArray(lr) ? lr : [] });
+      restored.push("levelRanking");
+    } else if (body.runs) {
+      try {
+        const stats = rebuildLevelRankingFromRuns();
+        notes.push("备份无闯关榜，已从 runs 回填（" + (stats.entries || 0) + " 人）");
+        restored.push("levelRanking(rebuilt)");
+      } catch (e) {
+        notes.push("闯关榜回填失败：" + (e.message || String(e)));
+      }
+    }
+    if (body.primePerfectRanking && typeof body.primePerfectRanking === "object") {
+      const pr = body.primePerfectRanking;
+      writeJson(PRIME_PERFECT_RANKING_FILE, Array.isArray(pr.list) ? pr : { list: Array.isArray(pr) ? pr : [] });
+      restored.push("primePerfectRanking");
+    } else if (body.runs) {
+      try {
+        const stats = rebuildPrimePerfectRankingFromRuns();
+        notes.push("备份无质数榜，已从 runs 重建（" + (stats.entries || 0) + " 人）");
+        restored.push("primePerfectRanking(rebuilt)");
+      } catch (e) {
+        notes.push("质数榜重建失败：" + (e.message || String(e)));
+      }
+    }
+    if (body.avatars && typeof body.avatars === "object") {
+      const av = body.avatars;
+      writeJson(AVATARS_FILE, Array.isArray(av.avatars) ? av : { avatars: Array.isArray(av) ? av : [] });
+      restored.push("avatars");
+    }
+    if (body.avatarAssets && typeof body.avatarAssets === "object") {
+      const n = unpackImageAssetDir(AVATAR_ASSET_DIR, body.avatarAssets);
+      restored.push("avatarAssets(" + n + ")");
+    }
+    if (body.achievementAssets && typeof body.achievementAssets === "object") {
+      const n = unpackImageAssetDir(ACHIEVEMENT_ASSET_DIR, body.achievementAssets);
+      restored.push("achievementAssets(" + n + ")");
+    }
+    res.json({
+      ok: true,
+      msg: "数据已恢复",
+      schemaVersion: body.schemaVersion || 1,
+      restored,
+      notes,
+    });
   } catch (e) {
     res.json({ ok: false, error: "恢复失败：" + (e.message || String(e)) });
   }

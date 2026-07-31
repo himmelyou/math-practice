@@ -1302,20 +1302,44 @@
     try {
       var base = apiBase();
       if (!base) throw new Error('未配置 API');
+      setStatus('正在打包备份（含图片资源，可能较慢）…', '');
       var url = base + '/api/admin/backup';
       var res = await fetch(url, { headers: { 'X-Admin-Pin': adminPin() } });
       if (!res.ok) throw new Error('备份失败：' + res.status);
       var blob = await res.blob();
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'jarvis-math-backup.json';
+      a.download = 'jarvis-math-backup-' + new Date().toISOString().slice(0, 10) + '.json';
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setStatus('已下载备份', 'ok');
+      URL.revokeObjectURL(a.href);
+      setStatus('已下载备份（约 ' + Math.max(1, Math.round(blob.size / 1024)) + ' KB）', 'ok');
     } catch (e) {
       setStatus(e.message || '备份失败', 'err');
     }
+  }
+
+  function summarizeBackupKeys(json) {
+    var keys = [];
+    if (!json || typeof json !== 'object') return keys;
+    [
+      'users',
+      'runs',
+      'settings',
+      'i18n',
+      'feedback',
+      'achievementsCatalog',
+      'survivalRanking',
+      'levelRanking',
+      'primePerfectRanking',
+      'avatars',
+      'avatarAssets',
+      'achievementAssets',
+    ].forEach(function (k) {
+      if (json[k] != null) keys.push(k);
+    });
+    return keys;
   }
 
   async function doRestore(file) {
@@ -1324,9 +1348,33 @@
       setStatus('读取备份文件中…', '');
       var text = await file.text();
       var json = JSON.parse(text);
+      var keys = summarizeBackupKeys(json);
+      if (!keys.length) {
+        setStatus('备份文件无可识别字段', 'err');
+        return;
+      }
+      var ver = json.schemaVersion != null ? String(json.schemaVersion) : '1（旧版）';
+      var msg =
+        '将覆盖线上对应数据，是否继续？\n\n'
+        + 'schema: ' + ver + '\n'
+        + '将恢复：' + keys.join(', ') + '\n\n'
+        + '建议确认这是近期备份。恢复后请刷新各 Tab；若含 runs，请再刷新全体常模。';
+      if (!confirm(msg)) {
+        setStatus('已取消恢复', '');
+        return;
+      }
       setStatus('恢复中…', '');
-      await apiFetch('/api/admin/restore', { method: 'POST', body: JSON.stringify(json) });
-      setStatus('已恢复（请刷新各 Tab）', 'ok');
+      var data = await apiFetch('/api/admin/restore', { method: 'POST', body: JSON.stringify(json) });
+      var parts = ['已恢复'];
+      if (data && Array.isArray(data.restored) && data.restored.length) {
+        parts.push('写入：' + data.restored.join(', '));
+      }
+      if (data && Array.isArray(data.notes) && data.notes.length) {
+        parts.push(data.notes.join('；'));
+      }
+      parts.push('请刷新各 Tab');
+      setStatus(parts.join('。'), 'ok');
+      loadUsers();
     } catch (e) {
       setStatus(e.message || '恢复失败', 'err');
     }
@@ -1334,47 +1382,93 @@
 
   async function dedupeUsernames() {
     try {
-      var msg =
-        '将按用户名（大小写不敏感）清理重名空壳：\n'
-        + '· 有非空账户时，删除同组空壳（无昵称且积分/进度为空）\n'
-        + '· 全是空壳则只留一条；多条都非空则跳过\n'
-        + '· 只改 users.json，不删 runs\n\n'
-        + '请确认已备份。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('清理重名空户中…', '');
+      setStatus('正在查找重名空壳…', '');
+      var preview = await apiFetch('/api/admin/maintenance/dedupe-usernames', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: true }),
+      });
+      var removed = (preview && preview.removed) || [];
+      var skipped = (preview && preview.skippedConflict) || [];
+      if (!removed.length && !skipped.length) {
+        setStatus('未发现需要清理的重名空壳', 'ok');
+        return;
+      }
+      if (!removed.length && skipped.length) {
+        setStatus(
+          '发现重名但均为非空，未自动删除：' +
+            skipped
+              .map(function (s) {
+                return (s.usernames || []).join('/');
+              })
+              .join('；'),
+          'err'
+        );
+        return;
+      }
+      var lines = [
+        '预览：将删除 ' + removed.length + ' 条空壳（不会改 runs）',
+        '学员数：' + (preview.beforeCount || '?') + ' → ' + (preview.afterCount || '?'),
+        '',
+        '将删除：',
+      ];
+      removed.forEach(function (r) {
+        lines.push(
+          '· ' +
+            (r.username || '?') +
+            '（组 ' +
+            (r.key || '') +
+            '，' +
+            (r.reason || '') +
+            '）'
+        );
+      });
+      if (skipped.length) {
+        lines.push('');
+        lines.push('跳过冲突组（多条都非空）：');
+        skipped.forEach(function (s) {
+          lines.push('· ' + (s.usernames || []).join(' / '));
+        });
+      }
+      lines.push('');
+      lines.push('确认删除以上空壳？');
+      if (!confirm(lines.join('\n'))) {
+        setStatus('已取消清理', '');
+        return;
+      }
+      setStatus('正在删除重名空壳…', '');
       var data = await apiFetch('/api/admin/maintenance/dedupe-usernames', {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify({ dryRun: false }),
       });
-      var removed = (data && data.removed) || [];
-      var skipped = (data && data.skippedConflict) || [];
+      var doneRemoved = (data && data.removed) || [];
+      var doneSkipped = (data && data.skippedConflict) || [];
       var parts = [
-        '清理完成：删除 ' + removed.length + ' 条空壳',
+        '清理完成：删除 ' + doneRemoved.length + ' 条',
         '学员 ' + (data.beforeCount || '?') + ' → ' + (data.afterCount || '?'),
       ];
-      if (removed.length) {
+      if (doneRemoved.length) {
         parts.push(
           '已删：' +
-            removed
+            doneRemoved
               .map(function (r) {
                 return r.username;
               })
               .join(', ')
         );
       }
-      if (skipped.length) {
+      if (doneSkipped.length) {
         parts.push(
-          '跳过冲突组 ' +
-            skipped.length +
+          '跳过冲突 ' +
+            doneSkipped.length +
             '：' +
-            skipped
+            doneSkipped
               .map(function (s) {
                 return (s.usernames || []).join('/');
               })
               .join('；')
         );
       }
-      setStatus(parts.join('。'), skipped.length ? 'err' : 'ok');
+      setStatus(parts.join('。'), doneSkipped.length ? 'err' : 'ok');
       loadUsers();
     } catch (e) {
       setStatus(e.message || '清理失败', 'err');

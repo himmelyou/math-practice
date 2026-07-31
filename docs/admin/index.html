@@ -238,8 +238,15 @@
           <input type="file" id="jml-restore-file" accept=".json" style="display:none;" />
         </div>
         <div class="jml-placeholder-panel">
-          <p>点击「下载全部备份」会保存当前 <code>users</code>、<code>runs</code>、设置、文案、用户反馈与成就 catalog 到本地 JSON 文件。</p>
-          <p>在执行「初始化/维护」里的数据回填前，<strong>请先在此 Tab 备份</strong>。恢复会覆盖线上数据，请谨慎操作。</p>
+          <p><strong>备份内容（schema v2）</strong></p>
+          <ul style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li><code>users</code> / <code>runs</code>（含成就解锁进度）</li>
+            <li>设置、文案、反馈、成就 catalog</li>
+            <li>生存 / 闯关 / 质数达人榜</li>
+            <li>头像 catalog + 头像/成就图片资源（base64）</li>
+          </ul>
+          <p class="muted" style="margin:0 0 8px;">不含管理口令、不含常模快照（恢复 runs 后会清常模，请在报表刷新全体常模）。旧版备份仍可导入；缺榜文件时会尝试从 runs 回填闯关/质数榜。</p>
+          <p>在执行维护操作前请先备份。恢复会覆盖对应线上数据，导入时会二次确认。</p>
         </div>
       </div>
 
@@ -276,6 +283,7 @@
             <li>有「非空」记录时，删除同组中昵称/积分/进度皆空的空壳</li>
             <li>全是空壳则只保留一条；多条都非空则跳过并提示</li>
             <li>只改 <code>users.json</code>，不删 <code>runs.json</code></li>
+            <li>会先<strong>预览</strong>将删名单，确认后再写入</li>
           </ol>
           <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。注册/创建账户已改为大小写不敏感判重。</p>
         </div>
@@ -293,7 +301,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "38";
+    window.JML_ADMIN_STATIC_REV = "39";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -316,7 +324,7 @@
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=49"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-  <script src="admin-panel.js?v=38"></script>
+    <script src="admin-panel.js?v=39"></script>
   <script src="admin-worksheet.js?v=23"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>
