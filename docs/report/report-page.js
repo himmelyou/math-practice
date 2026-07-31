@@ -1378,72 +1378,7 @@
     if (HM && typeof HM.heatmapCellInlineStyle === 'function') {
       return HM.heatmapCellInlineStyle(c) || '';
     }
-    if (!c.active) return '';
-    var p = c.p != null ? Math.max(0, Math.min(1, Number(c.p))) : 0.5;
-    var tp = c.timePct;
-    var hasTp = tp != null && Number.isFinite(Number(tp));
-    var pct = hasTp ? Math.max(0, Math.min(100, Number(tp))) : null;
-    var tooSlow = c.tooSlow === true || (pct != null && pct >= 84);
-    var G = 0.5;
-    var hue;
-    var sat;
-    var light;
-    var bw = 1;
-    if (p < 0.9 || tooSlow) {
-      if (p < 0.9) {
-        var warm = Math.max(0, Math.min(1, p / 0.9));
-        hue = 12 + 26 * warm;
-        sat = Math.min(95, 70 + 15 * (1 - warm));
-        light = Math.max(36, 48 - 8 * (1 - warm));
-        bw = 2;
-      } else {
-        var tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
-        hue = 38 - 8 * tSlow;
-        sat = Math.max(60, Math.min(90, 78 - 6 * tSlow));
-        light = Math.max(42, Math.min(56, 48 + 6 * tSlow));
-        bw = 2.5;
-      }
-    } else {
-      var a;
-      if (p < 0.95) {
-        a = ((p - 0.9) / 0.05) * G;
-      } else {
-        a = G + ((Math.min(1, p) - 0.95) / 0.05) * (1 - G);
-      }
-      var s;
-      if (pct == null) {
-        s = 1;
-      } else if (pct >= 50) {
-        s = Math.max(0, Math.min(G, ((84 - pct) / 34) * G));
-      } else {
-        s = G + ((50 - pct) / 50) * (1 - G);
-      }
-      var q = Math.min(a, s);
-      if (q <= G) {
-        var t = G > 0 ? q / G : 1;
-        hue = 48 + (78 - 48) * t;
-        sat = Math.max(50, Math.min(88, 78 - 12 * t));
-        light = Math.max(42, Math.min(58, 52 - 3 * t));
-        bw = 1.5;
-      } else {
-        var t2 = (q - G) / (1 - G);
-        hue = 78 + (116 - 78) * t2;
-        sat = Math.max(48, Math.min(92, 66 + 6 * t2));
-        light = Math.max(34, Math.min(62, 49 - 11 * t2));
-        bw = 1;
-      }
-    }
-    return (
-      'background:hsl(' +
-      Math.round(hue) +
-      ',' +
-      Math.round(sat) +
-      '%,' +
-      Math.round(light) +
-      '%);border:' +
-      bw.toFixed(1) +
-      'px solid #37474f'
-    );
+    return '';
   }
 
   function buildHeatmapCellsHtmlForCategory(heat, categoryId, levelPrefix) {

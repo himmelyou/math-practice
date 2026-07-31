@@ -463,82 +463,105 @@
     return !isCellFluent(cell);
   }
 
+  /** 热图上色阈值（二维短板） */
+  var HEAT_P_ORANGE = 0.9;
+  var HEAT_P_GATE = 0.95;
+  var HEAT_P_FLUENT = 0.98;
+  var HEAT_PCT_MEAN = 50;
+  var HEAT_PCT_PLUS1 = 84;
+  var HEAT_PCT_MINUS1 = 16;
+  var HEAT_GATE_Q = 0.5;
+  var HEAT_HSL_YELLOW = { h: 48, s: 78, l: 52 };
+  var HEAT_HSL_LIME = { h: 78, s: 66, l: 49 };
+  var HEAT_HSL_FLUENT = { h: 116, s: 72, l: 38 };
+  var HEAT_HSL_ORANGE_HOT = { h: 12, s: 85, l: 40 };
+  var HEAT_HSL_ORANGE_MILD = { h: 38, s: 70, l: 48 };
+
+  function heatLerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function heatLerpHsl(from, to, t) {
+    var u = Math.max(0, Math.min(1, t));
+    return {
+      h: heatLerp(from.h, to.h, u),
+      s: heatLerp(from.s, to.s, u),
+      l: heatLerp(from.l, to.l, u),
+    };
+  }
+
+  function heatHslToCss(hsl, borderPx) {
+    return (
+      'background:hsl(' +
+      Math.round(hsl.h) +
+      ',' +
+      Math.round(hsl.s) +
+      '%,' +
+      Math.round(hsl.l) +
+      '%);border:' +
+      Number(borderPx).toFixed(1) +
+      'px solid #37474f'
+    );
+  }
+
+  /** 准分 0–1：90%→0，95%→GATE_Q，≥98%→1（封顶） */
+  function heatAccuracyScore(p) {
+    var G = HEAT_GATE_Q;
+    if (p < HEAT_P_GATE) {
+      return ((p - HEAT_P_ORANGE) / (HEAT_P_GATE - HEAT_P_ORANGE)) * G;
+    }
+    if (p >= HEAT_P_FLUENT) return 1;
+    return G + ((p - HEAT_P_GATE) / (HEAT_P_FLUENT - HEAT_P_GATE)) * (1 - G);
+  }
+
+  /** 速分 0–1：+1σ→0，mean→GATE_Q，≤−1σ→1（封顶）；无分位不拖后腿 */
+  function heatSpeedScore(pct) {
+    var G = HEAT_GATE_Q;
+    if (pct == null || !Number.isFinite(pct)) return 1;
+    if (pct >= HEAT_PCT_MEAN) {
+      return Math.max(
+        0,
+        Math.min(G, ((HEAT_PCT_PLUS1 - pct) / (HEAT_PCT_PLUS1 - HEAT_PCT_MEAN)) * G)
+      );
+    }
+    if (pct <= HEAT_PCT_MINUS1) return 1;
+    return G + ((HEAT_PCT_MEAN - pct) / (HEAT_PCT_MEAN - HEAT_PCT_MINUS1)) * (1 - G);
+  }
+
   /**
    * 热图格 CSS：二维短板 min(准分, 速分)
-   * - 正确率&lt;90% 或 速度≥mean+1σ → 统一橙（准低更偏红）
-   * - 否则黄→柠绿门槛（95%+mean，≈L15 观感 hsl(78,66%,49%)）→ 熟练绿 hsl(116,72%,38%)
+   * - 正确率&lt;90% 或 速度≥mean+1σ → 同一橙族（越差越偏红）
+   * - 否则黄→柠绿门槛（95%+mean）→ 熟练绿（≥98% 且 ≤mean−1σ 封顶）
    */
   function heatmapCellInlineStyle(c) {
     if (!c || !c.active) return '';
     var p = c.p != null ? Math.max(0, Math.min(1, Number(c.p))) : 0.5;
     var tp = c.timePct;
-    var hasTp = tp != null && Number.isFinite(Number(tp));
-    var pct = hasTp ? Math.max(0, Math.min(100, Number(tp))) : null;
-    var tooSlow = c.tooSlow === true || (pct != null && pct >= 84);
-    var G = 0.5;
-    var hue;
-    var sat;
-    var light;
-    var bw;
+    var pct =
+      tp != null && Number.isFinite(Number(tp)) ? Math.max(0, Math.min(100, Number(tp))) : null;
+    var tooSlow = c.tooSlow === true || (pct != null && pct >= HEAT_PCT_PLUS1);
 
-    if (p < 0.9 || tooSlow) {
-      if (p < 0.9) {
-        var warm = Math.max(0, Math.min(1, p / 0.9));
-        hue = 12 + 26 * warm;
-        sat = Math.min(95, 70 + 15 * (1 - warm));
-        light = Math.max(36, 48 - 8 * (1 - warm));
-        bw = 2;
-      } else {
-        var tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
-        hue = 38 - 8 * tSlow;
-        sat = Math.max(60, Math.min(90, 78 - 6 * tSlow));
-        light = Math.max(42, Math.min(56, 48 + 6 * tSlow));
-        bw = 2.5;
-      }
-    } else {
-      var a;
-      if (p < 0.95) {
-        a = ((p - 0.9) / 0.05) * G;
-      } else {
-        a = G + ((Math.min(1, p) - 0.95) / 0.05) * (1 - G);
-      }
-      var s;
-      if (pct == null) {
-        s = 1;
-      } else if (pct >= 50) {
-        s = Math.max(0, Math.min(G, ((84 - pct) / 34) * G));
-      } else {
-        s = G + ((50 - pct) / 50) * (1 - G);
-      }
-      var q = Math.min(a, s);
-      if (q <= G) {
-        var t = G > 0 ? q / G : 1;
-        // 黄 → 柠绿门槛 hsl(78,66%,49%)
-        hue = 48 + (78 - 48) * t;
-        sat = Math.max(50, Math.min(88, 78 - 12 * t));
-        light = Math.max(42, Math.min(58, 52 - 3 * t));
-        bw = 1.5;
-      } else {
-        // 柠绿门槛 → 熟练绿终点 hsl(116,72%,38%)
-        var t2 = (q - G) / (1 - G);
-        hue = 78 + (116 - 78) * t2;
-        sat = Math.max(48, Math.min(92, 66 + 6 * t2));
-        light = Math.max(34, Math.min(62, 49 - 11 * t2));
-        bw = 1;
-      }
+    if (p < HEAT_P_ORANGE || tooSlow) {
+      var badAcc = p < HEAT_P_ORANGE ? 1 - p / HEAT_P_ORANGE : 0;
+      var badSpd =
+        tooSlow && pct != null
+          ? Math.max(0, Math.min(1, (pct - HEAT_PCT_PLUS1) / 16))
+          : tooSlow
+            ? 0.5
+            : 0;
+      var bad = Math.max(badAcc, badSpd);
+      var orange = heatLerpHsl(HEAT_HSL_ORANGE_MILD, HEAT_HSL_ORANGE_HOT, bad);
+      return heatHslToCss(orange, 2 + bad);
     }
 
-    return (
-      'background:hsl(' +
-      Math.round(hue) +
-      ',' +
-      Math.round(sat) +
-      '%,' +
-      Math.round(light) +
-      '%);border:' +
-      bw.toFixed(1) +
-      'px solid #37474f'
-    );
+    var q = Math.min(heatAccuracyScore(p), heatSpeedScore(pct));
+    var G = HEAT_GATE_Q;
+    if (q <= G) {
+      var t = G > 0 ? q / G : 1;
+      return heatHslToCss(heatLerpHsl(HEAT_HSL_YELLOW, HEAT_HSL_LIME, t), 1.5);
+    }
+    var t2 = (q - G) / (1 - G);
+    return heatHslToCss(heatLerpHsl(HEAT_HSL_LIME, HEAT_HSL_FLUENT, t2), 1);
   }
 
   var TRAINING_DAY_PASS_ACCURACY = 0.95;
