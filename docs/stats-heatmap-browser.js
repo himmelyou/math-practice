@@ -119,9 +119,44 @@
     return String(prefix || 'L') + (Number(levelIndex) + 1);
   }
 
-  /** 分位点摘要 → 近似百分位排名 0–100（值越大排名越高：ln(t) 越大越慢） */
+  /** 标准正态 CDF Φ(z)，Abramowitz & Stegun 26.2.17 */
+  function standardNormalCdf(z) {
+    var x = Number(z);
+    if (!Number.isFinite(x)) return null;
+    var t = 1 / (1 + 0.2316419 * Math.abs(x));
+    var d = 0.3989422804014327;
+    var p = d * Math.exp(-0.5 * x * x);
+    var poly =
+      t *
+      (0.31938153 +
+        t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+    var cdf = x >= 0 ? 1 - p * poly : p * poly;
+    return Math.max(0, Math.min(1, cdf));
+  }
+
+  /**
+   * ln 空间：假定人级 meanLn ~ N(mean, sd²)（原始用时 lognormal）。
+   * 返回 0–100，越大越慢；value===mean → 50；mean+1σ → ≈84。
+   */
+  function percentileFromMeanSd(value, mean, sd) {
+    if (!Number.isFinite(Number(value)) || !Number.isFinite(Number(mean))) return null;
+    var m = Number(mean);
+    var s = Number(sd);
+    if (!Number.isFinite(s) || s < 0) return null;
+    if (s < 1e-12) return 50;
+    var z = (Number(value) - m) / s;
+    var cdf = standardNormalCdf(z);
+    if (cdf == null) return null;
+    return Math.max(0, Math.min(100, cdf * 100));
+  }
+
+  /** 分位点摘要 → 百分位 0–100（优先 mean/sd 正态；否则 q10…q90 插值）。越大越慢。 */
   function percentileFromQuantileSummary(value, q) {
-    if (value == null || !q || !q.n) return null;
+    if (value == null || !q) return null;
+    var fromMeanSd = percentileFromMeanSd(Number(value), Number(q.mean), Number(q.sd));
+    if (fromMeanSd != null) return fromMeanSd;
+
+    if (!q.n) return null;
     var q10 = q.q10;
     var q25 = q.q25;
     var q50 = q.q50;
@@ -1210,6 +1245,8 @@
     TRAINING_FLOW_STORAGE_PREFIX: TRAINING_FLOW_STORAGE_PREFIX,
     TRAINING_FAILS_BEFORE_BRUSH: TRAINING_FAILS_BEFORE_BRUSH,
     percentileFromQuantileSummary: percentileFromQuantileSummary,
+    percentileFromMeanSd: percentileFromMeanSd,
+    standardNormalCdf: standardNormalCdf,
     personalWeightedByLevel: personalWeightedByLevel,
   };
 })(typeof window !== 'undefined' ? window : this);

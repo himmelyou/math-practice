@@ -18,8 +18,41 @@ function filterArithmeticRuns(runs) {
   });
 }
 
+/** 标准正态 CDF Φ(z) */
+function standardNormalCdf(z) {
+  const x = Number(z);
+  if (!Number.isFinite(x)) return null;
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const d = 0.3989422804014327;
+  const p = d * Math.exp(-0.5 * x * x);
+  const poly =
+    t *
+    (0.31938153 +
+      t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  const cdf = x >= 0 ? 1 - p * poly : p * poly;
+  return Math.max(0, Math.min(1, cdf));
+}
+
+/** ln 正态：value===mean → 50；mean+1σ → ≈84。越大越慢。 */
+function percentileFromMeanSd(value, mean, sd) {
+  if (!Number.isFinite(Number(value)) || !Number.isFinite(Number(mean))) return null;
+  const m = Number(mean);
+  const s = Number(sd);
+  if (!Number.isFinite(s) || s < 0) return null;
+  if (s < 1e-12) return 50;
+  const z = (Number(value) - m) / s;
+  const cdf = standardNormalCdf(z);
+  if (cdf == null) return null;
+  return Math.max(0, Math.min(100, cdf * 100));
+}
+
+/** 优先 mean/sd 正态分位；否则 q10…q90 插值 */
 function percentileFromQuantileSummary(value, q) {
-  if (value == null || !q || !q.n) return null;
+  if (value == null || !q) return null;
+  const fromMeanSd = percentileFromMeanSd(Number(value), Number(q.mean), Number(q.sd));
+  if (fromMeanSd != null) return fromMeanSd;
+
+  if (!q.n) return null;
   const { q10, q25, q50, q75, q90 } = q;
   if (![q10, q25, q50, q75, q90].every((x) => Number.isFinite(x))) return null;
 
@@ -235,4 +268,7 @@ module.exports = {
   personalWeightedByLevel,
   buildHeatmapCells,
   isHeatmapLevelPassed,
+  percentileFromQuantileSummary,
+  percentileFromMeanSd,
+  standardNormalCdf,
 };
