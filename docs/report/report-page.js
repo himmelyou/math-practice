@@ -1381,28 +1381,39 @@
     if (!c.active) return '';
     var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
     var tp = c.timePct;
-    var t = tp != null && Number.isFinite(tp) ? Math.max(0, Math.min(1, tp / 100)) : 0.5;
+    var hasTp = tp != null && Number.isFinite(Number(tp));
+    var pct = hasTp ? Math.max(0, Math.min(100, Number(tp))) : null;
     var hue;
     var sat;
     var light;
     var bw = 1;
     if (p < 0.95) {
       if (p < 0.9) {
-        hue = 18 + (38 - 18) * (p / 0.9);
+        hue = 12 + (28 - 12) * (p / 0.9);
       } else {
-        hue = 38 + (88 - 38) * ((p - 0.9) / 0.05);
+        hue = 28 + (40 - 28) * ((p - 0.9) / 0.05);
       }
       sat = Math.min(95, 55 + 25 * p);
       light = Math.max(36, 58 - 12 * p);
-    } else if (c.tooSlow === true) {
-      hue = 42 + 14 * (1 - t);
-      sat = Math.max(55, Math.min(90, 78 - 12 * t));
-      light = Math.max(42, Math.min(62, 48 + 12 * t));
-      bw = 2.5;
+      bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
+    } else if (c.tooSlow === true || (pct != null && pct >= 84)) {
+      var tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
+      hue = 48 - 10 * tSlow;
+      sat = Math.max(55, Math.min(90, 78 - 8 * tSlow));
+      light = Math.max(42, Math.min(58, 50 + 6 * tSlow));
+      bw = 2.5 + (hasTp ? (pct / 100) * 2 : 1);
+    } else if (pct != null && pct >= 50) {
+      var tMid = Math.max(0, Math.min(1, (pct - 50) / 34));
+      hue = 92 - 14 * tMid;
+      sat = Math.max(52, Math.min(88, 70 - 10 * tMid));
+      light = Math.max(40, Math.min(58, 46 + 8 * tMid));
+      bw = 1.5 + tMid;
     } else {
-      hue = 108 + 8 * (1 - t);
-      sat = Math.max(48, Math.min(92, 72 - 18 * t));
-      light = Math.max(34, Math.min(62, 38 + 22 * t));
+      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.35;
+      hue = 155 - 15 * tFast;
+      sat = Math.max(48, Math.min(88, 72 - 12 * tFast));
+      light = Math.max(34, Math.min(55, 40 + 10 * tFast));
+      bw = 1 + (hasTp ? (pct / 100) * 1.5 : 0);
     }
     return (
       'background:hsl(' +

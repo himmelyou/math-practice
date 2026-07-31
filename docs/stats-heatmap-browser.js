@@ -464,13 +464,18 @@
   }
 
   /**
-   * 热图格 CSS：暖色=不准；琥珀=准但过慢；绿=流畅掌握
+   * 热图格 CSS（色相分水岭：准 95% / 速度 mean / mean+1σ）
+   * - 不准：暖红橙 H≈12–40
+   * - 准且 ≥mean+1σ（≈速分位84）：琥珀 H≈38–48
+   * - 准且 mean～+1σ（50–84）：柠黄绿 H≈78–92
+   * - 准且快于 mean（&lt;50）：青绿 H≈140–155
    */
   function heatmapCellInlineStyle(c) {
     if (!c || !c.active) return '';
     var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
     var tp = c.timePct;
-    var t = tp != null && Number.isFinite(tp) ? Math.max(0, Math.min(1, tp / 100)) : 0.5;
+    var hasTp = tp != null && Number.isFinite(Number(tp));
+    var pct = hasTp ? Math.max(0, Math.min(100, Number(tp))) : null;
     var hue;
     var sat;
     var light;
@@ -478,23 +483,31 @@
 
     if (p < TRAINING_BRUSH_PASS_ACCURACY) {
       if (p < 0.9) {
-        hue = 18 + (38 - 18) * (p / 0.9);
+        hue = 12 + (28 - 12) * (p / 0.9);
       } else {
-        hue = 38 + (88 - 38) * ((p - 0.9) / 0.05);
+        hue = 28 + (40 - 28) * ((p - 0.9) / 0.05);
       }
       sat = Math.min(95, 55 + 25 * p);
       light = Math.max(36, 58 - 12 * p);
-      bw = 1 + (tp != null ? (tp / 100) * 2 : 0);
-    } else if (c.tooSlow === true) {
-      hue = 42 + 14 * (1 - t);
-      sat = Math.max(55, Math.min(90, 78 - 12 * t));
-      light = Math.max(42, Math.min(62, 48 + 12 * t));
-      bw = 2.5 + (tp != null ? (tp / 100) * 3 : 1);
+      bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
+    } else if (c.tooSlow === true || (pct != null && pct >= 84)) {
+      var tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
+      hue = 48 - 10 * tSlow;
+      sat = Math.max(55, Math.min(90, 78 - 8 * tSlow));
+      light = Math.max(42, Math.min(58, 50 + 6 * tSlow));
+      bw = 2.5 + (hasTp ? (pct / 100) * 2 : 1);
+    } else if (pct != null && pct >= 50) {
+      var tMid = Math.max(0, Math.min(1, (pct - 50) / 34));
+      hue = 92 - 14 * tMid;
+      sat = Math.max(52, Math.min(88, 70 - 10 * tMid));
+      light = Math.max(40, Math.min(58, 46 + 8 * tMid));
+      bw = 1.5 + tMid;
     } else {
-      hue = 108 + 8 * (1 - t);
-      sat = Math.max(48, Math.min(92, 72 - 18 * t));
-      light = Math.max(34, Math.min(62, 38 + 22 * t));
-      bw = 1 + (tp != null ? (tp / 100) * 2 : 0);
+      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.35;
+      hue = 155 - 15 * tFast;
+      sat = Math.max(48, Math.min(88, 72 - 12 * tFast));
+      light = Math.max(34, Math.min(55, 40 + 10 * tFast));
+      bw = 1 + (hasTp ? (pct / 100) * 1.5 : 0);
     }
 
     return (
