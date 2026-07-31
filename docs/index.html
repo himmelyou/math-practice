@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=80"></script>
+  <script src="shared/app-version.js?v=81"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4525,8 +4525,8 @@
 
   <script src="prime-composite-logic.js?v=42"></script>
   <script src="shared/player-level.js?v=1"></script>
-  <script src="shared/stats-i18n-pack.js?v=63"></script>
-  <script src="stats-heatmap-browser.js?v=59"></script>
+  <script src="shared/stats-i18n-pack.js?v=64"></script>
+  <script src="stats-heatmap-browser.js?v=60"></script>
   <script src="stats-aggregate-browser.js?v=50"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=41"></script>
@@ -11183,41 +11183,59 @@
         return HM.heatmapCellInlineStyle(c) || "";
       }
       if (!c.active) return "";
-      const p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
+      const p = c.p != null ? Math.max(0, Math.min(1, Number(c.p))) : 0.5;
       const tp = c.timePct;
       const hasTp = tp != null && Number.isFinite(Number(tp));
       const pct = hasTp ? Math.max(0, Math.min(100, Number(tp))) : null;
+      const tooSlow = c.tooSlow === true || (pct != null && pct >= 84);
+      const G = 0.5;
       let hue;
       let sat;
       let light;
       let bw = 1;
-      if (p < 0.95) {
+      if (p < 0.9 || tooSlow) {
         if (p < 0.9) {
-          hue = 12 + (28 - 12) * (p / 0.9);
+          const warm = Math.max(0, Math.min(1, p / 0.9));
+          hue = 12 + 26 * warm;
+          sat = Math.min(95, 70 + 15 * (1 - warm));
+          light = Math.max(36, 48 - 8 * (1 - warm));
+          bw = 2;
         } else {
-          hue = 28 + (40 - 28) * ((p - 0.9) / 0.05);
+          const tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
+          hue = 38 - 8 * tSlow;
+          sat = Math.max(60, Math.min(90, 78 - 6 * tSlow));
+          light = Math.max(42, Math.min(56, 48 + 6 * tSlow));
+          bw = 2.5;
         }
-        sat = Math.min(95, 55 + 25 * p);
-        light = Math.max(36, 58 - 12 * p);
-        bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
-      } else if (c.tooSlow === true || (pct != null && pct >= 84)) {
-        const tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
-        hue = 48 - 10 * tSlow;
-        sat = Math.max(55, Math.min(90, 78 - 8 * tSlow));
-        light = Math.max(42, Math.min(58, 50 + 6 * tSlow));
-        bw = 2.5 + (hasTp ? (pct / 100) * 2 : 1);
-      } else if (pct != null && pct >= 50) {
-        const tMid = Math.max(0, Math.min(1, (pct - 50) / 34));
-        hue = 92 - 14 * tMid;
-        sat = Math.max(52, Math.min(88, 70 - 10 * tMid));
-        light = Math.max(40, Math.min(58, 46 + 8 * tMid));
-        bw = 1.5 + tMid;
       } else {
-        const tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.5;
-        hue = 108 + 8 * (1 - tFast);
-        sat = Math.max(48, Math.min(92, 72 - 18 * tFast));
-        light = Math.max(34, Math.min(62, 38 + 22 * tFast));
-        bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
+        let a;
+        if (p < 0.95) {
+          a = ((p - 0.9) / 0.05) * G;
+        } else {
+          a = G + ((Math.min(1, p) - 0.95) / 0.05) * (1 - G);
+        }
+        let s;
+        if (pct == null) {
+          s = 1;
+        } else if (pct >= 50) {
+          s = Math.max(0, Math.min(G, ((84 - pct) / 34) * G));
+        } else {
+          s = G + ((50 - pct) / 50) * (1 - G);
+        }
+        const q = Math.min(a, s);
+        if (q <= G) {
+          const t = G > 0 ? q / G : 1;
+          hue = 48 + (108 - 48) * t;
+          sat = Math.max(50, Math.min(88, 78 - 24 * t));
+          light = Math.max(42, Math.min(58, 52 - 6 * t));
+          bw = 1.5;
+        } else {
+          const t2 = (q - G) / (1 - G);
+          hue = 108 + 8 * t2;
+          sat = Math.max(48, Math.min(92, 54 + 18 * t2));
+          light = Math.max(34, Math.min(62, 55 - 17 * t2));
+          bw = 1;
+        }
       }
       return (
         "background:hsl(" +

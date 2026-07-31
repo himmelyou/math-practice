@@ -464,51 +464,66 @@
   }
 
   /**
-   * 热图格 CSS（色相分水岭：准 95% / 速度 mean / mean+1σ）
-   * - 不准：暖红橙 H≈12–40
-   * - 准且 ≥mean+1σ（≈速分位84）：琥珀 H≈38–48
-   * - 准且 mean～+1σ（50–84）：柠黄绿 H≈78–92（中间层）
-   * - 准且快于 mean（&lt;50）：原熟练绿 H≈108–116
+   * 热图格 CSS：二维短板 min(准分, 速分)
+   * - 正确率&lt;90% 或 速度≥mean+1σ → 统一橙（准低更偏红）
+   * - 否则黄→基本绿→熟练绿；95% 与 mean 为「基本绿」门，终点为原熟练绿 H≈108–116
    */
   function heatmapCellInlineStyle(c) {
     if (!c || !c.active) return '';
-    var p = c.p != null ? Math.max(0, Math.min(1, c.p)) : 0.5;
+    var p = c.p != null ? Math.max(0, Math.min(1, Number(c.p))) : 0.5;
     var tp = c.timePct;
     var hasTp = tp != null && Number.isFinite(Number(tp));
     var pct = hasTp ? Math.max(0, Math.min(100, Number(tp))) : null;
+    var tooSlow = c.tooSlow === true || (pct != null && pct >= 84);
+    var G = 0.5;
     var hue;
     var sat;
     var light;
     var bw;
 
-    if (p < TRAINING_BRUSH_PASS_ACCURACY) {
+    if (p < 0.9 || tooSlow) {
       if (p < 0.9) {
-        hue = 12 + (28 - 12) * (p / 0.9);
+        var warm = Math.max(0, Math.min(1, p / 0.9));
+        hue = 12 + 26 * warm;
+        sat = Math.min(95, 70 + 15 * (1 - warm));
+        light = Math.max(36, 48 - 8 * (1 - warm));
+        bw = 2;
       } else {
-        hue = 28 + (40 - 28) * ((p - 0.9) / 0.05);
+        var tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
+        hue = 38 - 8 * tSlow;
+        sat = Math.max(60, Math.min(90, 78 - 6 * tSlow));
+        light = Math.max(42, Math.min(56, 48 + 6 * tSlow));
+        bw = 2.5;
       }
-      sat = Math.min(95, 55 + 25 * p);
-      light = Math.max(36, 58 - 12 * p);
-      bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
-    } else if (c.tooSlow === true || (pct != null && pct >= 84)) {
-      var tSlow = pct != null ? Math.max(0, Math.min(1, (pct - 84) / 16)) : 0.5;
-      hue = 48 - 10 * tSlow;
-      sat = Math.max(55, Math.min(90, 78 - 8 * tSlow));
-      light = Math.max(42, Math.min(58, 50 + 6 * tSlow));
-      bw = 2.5 + (hasTp ? (pct / 100) * 2 : 1);
-    } else if (pct != null && pct >= 50) {
-      var tMid = Math.max(0, Math.min(1, (pct - 50) / 34));
-      hue = 92 - 14 * tMid;
-      sat = Math.max(52, Math.min(88, 70 - 10 * tMid));
-      light = Math.max(40, Math.min(58, 46 + 8 * tMid));
-      bw = 1.5 + tMid;
     } else {
-      // 原熟练绿：快于 mean，或无分位时准确即流畅
-      var tFast = pct != null ? Math.max(0, Math.min(1, pct / 50)) : 0.5;
-      hue = 108 + 8 * (1 - tFast);
-      sat = Math.max(48, Math.min(92, 72 - 18 * tFast));
-      light = Math.max(34, Math.min(62, 38 + 22 * tFast));
-      bw = 1 + (hasTp ? (pct / 100) * 2 : 0);
+      var a;
+      if (p < 0.95) {
+        a = ((p - 0.9) / 0.05) * G;
+      } else {
+        a = G + ((Math.min(1, p) - 0.95) / 0.05) * (1 - G);
+      }
+      var s;
+      if (pct == null) {
+        s = 1;
+      } else if (pct >= 50) {
+        s = Math.max(0, Math.min(G, ((84 - pct) / 34) * G));
+      } else {
+        s = G + ((50 - pct) / 50) * (1 - G);
+      }
+      var q = Math.min(a, s);
+      if (q <= G) {
+        var t = G > 0 ? q / G : 1;
+        hue = 48 + (108 - 48) * t;
+        sat = Math.max(50, Math.min(88, 78 - 24 * t));
+        light = Math.max(42, Math.min(58, 52 - 6 * t));
+        bw = 1.5;
+      } else {
+        var t2 = (q - G) / (1 - G);
+        hue = 108 + 8 * t2;
+        sat = Math.max(48, Math.min(92, 54 + 18 * t2));
+        light = Math.max(34, Math.min(62, 55 - 17 * t2));
+        bw = 1;
+      }
     }
 
     return (
