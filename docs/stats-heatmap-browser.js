@@ -466,7 +466,7 @@
   /**
    * 热图格 CSS：二维短板 min(准分, 速分)
    * - 正确率&lt;90% 或 速度≥mean+1σ → 统一橙（准低更偏红）
-   * - 否则黄→基本绿→熟练绿；95% 与 mean 为「基本绿」门，终点为原熟练绿 H≈108–116
+   * - 否则黄→柠绿门槛（95%+mean，≈L15 观感 hsl(78,66%,49%)）→ 熟练绿 hsl(116,72%,38%)
    */
   function heatmapCellInlineStyle(c) {
     if (!c || !c.active) return '';
@@ -513,16 +513,17 @@
       var q = Math.min(a, s);
       if (q <= G) {
         var t = G > 0 ? q / G : 1;
-        hue = 48 + (108 - 48) * t;
-        sat = Math.max(50, Math.min(88, 78 - 24 * t));
-        light = Math.max(42, Math.min(58, 52 - 6 * t));
+        // 黄 → 柠绿门槛 hsl(78,66%,49%)
+        hue = 48 + (78 - 48) * t;
+        sat = Math.max(50, Math.min(88, 78 - 12 * t));
+        light = Math.max(42, Math.min(58, 52 - 3 * t));
         bw = 1.5;
       } else {
-        // 与门槛绿连续：hsl(108,54%,46%) → 熟练绿终点 hsl(116,72%,38%)
+        // 柠绿门槛 → 熟练绿终点 hsl(116,72%,38%)
         var t2 = (q - G) / (1 - G);
-        hue = 108 + 8 * t2;
-        sat = Math.max(48, Math.min(92, 54 + 18 * t2));
-        light = Math.max(34, Math.min(62, 46 - 8 * t2));
+        hue = 78 + (116 - 78) * t2;
+        sat = Math.max(48, Math.min(92, 66 + 6 * t2));
+        light = Math.max(34, Math.min(62, 49 - 11 * t2));
         bw = 1;
       }
     }

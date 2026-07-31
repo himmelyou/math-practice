@@ -1421,15 +1421,15 @@
       var q = Math.min(a, s);
       if (q <= G) {
         var t = G > 0 ? q / G : 1;
-        hue = 48 + (108 - 48) * t;
-        sat = Math.max(50, Math.min(88, 78 - 24 * t));
-        light = Math.max(42, Math.min(58, 52 - 6 * t));
+        hue = 48 + (78 - 48) * t;
+        sat = Math.max(50, Math.min(88, 78 - 12 * t));
+        light = Math.max(42, Math.min(58, 52 - 3 * t));
         bw = 1.5;
       } else {
         var t2 = (q - G) / (1 - G);
-        hue = 108 + 8 * t2;
-        sat = Math.max(48, Math.min(92, 54 + 18 * t2));
-        light = Math.max(34, Math.min(62, 46 - 8 * t2));
+        hue = 78 + (116 - 78) * t2;
+        sat = Math.max(48, Math.min(92, 66 + 6 * t2));
+        light = Math.max(34, Math.min(62, 49 - 11 * t2));
         bw = 1;
       }
     }
