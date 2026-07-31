@@ -18,6 +18,7 @@ const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
 const { buildStudentOverviewRows } = require("./student-overview");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
+const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const {
   REGISTERED_RULE_TYPES,
@@ -1486,7 +1487,7 @@ app.post("/api/register", async (req, res) => {
     return res.json({ ok: false, error: "密码至少 6 位" });
   }
   const data = readJson(USERS_FILE, { users: [] });
-  if (data.users.some((u) => u.username === name)) {
+  if (dedupeUsernames.usernameTakenCaseInsensitive(data.users, name)) {
     return res.json({ ok: false, error: "该用户名已存在" });
   }
   const passwordHash = await bcrypt.hash(pwd, BCRYPT_ROUNDS);
@@ -2386,7 +2387,7 @@ app.post("/api/admin/users", async (req, res) => {
     return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线" });
   }
   const data = readJson(USERS_FILE, { users: [] });
-  if (data.users.some((u) => u.username === name)) {
+  if (dedupeUsernames.usernameTakenCaseInsensitive(data.users, name)) {
     return res.json({ ok: false, error: "该用户名已存在" });
   }
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -2970,6 +2971,35 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
       servedFromCache: false,
       rebuilt: true,
     },
+  });
+});
+
+/** TEMP：清理 users.json 中重名空壳（大小写不敏感分组）；不碰 runs */
+app.post("/api/admin/maintenance/dedupe-usernames", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const dryRun = body.dryRun === true;
+  const data = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(data.users) ? data.users : [];
+  const result = dedupeUsernames.dedupeUsernameUsers(users);
+  if (!dryRun && result.removed.length > 0) {
+    data.users = result.users;
+    writeJson(USERS_FILE, data);
+    result.written = true;
+  } else {
+    result.written = false;
+  }
+  return res.json({
+    ok: true,
+    dryRun: !!dryRun,
+    written: !!result.written,
+    beforeCount: result.beforeCount,
+    afterCount: dryRun ? result.beforeCount : result.afterCount,
+    removed: result.removed,
+    skippedConflict: result.skippedConflict,
+    groupsChecked: result.groupsChecked,
   });
 });
 

@@ -1332,6 +1332,55 @@
     }
   }
 
+  async function dedupeUsernames() {
+    try {
+      var msg =
+        '将按用户名（大小写不敏感）清理重名空壳：\n'
+        + '· 有非空账户时，删除同组空壳（无昵称且积分/进度为空）\n'
+        + '· 全是空壳则只留一条；多条都非空则跳过\n'
+        + '· 只改 users.json，不删 runs\n\n'
+        + '请确认已备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('清理重名空户中…', '');
+      var data = await apiFetch('/api/admin/maintenance/dedupe-usernames', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      var removed = (data && data.removed) || [];
+      var skipped = (data && data.skippedConflict) || [];
+      var parts = [
+        '清理完成：删除 ' + removed.length + ' 条空壳',
+        '学员 ' + (data.beforeCount || '?') + ' → ' + (data.afterCount || '?'),
+      ];
+      if (removed.length) {
+        parts.push(
+          '已删：' +
+            removed
+              .map(function (r) {
+                return r.username;
+              })
+              .join(', ')
+        );
+      }
+      if (skipped.length) {
+        parts.push(
+          '跳过冲突组 ' +
+            skipped.length +
+            '：' +
+            skipped
+              .map(function (s) {
+                return (s.usernames || []).join('/');
+              })
+              .join('；')
+        );
+      }
+      setStatus(parts.join('。'), skipped.length ? 'err' : 'ok');
+      loadUsers();
+    } catch (e) {
+      setStatus(e.message || '清理失败', 'err');
+    }
+  }
+
   async function backfillLevelRanking() {
     try {
       var msg = '将从 runs.json 扫描闯关全通（mode=level, cleared=true）记录，'
@@ -1513,6 +1562,10 @@
     if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
     var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
     if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
+    var dedupeBtn = document.getElementById('jml-btn-dedupe-usernames');
+    if (dedupeBtn) dedupeBtn.addEventListener('click', dedupeUsernames);
+    var dedupeMaintBtn = document.getElementById('jml-btn-dedupe-usernames-maint');
+    if (dedupeMaintBtn) dedupeMaintBtn.addEventListener('click', dedupeUsernames);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');

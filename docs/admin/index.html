@@ -61,6 +61,7 @@
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-create-user" class="jml-btn jml-btn-primary">创建账户</button>
           <button type="button" id="jml-btn-refresh-users" class="jml-btn">刷新列表</button>
+          <button type="button" id="jml-btn-dedupe-usernames" class="jml-btn jml-btn-danger" title="临时：删除重名里的空壳账户（大小写不敏感）">清理重名空户</button>
         </div>
         <div class="jml-table-wrap">
           <table class="jml-user-table">
@@ -246,6 +247,7 @@
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
           <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn jml-btn-primary">重建质数达人榜</button>
+          <button type="button" id="jml-btn-dedupe-usernames-maint" class="jml-btn jml-btn-danger">清理重名空户</button>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>闯关达人榜（level-ranking.json）</strong></p>
@@ -267,6 +269,16 @@
           </ol>
           <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
         </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>清理重名空户（临时）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>按用户名<strong>大小写不敏感</strong>分组，找出重名</li>
+            <li>有「非空」记录时，删除同组中昵称/积分/进度皆空的空壳</li>
+            <li>全是空壳则只保留一条；多条都非空则跳过并提示</li>
+            <li>只改 <code>users.json</code>，不删 <code>runs.json</code></li>
+          </ol>
+          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。注册/创建账户已改为大小写不敏感判重。</p>
+        </div>
       </div>
     </div>
   </div>
@@ -281,7 +293,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "37";
+    window.JML_ADMIN_STATIC_REV = "38";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -304,7 +316,7 @@
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=49"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-  <script src="admin-panel.js?v=37"></script>
+  <script src="admin-panel.js?v=38"></script>
   <script src="admin-worksheet.js?v=23"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>
