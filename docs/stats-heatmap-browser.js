@@ -518,10 +518,11 @@
         light = Math.max(42, Math.min(58, 52 - 6 * t));
         bw = 1.5;
       } else {
+        // 与门槛绿连续：hsl(108,54%,46%) → 熟练绿终点 hsl(116,72%,38%)
         var t2 = (q - G) / (1 - G);
         hue = 108 + 8 * t2;
         sat = Math.max(48, Math.min(92, 54 + 18 * t2));
-        light = Math.max(34, Math.min(62, 55 - 17 * t2));
+        light = Math.max(34, Math.min(62, 46 - 8 * t2));
         bw = 1;
       }
     }

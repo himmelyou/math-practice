@@ -1429,7 +1429,7 @@
         var t2 = (q - G) / (1 - G);
         hue = 108 + 8 * t2;
         sat = Math.max(48, Math.min(92, 54 + 18 * t2));
-        light = Math.max(34, Math.min(62, 55 - 17 * t2));
+        light = Math.max(34, Math.min(62, 46 - 8 * t2));
         bw = 1;
       }
     }
