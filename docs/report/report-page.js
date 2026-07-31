@@ -186,9 +186,13 @@
 
   function getReportTrainingReasonLabels() {
     return {
+      brushFixOrangeAcc: rt('stats.training.reason.brushFixOrangeAcc'),
+      brushFixOrangeSlow: rt('stats.training.reason.brushFixOrangeSlow'),
+      brushFixYellow: rt('stats.training.reason.brushFixYellow'),
       brushFixRed: rt('stats.training.reason.brushFixRed'),
       brushFixSlow: rt('stats.training.reason.brushFixSlow'),
       brushPickSpeed: rt('stats.training.reason.brushPickSpeed'),
+      brushPickMastery: rt('stats.training.reason.brushPickMastery'),
       frontierStabilizeM: rt('stats.training.reason.frontierStabilizeM'),
       frontierStabilizeSlow: rt('stats.training.reason.frontierStabilizeSlow'),
       frontierOpenM1: rt('stats.training.reason.frontierOpenM1'),

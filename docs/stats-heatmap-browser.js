@@ -664,9 +664,35 @@
   }
 
   /**
-   * 刷热图 pool 内选关：①加权&lt;95% 最低 → ②准但过慢（最慢）→ ③未达熟练顶（热图 q 最低）→ ④已封顶则相对最慢。
+   * 刷热图 pool 内选关（与热图色带对齐）：
+   * ①橙区（p&lt;90% 或 ≥mean+1σ）最差 → ②黄区（90%≤p&lt;95% 且未过慢）最低准 →
+   * ③未达熟练顶 q 最低 → ④已封顶则相对最慢。
    * @returns {{ levelIndex: number, reason: string }|null}
    */
+  function isHeatOrangeCell(c) {
+    if (!c || c.p == null || !Number.isFinite(Number(c.p))) return false;
+    var p = Number(c.p);
+    var pct =
+      c.timePct != null && Number.isFinite(Number(c.timePct)) ? Number(c.timePct) : null;
+    var tooSlow = c.tooSlow === true || (pct != null && pct >= HEAT_PCT_PLUS1);
+    return p < HEAT_P_ORANGE || tooSlow;
+  }
+
+  function heatOrangeBadness(c) {
+    var p = Math.max(0, Math.min(1, Number(c.p)));
+    var pct =
+      c.timePct != null && Number.isFinite(Number(c.timePct)) ? Number(c.timePct) : null;
+    var tooSlow = c.tooSlow === true || (pct != null && pct >= HEAT_PCT_PLUS1);
+    var badAcc = p < HEAT_P_ORANGE ? 1 - p / HEAT_P_ORANGE : 0;
+    var badSpd =
+      tooSlow && pct != null
+        ? Math.max(0, Math.min(1, (pct - HEAT_PCT_PLUS1) / 16))
+        : tooSlow
+          ? 0.5
+          : 0;
+    return Math.max(badAcc, badSpd);
+  }
+
   function recommendTrainingBrushInPool(cellsResult, brushPoolMax) {
     var maxIdx = clampLevel(brushPoolMax);
     if (maxIdx < 0) maxIdx = 0;
@@ -681,31 +707,44 @@
       if (c.active && poolSet[c.levelIndex]) activeInPool.push(c);
     }
 
-    var belowPass = [];
-    for (var b = 0; b < activeInPool.length; b++) {
-      var p = activeInPool[b].p;
-      if (p != null && p < TRAINING_BRUSH_PASS_ACCURACY) belowPass.push(activeInPool[b]);
+    var orange = [];
+    for (var o = 0; o < activeInPool.length; o++) {
+      if (isHeatOrangeCell(activeInPool[o])) orange.push(activeInPool[o]);
     }
-    if (belowPass.length) {
-      var bestBelow = belowPass[0];
-      for (var k = 1; k < belowPass.length; k++) {
-        if (cmpMinWeightedP(belowPass[k], bestBelow) < 0) bestBelow = belowPass[k];
+    if (orange.length) {
+      var worstOrange = orange[0];
+      for (var ok = 1; ok < orange.length; ok++) {
+        var bo = heatOrangeBadness(orange[ok]);
+        var bw = heatOrangeBadness(worstOrange);
+        if (bo > bw + 1e-9) worstOrange = orange[ok];
+        else if (Math.abs(bo - bw) <= 1e-9 && cmpSlowestFirst(orange[ok], worstOrange) < 0) {
+          worstOrange = orange[ok];
+        }
       }
-      return { levelIndex: bestBelow.levelIndex, reason: 'brush_fix_red' };
+      return {
+        levelIndex: worstOrange.levelIndex,
+        reason:
+          worstOrange.p != null && Number(worstOrange.p) < HEAT_P_ORANGE
+            ? 'brush_fix_orange_acc'
+            : 'brush_fix_orange_slow',
+      };
     }
 
-    var accurateSlow = [];
-    for (var s = 0; s < activeInPool.length; s++) {
-      if (isCellAccurate(activeInPool[s]) && activeInPool[s].tooSlow === true) {
-        accurateSlow.push(activeInPool[s]);
+    var yellow = [];
+    for (var y = 0; y < activeInPool.length; y++) {
+      var cy = activeInPool[y];
+      var py = cy.p;
+      if (py == null || !Number.isFinite(py)) continue;
+      if (py >= HEAT_P_ORANGE && py < TRAINING_BRUSH_PASS_ACCURACY && !isHeatOrangeCell(cy)) {
+        yellow.push(cy);
       }
     }
-    if (accurateSlow.length) {
-      var slowest = accurateSlow[0];
-      for (var sk = 1; sk < accurateSlow.length; sk++) {
-        if (cmpSlowestFirst(accurateSlow[sk], slowest) < 0) slowest = accurateSlow[sk];
+    if (yellow.length) {
+      var bestYellow = yellow[0];
+      for (var yk = 1; yk < yellow.length; yk++) {
+        if (cmpMinWeightedP(yellow[yk], bestYellow) < 0) bestYellow = yellow[yk];
       }
-      return { levelIndex: slowest.levelIndex, reason: 'brush_fix_slow' };
+      return { levelIndex: bestYellow.levelIndex, reason: 'brush_fix_yellow' };
     }
 
     var needPolish = [];
@@ -751,9 +790,9 @@
     }
 
     var withN = [];
-    for (var y = 0; y <= maxIdx; y++) {
-      if (!poolSet[y]) continue;
-      var cell = getCell(cellsResult, y);
+    for (var n = 0; n <= maxIdx; n++) {
+      if (!poolSet[n]) continue;
+      var cell = getCell(cellsResult, n);
       if (cell.n > 0) withN.push(cell);
     }
     if (withN.length) {
@@ -761,7 +800,7 @@
       for (var z = 1; z < withN.length; z++) {
         if (cmpMinWeightedP(withN[z], bestN) < 0) bestN = withN[z];
       }
-      return { levelIndex: bestN.levelIndex, reason: 'brush_fix_red' };
+      return { levelIndex: bestN.levelIndex, reason: 'brush_fix_yellow' };
     }
 
     return { levelIndex: maxIdx, reason: 'brush_pick_speed' };
@@ -769,8 +808,7 @@
 
   /**
    * 小数等：在已解锁 pool 内选关（不要求 active）。
-   * 优先级：无 p（已解锁未练）→ p&lt;95% 最低 → ≥95% 中速度分位最慢。
-   * 多个无 p 时取 levelIndex 最小（先补洞）。
+   * 优先级：无 p（补洞）→ 橙区最差 → 黄区最低准 → 未达熟练顶 → 相对最慢。
    * @returns {{ levelIndex: number, reason: string }|null}
    */
   function recommendUnlockedWeightedBrush(cellsResult, poolMax) {
@@ -801,44 +839,49 @@
       return { levelIndex: gap.levelIndex, reason: 'brush_fill_gap' };
     }
 
-    var belowPass = [];
-    for (var b = 0; b < pool.length; b++) {
-      if (pool[b].p < TRAINING_BRUSH_PASS_ACCURACY) belowPass.push(pool[b]);
+    var orange = [];
+    for (var o = 0; o < pool.length; o++) {
+      if (isHeatOrangeCell(pool[o])) orange.push(pool[o]);
     }
-    if (belowPass.length) {
-      var bestBelow = belowPass[0];
-      for (var k = 1; k < belowPass.length; k++) {
-        if (cmpMinWeightedP(belowPass[k], bestBelow) < 0) bestBelow = belowPass[k];
+    if (orange.length) {
+      var worstOrange = orange[0];
+      for (var ok = 1; ok < orange.length; ok++) {
+        var bo = heatOrangeBadness(orange[ok]);
+        var bw = heatOrangeBadness(worstOrange);
+        if (bo > bw + 1e-9) worstOrange = orange[ok];
+        else if (Math.abs(bo - bw) <= 1e-9 && cmpSlowestFirst(orange[ok], worstOrange) < 0) {
+          worstOrange = orange[ok];
+        }
       }
-      return { levelIndex: bestBelow.levelIndex, reason: 'brush_fix_red' };
+      return {
+        levelIndex: worstOrange.levelIndex,
+        reason:
+          worstOrange.p != null && Number(worstOrange.p) < HEAT_P_ORANGE
+            ? 'brush_fix_orange_acc'
+            : 'brush_fix_orange_slow',
+      };
     }
 
-    var accurateSlow = [];
-    for (var s = 0; s < pool.length; s++) {
-      if (
-        pool[s].p != null &&
-        pool[s].p >= TRAINING_BRUSH_PASS_ACCURACY &&
-        pool[s].tooSlow === true
-      ) {
-        accurateSlow.push(pool[s]);
+    var yellow = [];
+    for (var y = 0; y < pool.length; y++) {
+      var cy = pool[y];
+      var py = cy.p;
+      if (py == null || !Number.isFinite(py)) continue;
+      if (py >= HEAT_P_ORANGE && py < TRAINING_BRUSH_PASS_ACCURACY && !isHeatOrangeCell(cy)) {
+        yellow.push(cy);
       }
     }
-    if (accurateSlow.length) {
-      var slowest = accurateSlow[0];
-      for (var sk = 1; sk < accurateSlow.length; sk++) {
-        if (cmpSlowestFirst(accurateSlow[sk], slowest) < 0) slowest = accurateSlow[sk];
+    if (yellow.length) {
+      var bestYellow = yellow[0];
+      for (var yk = 1; yk < yellow.length; yk++) {
+        if (cmpMinWeightedP(yellow[yk], bestYellow) < 0) bestYellow = yellow[yk];
       }
-      return { levelIndex: slowest.levelIndex, reason: 'brush_fix_slow' };
+      return { levelIndex: bestYellow.levelIndex, reason: 'brush_fix_yellow' };
     }
 
     var needPolish = [];
     for (var np = 0; np < pool.length; np++) {
-      if (
-        pool[np].p != null &&
-        pool[np].p >= TRAINING_BRUSH_PASS_ACCURACY &&
-        pool[np].tooSlow !== true &&
-        !isCellHeatMastered(pool[np])
-      ) {
+      if (isCellFluent(pool[np]) && !isCellHeatMastered(pool[np])) {
         needPolish.push(pool[np]);
       }
     }
@@ -1094,6 +1137,15 @@
     if (!result) return '';
     var L = labels || {};
     var code = result.pickReason || result.reason;
+    if (code === 'brush_fix_orange_acc') {
+      return L.brushFixOrangeAcc || '刷热图：补橙区（准<90%，最差）';
+    }
+    if (code === 'brush_fix_orange_slow') {
+      return L.brushFixOrangeSlow || '刷热图：补橙区（过慢≥mean+1σ，最差）';
+    }
+    if (code === 'brush_fix_yellow') {
+      return L.brushFixYellow || '刷热图：补黄区（90%≤准<95%，最低）';
+    }
     if (code === 'brush_fix_red') return L.brushFixRed || '刷热图：补 pool 内加权<95%（最低）';
     if (code === 'brush_fix_slow') return L.brushFixSlow || '刷热图：补 pool 内准但过慢（≥mean+1σ）';
     if (code === 'brush_pick_mastery') {
