@@ -207,25 +207,7 @@ function buildHeatmapCells(opts) {
       return meanLn >= mean + 1 * sd;
     })();
     const accurate = !!(active && p != null && Number.isFinite(p) && p >= 0.95);
-    // 与浏览器热图熟练顶对齐：≥98% 且分位≤16；无分位时准确且未过慢即熟练
-    let fluent = false;
-    if (accurate && tooSlow !== true) {
-      if (timePct == null || !Number.isFinite(Number(timePct))) {
-        fluent = true;
-      } else {
-        const pct = Math.max(0, Math.min(100, Number(timePct)));
-        const pClamped = Math.max(0, Math.min(1, Number(p)));
-        let a;
-        if (pClamped < 0.95) a = ((pClamped - 0.9) / 0.05) * 0.5;
-        else if (pClamped >= 0.98) a = 1;
-        else a = 0.5 + ((pClamped - 0.95) / 0.03) * 0.5;
-        let s;
-        if (pct >= 50) s = Math.max(0, Math.min(0.5, ((84 - pct) / 34) * 0.5));
-        else if (pct <= 16) s = 1;
-        else s = 0.5 + ((50 - pct) / 34) * 0.5;
-        fluent = Math.min(a, s) >= 1 - 1e-9;
-      }
-    }
+    const fluent = accurate && tooSlow !== true;
 
     let avgSecText = "-";
     if (meanLn != null && Number.isFinite(meanLn)) {

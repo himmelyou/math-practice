@@ -338,12 +338,8 @@
       var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
       var tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
       var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
-      // 熟练顶与热图短板一致：≥98% 且速分位≤mean−1σ（无常模分位时准确且未过慢即视为熟练）
-      var fluent = false;
-      if (accurate && tooSlow !== true) {
-        if (timePct == null) fluent = true;
-        else fluent = heatMasteryScore({ p: p, timePct: timePct, tooSlow: tooSlow }) >= 1 - 1e-9;
-      }
+      // 无常模 mean/σ 时 tooSlow=null，准确即视为流畅（开顶口径；刷热图熟练顶另见 isCellHeatMastered）
+      var fluent = accurate && tooSlow !== true;
 
       var avgSecText = '-';
       if (meanLn != null && Number.isFinite(meanLn)) {
@@ -476,15 +472,15 @@
     return Math.min(heatAccuracyScore(p), heatSpeedScore(pct));
   }
 
-  /** 达热图熟练顶：q≈1（≥98% 且速分位≤mean−1σ） */
+  /** 达热图熟练顶：q≈1（≥98% 且速分位≤mean−1σ）；仅刷热图补洞用 */
   function isCellHeatMastered(cell) {
     return heatMasteryScore(cell) >= 1 - 1e-9;
   }
 
-  /** 已激活但未达熟练顶（与热图颜色短板对齐） */
+  /** 已激活但未流畅（不准，或准但过慢）——开顶/稳梯子用此旧口径 */
   function cellNeedsMasteryWork(cell) {
     if (!cell || !cell.active) return false;
-    return !isCellHeatMastered(cell);
+    return !isCellFluent(cell);
   }
 
   /** 热图上色阈值（二维短板） */
@@ -627,7 +623,7 @@
     return M;
   }
 
-  /** 当日闯关起始关：稳 M（未达熟练顶）或开 M+1；顶已熟练且无下一关则刷热图 */
+  /** 当日闯关起始关：稳 M（未流畅）或开 M+1；顶已流畅且无下一关则刷热图 */
   function computeDailyFrontierStart(cellsResult) {
     var M = computeActiveLadderTopM(cellsResult);
     if (M < 0) {
@@ -1108,9 +1104,9 @@
       return L.frontierStabilizeM || '当日闯关：稳梯子顶 M（加权<95%）';
     }
     if (result.reason === 'frontier_stabilize_slow') {
-      return L.frontierStabilizeSlow || '当日闯关：稳梯子顶 M（准但未熟练顶）';
+      return L.frontierStabilizeSlow || '当日闯关：稳梯子顶 M（准但过慢）';
     }
-    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已熟练）';
+    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已流畅）';
     if (result.reason === 'daily_clear') return L.dailyClear || '当日闯关全清，进刷热图 L1–L16';
     if (result.reason === 'daily_pass_all_clear') {
       return L.dailyPassAllClear || '当日线性推完，进刷热图 L1–L16';
