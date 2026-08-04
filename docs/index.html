@@ -546,6 +546,11 @@
       cursor: pointer;
       flex: 0 0 auto;
     }
+    .avatar-wrap:disabled,
+    .nickname-edit:disabled {
+      cursor: default;
+      opacity: 0.72;
+    }
     .avatar {
       width: 48px;
       height: 48px;
@@ -5530,6 +5535,7 @@
         if (settingsWrap) settingsWrap.style.display = "";
         syncHomeSettingsAuthItems();
         syncGuestTopActionButton();
+        updateGlobalBackButtonState();
         return;
       }
       if (globalBackBtn) globalBackBtn.style.display = "";
@@ -5542,11 +5548,25 @@
       return !!(playing && playing.style.display !== "none");
     }
 
+    /** 对局进行中（与顶栏「放弃本局」同一判定） */
+    function isRunInProgress() {
+      return (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow() || isDecimalPlayingNow();
+    }
+
+    /** 对局中锁住头像/改昵称，避免误开资料页后回不去 */
+    function syncProfileEditLockedDuringRun() {
+      const locked = isRunInProgress();
+      const homeAvatarBtn = document.getElementById("home-avatar-btn");
+      const changeNickBtn = document.getElementById("change-nickname-btn");
+      if (homeAvatarBtn) homeAvatarBtn.disabled = locked;
+      if (changeNickBtn) changeNickBtn.disabled = locked;
+    }
+
     function updateGlobalBackButtonState() {
       const globalBackBtn = document.getElementById("global-back-home-btn");
-      if (!globalBackBtn) return;
-      const inProgress = (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow() || isDecimalPlayingNow();
-      globalBackBtn.textContent = inProgress ? t("game.btn.abandon") : t("home.btn.backHome");
+      const inProgress = isRunInProgress();
+      if (globalBackBtn) globalBackBtn.textContent = inProgress ? t("game.btn.abandon") : t("home.btn.backHome");
+      syncProfileEditLockedDuringRun();
     }
 
     /** 训练/生存/闯关放弃仍写入 attempts（进热图）；拓展模式多为 comboOnly，仅丢分 */
@@ -13116,7 +13136,7 @@
     }
 
     function showNicknameModal() {
-      if (isGuestMode) return;
+      if (isGuestMode || isRunInProgress()) return;
       const overlay = document.getElementById("change-nickname-modal-overlay");
       if (overlay) {
         const input = document.getElementById("change-nickname-input");
@@ -13270,7 +13290,7 @@
 
       const homeAvatarBtn = document.getElementById("home-avatar-btn");
       if (homeAvatarBtn) homeAvatarBtn.addEventListener("click", async () => {
-        if (isGuestMode) return;
+        if (isGuestMode || isRunInProgress()) return;
         await ensureAvatarCatalogLoaded();
         updateHomeAvatar();
         showAvatarPicker();
