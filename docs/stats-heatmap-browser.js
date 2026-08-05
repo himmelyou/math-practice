@@ -1026,6 +1026,18 @@
       if (next >= LEVEL_COUNT) {
         return makeBrushPickResult(cellsResult, LEVEL_COUNT - 1, true, 'daily_pass_all_clear');
       }
+      // 单局达标不足以开全新关：须本关热图已流畅（与稳梯子顶同一口径）
+      var cellPassed = getCell(cellsResult, lr.levelIndex);
+      if (!isCellFluent(cellPassed)) {
+        return {
+          mode: 'daily',
+          levelIndex: lr.levelIndex,
+          reason: 'daily_pass_stay_not_fluent',
+          enterBrush: false,
+          brushMode: false,
+          brushPoolMax: null,
+        };
+      }
       return {
         mode: 'daily',
         levelIndex: next,
@@ -1102,13 +1114,14 @@
           reason: 'daily_pass_all_clear',
         };
       }
+      // 是否开下一关取决于热图流畅；同步占位先停本关，等 heat 后再定
       return {
         mode: 'daily',
-        levelIndex: next,
+        levelIndex: lr.levelIndex,
         brushMode: false,
         brushPoolMax: null,
-        needsHeatmap: false,
-        reason: 'daily_pass_next',
+        needsHeatmap: true,
+        reason: 'daily_pass_needs_heat',
       };
     }
     if (lr.failCount >= TRAINING_FAILS_BEFORE_BRUSH) {
@@ -1169,7 +1182,15 @@
     if (result.reason === 'alt_after_daily') {
       return L.altAfterDaily || '隔轨：上一完成局为推进，本局刷热图';
     }
-    if (result.reason === 'daily_pass_next') return L.dailyPassNext || '当日闯关：上局达标，下一关';
+    if (result.reason === 'daily_pass_next') {
+      return L.dailyPassNext || '当日闯关：上局达标且本关已流畅，下一关';
+    }
+    if (result.reason === 'daily_pass_stay_not_fluent') {
+      return L.dailyPassStayNotFluent || '当日闯关：上局达标但热图未流畅，继续本关';
+    }
+    if (result.reason === 'daily_pass_needs_heat') {
+      return L.dailyPassNeedsHeat || '当日闯关：上局达标，待热图判定是否开下一关';
+    }
     if (result.reason === 'retry_same') return L.retrySame || '当日闯关：本关继续（未达单局95%）';
     if (result.reason === 'scan_below') return L.scanBelow || '当日闯关：第一个加权准确率<95%';
     if (result.reason === 'open_new') return L.openNew || '当日闯关：开新关（题数<10）';

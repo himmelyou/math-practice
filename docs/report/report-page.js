@@ -203,6 +203,8 @@
       dailyFailEnterBrush: rt('stats.training.reason.dailyFailEnterBrush'),
       altAfterDaily: rt('stats.training.reason.altAfterDaily'),
       dailyPassNext: rt('stats.training.reason.dailyPassNext'),
+      dailyPassStayNotFluent: rt('stats.training.reason.dailyPassStayNotFluent'),
+      dailyPassNeedsHeat: rt('stats.training.reason.dailyPassNeedsHeat'),
       brush: rt('stats.training.reason.brush'),
       scanBelow: rt('stats.training.reason.scanBelow'),
       openNew: rt('stats.training.reason.openNew'),
