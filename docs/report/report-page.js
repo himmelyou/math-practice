@@ -114,6 +114,8 @@
     overviewBuiltAt: 0,
     overviewSortKey: 'daysOffline',
     overviewSortDir: 'desc',
+    /** 训练选关 Debug 最近一次完整 JSON（供复制） */
+    trainDebugPayload: null,
   };
 
   var REPORT_LANG_KEY = 'jml_lang_v1';
@@ -633,6 +635,9 @@
       renderStatsPanel();
       redrawAllStatsCharts();
     }
+    if (next === 'train-debug') {
+      void loadTrainDebug(false);
+    }
   }
 
   function redrawAllStatsCharts() {
@@ -804,6 +809,358 @@
     }
   }
 
+  function renderTrainDebugPlaceholder(msg) {
+    var el = document.getElementById('jml-report-train-debug-body');
+    if (!el) return;
+    el.innerHTML = '<div class="jml-report-empty">' + escapeHtml(msg || '—') + '</div>';
+  }
+
+  /** 与数据分析图例相同的「浏览器本地日历日」todayKey（可能与中国时区不一致） */
+  function reportBrowserLocalTodayKey() {
+    var now = new Date();
+    return (
+      now.getFullYear() +
+      '-' +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(now.getDate()).padStart(2, '0')
+    );
+  }
+
+  function summarizePickResult(result, dayState, todayKey, label) {
+    if (!result || result.levelIndex == null || !Number.isFinite(Number(result.levelIndex))) {
+      return {
+        ok: false,
+        label: label,
+        todayKey: todayKey,
+        dayState: dayState || null,
+        error: 'no_pick',
+      };
+    }
+    var li = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
+    return {
+      ok: true,
+      label: label,
+      todayKey: todayKey,
+      levelIndex: li,
+      pickedL: li + 1,
+      brushMode: !!(result.brushMode || result.mode === 'brush'),
+      mode: result.mode || '',
+      reason: result.reason || '',
+      pickReason: result.pickReason || result.reason || '',
+      enterBrush: !!result.enterBrush,
+      brushPoolMax: result.brushPoolMax != null ? result.brushPoolMax : null,
+      dayState: dayState || null,
+      result: result,
+    };
+  }
+
+  function computeReportLocalPicks(runs, cohort) {
+    var HM = window.JmlStatsHeatmap;
+    if (!HM || typeof HM.computeTrainingNextLevel !== 'function') {
+      return { error: 'JmlStatsHeatmap missing' };
+    }
+    var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+    var heat = HM.buildHeatmapCells({
+      runs: runs || [],
+      cohort: cohort && cohort.ok ? cohort : null,
+      modes: ['survival', 'level', 'training'],
+      levelCount: 16,
+      maxTimeSpentMs: capMs,
+    });
+    var browserToday = reportBrowserLocalTodayKey();
+    var chinaToday =
+      typeof HM.localDayKeyFromTs === 'function' ? HM.localDayKeyFromTs(Date.now()) : browserToday;
+
+    function one(todayKey, label) {
+      var dayState =
+        typeof HM.reconstructTrainingDayStateFromRuns === 'function'
+          ? HM.reconstructTrainingDayStateFromRuns(runs || [], todayKey, {
+              cohort: cohort && cohort.ok ? cohort : null,
+              maxTimeSpentMs: capMs,
+            })
+          : { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
+      var result = HM.computeTrainingNextLevel(heat, dayState, todayKey);
+      var reasonText =
+        typeof HM.trainingNextLevelReasonText === 'function'
+          ? HM.trainingNextLevelReasonText(result, getReportTrainingReasonLabels())
+          : '';
+      var summary = summarizePickResult(result, dayState, todayKey, label);
+      summary.reasonText = reasonText;
+      return summary;
+    }
+
+    return {
+      heatCells: (heat && heat.cells
+        ? heat.cells.map(function (c) {
+            return {
+              L: (c.levelIndex || 0) + 1,
+              active: !!c.active,
+              n: c.n || 0,
+              p: c.p != null ? Math.round(Number(c.p) * 1000) / 1000 : null,
+              timePct: c.timePct != null ? Math.round(Number(c.timePct) * 10) / 10 : null,
+              tooSlow: c.tooSlow === true,
+              fluent: c.fluent === true,
+            };
+          })
+        : []),
+      reportAsStatsLegend: one(browserToday, 'report_stats_legend_browser_local_today'),
+      reportWithChinaDay: one(chinaToday, 'report_china_today_same_as_server_clock'),
+      browserTodayKey: browserToday,
+      chinaTodayKey: chinaToday,
+      todayKeyMismatch: browserToday !== chinaToday,
+    };
+  }
+
+  function pickCardHtml(title, block, matchClass) {
+    if (!block) {
+      return (
+        '<div class="jml-train-debug-card">' +
+        '<h3>' +
+        escapeHtml(title) +
+        '</h3><div class="meta">无数据</div></div>'
+      );
+    }
+    if (block.ok === false) {
+      return (
+        '<div class="jml-train-debug-card mismatch">' +
+        '<h3>' +
+        escapeHtml(title) +
+        '</h3><div class="big">—</div><div class="meta">' +
+        escapeHtml(block.error || 'failed') +
+        '<br/>todayKey=' +
+        escapeHtml(block.todayKey || '') +
+        '</div></div>'
+      );
+    }
+    var cls = 'jml-train-debug-card' + (matchClass ? ' ' + matchClass : '');
+    return (
+      '<div class="' +
+      cls +
+      '">' +
+      '<h3>' +
+      escapeHtml(title) +
+      '</h3><div class="big">L' +
+      escapeHtml(String(block.pickedL)) +
+      '</div><div class="meta">' +
+      escapeHtml(block.mode || '') +
+      ' · brush=' +
+      escapeHtml(String(!!block.brushMode)) +
+      '<br/>' +
+      escapeHtml(block.reasonText || block.pickReason || block.reason || '') +
+      '<br/>todayKey=' +
+      escapeHtml(block.todayKey || '') +
+      '</div></div>'
+    );
+  }
+
+  function recentTrainingTableHtml(list) {
+    if (!list || !list.length) {
+      return '<div class="jml-report-empty">近期无 training 局</div>';
+    }
+    var rows = list
+      .map(function (r) {
+        var da = r.dayStateAfter
+          ? JSON.stringify(r.dayStateAfter)
+          : '—';
+        return (
+          '<tr>' +
+          '<td>' +
+          escapeHtml(r.iso || formatDateTime(r.ts)) +
+          '</td>' +
+          '<td>L' +
+          escapeHtml(String(r.L)) +
+          '</td>' +
+          '<td>' +
+          escapeHtml(r.cleared ? 'Y' : 'N') +
+          (r.abandoned ? ' /弃' : '') +
+          '</td>' +
+          '<td>' +
+          escapeHtml(String(!!r.runBrushMode)) +
+          '</td>' +
+          '<td>' +
+          escapeHtml(r.autoPickL != null ? 'L' + r.autoPickL : '—') +
+          ' → ' +
+          escapeHtml(r.pickedL != null ? 'L' + r.pickedL : '—') +
+          (r.manualOverride ? ' (手改)' : '') +
+          '</td>' +
+          '<td>' +
+          escapeHtml(r.pickReason || r.pickMode || '') +
+          '</td>' +
+          '<td>' +
+          escapeHtml(r.entrySource || '') +
+          '</td>' +
+          '<td><code style="font-size:10px;word-break:break-all;">' +
+          escapeHtml(da) +
+          '</code></td>' +
+          '</tr>'
+        );
+      })
+      .join('');
+    return (
+      '<div class="jml-train-debug-table-wrap"><table>' +
+      '<thead><tr>' +
+      '<th>时间</th><th>关</th><th>过</th><th>刷</th><th>自动→实打</th><th>reason</th><th>entrySource</th><th>dayStateAfter</th>' +
+      '</tr></thead><tbody>' +
+      rows +
+      '</tbody></table></div>'
+    );
+  }
+
+  function renderTrainDebugPanel(payload) {
+    var el = document.getElementById('jml-report-train-debug-body');
+    if (!el) return;
+    if (!payload) {
+      renderTrainDebugPlaceholder('无 Debug 数据');
+      return;
+    }
+    var server = payload.server || {};
+    var local = payload.reportLocal || {};
+    var legend = local.reportAsStatsLegend || null;
+    var china = local.reportWithChinaDay || null;
+    var serverOk = server && server.ok !== false && server.pickedL != null;
+    var legendL = legend && legend.ok ? legend.pickedL : null;
+    var chinaL = china && china.ok ? china.pickedL : null;
+    var serverL = serverOk ? server.pickedL : null;
+    var matchServerLegend =
+      serverL != null && legendL != null ? (serverL === legendL ? 'match' : 'mismatch') : '';
+    var matchServerChina =
+      serverL != null && chinaL != null ? (serverL === chinaL ? 'match' : 'mismatch') : '';
+
+    var diffLines = [];
+    if (local.todayKeyMismatch) {
+      diffLines.push(
+        'todayKey 不一致：browser=' + local.browserTodayKey + ' / china=' + local.chinaTodayKey
+      );
+    } else {
+      diffLines.push('todayKey 一致：' + (local.chinaTodayKey || local.browserTodayKey || ''));
+    }
+    if (serverL != null && legendL != null && serverL !== legendL) {
+      diffLines.push('服务器 L' + serverL + ' ≠ 管理页图例口径 L' + legendL);
+    }
+    if (serverL != null && chinaL != null && serverL !== chinaL) {
+      diffLines.push('服务器 L' + serverL + ' ≠ 中国日本地重算 L' + chinaL + '（同函数不同输入？）');
+    }
+    if (serverL != null && legendL != null && chinaL != null && serverL === legendL && serverL === chinaL) {
+      diffLines.push('三路选关关号一致（L' + serverL + '）。若学员端仍不同，查学员 Console source / 占位。');
+    }
+
+    el.innerHTML =
+      '<div class="jml-train-debug">' +
+      '<p class="jml-train-debug-hint">对比「服务器权威选关」（与学员端 API 同口径）vs「管理页图例算法」vs「中国日本地重算」。把下方 JSON 整段贴给 AI 即可。</p>' +
+      '<div class="jml-train-debug-toolbar">' +
+      '<button type="button" class="jml-btn" id="jml-train-debug-refresh">重新计算</button>' +
+      '<button type="button" class="jml-btn" id="jml-train-debug-copy">复制完整 JSON</button>' +
+      '<span class="jml-train-debug-copy-ok" id="jml-train-debug-copy-status" hidden>已复制</span>' +
+      '</div>' +
+      '<div class="jml-train-debug-cards">' +
+      pickCardHtml('服务器（学员端同口径）', server, matchServerChina || matchServerLegend) +
+      pickCardHtml('管理页图例口径（浏览器本地日）', legend, matchServerLegend) +
+      pickCardHtml('本地重算（中国日）', china, matchServerChina) +
+      '<div class="jml-train-debug-card"><h3>差异摘要</h3><div class="meta">' +
+      escapeHtml(diffLines.join('\n')).replace(/\n/g, '<br/>') +
+      '<br/>levelTrainingCurrentL=' +
+      escapeHtml(String(payload.levelTrainingCurrentL)) +
+      '</div></div>' +
+      '</div>' +
+      '<h3 class="jml-report-h3" style="margin:8px 0 4px;font-size:14px;">近期 training 局</h3>' +
+      recentTrainingTableHtml(payload.recentTraining) +
+      '<h3 class="jml-report-h3" style="margin:8px 0 4px;font-size:14px;">完整 JSON</h3>' +
+      '<pre class="jml-train-debug-pre" id="jml-train-debug-json">' +
+      escapeHtml(JSON.stringify(payload, null, 2)) +
+      '</pre>' +
+      '</div>';
+  }
+
+  function fetchAndRenderTrainDebug() {
+    var el = document.getElementById('jml-report-train-debug-body');
+    if (!state.selectedUsername) {
+      renderTrainDebugPlaceholder('请先选择学员');
+      return Promise.resolve();
+    }
+    if (el) {
+      el.innerHTML = '<div class="jml-report-empty">正在拉取训练选关 Debug…</div>';
+    }
+    return apiFetch(
+      '/api/admin/user/' +
+        encodeURIComponent(state.selectedUsername) +
+        '/training/next-level-debug'
+    )
+      .then(function (apiData) {
+        var cohort =
+          (state.cohortByCategory && state.cohortByCategory.arithmetic) || state.cohort || null;
+        var reportLocal = computeReportLocalPicks(state.runs, cohort);
+        var server = apiData && apiData.server ? apiData.server : null;
+        if (
+          server &&
+          server.ok !== false &&
+          window.JmlStatsHeatmap &&
+          window.JmlStatsHeatmap.trainingNextLevelReasonText
+        ) {
+          server.reasonText = window.JmlStatsHeatmap.trainingNextLevelReasonText(
+            server.result || server,
+            getReportTrainingReasonLabels()
+          );
+        }
+        var payload = {
+          ok: true,
+          username: state.selectedUsername,
+          at: new Date().toISOString(),
+          apiAt: apiData && apiData.at,
+          note: apiData && apiData.note,
+          levelTrainingCurrentLevel: apiData && apiData.levelTrainingCurrentLevel,
+          levelTrainingCurrentL: apiData && apiData.levelTrainingCurrentL,
+          server: server,
+          reportLocal: reportLocal,
+          recentTraining: (apiData && apiData.recentTraining) || [],
+          diff: {
+            serverPickedL: server && server.pickedL,
+            reportLegendPickedL:
+              reportLocal.reportAsStatsLegend && reportLocal.reportAsStatsLegend.pickedL,
+            reportChinaPickedL:
+              reportLocal.reportWithChinaDay && reportLocal.reportWithChinaDay.pickedL,
+            todayKeyMismatch: !!(reportLocal && reportLocal.todayKeyMismatch),
+            serverVsLegend:
+              server &&
+              reportLocal.reportAsStatsLegend &&
+              server.pickedL != null &&
+              reportLocal.reportAsStatsLegend.pickedL != null
+                ? server.pickedL === reportLocal.reportAsStatsLegend.pickedL
+                : null,
+            serverVsChina:
+              server &&
+              reportLocal.reportWithChinaDay &&
+              server.pickedL != null &&
+              reportLocal.reportWithChinaDay.pickedL != null
+                ? server.pickedL === reportLocal.reportWithChinaDay.pickedL
+                : null,
+          },
+        };
+        state.trainDebugPayload = payload;
+        renderTrainDebugPanel(payload);
+      })
+      .catch(function (e) {
+        state.trainDebugPayload = null;
+        renderTrainDebugPlaceholder('Debug 拉取失败：' + (e.message || String(e)));
+      });
+  }
+
+  function loadTrainDebug(forceReloadStudent) {
+    if (!state.selectedUsername) {
+      renderTrainDebugPlaceholder('请先选择学员');
+      return Promise.resolve();
+    }
+    if (forceReloadStudent || state.loadedStudentUsername !== state.selectedUsername) {
+      var el = document.getElementById('jml-report-train-debug-body');
+      if (el) {
+        el.innerHTML = '<div class="jml-report-empty">正在加载学员数据…</div>';
+      }
+      // loadStudentData 成功后若仍在本 Tab 会调用 fetchAndRenderTrainDebug
+      return Promise.resolve(loadStudentData());
+    }
+    return fetchAndRenderTrainDebug();
+  }
+
   function clearPanels() {
     state.runs = [];
     state.userDetail = null;
@@ -814,10 +1171,12 @@
     state.chartModel = null;
     state.heat = null;
     state.heatByCategory = {};
+    state.trainDebugPayload = null;
     renderRunsTable();
     renderWrongBook();
     renderExpandWrongBook();
     renderStatsPanel();
+    renderTrainDebugPlaceholder('请先选择学员');
   }
 
   function loadLevelCohort() {
@@ -1102,12 +1461,15 @@
           ensureStudentStatsBuilt();
           renderStatsPanel();
           redrawAllStatsCharts();
+        } else if (activeTabId() === 'train-debug') {
+          void fetchAndRenderTrainDebug();
         } else {
           var statsWrap = document.getElementById('jml-report-stats-body');
           if (statsWrap) {
             statsWrap.innerHTML =
               '<div class="jml-report-empty">切换到「数据分析」时再计算热图与图表</div>';
           }
+          renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取对比数据');
         }
       })
       .catch(function (e) {
@@ -1862,6 +2224,39 @@
         switchTab(btn.getAttribute('data-tab'));
       });
     });
+    var trainDebugBody = document.getElementById('jml-report-train-debug-body');
+    if (trainDebugBody && !trainDebugBody.dataset.debugBound) {
+      trainDebugBody.dataset.debugBound = '1';
+      trainDebugBody.addEventListener('click', function (ev) {
+        var t = ev.target;
+        if (!t || !t.id) return;
+        if (t.id === 'jml-train-debug-refresh') {
+          void loadTrainDebug(true);
+          return;
+        }
+        if (t.id === 'jml-train-debug-copy') {
+          var text = state.trainDebugPayload
+            ? JSON.stringify(state.trainDebugPayload, null, 2)
+            : '';
+          var status = document.getElementById('jml-train-debug-copy-status');
+          function showOk() {
+            if (!status) return;
+            status.hidden = false;
+            setTimeout(function () {
+              status.hidden = true;
+            }, 1600);
+          }
+          if (!text) return;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(showOk).catch(function () {
+              window.prompt('复制以下 JSON', text);
+            });
+          } else {
+            window.prompt('复制以下 JSON', text);
+          }
+        }
+      });
+    }
     var overviewBody = document.getElementById('jml-report-overview-body');
     if (overviewBody && !overviewBody.dataset.sortBound) {
       overviewBody.dataset.sortBound = '1';

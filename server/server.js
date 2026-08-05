@@ -2700,6 +2700,138 @@ app.get("/api/admin/student-detail/:username", (req, res) => {
   res.json({ ok: true, user: safeUser(user), runs });
 });
 
+/**
+ * 管理员：训练选关 Debug（与学员端 /training/next-level 同口径，外加近期 trainingMeta）
+ * 仅用于排查「管理页推荐 vs 学员端选关」不一致。
+ */
+app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = usersData.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runs = (runsData.runs[username] || []).map((r) => ({
+    ...r,
+    mode: normalizeRunMode(r.mode),
+  }));
+  const cohort = readCohortResultForHeatmap();
+  const capMs =
+    cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+  let pick;
+  try {
+    pick = computeTrainingNextLevelForUser({
+      runs,
+      cohort,
+      capMs,
+    });
+  } catch (e) {
+    console.warn("[admin training/next-level-debug]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  }
+
+  const cells = pick && pick.heat && Array.isArray(pick.heat.cells) ? pick.heat.cells : [];
+  const cellsSummary = cells.map((c) => {
+    const p = c && c.p != null && Number.isFinite(Number(c.p)) ? Math.round(Number(c.p) * 1000) / 1000 : null;
+    const timePct =
+      c && c.timePct != null && Number.isFinite(Number(c.timePct))
+        ? Math.round(Number(c.timePct) * 10) / 10
+        : null;
+    return {
+      levelIndex: c.levelIndex,
+      L: (c.levelIndex != null ? Number(c.levelIndex) : 0) + 1,
+      active: !!c.active,
+      n: c.n != null ? c.n : 0,
+      p: p,
+      timePct: timePct,
+      tooSlow: c.tooSlow === true,
+      fluent: c.fluent === true,
+      accurate: c.accurate === true,
+    };
+  });
+
+  const trainingRuns = runs
+    .filter((r) => String(r && r.mode ? r.mode : "").toLowerCase() === "training")
+    .filter((r) => r && r.comboOnly !== true)
+    .slice()
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, 12)
+    .map((r) => {
+      const m = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
+      return {
+        ts: r.ts || 0,
+        iso: r.ts ? new Date(r.ts).toISOString() : "",
+        maxLevel: r.maxLevel,
+        L: (Number(r.maxLevel) || 0) + 1,
+        cleared: r.cleared === true,
+        abandoned: r.abandoned === true || !!(m && m.abandoned),
+        wrongCount: r.wrongCount,
+        runBrushMode: !!(m && m.runBrushMode),
+        autoPickLevel: m && m.autoPickLevel != null ? m.autoPickLevel : null,
+        autoPickL: m && m.autoPickLevel != null ? Number(m.autoPickLevel) + 1 : null,
+        pickedLevel: m && m.pickedLevel != null ? m.pickedLevel : null,
+        pickedL: m && m.pickedLevel != null ? Number(m.pickedLevel) + 1 : null,
+        manualOverride: !!(m && m.manualOverride),
+        pickMode: m && m.pickMode != null ? m.pickMode : null,
+        effectivePickMode: m && m.effectivePickMode != null ? m.effectivePickMode : null,
+        pickReason: m && m.pickReason != null ? String(m.pickReason) : "",
+        entrySource: m && m.entrySource != null ? String(m.entrySource) : "",
+        dayStateAfter: m && m.dayStateAfter && typeof m.dayStateAfter === "object" ? m.dayStateAfter : null,
+        heatAvgSecAtStart: m && m.heatAvgSecAtStart != null ? m.heatAvgSecAtStart : null,
+        runAvgSec: m && m.runAvgSec != null ? m.runAvgSec : null,
+      };
+    });
+
+  const serverBlock =
+    pick && pick.ok
+      ? {
+          ok: true,
+          source: "server_computeTrainingNextLevelForUser",
+          todayKey: pick.todayKey,
+          levelIndex: pick.levelIndex,
+          pickedL: pick.levelIndex + 1,
+          brushMode: pick.brushMode,
+          mode: pick.mode,
+          reason: pick.reason,
+          pickReason: pick.pickReason,
+          enterBrush: pick.enterBrush,
+          brushPoolMax: pick.brushPoolMax,
+          dayState: pick.dayState,
+          result: pick.result,
+          heatAvgSecAtStart: pick.heatAvgSecAtStart,
+          heatMeanLnAtStart: pick.heatMeanLnAtStart,
+          cohortLoaded: pick.cohortLoaded,
+          cellsSummary,
+        }
+      : {
+          ok: false,
+          error: (pick && pick.error) || "无法计算下一关",
+          todayKey: pick && pick.todayKey,
+          dayState: pick && pick.dayState,
+          cellsSummary,
+        };
+
+  return res.json({
+    ok: true,
+    username,
+    at: new Date().toISOString(),
+    note:
+      "server 块与学员端 GET /api/user/:user/training/next-level 同口径；recentTraining 便于核对上一局 meta。",
+    levelTrainingCurrentLevel:
+      typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,
+    levelTrainingCurrentL:
+      typeof user.levelTrainingCurrentLevel === "number" && user.levelTrainingCurrentLevel >= 0
+        ? user.levelTrainingCurrentLevel + 1
+        : null,
+    server: serverBlock,
+    recentTraining: trainingRuns,
+  });
+});
+
 // ========== 管理员：获取某学员信息（用于 report 页面） ==========
 app.get("/api/admin/user/:username", (req, res) => {
   if (!checkAdminPin(req)) {

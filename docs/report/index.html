@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
-  <link rel="stylesheet" href="report-page.css?v=36" />
+  <link rel="stylesheet" href="report-page.css?v=37" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -55,7 +55,7 @@
         </select>
         <button type="button" class="jml-btn" id="jml-report-refresh-student-btn" title="重新拉取当前学员最新记录" disabled>刷新</button>
       </div>
-      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。</p>
+      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。排查选关不一致时用「训练选关Debug」Tab，复制 JSON 即可。</p>
 
       <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
 
@@ -65,6 +65,7 @@
         <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
         <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
         <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
+        <button type="button" class="jml-tab" data-tab="train-debug" role="tab">训练选关Debug</button>
       </div>
 
       <div id="panel-overview" class="jml-tab-panel" data-panel="overview" role="tabpanel">
@@ -81,6 +82,9 @@
       </div>
       <div id="panel-stats" class="jml-tab-panel hidden" data-panel="stats" role="tabpanel">
         <div id="jml-report-stats-body"></div>
+      </div>
+      <div id="panel-train-debug" class="jml-tab-panel hidden" data-panel="train-debug" role="tabpanel">
+        <div id="jml-report-train-debug-body"></div>
       </div>
     </div>
   </div>
@@ -99,7 +103,7 @@
   <script src="../stats-aggregate-browser.js?v=50"></script>
   <script src="../stats-heatmap-browser.js?v=67"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=54"></script>
+  <script src="report-page.js?v=55"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({
