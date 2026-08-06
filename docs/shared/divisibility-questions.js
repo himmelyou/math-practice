@@ -1,6 +1,7 @@
 /**
  * 整除判断 Z1–Z5 出题（打印 / 日后学员端共用）
  * 题型：以下哪个是 N 的倍数？两选项一真一假，顺序随机。
+ * 一局内位数分三批递进：一般 2→3→4 位；除数 8 为 3→4→5 位。批内除数打乱，批间不打乱。
  */
 (function (global) {
   function randomInt(min, max) {
@@ -36,6 +37,13 @@
   function digitChoicesForDivisor(d) {
     if (d === 8) return [3, 4, 5];
     return [2, 3, 4];
+  }
+
+  /** tier 0/1/2 → 该除数的易/中/难位数 */
+  function digitsForTier(divisor, tier) {
+    var list = digitChoicesForDivisor(divisor);
+    var t = Math.max(0, Math.min(list.length - 1, Math.floor(Number(tier) || 0)));
+    return list[t];
   }
 
   function rangeForDigits(digits) {
@@ -120,21 +128,28 @@
     });
   }
 
-  function buildOneQuestion(divisor) {
+  function buildOneQuestion(divisor, digits) {
     var digitsList = digitChoicesForDivisor(divisor);
-    var digits = digitsList[randomInt(0, digitsList.length - 1)];
+    var dig = Math.floor(Number(digits));
+    if (!Number.isFinite(dig) || dig < 1) {
+      dig = digitsList[randomInt(0, digitsList.length - 1)];
+    }
     var correct = null;
     var wrong = null;
     var t;
+    var tryDigits = dig;
 
     for (t = 0; t < 40; t += 1) {
-      correct = randomMultipleInDigits(divisor, digits);
+      correct = randomMultipleInDigits(divisor, tryDigits);
       if (correct == null) {
-        digits = digitsList[randomInt(0, digitsList.length - 1)];
+        tryDigits = digitsList[Math.min(t % digitsList.length, digitsList.length - 1)];
         continue;
       }
-      wrong = buildDistractor(divisor, digits, correct);
-      if (wrong != null) break;
+      wrong = buildDistractor(divisor, tryDigits, correct);
+      if (wrong != null) {
+        dig = tryDigits;
+        break;
+      }
     }
     if (correct == null || wrong == null) {
       correct = divisor * randomInt(12, 48);
@@ -160,6 +175,7 @@
       correctValue: correct,
       wrongValue: wrong,
       divisor: divisor,
+      digits: dig,
       answerLetter: answerLetter,
       baseLevelId: "Z",
       op: "div",
@@ -168,9 +184,10 @@
     };
   }
 
-  function buildTargetList(levelIndex, count) {
+  /** 一批内除数配平后打乱（不跨批） */
+  function buildBatchDivisors(levelIndex, batchSize) {
     levelIndex = clampLevelIndex(levelIndex);
-    count = Math.max(0, Math.floor(Number(count) || 0));
+    batchSize = Math.max(0, Math.floor(Number(batchSize) || 0));
     var divisors = LEVEL_DEFS[levelIndex].divisors;
     var list = [];
     var i;
@@ -180,9 +197,8 @@
     var order;
 
     if (levelIndex === 4) {
-      // Z5：8 个除数均分
-      per = Math.floor(count / divisors.length);
-      extra = count % divisors.length;
+      per = Math.floor(batchSize / divisors.length);
+      extra = batchSize % divisors.length;
       for (i = 0; i < divisors.length; i += 1) {
         for (d = 0; d < per; d += 1) list.push(divisors[i]);
       }
@@ -191,9 +207,8 @@
       return shuffleArray(list);
     }
 
-    // Z1–Z4：两个除数各一半（奇数 count 时余数随机给一侧）
-    per = Math.floor(count / 2);
-    extra = count % 2;
+    per = Math.floor(batchSize / 2);
+    extra = batchSize % 2;
     for (i = 0; i < per; i += 1) {
       list.push(divisors[0]);
       list.push(divisors[1]);
@@ -202,17 +217,32 @@
     return shuffleArray(list);
   }
 
+  /** 将总题数拆成三批（尽量均分；24 → 8+8+8） */
+  function splitIntoThreeBatches(count) {
+    var base = Math.floor(count / 3);
+    var rem = count % 3;
+    return [base + (rem > 0 ? 1 : 0), base + (rem > 1 ? 1 : 0), base];
+  }
+
   function buildRun(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
     if (count == null || count === "") count = QUESTIONS_PER_RUN;
     count = Math.max(0, Math.floor(Number(count) || 0));
-    var targets = buildTargetList(levelIndex, count);
+    var sizes = splitIntoThreeBatches(count);
     var run = [];
+    var tier;
+    var targets;
     var i;
-    for (i = 0; i < targets.length; i += 1) {
-      var q = buildOneQuestion(targets[i]);
-      q.baseLevelId = LEVEL_DEFS[levelIndex].id;
-      run.push(q);
+    var q;
+
+    for (tier = 0; tier < 3; tier += 1) {
+      targets = buildBatchDivisors(levelIndex, sizes[tier]);
+      for (i = 0; i < targets.length; i += 1) {
+        q = buildOneQuestion(targets[i], digitsForTier(targets[i], tier));
+        q.baseLevelId = LEVEL_DEFS[levelIndex].id;
+        q.digitTier = tier;
+        run.push(q);
+      }
     }
     return run;
   }
@@ -221,8 +251,10 @@
     levelIndex = clampLevelIndex(levelIndex);
     var divisors = LEVEL_DEFS[levelIndex].divisors;
     var d = divisors[randomInt(0, divisors.length - 1)];
-    var q = buildOneQuestion(d);
+    var tier = randomInt(0, 2);
+    var q = buildOneQuestion(d, digitsForTier(d, tier));
     q.baseLevelId = LEVEL_DEFS[levelIndex].id;
+    q.digitTier = tier;
     return q;
   }
 
