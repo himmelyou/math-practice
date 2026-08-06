@@ -90,6 +90,42 @@
     return a + " " + op1 + " " + b + " " + op2 + " " + c + " = ?";
   }
 
+  /** L16 乘法：约 55% 口诀 2～9、30% 为 10～20、15% 整十/末 5；积 ≤ 99 */
+  var L16_MUL_PRODUCT_MAX = 99;
+  var L16_MUL_SPECIAL = [10, 15, 20, 25, 30, 40];
+
+  function pickL16MulFactor() {
+    var r = Math.random();
+    if (r < 0.55) return randomInt(2, 9);
+    if (r < 0.85) return randomInt(10, 20);
+    return L16_MUL_SPECIAL[randomInt(0, L16_MUL_SPECIAL.length - 1)];
+  }
+
+  function pickL16MulDigitFor(factor) {
+    factor = Math.floor(Number(factor) || 0);
+    if (factor < 1) return null;
+    var maxD = Math.min(9, Math.floor(L16_MUL_PRODUCT_MAX / factor));
+    if (maxD < 2) return null;
+    return randomInt(2, maxD);
+  }
+
+  /** { u, v } 且 u×v ≤ 99；可交换次序 */
+  function pickL16MulPair() {
+    var i;
+    var u;
+    var v;
+    for (i = 0; i < 24; i += 1) {
+      u = pickL16MulFactor();
+      v = pickL16MulDigitFor(u);
+      if (v == null) continue;
+      if (Math.random() < 0.5) return { u: u, v: v };
+      return { u: v, v: u };
+    }
+    u = randomInt(2, 9);
+    v = randomInt(2, 9);
+    return { u: u, v: v };
+  }
+
   function l16ConstructOperands(op1, op2, withBracket) {
     var key = op1 + op2;
     var b;
@@ -102,16 +138,23 @@
     var q1;
     var q2;
     var k;
+    var pair;
     switch (key) {
       case "+×":
-        b = randomInt(2, 9);
-        c = randomInt(2, 9);
         if (withBracket) {
-          a = randomInt(1, 9 - b);
-          if ((a + b) * c > 99 || (a + b) * c === a + b * c) return null;
+          inner = pickL16MulFactor();
+          c = pickL16MulDigitFor(inner);
+          if (c == null || inner < 2) return null;
+          a = randomInt(1, inner - 1);
+          b = inner - a;
+          if (inner * c === a + b * c) return null;
           return { a: a, b: b, c: c };
         }
-        a = randomInt(0, Math.min(99, 100 - b * c));
+        pair = pickL16MulPair();
+        b = pair.u;
+        c = pair.v;
+        product = b * c;
+        a = randomInt(0, Math.min(99, 100 - product));
         return { a: a, b: b, c: c };
       case "+÷":
         c = randomInt(2, 9);
@@ -128,15 +171,19 @@
         a = randomInt(0, Math.min(99, 100 - q));
         return { a: a, b: b, c: c };
       case "−×":
-        b = randomInt(2, 9);
-        c = randomInt(2, 9);
-        product = b * c;
         if (withBracket) {
-          a = randomInt(b + 1, Math.min(99, 100));
-          if (a < b + 1) return null;
-          if ((a - b) * c === a - product) return null;
+          inner = pickL16MulFactor();
+          c = pickL16MulDigitFor(inner);
+          if (c == null || inner < 1) return null;
+          b = randomInt(1, Math.max(1, 99 - inner));
+          a = b + inner;
+          if (inner * c === a - b * c) return null;
           return { a: a, b: b, c: c };
         }
+        pair = pickL16MulPair();
+        b = pair.u;
+        c = pair.v;
+        product = b * c;
         a = randomInt(product, Math.min(99, 100));
         return { a: a, b: b, c: c };
       case "−÷":
@@ -167,24 +214,33 @@
         c = randomInt(0, 99);
         return { a: a, b: b, c: c };
       case "×+":
-        a = randomInt(2, 9);
         if (withBracket) {
-          b = randomInt(1, 8);
-          c = randomInt(1, 9 - b);
-          if (a * (b + c) > 99) return null;
+          pair = pickL16MulPair();
+          a = pair.u;
+          inner = pair.v;
+          if (inner < 2) return null;
+          b = randomInt(1, inner - 1);
+          c = inner - b;
           return { a: a, b: b, c: c };
         }
-        b = randomInt(2, 9);
+        pair = pickL16MulPair();
+        a = pair.u;
+        b = pair.v;
         c = randomInt(0, Math.min(99, 100 - a * b));
         return { a: a, b: b, c: c };
       case "×−":
-        a = randomInt(2, 9);
-        b = randomInt(2, 9);
         if (withBracket) {
-          c = randomInt(1, b - 1);
-          if (a * (b - c) > 99) return null;
+          pair = pickL16MulPair();
+          a = pair.u;
+          inner = pair.v;
+          if (inner < 1) return null;
+          c = randomInt(1, Math.max(1, 40));
+          b = c + inner;
           return { a: a, b: b, c: c };
         }
+        pair = pickL16MulPair();
+        a = pair.u;
+        b = pair.v;
         c = randomInt(0, a * b);
         return { a: a, b: b, c: c };
       case "÷+":
@@ -217,9 +273,10 @@
         c = randomInt(0, q);
         return { a: a, b: b, c: c };
       case "÷×":
-        b = randomInt(2, 9);
-        c = randomInt(2, 9);
         if (withBracket) {
+          pair = pickL16MulPair();
+          b = pair.u;
+          c = pair.v;
           inner = b * c;
           if (inner > 81) return null;
           q = randomInt(2, Math.min(9, Math.floor(81 / inner)));
@@ -228,6 +285,10 @@
           return { a: a, b: b, c: c };
         }
         q = randomInt(2, 9);
+        c = pickL16MulFactor();
+        if (q * c > L16_MUL_PRODUCT_MAX) c = pickL16MulDigitFor(q);
+        if (c == null) return null;
+        b = randomInt(2, 9);
         a = b * q;
         if (a > 81) return null;
         return { a: a, b: b, c: c };
@@ -682,7 +743,7 @@
         {
           id: "L16",
           name: "第 16 级 · 带括号的四则运算",
-          description: "12 种四则形态，约 70% 加括号改变运算顺序，约 30% 无括号混淆；单步难度至 L11。",
+          description: "12 种四则形态，约 70% 加括号；乘法含友好两位（10～20/整十/末 5），积≤99；约 30% 无括号混淆。",
           operations: ["+", "-", "×", "÷"],
           min: 1,
           max: 99,
