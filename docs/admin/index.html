@@ -20,7 +20,7 @@
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css" />
   <link rel="stylesheet" href="admin-panel.css?v=32" />
-  <link rel="stylesheet" href="admin-worksheet.css?v=23" />
+  <link rel="stylesheet" href="admin-worksheet.css?v=24" />
 </head>
 <body>
   <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-33</p>
@@ -177,7 +177,7 @@
 
       <div id="panel-worksheet" class="jml-tab-panel hidden" data-panel="worksheet" role="tabpanel">
         <p class="jml-worksheet-hint">
-          按主站四则运算 / 拆括号规则随机出题。四则每页 30 题（左列 1–15、右列 16–30），拆括号每页 20 题（左列 1–10、右列 11–20）；题间留白供书写。可先填姓名再打印，或打印后手写。
+          按主站规则随机出题。四则 / 小数每页 30 题，拆括号每页 20 题，整除判断每页 24 题（左列 1–12、右列 13–24）；题间留白供书写。可先填姓名再打印，或打印后手写。
         </p>
         <div class="jml-worksheet-controls">
           <div class="jml-worksheet-field">
@@ -186,6 +186,7 @@
               <option value="arithmetic">四则运算（L1–L16）</option>
               <option value="expandBrackets">拆括号（L1–L5）</option>
               <option value="decimal">小数运算（D1–D6）</option>
+              <option value="divisibility">整除判断（Z1–Z5）</option>
             </select>
           </div>
           <div class="jml-worksheet-field">
@@ -323,9 +324,10 @@
   <script src="../shared/arithmetic-questions.js?v=43"></script>
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=49"></script>
+  <script src="../shared/divisibility-questions.js?v=1"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
     <script src="admin-panel.js?v=39"></script>
-  <script src="admin-worksheet.js?v=23"></script>
+  <script src="admin-worksheet.js?v=24"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {

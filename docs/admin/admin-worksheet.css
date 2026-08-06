@@ -200,6 +200,30 @@
   letter-spacing: 0;
 }
 
+/* 整除 24 题：左右各 12；题干较长，略收紧 */
+.jml-ws-page--24 .jml-ws-col {
+  gap: 0.55mm;
+}
+
+.jml-ws-page--24 .jml-ws-item {
+  padding-top: 0.4mm;
+}
+
+.jml-ws-page--24 .jml-ws-workspace {
+  min-height: 5.5mm;
+  max-height: 7mm;
+  margin-top: 0.55mm;
+}
+
+.jml-ws-page--24 .jml-ws-prompt {
+  font-size: 9.5pt;
+  letter-spacing: 0;
+}
+
+.jml-ws-page--24.jml-ws-answers .jml-ws-item {
+  padding-top: 0.25mm;
+}
+
 /* 四则 30 题：略收紧行距与书写区 */
 .jml-ws-page--30 .jml-ws-col {
   gap: 0.45mm;

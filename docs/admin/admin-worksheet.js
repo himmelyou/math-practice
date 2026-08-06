@@ -1,10 +1,13 @@
 /**
- * 管理端：四则 / 拆括号 / 小数习题纸生成与打印
+ * 管理端：四则 / 拆括号 / 小数 / 整除习题纸生成与打印
  */
 (function () {
   function getPageLayout(mode) {
     if (mode === 'arithmetic' || mode === 'decimal') {
       return { questionsPerPage: 30, perCol: 15, pageClass: 'jml-ws-page--30' };
+    }
+    if (mode === 'divisibility') {
+      return { questionsPerPage: 24, perCol: 12, pageClass: 'jml-ws-page--24' };
     }
     return { questionsPerPage: 20, perCol: 10, pageClass: 'jml-ws-page--20' };
   }
@@ -23,7 +26,16 @@
     var mode = el ? String(el.value || 'expandBrackets') : 'expandBrackets';
     if (mode === 'arithmetic') return 'arithmetic';
     if (mode === 'decimal') return 'decimal';
+    if (mode === 'divisibility') return 'divisibility';
     return 'expandBrackets';
+  }
+
+  function mapDivisibilityQuestion(q) {
+    return {
+      prompt: q.text || q.prompt || '',
+      answer: q.answer != null ? String(q.answer) : '',
+      compact: true,
+    };
   }
 
   function buildQuestion(mode, level) {
@@ -51,6 +63,13 @@
         compact: false,
       };
     }
+    if (mode === 'divisibility') {
+      var div = window.JmlDivisibility;
+      if (!div || typeof div.buildQuestion !== 'function') {
+        throw new Error('未加载出题模块 divisibility-questions.js');
+      }
+      return mapDivisibilityQuestion(div.buildQuestion(level));
+    }
     var eng = window.JmlExpandBrackets;
     if (!eng || typeof eng.buildQuestion !== 'function') {
       throw new Error('未加载出题模块 expand-brackets-questions.js');
@@ -61,6 +80,28 @@
       answer: eb.correctText != null ? eb.correctText : '',
       compact: false,
     };
+  }
+
+  function buildPageBatch(mode, level, count) {
+    if (mode === 'divisibility') {
+      var div = window.JmlDivisibility;
+      if (!div || typeof div.buildRun !== 'function') {
+        throw new Error('未加载出题模块 divisibility-questions.js');
+      }
+      return div.buildRun(level, count).map(mapDivisibilityQuestion);
+    }
+    if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
+      window.JmlArithmetic.resetLevelDeck(level, count);
+    }
+    if (mode === 'decimal' && window.JmlDecimal && typeof window.JmlDecimal.resetLevelSegment === 'function') {
+      window.JmlDecimal.resetLevelSegment(level, count);
+    }
+    var batch = [];
+    var i;
+    for (i = 0; i < count; i += 1) {
+      batch.push(buildQuestion(mode, level));
+    }
+    return batch;
   }
 
   /** 纵向分栏：左列 1…perCol，右列 perCol+1… */
@@ -145,6 +186,10 @@
       var maxD = (window.JmlDecimal && window.JmlDecimal.LEVEL_COUNT) || 5;
       return Math.min(maxD - 1, Math.max(0, Math.floor(level)));
     }
+    if (mode === 'divisibility') {
+      var maxZ = (window.JmlDivisibility && window.JmlDivisibility.LEVEL_COUNT) || 5;
+      return Math.min(maxZ - 1, Math.max(0, Math.floor(level)));
+    }
     return Math.min(4, Math.max(0, Math.floor(level)));
   }
 
@@ -154,6 +199,9 @@
     }
     if (mode === 'decimal') {
       return (window.JmlDecimal && window.JmlDecimal.LEVEL_LABELS) || [];
+    }
+    if (mode === 'divisibility') {
+      return (window.JmlDivisibility && window.JmlDivisibility.LEVEL_LABELS) || [];
     }
     return (
       (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [
@@ -194,27 +242,22 @@
         ? 'L' + (level + 1)
         : mode === 'decimal'
           ? 'D' + (level + 1)
-          : '去括号 L' + (level + 1));
+          : mode === 'divisibility'
+            ? 'Z' + (level + 1)
+            : '去括号 L' + (level + 1));
     var title =
       mode === 'arithmetic'
         ? '四则运算 · ' + levelLabel
         : mode === 'decimal'
           ? '小数运算 · ' + levelLabel
-          : '去括号练习 · ' + levelLabel;
+          : mode === 'divisibility'
+            ? '整除判断 · ' + levelLabel
+            : '去括号练习 · ' + levelLabel;
 
     var html = '';
     try {
       for (var p = 0; p < pages; p += 1) {
-        var batch = [];
-        if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
-          window.JmlArithmetic.resetLevelDeck(level, layout.questionsPerPage);
-        }
-        if (mode === 'decimal' && window.JmlDecimal && typeof window.JmlDecimal.resetLevelSegment === 'function') {
-          window.JmlDecimal.resetLevelSegment(level, layout.questionsPerPage);
-        }
-        for (var i = 0; i < layout.questionsPerPage; i += 1) {
-          batch.push(buildQuestion(mode, level));
-        }
+        var batch = buildPageBatch(mode, level, layout.questionsPerPage);
         html += renderPageHtml({
           title: title,
           studentName: studentName,
