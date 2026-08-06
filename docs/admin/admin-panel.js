@@ -1512,6 +1512,65 @@
     }
   }
 
+  async function verifyRunsStore() {
+    var out = document.getElementById('jml-runs-store-verify-out');
+    if (out) {
+      out.style.display = 'block';
+      out.textContent = '正在核对 legacy runs.json vs runs-by-user…';
+    }
+    try {
+      setStatus('正在核对 runs 分文件…', '');
+      var data = await apiFetch('/api/admin/maintenance/runs-store-verify');
+      if (out) out.textContent = JSON.stringify(data, null, 2);
+      if (data && data.allEqual) {
+        setStatus(
+          '核对通过：allEqual=true（legacy ' +
+            (data.legacyUserCount != null ? data.legacyUserCount : '?') +
+            ' · 分文件 ' +
+            (data.byUserCount != null ? data.byUserCount : '?') +
+            ' · 匹配 ' +
+            (data.matchedUsers != null ? data.matchedUsers : '?') +
+            '）',
+          'ok'
+        );
+      } else {
+        setStatus(
+          '核对有差异：mismatch=' +
+            (data && data.mismatchCount) +
+            ' · onlyLegacy=' +
+            (data && data.onlyInLegacyCount) +
+            ' · onlyByUser=' +
+            (data && data.onlyInByUserCount) +
+            '（详见下方 JSON）',
+          'err'
+        );
+      }
+    } catch (e) {
+      if (out) out.textContent = String(e.message || e);
+      setStatus(e.message || '核对失败', 'err');
+    }
+  }
+
+  async function syncRunsStoreFromLegacy() {
+    try {
+      var msg =
+        '将用 legacy runs.json 覆盖写入 runs-by-user（不改动 runs.json 本身）。\n\n' +
+        '若分文件已有新对局会被盖掉。确认继续？';
+      if (!confirm(msg)) return;
+      setStatus('正在从总库同步分文件…', '');
+      var data = await apiFetch('/api/admin/maintenance/runs-store-sync', { method: 'POST' });
+      setStatus(
+        '同步完成：users=' +
+          (data && data.userCount != null ? data.userCount : '?') +
+          (data && data.skipped ? '（skipped）' : ''),
+        'ok'
+      );
+      await verifyRunsStore();
+    } catch (e) {
+      setStatus(e.message || '同步失败', 'err');
+    }
+  }
+
   function i18nTextareaValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || "") : "";
@@ -1656,6 +1715,10 @@
     if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
     var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
     if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
+    var runsStoreVerifyBtn = document.getElementById('jml-btn-runs-store-verify');
+    if (runsStoreVerifyBtn) runsStoreVerifyBtn.addEventListener('click', verifyRunsStore);
+    var runsStoreSyncBtn = document.getElementById('jml-btn-runs-store-sync');
+    if (runsStoreSyncBtn) runsStoreSyncBtn.addEventListener('click', syncRunsStoreFromLegacy);
     var dedupeBtn = document.getElementById('jml-btn-dedupe-usernames');
     if (dedupeBtn) dedupeBtn.addEventListener('click', dedupeUsernames);
     var dedupeMaintBtn = document.getElementById('jml-btn-dedupe-usernames-maint');

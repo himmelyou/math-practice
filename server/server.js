@@ -20,6 +20,7 @@ const { buildStudentOverviewRows } = require("./student-overview");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
+const { createRunsStore } = require("./runs-store");
 const {
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,
@@ -261,6 +262,32 @@ function writeJson(filePath, data) {
   }
 }
 
+function clearJsonCacheFor(filePath) {
+  jsonReadCache.delete(filePath);
+}
+
+/** runs 分用户存储（原 runs.json 只读迁移/核对，业务读写走 by-user） */
+const runsStore = createRunsStore({
+  dataDir: DATA_DIR,
+  legacyFile: RUNS_FILE,
+  readJson,
+  writeJson,
+  clearJsonCacheFor,
+});
+try {
+  const syncResult = runsStore.syncFromLegacy({ force: false });
+  if (syncResult && syncResult.ok) {
+    console.log(
+      "[runs-store]",
+      syncResult.skipped
+        ? "by-user already synced, skip"
+        : "synced from legacy → runs-by-user, users=" + syncResult.userCount
+    );
+  }
+} catch (e) {
+  console.warn("[runs-store] sync failed", e && e.message ? e.message : e);
+}
+
 function readRankingEvalData() {
   const usersData = readJson(USERS_FILE, { users: [] });
   const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
@@ -352,13 +379,13 @@ function upsertLevelRankingEntry(username, runEntry) {
 }
 
 function rebuildLevelRankingFromRuns() {
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const usersData = readJson(USERS_FILE, { users: [] });
   const byUser = {};
   let clearedRunsScanned = 0;
-  Object.keys(runsData.runs || {}).forEach((username) => {
-    const runs = runsData.runs[username] || [];
-    runs.forEach((r) => {
+  let usernamesScanned = 0;
+  runsStore.forEachUserRuns((username, runs) => {
+    usernamesScanned += 1;
+    (runs || []).forEach((r) => {
       if (normalizeRunMode(r.mode) !== "level") return;
       if (!runIsCleared(r)) return;
       clearedRunsScanned += 1;
@@ -388,7 +415,7 @@ function rebuildLevelRankingFromRuns() {
     entries: list.length,
     clearedRunsScanned,
     usersFlagUpdated,
-    usernamesScanned: Object.keys(runsData.runs || {}).length,
+    usernamesScanned,
   };
 }
 
@@ -440,12 +467,12 @@ function upsertPrimePerfectRankingEntry(username, runEntry) {
 }
 
 function rebuildPrimePerfectRankingFromRuns() {
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const byUser = {};
   let masteredRunsScanned = 0;
-  Object.keys(runsData.runs || {}).forEach((username) => {
-    const runs = runsData.runs[username] || [];
-    runs.forEach((r) => {
+  let usernamesScanned = 0;
+  runsStore.forEachUserRuns((username, runs) => {
+    usernamesScanned += 1;
+    (runs || []).forEach((r) => {
       const entry = primePerfectRankingEntryFromRun(username, r);
       if (!entry) return;
       masteredRunsScanned += 1;
@@ -458,7 +485,7 @@ function rebuildPrimePerfectRankingFromRuns() {
   return {
     entries: list.length,
     masteredRunsScanned,
-    usernamesScanned: Object.keys(runsData.runs || {}).length,
+    usernamesScanned,
   };
 }
 
@@ -1567,8 +1594,7 @@ app.post("/api/login", async (req, res) => {
     return res.json({ ok: false, error: "密码错误" });
   }
   if (user.hasClearedSurvival === undefined) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
+        const runs = runsStore.getUserRuns(username);
     user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
     const uIdx = data.users.findIndex((u) => u.username === username);
     if (uIdx >= 0) {
@@ -1577,8 +1603,7 @@ app.post("/api/login", async (req, res) => {
     }
   }
   if (user.hasClearedLevel === undefined) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
+        const runs = runsStore.getUserRuns(username);
     user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
     const uIdx = data.users.findIndex((u) => u.username === username);
     if (uIdx >= 0) {
@@ -1680,8 +1705,7 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   if (user.hasClearedSurvival === undefined) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
+        const runs = runsStore.getUserRuns(username);
     user.hasClearedSurvival = userHasClearedSurvivalFromRuns(runs);
     const idx = data.users.findIndex((u) => u.username === username);
     if (idx >= 0) {
@@ -1690,8 +1714,7 @@ app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     }
   }
   if (user.hasClearedLevel === undefined) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
+        const runs = runsStore.getUserRuns(username);
     user.hasClearedLevel = userHasClearedLevelFromRuns(runs);
     const idx = data.users.findIndex((u) => u.username === username);
     if (idx >= 0) {
@@ -1727,8 +1750,7 @@ app.get("/api/user/:username/achievements", requireStudentAuth, ensureOwnData, (
   }
   let userNeedsSave = false;
   if (!achievementEngine.hasValidAchievementStats(user)) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
+        const runs = runsStore.getUserRuns(username);
     if (achievementEngine.ensureAchievementStats(user, runs)) userNeedsSave = true;
   }
   const catalog = readAchievementsCatalog();
@@ -1862,8 +1884,7 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
   if (!data.users.some((u) => u.username === username)) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = (runsData.runs[username] || [])
+    const runs = runsStore.getUserRuns(username)
     .map((r) => ({
       ...r,
       mode: normalizeRunMode(r.mode),
@@ -1879,8 +1900,7 @@ app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwn
   if (!data.users.some((u) => u.username === username)) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = (runsData.runs[username] || []).map((r) => ({
+    const runs = runsStore.getUserRuns(username).map((r) => ({
     ...r,
     mode: normalizeRunMode(r.mode),
   }));
@@ -1942,9 +1962,8 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const comboOnly = run.comboOnly === true;
-  if (!comboOnly && !runsData.runs[username]) runsData.runs[username] = [];
+  let allRunsAfterWrite = null;
   const runEntry = {
     survivalTimeSec: run.survivalTimeSec ?? 0,
     score: run.score ?? 0,
@@ -1970,11 +1989,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     runEntry.score = 0;
   }
   if (!comboOnly) {
-    runsData.runs[username].unshift(runEntry);
-    if (runsData.runs[username].length > 500) {
-      runsData.runs[username] = runsData.runs[username].slice(0, 500);
-    }
-    writeJson(RUNS_FILE, runsData);
+    allRunsAfterWrite = runsStore.prependUserRun(username, runEntry);
   }
 
   // 质数达人榜：掌握 50 题且错题 ≤ PRIME_RANKING_MAX_WRONG；每人保留最短完成时间
@@ -2031,7 +2046,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (ml > (u.levelChallengeBestLevel || 0)) u.levelChallengeBestLevel = ml;
     }
     if (!comboOnly) {
-      const allRuns = runsData.runs[username] || [];
+      const allRuns = allRunsAfterWrite || runsStore.getUserRuns(username);
       recomputeSurvivalUnlockFlags(u, allRuns);
       if (allRuns.length >= 500) {
         achievementEngine.assignAchievementStatsFromRuns(u, allRuns);
@@ -2315,10 +2330,9 @@ app.get("/api/admin/users", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const data = readJson(USERS_FILE, { users: [] });
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const users = data.users.map((u) => {
     const out = { ...u };
-    const userRuns = runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    const userRuns = runsStore.getUserRuns(u.username);
     out.lastGameTs = latestRunTsFromRuns(userRuns);
     return safeUser(out);
   });
@@ -2333,7 +2347,6 @@ app.get("/api/admin/student-overview", (req, res) => {
   }
   const onlyUsername = (req.query && req.query.username ? String(req.query.username) : "").trim();
   const usersData = readJson(USERS_FILE, { users: [] });
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
   const primeList = (Array.isArray(primeData.list) ? primeData.list : []).filter(
     (e) => e && e.username && (Number(e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
@@ -2341,8 +2354,7 @@ app.get("/api/admin/student-overview", (req, res) => {
   const cohort = readCohortResultForHeatmap();
   const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
   let users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
-    const userRuns =
-      runsData.runs && Array.isArray(runsData.runs[u.username]) ? runsData.runs[u.username] : [];
+    const userRuns = runsStore.getUserRuns(u.username);
     const out = { ...u };
     out.lastGameTs = latestRunTsFromRuns(userRuns);
     return out;
@@ -2353,10 +2365,11 @@ app.get("/api/admin/student-overview", (req, res) => {
       return res.status(404).json({ ok: false, error: "用户不存在" });
     }
   }
-  const runsByUser = runsData.runs || {};
-  const scopedRuns = onlyUsername
-    ? { [onlyUsername]: Array.isArray(runsByUser[onlyUsername]) ? runsByUser[onlyUsername] : [] }
-    : runsByUser;
+  const scopedRuns = {};
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    scopedRuns[u.username] = runsStore.getUserRuns(u.username);
+  });
   const rows = buildStudentOverviewRows({
     users,
     runsByUser: scopedRuns,
@@ -2500,14 +2513,9 @@ function purgeUserCompletely(username) {
   data.users.splice(idx, 1);
   writeJson(USERS_FILE, data);
 
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runList =
-    runsData.runs && Array.isArray(runsData.runs[name]) ? runsData.runs[name] : [];
+  const runList = runsStore.getUserRuns(name);
   const runsRemoved = runList.length;
-  if (runsData.runs && Object.prototype.hasOwnProperty.call(runsData.runs, name)) {
-    delete runsData.runs[name];
-    writeJson(RUNS_FILE, runsData);
-  }
+  runsStore.deleteUserRuns(name);
 
   const survivalRankingRemoved = removeUsernameFromRankingFile(SURVIVAL_RANKING_FILE, name);
   const levelRankingRemoved = removeUsernameFromRankingFile(LEVEL_RANKING_FILE, name);
@@ -2658,8 +2666,7 @@ app.get("/api/admin/records/:username", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const { username } = req.params;
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = (runsData.runs[username] || [])
+    const runs = runsStore.getUserRuns(username)
     .map((r) => ({ ...r, mode: normalizeRunMode(r.mode) }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   res.json({ ok: true, runs });
@@ -2690,8 +2697,7 @@ app.get("/api/admin/student-detail/:username", (req, res) => {
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = (runsData.runs[username] || [])
+    const runs = runsStore.getUserRuns(username)
     .map((r) => ({ ...r, mode: normalizeRunMode(r.mode) }))
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
   if (ensureUserClearedFlagsFromRuns(user, runs)) {
@@ -2714,8 +2720,7 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = (runsData.runs[username] || []).map((r) => ({
+    const runs = runsStore.getUserRuns(username).map((r) => ({
     ...r,
     mode: normalizeRunMode(r.mode),
   }));
@@ -2844,8 +2849,7 @@ app.get("/api/admin/user/:username", (req, res) => {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   if (user.hasClearedSurvival === undefined || user.hasClearedLevel === undefined) {
-    const runsData = readJson(RUNS_FILE, { runs: {} });
-    const runs = runsData.runs[username] || [];
+        const runs = runsStore.getUserRuns(username);
     if (ensureUserClearedFlagsFromRuns(user, runs)) {
       writeJson(USERS_FILE, data);
     }
@@ -2959,15 +2963,12 @@ function personMeanLnFromCorrectTimes(lnTimes, minAttempts) {
  * @returns {number[][]} 每档的人级 meanLn 列表
  */
 function collectPersonMeanLnByLevel(modeFilter, levelCount) {
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const personLnByLevel = Array.from({ length: levelCount }, () => []);
-  const usernames = Object.keys(runsData.runs || {});
   const minN = COHORT_MIN_ATTEMPTS_PER_USER_LEVEL;
 
-  usernames.forEach((username) => {
+  runsStore.forEachUserRuns((username, runs) => {
     const perLevel = Array.from({ length: levelCount }, () => []);
-    const runs = runsData.runs[username] || [];
-    runs.forEach((r) => {
+    (runs || []).forEach((r) => {
       const mode = normalizeRunMode(r.mode);
       if (!modeFilter(mode)) return;
       if (!Array.isArray(r.attempts)) return;
@@ -3142,7 +3143,7 @@ app.post("/api/admin/maintenance/backfill-training-run-speed", (req, res) => {
   }
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const dryRun = body.dryRun === true;
-  const runsData = readJson(RUNS_FILE, { runs: {} });
+  const runsData = runsStore.buildRunsObjectFromByUser();
   const stats = trainingRunSpeedBackfill.backfillTrainingRunSpeedInRunsData(runsData, {
     capMs: COHORT_MAX_TIME_SPENT_MS,
     dryRun,
@@ -3151,7 +3152,9 @@ app.post("/api/admin/maintenance/backfill-training-run-speed", (req, res) => {
     return res.status(400).json(stats);
   }
   if (!dryRun && stats.updated > 0) {
-    writeJson(RUNS_FILE, runsData);
+    Object.keys(runsData.runs || {}).forEach((username) => {
+      runsStore.setUserRuns(username, runsData.runs[username] || []);
+    });
     stats.written = true;
   } else {
     stats.written = false;
@@ -3416,7 +3419,7 @@ app.get("/api/admin/backup", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const users = readJson(USERS_FILE, { users: [] });
-  const runs = readJson(RUNS_FILE, { runs: {} });
+  const runs = runsStore.buildRunsObjectFromByUser();
   const settings = readJson(SETTINGS_FILE, { levels: [] });
   const i18n = readJson(I18N_FILE, defaultI18nPayload());
   const feedback = readFeedbackStore();
@@ -3471,8 +3474,12 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
     }
     if (body.runs) {
       const r = body.runs;
-      writeJson(RUNS_FILE, r.runs && typeof r.runs === "object" ? r : { runs: typeof r === "object" ? r : {} });
+      const runsObj =
+        r.runs && typeof r.runs === "object" ? r : { runs: typeof r === "object" ? r : {} };
+      // 恢复写入分用户文件；不改动 legacy runs.json（保留迁移前快照供核对）
+      runsStore.replaceAllFromRunsObject(runsObj);
       restored.push("runs");
+      notes.push("runs 已写入 runs-by-user（未改动 legacy runs.json）");
       try {
         if (fs.existsSync(COHORT_LEVEL_STATS_FILE)) fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
         if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
@@ -3590,8 +3597,7 @@ app.get("/api/user/:username/survival-eligibility", requireStudentAuth, ensureOw
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = usersData.users[uIdx];
-  const runsData = readJson(RUNS_FILE, { runs: {} });
-  const runs = runsData.runs && Array.isArray(runsData.runs[username]) ? runsData.runs[username] : [];
+    const runs = runsStore.getUserRuns(username);
   recomputeSurvivalUnlockFlags(u, runs);
   writeJson(USERS_FILE, usersData);
   return res.json({
@@ -3890,7 +3896,6 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
   }
   const targetUsername = (req.body && req.body.username ? String(req.body.username) : "").trim();
   const usersData = readJson(USERS_FILE, { users: [] });
-  const runsData = readJson(RUNS_FILE, { runs: {} });
   const catalog = readAchievementsCatalog();
   const rankingData = readRankingEvalData();
   let users = usersData.users || [];
@@ -3901,7 +3906,7 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
   let usersTouched = 0;
   users.forEach((user) => {
     if (!user || !user.username) return;
-    const runs = runsData.runs[user.username] || [];
+    const runs = runsStore.getUserRuns(user.username);
     achievementEngine.assignAchievementStatsFromRuns(user, runs);
     const rankingCtx = buildAchievementRankingContext(user.username, rankingData);
     const before = Object.keys(user.achievements || {}).length;
@@ -3913,6 +3918,34 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
   });
   writeJson(USERS_FILE, usersData);
   res.json({ ok: true, usersTouched, newlyUnlockedCount: unlockedTotal });
+});
+
+/** 核对：legacy runs.json vs runs-by-user（只读，不改任何文件） */
+app.get("/api/admin/maintenance/runs-store-verify", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const report = runsStore.verifyAgainstLegacy();
+    return res.json(report);
+  } catch (e) {
+    console.warn("[runs-store-verify]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: e && e.message ? e.message : "核对失败" });
+  }
+});
+
+/** 强制从 legacy runs.json 再同步到分文件（覆盖 by-user；不改 legacy） */
+app.post("/api/admin/maintenance/runs-store-sync", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const result = runsStore.syncFromLegacy({ force: true });
+    return res.json(result);
+  } catch (e) {
+    console.warn("[runs-store-sync]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: e && e.message ? e.message : "同步失败" });
+  }
 });
 
 app.listen(PORT, () => {

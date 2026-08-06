@@ -256,13 +256,26 @@
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
           <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn jml-btn-primary">重建质数达人榜</button>
           <button type="button" id="jml-btn-dedupe-usernames-maint" class="jml-btn jml-btn-danger">清理重名空户</button>
+          <button type="button" id="jml-btn-runs-store-verify" class="jml-btn jml-btn-primary" title="只读核对：legacy runs.json vs runs-by-user">核对 runs 分文件</button>
+          <button type="button" id="jml-btn-runs-store-sync" class="jml-btn" title="从 legacy runs.json 强制覆盖同步到 runs-by-user（不改 legacy）">从总库再同步分文件</button>
+        </div>
+        <pre id="jml-runs-store-verify-out" class="jml-placeholder-panel" style="margin-top:12px;max-height:360px;overflow:auto;white-space:pre-wrap;font-size:12px;display:none;"></pre>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>runs 分文件存储</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>业务读写已切到 <code>data/runs-by-user/&lt;user&gt;.json</code>，降低整库进内存导致的 OOM</li>
+            <li>原 <code>data/runs.json</code> <strong>不会被改动/删除</strong>，仅作迁移源与核对基准</li>
+            <li>「核对」：逐用户比条数与内容哈希；全部一致则 <code>allEqual=true</code></li>
+            <li>部署后尽快核对；之后新局只写分文件、legacy 冻结，再核可能出现 <code>onlyInByUser</code>（属预期）</li>
+            <li>「再同步」：用 legacy 覆盖分文件（仅维护用；平时不必点）</li>
+          </ol>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>闯关达人榜（level-ranking.json）</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
             <li>仅统计 <code>mode=level</code> 且 <code>cleared=true</code>（L1–L16 全通）的局</li>
             <li>每人保留一条最佳：用时最短 → 错题更少 → 更早通关（<code>ts</code> 更小）</li>
-            <li>从 <code>runs.json</code> 扫描全库并写入 <code>level-ranking.json</code>，同步 <code>hasClearedLevel</code></li>
+            <li>从 runs-by-user 扫描全库并写入 <code>level-ranking.json</code>，同步 <code>hasClearedLevel</code></li>
             <li>日常新通关会增量更新；榜文件丢失、恢复备份或需全库重算时使用</li>
           </ol>
           <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
@@ -326,7 +339,7 @@
   <script src="../shared/decimal-questions.js?v=49"></script>
   <script src="../shared/divisibility-questions.js?v=1"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=39"></script>
+    <script src="admin-panel.js?v=40"></script>
   <script src="admin-worksheet.js?v=24"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>
