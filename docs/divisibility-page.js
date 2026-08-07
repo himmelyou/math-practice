@@ -4,6 +4,7 @@
  */
 (function (global) {
   const DIV_SCORE_PER_CORRECT = 5;
+  const DIV_SCORE_PER_WRONG = 5;
 
   let deps = null;
   let divLevel = 0;
@@ -29,6 +30,11 @@
 
   function t(key) {
     return deps.t(key);
+  }
+
+  function tf(key, params) {
+    if (deps.tf) return deps.tf(key, params);
+    return t(key);
   }
 
   function inGuestMode() {
@@ -357,7 +363,10 @@
     const stem =
       q.promptStem ||
       ("以下哪个整数可以被 " + (q.divisor != null ? q.divisor : "?") + " 整除？");
-    if (promptEl) promptEl.textContent = stem;
+    const qNum = divAnswered + 1;
+    if (promptEl) {
+      promptEl.textContent = tf("div.questionNum", { n: qNum, stem: stem });
+    }
     const optA =
       q.optionA != null
         ? q.optionA
@@ -409,6 +418,7 @@
       return;
     }
 
+    divScore -= DIV_SCORE_PER_WRONG;
     divWrongCount += 1;
     divWrongItems.push({
       divisor: q.divisor,
@@ -513,9 +523,10 @@
     divPrestartLevel = outcome.playAgainLevel;
     divLevel = outcome.playAgainLevel;
 
+    const awardedScore = Math.max(0, divScore);
     await deps.appendRun(
       durationSec,
-      divScore,
+      awardedScore,
       startLevel,
       divWrongCount,
       "divisibility",

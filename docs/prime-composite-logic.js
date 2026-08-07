@@ -81,6 +81,7 @@
     PRIMES_2_TO_99,
     TOTAL_QUESTIONS: 50,
     SCORE_PER_CORRECT: 5,
+    SCORE_PER_WRONG: 5,
     buildRoundQuestions,
     kindLabel,
   };

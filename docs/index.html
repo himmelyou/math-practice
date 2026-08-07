@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=95"></script>
+  <script src="shared/app-version.js?v=98"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1430,6 +1430,17 @@
 
     #global-back-home-btn:active {
       opacity: 0.92;
+    }
+    #global-back-home-btn.is-abandon-cooldown,
+    #abandon-game-btn.is-abandon-cooldown {
+      opacity: 0.45;
+      filter: grayscale(0.35);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    #global-back-home-btn.is-abandon-cooldown:active,
+    #abandon-game-btn.is-abandon-cooldown:active {
+      opacity: 0.45;
     }
 
     .change-password-modal-overlay {
@@ -4778,7 +4789,7 @@
     </div>
   </div>
 
-  <script src="prime-composite-logic.js?v=42"></script>
+  <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=70"></script>
   <script src="stats-heatmap-browser.js?v=68"></script>
@@ -4794,7 +4805,7 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=48"></script>
-  <script src="divisibility-page.js?v=3"></script>
+  <script src="divisibility-page.js?v=5"></script>
   <script src="decimal-page.js?v=12"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -5889,14 +5900,161 @@
       const globalBackBtn = document.getElementById("global-back-home-btn");
       const inProgress = isRunInProgress();
       if (globalBackBtn) globalBackBtn.textContent = inProgress ? t("game.btn.abandon") : t("home.btn.backHome");
+      syncAbandonCooldownButtonUi();
       syncProfileEditLockedDuringRun();
+    }
+
+    const ABANDON_COOLDOWN_STORAGE_KEY = "jml_abandon_cooldown_v1";
+    const ABANDON_MAX_PER_DAY = 5;
+    const ABANDON_BASE_COOLDOWN_MS = 10 * 60 * 1000;
+    let abandonCooldownUiTimerId = null;
+
+    function abandonLocalDayKey(d) {
+      const x = d || new Date();
+      const y = x.getFullYear();
+      const m = String(x.getMonth() + 1).padStart(2, "0");
+      const day = String(x.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + day;
+    }
+
+    function abandonCooldownScope() {
+      if (isGuestMode) return "guest";
+      const name = loadCurrentUsername();
+      return name ? String(name) : "guest";
+    }
+
+    function readAbandonCooldownMap() {
+      try {
+        const raw = localStorage.getItem(ABANDON_COOLDOWN_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function writeAbandonCooldownMap(map) {
+      try {
+        localStorage.setItem(ABANDON_COOLDOWN_STORAGE_KEY, JSON.stringify(map || {}));
+      } catch (e) {}
+    }
+
+    function loadAbandonCooldownState() {
+      const map = readAbandonCooldownMap();
+      const scope = abandonCooldownScope();
+      const today = abandonLocalDayKey();
+      let st = map[scope];
+      if (!st || typeof st !== "object" || st.date !== today) {
+        st = { date: today, count: 0, cooldownUntil: 0 };
+      }
+      return {
+        scope: scope,
+        date: st.date,
+        count: Math.max(0, Math.floor(Number(st.count) || 0)),
+        cooldownUntil: Math.max(0, Number(st.cooldownUntil) || 0),
+      };
+    }
+
+    function saveAbandonCooldownState(st) {
+      const map = readAbandonCooldownMap();
+      map[st.scope || abandonCooldownScope()] = {
+        date: st.date || abandonLocalDayKey(),
+        count: Math.max(0, Math.floor(Number(st.count) || 0)),
+        cooldownUntil: Math.max(0, Number(st.cooldownUntil) || 0),
+      };
+      writeAbandonCooldownMap(map);
+    }
+
+    function getAbandonGate() {
+      const st = loadAbandonCooldownState();
+      if (st.count >= ABANDON_MAX_PER_DAY) {
+        return { ok: false, reason: "limit", waitMs: 0, count: st.count };
+      }
+      const now = Date.now();
+      if (st.cooldownUntil > now) {
+        return { ok: false, reason: "cooldown", waitMs: st.cooldownUntil - now, count: st.count };
+      }
+      return { ok: true, reason: "", waitMs: 0, count: st.count };
+    }
+
+    function formatAbandonWaitText(waitMs) {
+      const ms = Math.max(0, Math.floor(Number(waitMs) || 0));
+      const totalSec = Math.max(1, Math.ceil(ms / 1000));
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      if (m <= 0) return tf("game.abandonWaitSeconds", { n: totalSec });
+      if (s <= 0) return tf("game.abandonWaitMinutes", { n: m });
+      return tf("game.abandonWaitMinSec", { m: m, s: s });
+    }
+
+    function showAbandonBlockedAlert(gate) {
+      const g = gate || getAbandonGate();
+      if (g.ok) return;
+      if (g.reason === "limit") {
+        alert(t("game.abandonDailyLimit"));
+        return;
+      }
+      alert(tf("game.abandonCooldownWait", { wait: formatAbandonWaitText(g.waitMs) }));
+    }
+
+    function recordAbandonSuccess() {
+      const st = loadAbandonCooldownState();
+      st.count += 1;
+      st.date = abandonLocalDayKey();
+      if (st.count >= ABANDON_MAX_PER_DAY) {
+        st.cooldownUntil = 0;
+      } else {
+        st.cooldownUntil = Date.now() + ABANDON_BASE_COOLDOWN_MS * Math.pow(2, st.count - 1);
+      }
+      saveAbandonCooldownState(st);
+      syncAbandonCooldownButtonUi();
+    }
+
+    function clearAbandonCooldownUiTimer() {
+      if (abandonCooldownUiTimerId) {
+        clearTimeout(abandonCooldownUiTimerId);
+        abandonCooldownUiTimerId = null;
+      }
+    }
+
+    function syncAbandonCooldownButtonUi() {
+      clearAbandonCooldownUiTimer();
+      const inProgress = isRunInProgress();
+      const gate = getAbandonGate();
+      const cooling = inProgress && !gate.ok;
+      const globalBackBtn = document.getElementById("global-back-home-btn");
+      const abandonGameBtn = document.getElementById("abandon-game-btn");
+      if (globalBackBtn) {
+        globalBackBtn.classList.toggle("is-abandon-cooldown", cooling);
+        if (cooling) globalBackBtn.setAttribute("aria-disabled", "true");
+        else globalBackBtn.removeAttribute("aria-disabled");
+      }
+      if (abandonGameBtn) {
+        abandonGameBtn.classList.toggle("is-abandon-cooldown", cooling);
+        if (cooling) abandonGameBtn.setAttribute("aria-disabled", "true");
+        else abandonGameBtn.removeAttribute("aria-disabled");
+      }
+      if (cooling && gate.reason === "cooldown" && gate.waitMs > 0) {
+        abandonCooldownUiTimerId = setTimeout(function () {
+          abandonCooldownUiTimerId = null;
+          syncAbandonCooldownButtonUi();
+        }, Math.min(gate.waitMs + 50, 60000));
+      }
     }
 
     /** 训练/生存/闯关放弃仍写入 attempts（进热图）；拓展模式多为 comboOnly，仅丢分 */
     function confirmAbandonRun(mode) {
+      const gate = getAbandonGate();
+      if (!gate.ok) {
+        showAbandonBlockedAlert(gate);
+        return false;
+      }
       const m = String(mode || gameMode || "");
       const heatmapModes = m === "training" || m === "survival" || m === "level";
-      return confirm(t(heatmapModes ? "game.abandonConfirm" : "game.abandonConfirmScoreOnly"));
+      const ok = confirm(t(heatmapModes ? "game.abandonConfirm" : "game.abandonConfirmScoreOnly"));
+      if (ok) recordAbandonSuccess();
+      return ok;
     }
 
     function globalBackToHome() {
@@ -6972,7 +7130,7 @@
         "mode.running.perfectSquare": "平方數",
         "mode.running.divisibility": "整除",
         "toast.divBankLoadFail": "整除題庫未載入",
-        "div.intro": "每局 24 題，選擇能被指定數整除的整數；錯題不回庫。答對 +5 分。",
+        "div.intro": "每局 24 題，選擇能被指定數整除的整數；錯題不回庫。答對 +5，答錯 −5。",
         "div.level.L1": "Z1 · 2 與 5 的整除",
         "div.level.L2": "Z2 · 3 與 9 的整除",
         "div.level.L3": "Z3 · 4 與 8 的整除",
@@ -6980,6 +7138,7 @@
         "div.level.L5": "Z5 · 混合整除（綜合練習）",
         "div.levelSelectAria": "選擇整除難度",
         "div.headerHint": "請選擇能被整除的數",
+        "div.questionNum": "{n}. {stem}",
         "div.recentTitle": "最近十次整除",
         "ranking.divisibilityPerfect": "整除達人",
         "ranking.hint.divisibilityPerfect.desc": "整除達人榜 · L5 綜合練習零錯通關，用時越短越好（展示前十名；未進前十會顯示你的名次）",
@@ -7085,6 +7244,11 @@
         "game.btn.abandon": "放棄本局",
         "game.abandonConfirm": "錯題仍會計入熱圖，並且會丟失所有積分，確認放棄？",
         "game.abandonConfirmScoreOnly": "將丟失所有積分，確認放棄？",
+        "game.abandonCooldownWait": "請等待 {wait} 後再放棄本局。",
+        "game.abandonDailyLimit": "今天已達放棄上限（5 次），請明天再試。",
+        "game.abandonWaitMinutes": "{n} 分鐘",
+        "game.abandonWaitSeconds": "{n} 秒",
+        "game.abandonWaitMinSec": "{m} 分 {s} 秒",
         "game.btn.playAgain": "再玩一局",
         "game.over.survivalDuration": "本局存活：",
         "game.over.score": "本局得分：",
@@ -7198,7 +7362,7 @@
         "expand.ui.modeValue": "拆括號",
         "expand.go.abandoned": "已放棄",
         "expand.levelSelectAria": "選擇拆括號難度",
-        "prime.intro": "判斷 2～99 中的數是質數還是合數；每題 5 分，須掌握 50 題才通關。答錯的題會再隨機出現，直至全部答對。",
+        "prime.intro": "判斷 2～99 中的數是質數還是合數；答對 +5，答錯 −5。須掌握 50 題才通關；答錯的題會再出現，直至全部答對。",
         "prime.progressRemaining": "待完成 {n} 題",
         "prime.startPractice": "開始練習",
         "prime.wrongReview": "錯題回顧",
@@ -7356,7 +7520,7 @@
         "mode.running.perfectSquare": "Squares",
         "mode.running.divisibility": "Divisibility",
         "toast.divBankLoadFail": "Divisibility question bank failed to load",
-        "div.intro": "24 questions per run; pick the integer divisible by the given number. Wrongs are not requeued. +5 per correct.",
+        "div.intro": "24 questions per run; pick the integer divisible by the given number. Wrongs are not requeued. +5 correct, −5 wrong.",
         "div.level.L1": "Z1 · Divisible by 2 & 5",
         "div.level.L2": "Z2 · Divisible by 3 & 9",
         "div.level.L3": "Z3 · Divisible by 4 & 8",
@@ -7364,6 +7528,7 @@
         "div.level.L5": "Z5 · Mixed divisibility",
         "div.levelSelectAria": "Divisibility level",
         "div.headerHint": "Pick the number that is divisible",
+        "div.questionNum": "{n}. {stem}",
         "div.recentTitle": "Last 10 divisibility runs",
         "ranking.divisibilityPerfect": "Divisibility Master",
         "ranking.hint.divisibilityPerfect.desc": "Divisibility Master · L5 mixed clear with 0 wrongs; faster is better (top 10; your rank shown if outside)",
@@ -7469,6 +7634,11 @@
         "game.btn.abandon": "Abandon Run",
         "game.abandonConfirm": "Wrong answers still count toward the heatmap, and you will lose all points. Abandon this run?",
         "game.abandonConfirmScoreOnly": "You will lose all points. Abandon this run?",
+        "game.abandonCooldownWait": "Please wait {wait} before abandoning again.",
+        "game.abandonDailyLimit": "Daily abandon limit reached (5). Try again tomorrow.",
+        "game.abandonWaitMinutes": "{n} min",
+        "game.abandonWaitSeconds": "{n} sec",
+        "game.abandonWaitMinSec": "{m} min {s} sec",
         "game.btn.playAgain": "Play Again",
         "game.over.survivalDuration": "Survived:",
         "game.over.score": "Score:",
@@ -7565,7 +7735,7 @@
         "expand.ui.modeValue": "Expand brackets",
         "expand.go.abandoned": "Abandoned",
         "expand.levelSelectAria": "Expand brackets level",
-        "prime.intro": "Decide prime or composite for 2–99; 5 points each. Master all 50 to finish—wrong items reappear until correct.",
+        "prime.intro": "Decide prime or composite for 2–99; +5 correct, −5 wrong. Master all 50 to finish—wrong items reappear until correct.",
         "prime.progressRemaining": "{n} left",
         "prime.startPractice": "Start",
         "prime.wrongReview": "Wrong review",
@@ -10722,7 +10892,7 @@
       if (fc) fc.textContent = String(primeCompositeMastered);
       if (fw) fw.textContent = String(primeCompositeWrongCount);
       if (ft) ft.textContent = formatGameElapsedClock(elapsedSec);
-      if (fs) fs.textContent = abandoned ? "0" : String(primeCompositeSessionScore);
+      if (fs) fs.textContent = abandoned ? "0" : String(Math.max(0, primeCompositeSessionScore));
 
       const listEl = document.getElementById("prime-finish-wrong-list");
       if (listEl) {
@@ -10800,6 +10970,9 @@
         }
       } else {
         primeCompositeWrongCount += 1;
+        primeCompositeSessionScore -= JML.SCORE_PER_WRONG || JML.SCORE_PER_CORRECT;
+        const scoreEl = document.getElementById("prime-session-score");
+        if (scoreEl) scoreEl.textContent = String(primeCompositeSessionScore);
         const liveWrongEl = document.getElementById("prime-live-wrong");
         if (liveWrongEl) liveWrongEl.textContent = String(primeCompositeWrongCount);
         primeCompositeWrongItems.push({ n: q.n, kind: q.kind });
@@ -10870,7 +11043,7 @@
       const syncFail = document.getElementById("prime-finished-sync-fail");
       const syncLocal = document.getElementById("prime-finished-sync-local");
       const name = loadCurrentUsername();
-      const sessionScore = primeCompositeSessionScore;
+      const sessionScore = Math.max(0, primeCompositeSessionScore);
       const baseUrl = getApiBase();
       if (name && baseUrl) {
         const synced = await appendRun(
