@@ -7,6 +7,7 @@ const LEVEL_CHALLENGE_MAX_INDEX = 15;
 const EXPAND_MAX_LEVEL = 4;
 const PS_MAX_LEVEL = 3;
 const DECIMAL_MAX_LEVEL = 5;
+const DIV_MAX_LEVEL = 4;
 const PRIME_RANKING_MAX_WRONG = 5;
 
 function formatGradeLabel(grade) {
@@ -319,10 +320,17 @@ function buildStudentOverviewRows(options) {
         : typeof u.levelExpandBracketsCurrentLevel === "number"
           ? u.levelExpandBracketsCurrentLevel
           : 0;
+    const divUnlocked =
+      typeof u.levelDivisibilityUnlockedMax === "number"
+        ? u.levelDivisibilityUnlockedMax
+        : typeof u.levelDivisibilityCurrentLevel === "number"
+          ? u.levelDivisibilityCurrentLevel
+          : 0;
     const primeEntry = primeMap[username];
     const psP = formatSpecialModeProgress(psUnlocked, PS_MAX_LEVEL, "L", runs, "perfectSquare");
     const decP = formatSpecialModeProgress(decUnlocked, DECIMAL_MAX_LEVEL, "D", runs, "decimal");
     const expP = formatSpecialModeProgress(expUnlocked, EXPAND_MAX_LEVEL, "L", runs, "expandBrackets");
+    const divP = formatSpecialModeProgress(divUnlocked, DIV_MAX_LEVEL, "Z", runs, "divisibility");
 
     rows.push({
       username,
@@ -345,6 +353,8 @@ function buildStudentOverviewRows(options) {
       trainingReason: trainingP.reason,
       primeProgress: primeEntry ? formatCompactRunTime(primeEntry.survivalTimeSec) : null,
       primeProgressSec: primeEntry ? Number(primeEntry.survivalTimeSec) || null : null,
+      divisibilityProgress: divP.text,
+      divisibilityProgressSort: divP.sortKey,
       perfectSquareProgress: psP.text,
       perfectSquareProgressSort: psP.sortKey,
       decimalProgress: decP.text,

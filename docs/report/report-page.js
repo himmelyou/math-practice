@@ -130,6 +130,7 @@
     trainingProgress: 'trainingProgressSort',
     survivalProgress: 'survivalProgressSort',
     primeProgress: 'primeProgressSec',
+    divisibilityProgress: 'divisibilityProgressSort',
     perfectSquareProgress: 'perfectSquareProgressSort',
     decimalProgress: 'decimalProgressSort',
     expandProgress: 'expandProgressSort',
@@ -554,7 +555,13 @@
           escapeHtml(dashCell(r.gradeLabel)) +
           '</td>' +
           '<td class="jml-ov-col-note">' +
-          escapeHtml(dashCell(r.adminNote)) +
+          '<input type="text" class="jml-ov-note-input" maxlength="20" data-username="' +
+          escapeHtml(r.username) +
+          '" value="' +
+          escapeHtml(r.adminNote || '') +
+          '" placeholder="备注" aria-label="备注：' +
+          escapeHtml(r.username) +
+          '" />' +
           '</td>' +
           '<td class="jml-ov-col-nick">' +
           escapeHtml(dashCell(r.nickname)) +
@@ -580,6 +587,9 @@
           escapeHtml(dashCell(r.primeProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.divisibilityProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
           escapeHtml(dashCell(r.perfectSquareProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
@@ -598,7 +608,7 @@
       '<thead><tr>' +
       overviewSortLabel('username', '用户名') +
       overviewSortLabel('grade', '年级') +
-      '<th scope="col">备注</th>' +
+      '<th scope="col" title="管理员自用备注，最多 20 字">备注</th>' +
       '<th scope="col">昵称</th>' +
       overviewSortLabel('daysActiveLast30', '最近30天上线天数', 'num') +
       overviewSortLabel('daysOffline', '未上线(天)', 'num') +
@@ -606,12 +616,65 @@
       overviewSortLabel('trainingProgress', '训练流畅', 'num') +
       overviewSortLabel('survivalProgress', '生存') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
+      overviewSortLabel('divisibilityProgress', '整除') +
       overviewSortLabel('perfectSquareProgress', '平方数') +
       overviewSortLabel('decimalProgress', '小数') +
       overviewSortLabel('expandProgress', '拆括号') +
       '</tr></thead><tbody>' +
       body +
       '</tbody></table></div>';
+  }
+
+  function applyLocalAdminNote(username, adminNote) {
+    var note = String(adminNote || '').trim();
+    var row = findOverviewRow(username);
+    if (row) row.adminNote = note;
+    var matchedUser = null;
+    for (var i = 0; i < state.usersAll.length; i += 1) {
+      if (state.usersAll[i] && state.usersAll[i].username === username) {
+        state.usersAll[i].adminNote = note;
+        matchedUser = state.usersAll[i];
+        break;
+      }
+    }
+    var sel = getUserSelect();
+    if (sel && matchedUser) {
+      for (var j = 0; j < sel.options.length; j += 1) {
+        if (sel.options[j].value === username) {
+          sel.options[j].textContent = formatUserSelectLabel(matchedUser);
+          break;
+        }
+      }
+    }
+  }
+
+  function setOverviewAdminNote(username, adminNote, inputEl) {
+    if (!username) return Promise.resolve();
+    var next = String(adminNote || '').trim();
+    if (next.length > 20) next = next.slice(0, 20);
+    var row = findOverviewRow(username);
+    var prev = row && typeof row.adminNote === 'string' ? row.adminNote.trim() : '';
+    if (next === prev) {
+      if (inputEl) inputEl.value = next;
+      return Promise.resolve();
+    }
+    if (inputEl) inputEl.disabled = true;
+    return apiFetch('/api/admin/users/' + encodeURIComponent(username), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminNote: next }),
+    })
+      .then(function () {
+        applyLocalAdminNote(username, next);
+        if (inputEl) inputEl.value = next;
+      })
+      .catch(function (e) {
+        if (inputEl) inputEl.value = prev;
+        window.alert(e.message || '更新备注失败');
+      })
+      .then(function () {
+        if (inputEl) inputEl.disabled = false;
+      });
   }
 
   function switchTab(id) {
@@ -2267,6 +2330,21 @@
         if (!th || !overviewBody.contains(th)) return;
         var key = th.getAttribute('data-sort-key');
         if (key) toggleOverviewSort(key);
+      });
+      overviewBody.addEventListener('focusout', function (ev) {
+        var input = ev.target;
+        if (!input || !input.classList || !input.classList.contains('jml-ov-note-input')) return;
+        if (!overviewBody.contains(input)) return;
+        var username = input.getAttribute('data-username') || '';
+        void setOverviewAdminNote(username, input.value, input);
+      });
+      overviewBody.addEventListener('keydown', function (ev) {
+        var input = ev.target;
+        if (!input || !input.classList || !input.classList.contains('jml-ov-note-input')) return;
+        if (ev.key === 'Enter') {
+          ev.preventDefault();
+          input.blur();
+        }
       });
     }
     var filter = getFilterInput();

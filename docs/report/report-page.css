@@ -179,8 +179,31 @@
 
 .jml-report-overview-table .jml-ov-col-note {
   white-space: normal;
-  max-width: 120px;
+  min-width: 100px;
+  max-width: 140px;
   word-break: break-word;
+}
+
+.jml-report-overview-table .jml-ov-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+}
+
+.jml-report-overview-table .jml-ov-note-input:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.jml-report-overview-table .jml-ov-note-input:disabled {
+  opacity: 0.65;
 }
 
 .jml-report-overview-table .jml-ov-col-nick {
