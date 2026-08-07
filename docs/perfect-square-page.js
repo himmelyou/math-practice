@@ -192,17 +192,29 @@
   function syncPsLevelTexts() {
     if (dom().psCurrentLevelName) dom().psCurrentLevelName.textContent = "L" + (psLevel + 1);
     if (dom().psLevelText) dom().psLevelText.textContent = "L" + (psLevel + 1);
-    if (dom().psQuestionSubtext && dom().psStartRow && dom().psStartRow.style.display !== "none") {
+    if (dom().psLevelDesc && dom().psStartRow && dom().psStartRow.style.display !== "none") {
       const lk = "ps.level.L" + (psLevel + 1);
-      dom().psQuestionSubtext.textContent = t(lk) || "";
-      dom().psQuestionSubtext.style.display = dom().psQuestionSubtext.textContent ? "" : "none";
+      const desc = t(lk) || "";
+      dom().psLevelDesc.textContent = desc;
+      dom().psLevelDesc.title = desc;
+      if (dom().psLevelSelect && dom().psLevelSelect.style.display !== "none") {
+        dom().psLevelDesc.style.display = desc ? "" : "none";
+      }
     }
+    hidePsQuestionSubtext();
     if (deps.scheduleSyncAllRuleHints) deps.scheduleSyncAllRuleHints();
   }
 
   function setPsLevelPickerVisible(visible) {
     if (dom().psLevelSelect) dom().psLevelSelect.style.display = visible ? "" : "none";
     if (dom().psCurrentLevelName) dom().psCurrentLevelName.style.display = visible ? "none" : "";
+    if (dom().psLevelDesc) {
+      dom().psLevelDesc.style.display = visible ? "" : "none";
+      if (!visible) {
+        dom().psLevelDesc.textContent = "";
+        dom().psLevelDesc.title = "";
+      }
+    }
   }
 
   function renderPsLevelSelect() {

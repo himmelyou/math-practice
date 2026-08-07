@@ -3638,9 +3638,14 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
       const dr = body.divisibilityPerfectRanking;
       writeJson(DIVISIBILITY_PERFECT_RANKING_FILE, Array.isArray(dr.list) ? dr : { list: Array.isArray(dr) ? dr : [] });
       restored.push("divisibilityPerfectRanking");
-    } else if (body.rebuildDivisibilityPerfectRanking === true) {
-      rebuildDivisibilityPerfectRankingFromRuns();
-      restored.push("divisibilityPerfectRanking(rebuilt)");
+    } else if (body.runs) {
+      try {
+        const stats = rebuildDivisibilityPerfectRankingFromRuns();
+        notes.push("备份无整除榜，已从 runs 重建（" + (stats.entries || 0) + " 人）");
+        restored.push("divisibilityPerfectRanking(rebuilt)");
+      } catch (e) {
+        notes.push("整除榜重建失败：" + (e.message || String(e)));
+      }
     }
     if (body.primePerfectRanking && typeof body.primePerfectRanking === "object") {
       const pr = body.primePerfectRanking;
@@ -3700,6 +3705,19 @@ app.post("/api/admin/maintenance/backfill-prime-perfect-ranking", (req, res) => 
   }
   try {
     const stats = rebuildPrimePerfectRankingFromRuns();
+    return res.json({ ok: true, ...stats });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：从 runs 重建整除达人榜（L5 零错最短用时） ==========
+app.post("/api/admin/maintenance/backfill-divisibility-perfect-ranking", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const stats = rebuildDivisibilityPerfectRankingFromRuns();
     return res.json({ ok: true, ...stats });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });

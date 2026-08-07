@@ -145,12 +145,18 @@
     if (dom().divLevelText) dom().divLevelText.textContent = label;
     if (dom().divCurrentLevelName) dom().divCurrentLevelName.textContent = label;
     if (dom().divIdleLevelName) dom().divIdleLevelName.textContent = label;
+    const lk = "div.level.L" + (divLevel + 1);
+    const desc = t(lk) || "";
+    if (dom().divLevelDesc) {
+      dom().divLevelDesc.textContent = desc;
+      dom().divLevelDesc.title = desc;
+      if (dom().divLevelSelect && dom().divLevelSelect.style.display !== "none") {
+        dom().divLevelDesc.style.display = desc ? "" : "none";
+      }
+    }
     const intro = document.getElementById("div-idle-intro");
     if (intro && !(deps.getIsPlaying && deps.getIsPlaying())) {
-      const lk = "div.level.L" + (divLevel + 1);
-      const desc = t(lk);
-      const base = t("div.intro");
-      intro.textContent = desc ? base + " " + desc : base;
+      intro.textContent = t("div.intro") || "";
     }
     if (deps.scheduleSyncAllRuleHints) deps.scheduleSyncAllRuleHints();
   }
@@ -158,6 +164,13 @@
   function setDivLevelPickerVisible(visible) {
     if (dom().divLevelSelect) dom().divLevelSelect.style.display = visible ? "" : "none";
     if (dom().divIdleLevelName) dom().divIdleLevelName.style.display = visible ? "none" : "";
+    if (dom().divLevelDesc) {
+      dom().divLevelDesc.style.display = visible ? "" : "none";
+      if (!visible) {
+        dom().divLevelDesc.textContent = "";
+        dom().divLevelDesc.title = "";
+      }
+    }
   }
 
   function renderDivLevelSelect() {

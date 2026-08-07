@@ -772,7 +772,7 @@
         '<ul class="muted" style="margin:10px 0 0;padding-left:1.2em;line-height:1.5;font-size:0.9rem;">' +
         '<li>学员档案（积分、成就、进度、错题等）</li>' +
         '<li>完整练习记录（runs）</li>' +
-        '<li>生存榜 / 闯关达人榜 / 质数达人榜中的该用户条目</li>' +
+        '<li>生存榜 / 闯关达人榜 / 质数达人榜 / 整除达人榜中的该用户条目</li>' +
         '<li>该用户提交的反馈</li>' +
         '</ul>' +
         '<p class="muted" style="margin:10px 0 0;font-size:0.85rem;">建议先在「系统备份」中下载全部备份。</p>',
@@ -1513,6 +1513,22 @@
     }
   }
 
+  async function backfillDivisibilityPerfectRanking() {
+    try {
+      var msg = '将从 runs 扫描 L5（Z5）零错整除局，重建 divisibility-perfect-ranking.json。\n\n'
+        + '进榜条件：mode=divisibility、maxLevel=4、wrongCount=0。\n'
+        + '榜文件丢失、恢复备份或改榜规则后使用。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('重建整除达人榜中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-divisibility-perfect-ranking', { method: 'POST' });
+      var entries = Number(data && data.entries) || 0;
+      var scanned = Number(data && data.runsScanned) || 0;
+      setStatus('重建完成：榜内 ' + entries + ' 人，扫描合格局 ' + scanned + ' 条', 'ok');
+    } catch (e) {
+      setStatus(e.message || '重建失败', 'err');
+    }
+  }
+
   async function verifyRunsStore() {
     var out = document.getElementById('jml-runs-store-verify-out');
     if (out) {
@@ -1716,6 +1732,10 @@
     if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
     var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
     if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
+    var backfillDivisibilityPerfectRankingBtn = document.getElementById('jml-btn-backfill-divisibility-perfect-ranking');
+    if (backfillDivisibilityPerfectRankingBtn) {
+      backfillDivisibilityPerfectRankingBtn.addEventListener('click', backfillDivisibilityPerfectRanking);
+    }
     var runsStoreVerifyBtn = document.getElementById('jml-btn-runs-store-verify');
     if (runsStoreVerifyBtn) runsStoreVerifyBtn.addEventListener('click', verifyRunsStore);
     var runsStoreSyncBtn = document.getElementById('jml-btn-runs-store-sync');

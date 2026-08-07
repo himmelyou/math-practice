@@ -1,7 +1,7 @@
 /**
  * 整除判断 Z1–Z5 出题（打印 / 日后学员端共用）
  * 题型：以下哪个整数可以被 N 整除？两选项一真一假，顺序随机。
- * 一局内位数分三批递进：一般 2→3→4 位；除数 8 为 3→4→5 位。批内除数打乱，批间不打乱。
+ * 一局内位数分三批递进：2→3→4 位。批内除数打乱，批间不打乱。
  */
 (function (global) {
   function randomInt(min, max) {
@@ -34,16 +34,12 @@
     return Math.max(0, Math.min(LEVEL_DEFS.length - 1, Math.floor(Number(i) || 0)));
   }
 
-  function digitChoicesForDivisor(d) {
-    if (d === 8) return [3, 4, 5];
-    return [2, 3, 4];
-  }
+  var DIGIT_TIERS = [2, 3, 4];
 
-  /** tier 0/1/2 → 该除数的易/中/难位数 */
-  function digitsForTier(divisor, tier) {
-    var list = digitChoicesForDivisor(divisor);
-    var t = Math.max(0, Math.min(list.length - 1, Math.floor(Number(tier) || 0)));
-    return list[t];
+  /** tier 0/1/2 → 易/中/难位数 */
+  function digitsForTier(tier) {
+    var t = Math.max(0, Math.min(DIGIT_TIERS.length - 1, Math.floor(Number(tier) || 0)));
+    return DIGIT_TIERS[t];
   }
 
   function rangeForDigits(digits) {
@@ -129,10 +125,9 @@
   }
 
   function buildOneQuestion(divisor, digits) {
-    var digitsList = digitChoicesForDivisor(divisor);
     var dig = Math.floor(Number(digits));
     if (!Number.isFinite(dig) || dig < 1) {
-      dig = digitsList[randomInt(0, digitsList.length - 1)];
+      dig = DIGIT_TIERS[randomInt(0, DIGIT_TIERS.length - 1)];
     }
     var correct = null;
     var wrong = null;
@@ -142,7 +137,7 @@
     for (t = 0; t < 40; t += 1) {
       correct = randomMultipleInDigits(divisor, tryDigits);
       if (correct == null) {
-        tryDigits = digitsList[Math.min(t % digitsList.length, digitsList.length - 1)];
+        tryDigits = DIGIT_TIERS[t % DIGIT_TIERS.length];
         continue;
       }
       wrong = buildDistractor(divisor, tryDigits, correct);
@@ -236,7 +231,7 @@
     for (tier = 0; tier < 3; tier += 1) {
       targets = buildBatchDivisors(levelIndex, sizes[tier]);
       for (i = 0; i < targets.length; i += 1) {
-        q = buildOneQuestion(targets[i], digitsForTier(targets[i], tier));
+        q = buildOneQuestion(targets[i], digitsForTier(tier));
         q.baseLevelId = LEVEL_DEFS[levelIndex].id;
         q.digitTier = tier;
         run.push(q);
@@ -250,7 +245,7 @@
     var divisors = LEVEL_DEFS[levelIndex].divisors;
     var d = divisors[randomInt(0, divisors.length - 1)];
     var tier = randomInt(0, 2);
-    var q = buildOneQuestion(d, digitsForTier(d, tier));
+    var q = buildOneQuestion(d, digitsForTier(tier));
     q.baseLevelId = LEVEL_DEFS[levelIndex].id;
     q.digitTier = tier;
     return q;
