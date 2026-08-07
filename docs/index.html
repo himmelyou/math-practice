@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=98"></script>
+  <script src="shared/app-version.js?v=99"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3885,7 +3885,7 @@
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-divisibility" style="display:none;">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-divisibility">
               <img class="home-mode-icon" src="assets/home/ic_challenge_2.png" width="28" height="28" alt="" />
               <span class="home-mode-label">整除</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
@@ -6114,7 +6114,7 @@
     const buildExpandBracketsQuestion = (level) => JmlExpandBrackets.buildQuestion(level);
     const formatExpandedTerms = (terms) => JmlExpandBrackets.formatExpandedTerms(terms);
 
-    const TESTER_ONLY_HOME_MODE_IDS = ["mode-divisibility", "mode-factors-multiples"];
+    const TESTER_ONLY_HOME_MODE_IDS = ["mode-factors-multiples"];
 
     function isTesterUser() {
       return !!(cachedUser && cachedUser.isTester === true);
