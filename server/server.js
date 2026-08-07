@@ -17,6 +17,7 @@ const achievementEngine = require("./achievements/engine");
 const achievementRankings = require("./achievements/rankings");
 const achievementImport = require("./achievements/import");
 const { buildStudentOverviewRows } = require("./student-overview");
+const { buildTrafficStats } = require("./traffic-stats");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
@@ -1629,6 +1630,7 @@ app.post("/api/register", async (req, res) => {
     trainingL16Cleared: false,
     heatmapL16Passed: false,
     createdBy: "self",
+    createdAt: Date.now(),
   };
   data.users.push(newUser);
   writeJson(USERS_FILE, data);
@@ -2495,6 +2497,28 @@ app.get("/api/admin/student-overview", (req, res) => {
   });
 });
 
+// ========== 管理员：流量/使用发展统计 ==========
+app.get("/api/admin/traffic-stats", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const rangeRaw = req.query && req.query.range != null ? Number(req.query.range) : 30;
+  const rangeDays = rangeRaw === 7 || rangeRaw === 90 ? rangeRaw : 30;
+  const scope = req.query && String(req.query.scope || "") === "vip" ? "vip" : "all";
+  const excludeTesters = !(req.query && String(req.query.excludeTesters || "") === "0");
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(usersData.users) ? usersData.users : [];
+  const stats = buildTrafficStats({
+    users,
+    getUserRuns: (username) => runsStore.getUserRuns(username),
+    rangeDays,
+    scope,
+    excludeTesters,
+    churnDays: 14,
+  });
+  res.json({ ok: true, ...stats });
+});
+
 // ========== 管理员：添加学员 ==========
 app.post("/api/admin/users", async (req, res) => {
   if (!checkAdminPin(req)) {
@@ -2558,6 +2582,8 @@ app.post("/api/admin/users", async (req, res) => {
     isVip: false,
     grade: null,
     adminNote: "",
+    createdBy: "admin",
+    createdAt: Date.now(),
   });
   writeJson(USERS_FILE, data);
   res.json({ ok: true, users: data.users.map(safeUser) });

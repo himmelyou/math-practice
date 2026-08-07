@@ -631,6 +631,9 @@
     if (id === 'achievements' && typeof JmlAdminAchievements !== 'undefined') {
       JmlAdminAchievements.onTabShow();
     }
+    if (id === 'traffic' && typeof JmlAdminTraffic !== 'undefined') {
+      JmlAdminTraffic.onTabShow();
+    }
   }
 
   var modal = document.getElementById('jml-modal-overlay');
@@ -1766,6 +1769,7 @@
       bindEvents();
       if (typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
       if (typeof JmlAdminAchievements !== 'undefined') JmlAdminAchievements.init();
+      if (typeof JmlAdminTraffic !== 'undefined') JmlAdminTraffic.init();
       // 默认加载账号列表；并行拉取反馈未读角标
       loadUsers();
       refreshFeedbackUnreadBadge();

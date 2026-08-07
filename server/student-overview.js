@@ -448,4 +448,6 @@ module.exports = {
   computeDaysOffline,
   computeDaysActiveLast30,
   chinaTodayKey,
+  chinaDateKeyFromTs,
+  daysBetweenDateKeys,
 };

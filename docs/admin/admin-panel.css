@@ -1265,3 +1265,210 @@
   margin-left: 4px;
 }
 
+/* —— 流量概览 —— */
+.jml-traffic-head {
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+}
+
+.jml-traffic-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.jml-traffic-filter select {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.jml-traffic-check {
+  cursor: pointer;
+  user-select: none;
+}
+
+.jml-traffic-body {
+  margin-top: 4px;
+}
+
+.jml-traffic-empty,
+.jml-traffic-error {
+  padding: 20px 8px;
+  font-size: 0.92rem;
+  color: #64748b;
+}
+
+.jml-traffic-error {
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.jml-traffic-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.jml-traffic-kpi {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.jml-traffic-kpi-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.jml-traffic-kpi-value {
+  font-size: 1.45rem;
+  font-weight: 650;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.jml-traffic-kpi-sub {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.jml-traffic-section {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  margin-bottom: 14px;
+}
+
+.jml-traffic-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.jml-traffic-h3 {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.jml-traffic-section-head .jml-traffic-h3 {
+  margin-bottom: 0;
+}
+
+.jml-traffic-hint {
+  margin: 0 0 8px !important;
+  font-size: 0.8rem !important;
+}
+
+.jml-traffic-metric-toggle {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.jml-traffic-metric-btn {
+  padding: 4px 10px !important;
+  font-size: 0.8rem !important;
+}
+
+.jml-traffic-metric-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.jml-traffic-chart-wrap {
+  width: 100%;
+  min-height: 220px;
+}
+
+.jml-traffic-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 860px) {
+  .jml-traffic-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.jml-traffic-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jml-traffic-bar-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 40px;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.jml-traffic-bar-label {
+  color: #475569;
+}
+
+.jml-traffic-bar-track {
+  height: 10px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.jml-traffic-bar-fill {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 999px;
+  min-width: 0;
+}
+
+.jml-traffic-bar-value {
+  text-align: right;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.jml-traffic-table-wrap {
+  margin-top: 4px;
+}
+
+.jml-traffic-table {
+  font-size: 0.84rem;
+}
+
+.jml-traffic-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.jml-traffic-user-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.jml-traffic-user-link:hover {
+  text-decoration: underline;
+}
+
