@@ -1,6 +1,6 @@
 /**
  * 整除判断 Z1–Z5 出题（打印 / 日后学员端共用）
- * 题型：以下哪个是 N 的倍数？两选项一真一假，顺序随机。
+ * 题型：以下哪个整数可以被 N 整除？两选项一真一假，顺序随机。
  * 一局内位数分三批递进：一般 2→3→4 位；除数 8 为 3→4→5 位。批内除数打乱，批间不打乱。
  */
 (function (global) {
@@ -161,16 +161,14 @@
     var optA = correctFirst ? correct : wrong;
     var optB = correctFirst ? wrong : correct;
     var answerLetter = correctFirst ? "A" : "B";
-    var text =
-      "以下哪个是 " +
-      divisor +
-      " 的倍数？  A. " +
-      optA +
-      "  B. " +
-      optB;
+    var promptStem = "以下哪个整数可以被 " + divisor + " 整除？";
+    var text = promptStem + "  A. " + optA + "  B. " + optB;
     return {
       text: text,
       prompt: text,
+      promptStem: promptStem,
+      optionA: optA,
+      optionB: optB,
       answer: answerLetter + "（" + correct + "）",
       correctValue: correct,
       wrongValue: wrong,

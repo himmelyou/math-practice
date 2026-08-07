@@ -1,6 +1,14 @@
 const { PRIME_RANKING_MAX_WRONG } = require("./evaluators");
 
-const ALL_RANKING_BOARDS = ["score", "survival", "levelClear", "primePerfect", "streak", "combo"];
+const ALL_RANKING_BOARDS = [
+  "score",
+  "survival",
+  "levelClear",
+  "primePerfect",
+  "divisibilityPerfect",
+  "streak",
+  "combo",
+];
 
 function normalizeDateKey(s) {
   if (typeof s !== "string") return "";
@@ -136,17 +144,29 @@ function buildComboRankingUsernames(users) {
   return rows.map((r) => r.username);
 }
 
-/** @param {{ users?: array, survivalList?: array, primeList?: array }} data */
+function buildDivisibilityPerfectRankingUsernames(list) {
+  let rows = dedupeBestLevelRanking(list || []);
+  rows = rows.filter((e) => (Number(e && e.wrongCount) || 0) === 0);
+  rows.sort(compareLevelRankingEntries);
+  return rows.map((e) => e.username);
+}
+
+/** @param {{ users?: array, survivalList?: array, primeList?: array, divisibilityList?: array }} data */
 function getUserRanksByBoard(username, data) {
   const users = data && Array.isArray(data.users) ? data.users : [];
   const survivalList = data && Array.isArray(data.survivalList) ? data.survivalList : [];
   const levelList = data && Array.isArray(data.levelList) ? data.levelList : [];
   const primeList = data && Array.isArray(data.primeList) ? data.primeList : [];
+  const divisibilityList = data && Array.isArray(data.divisibilityList) ? data.divisibilityList : [];
   return {
     score: rankFromSortedList(username, buildScoreRankingUsernames(users)),
     survival: rankFromSortedList(username, buildSurvivalRankingUsernames(survivalList)),
     levelClear: rankFromSortedList(username, buildLevelRankingUsernames(levelList)),
     primePerfect: rankFromSortedList(username, buildPrimePerfectRankingUsernames(primeList)),
+    divisibilityPerfect: rankFromSortedList(
+      username,
+      buildDivisibilityPerfectRankingUsernames(divisibilityList)
+    ),
     streak: rankFromSortedList(username, buildStreakRankingUsernames(users)),
     combo: rankFromSortedList(username, buildComboRankingUsernames(users)),
   };

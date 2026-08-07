@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=90"></script>
+  <script src="shared/app-version.js?v=93"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -299,6 +299,7 @@
     .app:has(#expand-brackets-section.visible) .app-header,
     .app:has(#prime-composite-section.visible) .app-header,
     .app:has(#perfect-square-section.visible) .app-header,
+    .app:has(#divisibility-section.visible) .app-header,
     .app:has(#decimal-section.visible) .app-header {
       padding-bottom: 0;
     }
@@ -1072,30 +1073,35 @@
     }
     .ranking-table-v2.ranking-mode-survival .r-col-rank,
     .ranking-table-v2.ranking-mode-levelClear .r-col-rank,
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-rank {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect .r-col-rank {
       width: 36px;
       max-width: 36px;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-user,
     .ranking-table-v2.ranking-mode-levelClear .r-col-user,
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-user {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect .r-col-user {
       width: auto;
       text-align: left;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-time,
     .ranking-table-v2.ranking-mode-levelClear .r-col-time,
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-time {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect .r-col-time {
       width: 64px;
       min-width: 4.2em;
     }
     .ranking-table-v2.ranking-mode-survival .r-col-wrong,
     .ranking-table-v2.ranking-mode-levelClear .r-col-wrong,
-    .ranking-table-v2.ranking-mode-primePerfect .r-col-wrong {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect .r-col-wrong {
       width: 36px;
     }
     .ranking-table-v2.ranking-mode-survival .user-meta,
     .ranking-table-v2.ranking-mode-levelClear .user-meta,
-    .ranking-table-v2.ranking-mode-primePerfect .user-meta {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect .user-meta {
       flex-direction: row;
       flex-wrap: wrap;
       align-items: center;
@@ -1103,13 +1109,16 @@
     }
     .ranking-table-v2.ranking-mode-survival .user-meta .name,
     .ranking-table-v2.ranking-mode-levelClear .user-meta .name,
-    .ranking-table-v2.ranking-mode-primePerfect .user-meta .name {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect .user-meta .name {
       max-width: 100%;
       flex: 1 1 auto;
       min-width: 0;
     }
-    .ranking-table-v2.ranking-mode-primePerfect th,
-    .ranking-table-v2.ranking-mode-primePerfect td {
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect th,
+    .ranking-table-v2.ranking-mode-primePerfect,
+    .ranking-table-v2.ranking-mode-divisibilityPerfect td {
       padding: 8px 4px;
     }
     .ranking-table-v2 .r-col-user .user-meta .name {
@@ -3577,6 +3586,125 @@
       font-size: 0.88rem;
     }
     .prime-wrong-row:last-child { border-bottom: none; }
+
+    /* 整除：复用质数壳尺寸，仅收紧题干/选项字号 */
+    .divisibility-page.game-section.visible,
+    #divisibility-section.visible {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .divisibility-page {
+      --prime-card-idle-height: clamp(168px, 32vh, 220px);
+      --prime-card-playing-height: clamp(300px, 42vh, 380px);
+    }
+    .divisibility-page #div-status-grid {
+      flex-shrink: 0;
+    }
+    .divisibility-page #div-play-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .divisibility-page .div-idle-card.card {
+      height: var(--prime-card-idle-height);
+      overflow: hidden;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .divisibility-page .div-idle-card > .question-body {
+      flex: 1 1 auto;
+      min-height: 3.2em;
+      min-width: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .divisibility-page .div-idle-card > .question-body > .question-text.rule-hint {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      margin-top: 0;
+      font-size: 0.92rem;
+      line-height: 1.35;
+    }
+    .divisibility-page .div-idle-card > .answer-form {
+      flex-shrink: 0;
+      margin-top: auto;
+      align-self: stretch;
+    }
+    .divisibility-page #div-game-card.card {
+      flex: 0 0 auto;
+      height: var(--prime-card-playing-height);
+      max-height: var(--prime-card-playing-height);
+      overflow: hidden;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      justify-content: space-between;
+      padding-top: 14px;
+      padding-bottom: 14px;
+    }
+    .divisibility-page #div-game-card > .question-header {
+      flex-shrink: 0;
+    }
+    .divisibility-page #div-question-prompt {
+      flex: 1 1 auto;
+      min-height: 0;
+      margin-top: 0;
+      font-size: clamp(1.05rem, 4.2vw, 1.35rem);
+      font-weight: 700;
+      color: #0d47a1;
+      line-height: 1.25;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 6px;
+    }
+    .divisibility-page .button-row.div-choice-row {
+      width: min(94%, 384px);
+      max-width: 100%;
+      margin-top: 0;
+      margin-left: auto;
+      margin-right: auto;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    .divisibility-page .button-row.div-choice-row .btn-primary {
+      flex: 1 1 50%;
+      min-width: 0;
+      padding: 10px 8px;
+      min-height: 2.6em;
+      font-size: clamp(0.95rem, 3.8vw, 1.15rem);
+      font-weight: 700;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .div-choice-btn.div-choice-wrong {
+      background: linear-gradient(135deg, #e53935, #ff7961) !important;
+      box-shadow: none !important;
+    }
+    .divisibility-page .div-finish-card.card {
+      margin-top: 8px;
+    }
+    @media (max-width: 520px) {
+      .divisibility-page {
+        --prime-card-idle-height: clamp(140px, 28vh, 180px);
+        --prime-card-playing-height: clamp(264px, 36vh, 336px);
+      }
+      #div-play-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+    }
   </style>
 </head>
 <body>
@@ -3743,14 +3871,14 @@
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-gcd" style="display:none;">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-divisibility" style="display:none;">
               <img class="home-mode-icon" src="assets/home/ic_challenge_2.png" width="28" height="28" alt="" />
-              <span class="home-mode-label">公因数</span>
+              <span class="home-mode-label">整除</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-lcm" style="display:none;">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-factors-multiples" style="display:none;">
               <img class="home-mode-icon" src="assets/home/ic_challenge_3.png" width="28" height="28" alt="" />
-              <span class="home-mode-label">公倍数</span>
+              <span class="home-mode-label">因数倍数</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
             </button>
           </div>
@@ -4077,6 +4205,12 @@
                   <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
                 </span>
               </button>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="divisibilityPerfect">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-divisibilityPerfect" class="ranking-mode-text">整除达人</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
+              </button>
               <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="streak">
                 <span class="ranking-mode-row">
                   <span id="ranking-mode-label-streak" class="ranking-mode-text">耐力榜</span>
@@ -4341,6 +4475,115 @@
       </div>
     </section>
 
+    <!-- 整除：Z1–Z5，24 题/局，双选项；升降级同平方数 -->
+    <section class="game-section divisibility-page" id="divisibility-section" style="display:none;">
+      <div class="status-grid" id="div-status-grid">
+        <div class="timer-chip" id="div-timer-chip">
+          <span id="div-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="div-elapsed">0:00</span>
+        </div>
+        <div class="status-item status-item-full">
+          <span class="status-label" id="div-lbl-mode">当前模式：</span>
+          <span class="status-value" id="div-mode-name">整除</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="div-lbl-progress">进度：</span>
+          <span class="status-value" id="div-progress-text">0 / 24</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="div-lbl-score">本局得分：</span>
+          <span class="status-value" id="div-score-text">0</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="div-lbl-level">当前等级：</span>
+          <span class="status-value" id="div-level-text">L1</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="div-lbl-wrong">错题：</span>
+          <span class="status-value" id="div-wrong-text">0</span>
+        </div>
+      </div>
+
+      <div class="prime-play-body" id="div-play-body">
+      <div id="div-panel-idle" class="prime-panel-idle" style="display:none;">
+        <main class="card div-idle-card">
+          <div class="question-header">
+            <div class="question-label">
+              <span class="status-label" id="div-lbl-difficulty">难度：</span>
+              <span class="status-value" id="div-idle-level-name">L1</span>
+              <select class="expand-level-select" id="div-level-select" style="display:none;" aria-label="选择整除难度"></select>
+            </div>
+          </div>
+          <div class="question-body">
+            <div class="question-text rule-hint" id="div-idle-intro"></div>
+          </div>
+          <form class="answer-form" action="javascript:void(0);">
+            <div class="game-card-action-anchor">
+              <div class="button-row" id="div-start-row">
+                <button type="button" class="btn-primary" id="div-start-btn">开始挑战</button>
+              </div>
+            </div>
+          </form>
+        </main>
+      </div>
+
+      <div id="div-panel-playing" class="prime-panel-playing" style="display:none;">
+        <main class="card" id="div-game-card">
+          <div class="question-header">
+            <div class="question-label">
+              <span class="status-label" id="div-header-hint">请选择能被整除的数</span>
+              <span class="status-value" id="div-current-level-name" style="display:none;">L1</span>
+            </div>
+          </div>
+          <div class="question-text" id="div-question-prompt">—</div>
+          <div class="button-row div-choice-row">
+            <button type="button" class="btn-primary div-choice-btn" id="div-btn-a">—</button>
+            <button type="button" class="btn-primary div-choice-btn" id="div-btn-b">—</button>
+          </div>
+        </main>
+      </div>
+
+      <div id="div-panel-finished" class="prime-panel-finished" style="display:none;">
+        <main class="card div-finish-card">
+          <div class="game-over-panel training-summary" id="div-finished-panel-inner">
+            <h2 class="game-over-title" id="div-finish-title">本局结束</h2>
+            <div class="game-over-stats-grid">
+              <p class="game-over-line"><span id="div-lbl-finish-correct">答对：</span><strong id="div-finish-correct">0</strong></p>
+              <p class="game-over-line"><span id="div-lbl-finish-wrong">答错：</span><strong id="div-finish-wrong">0</strong></p>
+              <p class="game-over-line"><span id="div-lbl-finish-time">用时：</span><strong id="div-finish-time">0:00</strong></p>
+              <p class="game-over-line"><span id="div-lbl-finish-level">本局等级：</span><strong id="div-finish-level">L1</strong></p>
+              <p class="game-over-line"><span id="div-lbl-finish-result">结算结果：</span><strong id="div-finish-result">—</strong></p>
+            </div>
+            <p id="div-wrong-review-hint" class="panel-hint prime-wrong-review-hint" style="display:none;">错题回顾</p>
+            <div id="div-finish-wrong-list" class="prime-wrong-list"></div>
+            <div class="game-over-buttons">
+              <button type="button" class="btn-primary" id="div-again-btn">再来一局</button>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <section class="recent-card" id="div-recent-card">
+        <div class="recent-header">
+          <span class="recent-title" id="div-recent-title">最近十次整除</span>
+        </div>
+        <div class="recent-body">
+          <table class="recent-table">
+            <thead>
+              <tr>
+                <th id="div-th-dt">日期时间</th>
+                <th id="div-th-time">用时</th>
+                <th id="div-th-wrong">错题</th>
+                <th id="div-th-level">等级</th>
+              </tr>
+            </thead>
+            <tbody id="div-history-body"></tbody>
+          </table>
+          <div id="div-history-empty" class="recent-empty">当前还没有练习记录。</div>
+        </div>
+      </section>
+      </div>
+    </section>
+
     <!-- 小数运算：L1–L5，20 题/局，小数键盘 -->
     <section class="game-section run-mode-page decimal-page" id="decimal-section" style="display:none;">
       <div class="status-grid" id="dec-status-grid">
@@ -4539,10 +4782,12 @@
   <script src="shared/soft-keyboard.js?v=41"></script>
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=43"></script>
+  <script src="shared/divisibility-questions.js?v=4"></script>
   <script src="shared/decimal-questions.js?v=49"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=47"></script>
+  <script src="divisibility-page.js?v=2"></script>
   <script src="decimal-page.js?v=11"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -4831,6 +5076,7 @@
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       renderWrongbookList();
     }
@@ -5009,6 +5255,26 @@
       dom.psHistoryBody = document.getElementById("ps-history-body");
       dom.psHistoryEmpty = document.getElementById("ps-history-empty");
       dom.psSoftKbdCard = document.getElementById("ps-soft-kbd-card");
+
+      dom.divElapsed = document.getElementById("div-elapsed");
+      dom.divProgressText = document.getElementById("div-progress-text");
+      dom.divScoreText = document.getElementById("div-score-text");
+      dom.divLevelText = document.getElementById("div-level-text");
+      dom.divWrongText = document.getElementById("div-wrong-text");
+      dom.divCurrentLevelName = document.getElementById("div-current-level-name");
+      dom.divIdleLevelName = document.getElementById("div-idle-level-name");
+      dom.divLevelSelect = document.getElementById("div-level-select");
+      dom.divStartBtn = document.getElementById("div-start-btn");
+      dom.divAgainBtn = document.getElementById("div-again-btn");
+      dom.divFinishTitle = document.getElementById("div-finish-title");
+      dom.divFinishCorrect = document.getElementById("div-finish-correct");
+      dom.divFinishWrong = document.getElementById("div-finish-wrong");
+      dom.divFinishTime = document.getElementById("div-finish-time");
+      dom.divFinishLevel = document.getElementById("div-finish-level");
+      dom.divFinishResult = document.getElementById("div-finish-result");
+      dom.divHistoryBody = document.getElementById("div-history-body");
+      dom.divHistoryEmpty = document.getElementById("div-history-empty");
+
       dom.decTimerValue = document.getElementById("dec-timer-value");
       dom.decProgressText = document.getElementById("dec-progress-text");
       dom.decScoreText = document.getElementById("dec-score-text");
@@ -5075,6 +5341,40 @@
       });
     }
 
+    function initDivisibilityPage() {
+      if (!window.JmlDivisibilityPage) return;
+      JmlDivisibilityPage.init({
+        dom: dom,
+        t: t,
+        tf: tf,
+        getCurrentUser: getCurrentUser,
+        getCachedUser: function () { return cachedUser; },
+        ensureUserProgressDefault: ensureUserProgressDefault,
+        loadCurrentUsername: loadCurrentUsername,
+        apiPutUser: apiPutUser,
+        isGuestMode: function () { return isGuestMode; },
+        showToast: showToast,
+        setTopActionsVisible: setTopActionsVisible,
+        updateTopTitleForCurrentView: updateTopTitleForCurrentView,
+        updateGlobalBackButtonState: updateGlobalBackButtonState,
+        appendRun: appendRun,
+        recordWrongAnswer: recordWrongAnswer,
+        formatCompactRunTime: formatCompactRunTime,
+        escapeHtml: escapeHtml,
+        scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
+        primeCompositeResetToIdle: primeCompositeResetToIdle,
+        getGameMode: function () { return gameMode; },
+        setGameMode: function (m) { gameMode = m; },
+        getIsPlaying: function () { return isPlaying; },
+        setIsPlaying: function (v) { isPlaying = v; },
+        getGameOver: function () { return gameOver; },
+        setGameOver: function (v) { gameOver = v; },
+        fetchUserRuns: async function () {
+          return fetchRunsForTrainingHeatmap();
+        },
+      });
+    }
+
     function initDecimalPage() {
       if (!window.JmlDecimalPage) return;
       JmlDecimalPage.init({
@@ -5125,10 +5425,19 @@
 
     function hidePerfectSquareSection() {
       if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.hidePerfectSquareSection();
+      hideDivisibilitySection();
+    }
+
+    function hideDivisibilitySection() {
+      if (window.JmlDivisibilityPage) JmlDivisibilityPage.hideDivisibilitySection();
     }
 
     function isPerfectSquarePlayingNow() {
       return window.JmlPerfectSquarePage && JmlPerfectSquarePage.isPerfectSquarePlayingNow();
+    }
+
+    function isDivisibilityPlayingNow() {
+      return window.JmlDivisibilityPage && JmlDivisibilityPage.isDivisibilityPlayingNow();
     }
 
     function setSoftKeyboardVisible(visible) {
@@ -5196,6 +5505,7 @@
       if (gameMode === "wrong") return t("mode.running.wrongPractice");
       if (gameMode === "expandBrackets") return t("mode.running.expandBrackets");
       if (gameMode === "perfectSquare") return t("mode.running.perfectSquare");
+      if (gameMode === "divisibility") return t("mode.running.divisibility");
       if (gameMode === "decimal") return t("mode.running.decimal");
       return t("home.mode.survival");
     }
@@ -5240,6 +5550,7 @@
       survival: "ranking.survival",
       levelClear: "ranking.levelClear",
       primePerfect: "ranking.primePerfect",
+      divisibilityPerfect: "ranking.divisibilityPerfect",
       streak: "ranking.streak",
       combo: "ranking.combo",
     };
@@ -5325,6 +5636,7 @@
       setTextById("ranking-mode-label-survival", "ranking.survival");
       setTextById("ranking-mode-label-levelClear", "ranking.levelClear");
       setTextById("ranking-mode-label-primePerfect", "ranking.primePerfect");
+      setTextById("ranking-mode-label-divisibilityPerfect", "ranking.divisibilityPerfect");
       setTextById("ranking-mode-label-streak", "ranking.streak");
       setTextById("ranking-mode-label-combo", "ranking.combo");
       const labelEl = document.getElementById("ranking-mode-trigger-label");
@@ -5550,7 +5862,7 @@
 
     /** 对局进行中（与顶栏「放弃本局」同一判定） */
     function isRunInProgress() {
-      return (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow() || isDecimalPlayingNow();
+      return (!!isPlaying && !gameOver) || isPrimeCompositePlayingNow() || isPerfectSquarePlayingNow() || isDivisibilityPlayingNow() || isDecimalPlayingNow();
     }
 
     /** 对局中锁住头像/改昵称，避免误开资料页后回不去 */
@@ -5580,6 +5892,12 @@
       if (isPerfectSquarePlayingNow()) {
         if (!confirmAbandonRun("perfectSquare")) return;
         JmlPerfectSquarePage.abandonPerfectSquareGame();
+        updateGlobalBackButtonState();
+        return;
+      }
+      if (isDivisibilityPlayingNow()) {
+        if (!confirmAbandonRun("divisibility")) return;
+        JmlDivisibilityPage.abandonDivisibilityGame();
         updateGlobalBackButtonState();
         return;
       }
@@ -5627,7 +5945,7 @@
     const buildExpandBracketsQuestion = (level) => JmlExpandBrackets.buildQuestion(level);
     const formatExpandedTerms = (terms) => JmlExpandBrackets.formatExpandedTerms(terms);
 
-    const TESTER_ONLY_HOME_MODE_IDS = ["mode-gcd", "mode-lcm"];
+    const TESTER_ONLY_HOME_MODE_IDS = ["mode-divisibility", "mode-factors-multiples"];
 
     function isTesterUser() {
       return !!(cachedUser && cachedUser.isTester === true);
@@ -6598,8 +6916,8 @@
         "home.mode.perfectSquare": "平方數",
         "home.mode.decimal": "小數運算",
         "home.mode.unitConversion": "單位換算",
-        "home.mode.gcd": "公因數",
-        "home.mode.lcm": "公倍數",
+        "home.mode.divisibility": "整除",
+        "home.mode.factorsMultiples": "因數倍數",
         "home.mode.wrongbook": "錯題本",
         "home.mode.stats": "數據統計",
         "home.mode.ranking": "排行榜",
@@ -6625,13 +6943,28 @@
         "wrongbook.correctAnswer": "正確答案：",
         "wrongbook.badgeAria": "錯題 {n} 道",
         "home.soon.expandBrackets": "拆括號：功能即將上線",
-        "home.soon.gcd": "公因數：功能即將上線",
-        "home.soon.lcm": "公倍數：功能即將上線",
+        "home.soon.divisibility": "整除：功能即將上線",
+        "home.soon.factorsMultiples": "因數倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "home.soon.unitConversion": "單位換算：功能即將上線",
         "toast.perfectSquareNeedLogin": "請登入或註冊後再使用此功能。",
         "toast.decimalNeedLogin": "請登入或註冊後再使用此功能。",
         "mode.running.perfectSquare": "平方數",
+        "mode.running.divisibility": "整除",
+        "toast.divBankLoadFail": "整除題庫未載入",
+        "div.intro": "每局 24 題，選擇能被指定數整除的整數；錯題不回庫。答對 +5 分。",
+        "div.level.L1": "Z1 · 2 與 5 的整除",
+        "div.level.L2": "Z2 · 3 與 9 的整除",
+        "div.level.L3": "Z3 · 4 與 8 的整除",
+        "div.level.L4": "Z4 · 6 與 12 的整除",
+        "div.level.L5": "Z5 · 混合整除（綜合練習）",
+        "div.levelSelectAria": "選擇整除難度",
+        "div.headerHint": "請選擇能被整除的數",
+        "div.recentTitle": "最近十次整除",
+        "ranking.divisibilityPerfect": "整除達人",
+        "ranking.hint.divisibilityPerfect.desc": "整除達人榜 · L5 綜合練習零錯通關，用時越短越好（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.divisibilityPerfect.descFull": "整除達人榜 · 測試員視圖 · L5 零錯通關（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
+        "ranking.hint.tabLoading.divisibility": "整除達人榜 · 加載中…",
         "mode.running.decimal": "小數運算",
         "ps.subtitle": "20 題：全對可升級；錯 1 題在進度前沿可解鎖下一級。",
         "ps.difficultyLabel": "難度：",
@@ -6964,8 +7297,8 @@
         "home.mode.perfectSquare": "Squares",
         "home.mode.decimal": "Decimals",
         "home.mode.unitConversion": "Units",
-        "home.mode.gcd": "GCF",
-        "home.mode.lcm": "LCM",
+        "home.mode.divisibility": "Divisibility",
+        "home.mode.factorsMultiples": "Factors & Multiples",
         "home.mode.wrongbook": "Mistakes",
         "home.mode.stats": "Stats",
         "home.mode.ranking": "Ranks",
@@ -6991,13 +7324,28 @@
         "wrongbook.correctAnswer": "Correct:",
         "wrongbook.badgeAria": "{n} wrong questions",
         "home.soon.expandBrackets": "Expand Brackets: coming soon",
-        "home.soon.gcd": "Common Factors: coming soon",
-        "home.soon.lcm": "Common Multiples: coming soon",
+        "home.soon.divisibility": "Divisibility: coming soon",
+        "home.soon.factorsMultiples": "Factors & Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "home.soon.unitConversion": "Unit Conversion: coming soon",
         "toast.perfectSquareNeedLogin": "Please sign in or register to use this feature.",
         "toast.decimalNeedLogin": "Please sign in or register to use this feature.",
         "mode.running.perfectSquare": "Squares",
+        "mode.running.divisibility": "Divisibility",
+        "toast.divBankLoadFail": "Divisibility question bank failed to load",
+        "div.intro": "24 questions per run; pick the integer divisible by the given number. Wrongs are not requeued. +5 per correct.",
+        "div.level.L1": "Z1 · Divisible by 2 & 5",
+        "div.level.L2": "Z2 · Divisible by 3 & 9",
+        "div.level.L3": "Z3 · Divisible by 4 & 8",
+        "div.level.L4": "Z4 · Divisible by 6 & 12",
+        "div.level.L5": "Z5 · Mixed divisibility",
+        "div.levelSelectAria": "Divisibility level",
+        "div.headerHint": "Pick the number that is divisible",
+        "div.recentTitle": "Last 10 divisibility runs",
+        "ranking.divisibilityPerfect": "Divisibility Master",
+        "ranking.hint.divisibilityPerfect.desc": "Divisibility Master · L5 mixed clear with 0 wrongs; faster is better (top 10; your rank shown if outside)",
+        "ranking.hint.divisibilityPerfect.descFull": "Divisibility Master · tester view · L5 0-wrong clears ({total} people, showing {shown}; your rank if outside)",
+        "ranking.hint.tabLoading.divisibility": "Divisibility Master · loading…",
         "mode.running.decimal": "Decimals",
         "ps.subtitle": "20 questions: perfect run levels up; 1 wrong at the frontier unlocks the next level.",
         "ps.difficultyLabel": "Difficulty:",
@@ -7501,6 +7849,14 @@
       setT("prime-recent-history-empty", "recent.empty");
       setT("ps-lbl-mode", "game.status.currentMode");
       setT("ps-mode-name", "home.mode.perfectSquare");
+      setT("div-mode-name", "home.mode.divisibility");
+      setT("div-start-btn", "game.btn.startChallenge");
+      setT("div-again-btn", "game.btn.playAgain");
+      setT("div-header-hint", "div.headerHint");
+      setT("div-recent-title", "div.recentTitle");
+      setT("ranking-mode-label-divisibilityPerfect", "ranking.divisibilityPerfect");
+      const divLevelSelect = byId("div-level-select");
+      if (divLevelSelect) divLevelSelect.setAttribute("aria-label", t("div.levelSelectAria"));
       setT("ps-lbl-progress", "game.status.progress");
       setT("ps-lbl-score", "game.status.scoreThisRun");
       setT("ps-lbl-level", "game.status.expandLevel");
@@ -7697,8 +8053,8 @@
       setHomeModeLabel("mode-perfect-square", "home.mode.perfectSquare");
       setHomeModeLabel("mode-decimal", "home.mode.decimal");
       setHomeModeLabel("mode-unit-conversion", "home.mode.unitConversion");
-      setHomeModeLabel("mode-gcd", "home.mode.gcd");
-      setHomeModeLabel("mode-lcm", "home.mode.lcm");
+      setHomeModeLabel("mode-divisibility", "home.mode.divisibility");
+      setHomeModeLabel("mode-factors-multiples", "home.mode.factorsMultiples");
       setHomeModeLabel("mode-wrongbook", "home.mode.wrongbook");
       setHomeModeLabel("mode-stats", "home.mode.stats");
       setHomeModeLabel("mode-ranking", "home.mode.ranking");
@@ -7981,6 +8337,7 @@
           renderPrimeRecentRuns();
           renderExpandBracketsRecentRuns();
           if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+          if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
           if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
           updateHomePlayerLevel();
           return true;
@@ -7991,6 +8348,7 @@
           renderPrimeRecentRuns();
           renderExpandBracketsRecentRuns();
           if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+          if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
           if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
           updateHomePlayerLevel();
           return true;
@@ -8022,6 +8380,10 @@
           if (!Array.isArray(u.recentDecimalRuns)) u.recentDecimalRuns = [];
           u.recentDecimalRuns.unshift(runEntry);
           if (u.recentDecimalRuns.length > 10) u.recentDecimalRuns = u.recentDecimalRuns.slice(0, 10);
+        } else if (mode === "divisibility") {
+          if (!Array.isArray(u.recentDivisibilityRuns)) u.recentDivisibilityRuns = [];
+          u.recentDivisibilityRuns.unshift(runEntry);
+          if (u.recentDivisibilityRuns.length > 10) u.recentDivisibilityRuns = u.recentDivisibilityRuns.slice(0, 10);
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -8042,6 +8404,8 @@
           ? { recentPerfectSquareRuns: u.recentPerfectSquareRuns, totalScore: u.totalScore }
           : mode === "decimal"
           ? { recentDecimalRuns: u.recentDecimalRuns, totalScore: u.totalScore }
+          : mode === "divisibility"
+          ? { recentDivisibilityRuns: u.recentDivisibilityRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
@@ -8056,6 +8420,8 @@
       }
       if (gameMode === "perfectSquare") {
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+      } else if (gameMode === "divisibility") {
+        if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
       } else if (gameMode === "decimal") {
         if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
       } else if (gameMode !== "expandBrackets") {
@@ -8199,6 +8565,7 @@
       if (!Array.isArray(user.recentExpandBracketsRuns)) user.recentExpandBracketsRuns = [];
       if (!Array.isArray(user.recentPerfectSquareRuns)) user.recentPerfectSquareRuns = [];
       if (!Array.isArray(user.recentDecimalRuns)) user.recentDecimalRuns = [];
+      if (!Array.isArray(user.recentDivisibilityRuns)) user.recentDivisibilityRuns = [];
       if (typeof user.comboCurrent !== "number") user.comboCurrent = 0;
       if (typeof user.comboBest !== "number") user.comboBest = 0;
       if (typeof user.levelChallengeLastLevel !== "number") user.levelChallengeLastLevel = 0;
@@ -8215,6 +8582,10 @@
       if (typeof user.levelDecimalCurrentLevel !== "number") user.levelDecimalCurrentLevel = 0;
       if (typeof user.levelDecimalUnlockedMax !== "number") {
         user.levelDecimalUnlockedMax = user.levelDecimalCurrentLevel;
+      }
+      if (typeof user.levelDivisibilityCurrentLevel !== "number") user.levelDivisibilityCurrentLevel = 0;
+      if (typeof user.levelDivisibilityUnlockedMax !== "number") {
+        user.levelDivisibilityUnlockedMax = user.levelDivisibilityCurrentLevel;
       }
       if (typeof user.survivalUnlocked !== "boolean") user.survivalUnlocked = false;
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
@@ -8246,6 +8617,7 @@
       if (mode === "expandBrackets") return "expandBrackets";
       if (mode === "perfectSquare") return "perfectSquare";
       if (mode === "decimal") return "decimal";
+      if (mode === "divisibility") return "divisibility";
       return "survival";
     }
 
@@ -8277,13 +8649,14 @@
       return apiAppendRun(name, runEntry);
     }
 
-    const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare"]);
+    const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare", "divisibility"]);
     const WRONG_ANSWER_LEVEL_MAX = {
       survival: 15,
       level: 15,
       training: 15,
       decimal: 5,
       perfectSquare: 3,
+      divisibility: 4,
     };
 
     function normalizeWrongAnswerMode(mode) {
@@ -8309,7 +8682,7 @@
       let lv;
       if (typeof levelIndex === "number" && Number.isFinite(levelIndex)) {
         lv = clampWrongAnswerLevelIndex(resolvedMode, levelIndex);
-      } else if (resolvedMode === "decimal" || resolvedMode === "perfectSquare") {
+      } else if (resolvedMode === "decimal" || resolvedMode === "perfectSquare" || resolvedMode === "divisibility") {
         lv = 0;
       } else {
         lv = clampWrongAnswerLevelIndex(resolvedMode, currentLevelIndex);
@@ -8486,6 +8859,13 @@
         if (isPlaying && !gameOver) {
           if (!confirmAbandonRun("perfectSquare")) return;
           JmlPerfectSquarePage.abandonPerfectSquareGame();
+        }
+        return;
+      }
+      if (gameMode === "divisibility") {
+        if (isPlaying && !gameOver) {
+          if (!confirmAbandonRun("divisibility")) return;
+          JmlDivisibilityPage.abandonDivisibilityGame();
         }
         return;
       }
@@ -10002,6 +10382,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
@@ -10053,6 +10434,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
@@ -10091,6 +10473,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "flex";
@@ -10125,6 +10508,7 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "none";
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
@@ -10553,7 +10937,7 @@
       if (tab === "levelClear") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th></tr>";
       }
-      if (tab === "primePerfect") {
+      if (tab === "primePerfect" || tab === "divisibilityPerfect") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-time\">" + escapeHtml(t("ranking.th.time")) + "</th><th class=\"r-col r-col-wrong\">" + escapeHtml(t("ranking.th.wrong")) + "</th></tr>";
       }
       if (tab === "streak") {
@@ -10838,6 +11222,52 @@
       }
     }
 
+    async function loadDivisibilityPerfectRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (hint) hint.textContent = t("ranking.hint.tabLoading.divisibility");
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = t("ranking.hint.prime.needNet");
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/divisibility-perfect-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || t("error.loadFailed"));
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingSurvivalRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingSurvivalRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) setRankingPanelHint(hint, "divisibilityPerfect", data);
+      } catch (e) {
+        console.warn("加载整除达人榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = t("ranking.hint.prime.fail");
+      }
+    }
+
     async function loadStreakRankingIntoTable() {
       const tbody = document.getElementById("ranking-tbody-v2");
       const empty = document.getElementById("ranking-empty-v2");
@@ -10931,7 +11361,7 @@
     }
 
     function setRankingActiveTab(tab) {
-      const next = (tab === "score" || tab === "survival" || tab === "levelClear" || tab === "primePerfect" || tab === "streak" || tab === "combo") ? tab : "score";
+      const next = (tab === "score" || tab === "survival" || tab === "levelClear" || tab === "primePerfect" || tab === "divisibilityPerfect" || tab === "streak" || tab === "combo") ? tab : "score";
       lastRankingTab = next;
       const labelEl = document.getElementById("ranking-mode-trigger-label");
       if (labelEl) labelEl.textContent = getRankingTabLabel(next);
@@ -10964,6 +11394,7 @@
           : next === "survival" ? t("ranking.hint.tabLoading.survival")
           : next === "levelClear" ? t("ranking.hint.tabLoading.levelClear")
           : next === "primePerfect" ? t("ranking.hint.tabLoading.prime")
+          : next === "divisibilityPerfect" ? t("ranking.hint.tabLoading.divisibility")
           : next === "streak" ? t("ranking.hint.tabLoading.streak")
           : t("ranking.hint.tabLoading.combo");
       }
@@ -11001,6 +11432,11 @@
 
       if (next === "primePerfect") {
         void loadPrimePerfectRankingIntoTable();
+        return;
+      }
+
+      if (next === "divisibilityPerfect") {
+        void loadDivisibilityPerfectRankingIntoTable();
         return;
       }
 
@@ -11101,6 +11537,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       sec.style.display = "block";
       renderAvatarPicker();
@@ -11621,6 +12058,7 @@
         primeSectionStats.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
@@ -11794,6 +12232,7 @@
         primeSection.classList.remove("visible");
       }
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
@@ -11861,6 +12300,7 @@
       }
       if (dom.wrongbookSection) dom.wrongbookSection.style.display = "block";
       hidePerfectSquareSection();
+      hideDivisibilitySection();
       hideDecimalSection();
       renderWrongbookList();
       const name = loadCurrentUsername();
@@ -13275,6 +13715,10 @@
       if (modePerfectSquare) modePerfectSquare.addEventListener("click", function () {
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.handleModePerfectSquare();
       });
+      const modeDivisibility = document.getElementById("mode-divisibility");
+      if (modeDivisibility) modeDivisibility.addEventListener("click", function () {
+        if (window.JmlDivisibilityPage) JmlDivisibilityPage.handleModeDivisibility();
+      });
       const modeDecimal = document.getElementById("mode-decimal");
       if (modeDecimal) modeDecimal.addEventListener("click", function () {
         if (window.JmlDecimalPage) JmlDecimalPage.handleModeDecimal();
@@ -13300,8 +13744,7 @@
 
       // 首页：未开放入口统一用提示，不拉长按钮文案
       const soonButtons = [
-        { id: "mode-gcd", key: "home.soon.gcd" },
-        { id: "mode-lcm", key: "home.soon.lcm" },
+        { id: "mode-factors-multiples", key: "home.soon.factorsMultiples" },
         { id: "mode-unit-conversion", key: "home.soon.unitConversion" },
       ];
       soonButtons.forEach((x) => {
@@ -13474,6 +13917,7 @@
       await loadI18nFromServer();
       initDomRefs();
       initPerfectSquarePage();
+      initDivisibilityPage();
       initDecimalPage();
       initStatusGridIcons();
       applyI18nToLoginView();

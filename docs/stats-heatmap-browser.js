@@ -11,7 +11,7 @@
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
 
-  /** 热图分类注册表（后期加平方数等在此扩展） */
+  /** 热图分类注册表（后期可加平方数 / 整除 / 因数倍数等） */
   var HEATMAP_CATEGORIES = [
     {
       id: 'arithmetic',

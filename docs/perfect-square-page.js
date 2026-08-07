@@ -631,6 +631,11 @@
       decSec.style.display = "none";
       decSec.classList.remove("visible");
     }
+    const divSec = document.getElementById("divisibility-section");
+    if (divSec) {
+      divSec.style.display = "none";
+      divSec.classList.remove("visible");
+    }
     const sec = document.getElementById("perfect-square-section");
     if (sec) {
       sec.style.display = "flex";

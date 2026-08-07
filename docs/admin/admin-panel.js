@@ -1333,6 +1333,7 @@
       'survivalRanking',
       'levelRanking',
       'primePerfectRanking',
+      'divisibilityPerfectRanking',
       'avatars',
       'avatarAssets',
       'achievementAssets',

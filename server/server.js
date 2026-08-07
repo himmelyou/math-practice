@@ -50,13 +50,14 @@ function safeUser(u) {
 const WRONGBOOK_MAX_STORE = 100;
 const EXPAND_WRONG_MAX_STORE = 20;
 
-const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare"]);
+const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare", "divisibility"]);
 const WRONG_ANSWER_LEVEL_MAX = {
   survival: 15,
   level: 15,
   training: 15,
   decimal: 5,
   perfectSquare: 3,
+  divisibility: 4,
 };
 
 function normalizeWrongAnswerMode(mode) {
@@ -175,6 +176,8 @@ function buildRunSyncForStudent(u, mode) {
     sync.recentExpandBracketsRuns = Array.isArray(u.recentExpandBracketsRuns) ? u.recentExpandBracketsRuns : [];
   } else if (m === "perfectSquare") {
     sync.recentPerfectSquareRuns = Array.isArray(u.recentPerfectSquareRuns) ? u.recentPerfectSquareRuns : [];
+  } else if (m === "divisibility") {
+    sync.recentDivisibilityRuns = Array.isArray(u.recentDivisibilityRuns) ? u.recentDivisibilityRuns : [];
   } else if (m === "decimal") {
     sync.recentDecimalRuns = Array.isArray(u.recentDecimalRuns) ? u.recentDecimalRuns : [];
   } else {
@@ -218,6 +221,8 @@ const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 *
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
 const LEVEL_RANKING_FILE = path.join(DATA_DIR, "level-ranking.json");
 const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.json");
+const DIVISIBILITY_PERFECT_RANKING_FILE = path.join(DATA_DIR, "divisibility-perfect-ranking.json");
+const DIVISIBILITY_RANKING_LEVEL_INDEX = 4; // L5 / Z5
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
 const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
@@ -293,11 +298,13 @@ function readRankingEvalData() {
   const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
   const levelData = readJson(LEVEL_RANKING_FILE, { list: [] });
   const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  const divisibilityData = readJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list: [] });
   return {
     users: usersData.users || [],
     survivalList: Array.isArray(survivalData.list) ? survivalData.list : [],
     levelList: Array.isArray(levelData.list) ? levelData.list : [],
     primeList: Array.isArray(primeData.list) ? primeData.list : [],
+    divisibilityList: Array.isArray(divisibilityData.list) ? divisibilityData.list : [],
   };
 }
 
@@ -312,6 +319,7 @@ function normalizeRunMode(mode) {
   if (mode === "primeComposite") return "primeComposite";
   if (mode === "expandBrackets") return "expandBrackets";
   if (mode === "perfectSquare") return "perfectSquare";
+  if (mode === "divisibility") return "divisibility";
   if (mode === "decimal") return "decimal";
   return "survival";
 }
@@ -489,6 +497,64 @@ function rebuildPrimePerfectRankingFromRuns() {
   };
 }
 
+function compareDivisibilityPerfectRankingEntries(a, b) {
+  const ta = Number(a && a.survivalTimeSec) || 0;
+  const tb = Number(b && b.survivalTimeSec) || 0;
+  if (ta !== tb) return ta - tb;
+  return (Number(a && a.ts) || 0) - (Number(b && b.ts) || 0);
+}
+
+function isDivisibilityPerfectRankingBetter(a, b) {
+  return compareDivisibilityPerfectRankingEntries(a, b) < 0;
+}
+
+function divisibilityPerfectRankingEntryFromRun(username, run) {
+  if (!run || normalizeRunMode(run.mode) !== "divisibility") return null;
+  if (run.abandoned === true || run.comboOnly === true) return null;
+  if ((Number(run.wrongCount) || 0) !== 0) return null;
+  if (Math.floor(Number(run.maxLevel) || -1) !== DIVISIBILITY_RANKING_LEVEL_INDEX) return null;
+  const elapsed = Number(run.survivalTimeSec) || 0;
+  if (elapsed <= 0) return null;
+  return { username, survivalTimeSec: elapsed, wrongCount: 0, ts: run.ts || 0 };
+}
+
+function upsertDivisibilityPerfectRankingEntry(username, runEntry) {
+  const entry = divisibilityPerfectRankingEntryFromRun(username, runEntry);
+  if (!entry) return false;
+  const rankingData = readJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list: [] });
+  let list = Array.isArray(rankingData.list) ? rankingData.list : [];
+  const existing = list.find((e) => e && e.username === username);
+  if (!existing || isDivisibilityPerfectRankingBetter(entry, existing)) {
+    list = list.filter((e) => e && e.username !== username);
+    list.push(entry);
+    list.sort(compareDivisibilityPerfectRankingEntries);
+    rankingData.list = list;
+    writeJson(DIVISIBILITY_PERFECT_RANKING_FILE, rankingData);
+    return true;
+  }
+  return false;
+}
+
+function rebuildDivisibilityPerfectRankingFromRuns() {
+  const byUser = {};
+  let runsScanned = 0;
+  let usernamesScanned = 0;
+  runsStore.forEachUserRuns((username, runs) => {
+    usernamesScanned += 1;
+    (runs || []).forEach((r) => {
+      const entry = divisibilityPerfectRankingEntryFromRun(username, r);
+      if (!entry) return;
+      runsScanned += 1;
+      const cur = byUser[username];
+      if (!cur || isDivisibilityPerfectRankingBetter(entry, cur)) byUser[username] = entry;
+    });
+  });
+  const list = Object.values(byUser).sort(compareDivisibilityPerfectRankingEntries);
+  writeJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list });
+  return { entries: list.length, runsScanned, usernamesScanned };
+}
+
+
 const SURVIVAL_UNLOCK_L16_INDEX = 15;
 const SURVIVAL_HEATMAP_PASS_ACCURACY = 0.95;
 
@@ -597,7 +663,7 @@ function toChinaDateKey(ts) {
 }
 
 function getStreakStatsFromRuns(runs) {
-  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets", "perfectSquare", "decimal"]);
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets", "perfectSquare", "decimal", "divisibility"]);
   const daySet = new Set();
   (runs || []).forEach((r) => {
     if (!r) return;
@@ -644,7 +710,7 @@ function bumpUserComboFromAttempts(user, attempts) {
 }
 
 function getComboStatsFromRuns(runs) {
-  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets", "perfectSquare", "decimal"]);
+  const allowedModes = new Set(["survival", "level", "training", "primeComposite", "expandBrackets", "perfectSquare", "decimal", "divisibility"]);
   const seq = (runs || [])
     .filter((r) => r && allowedModes.has(normalizeRunMode(r.mode)) && Array.isArray(r.attempts) && r.attempts.length > 0)
     .slice()
@@ -837,8 +903,8 @@ function legacyDefaultI18nPayload() {
       "home.mode.expandBrackets": "拆括號",
       "home.mode.unitConversion": "單位換算",
       "home.mode.primeComposite": "質數合數",
-      "home.mode.gcd": "公因數",
-      "home.mode.lcm": "公倍數",
+      "home.mode.divisibility": "整除",
+      "home.mode.factorsMultiples": "因數倍數",
       "home.mode.wrongbook": "錯題本",
       "home.mode.stats": "數據統計",
       "home.mode.ranking": "排行榜",
@@ -848,6 +914,7 @@ function legacyDefaultI18nPayload() {
       "ranking.survival": "生存榜",
       "ranking.levelClear": "闖關達人",
       "ranking.primePerfect": "質數達人",
+      "ranking.divisibilityPerfect": "整除達人",
       "ranking.streak": "耐力榜",
       "ranking.combo": "連擊榜",
       "stats.subtitle": "按難度統計的錯誤率與用時（基於最近 500 局）。",
@@ -863,8 +930,8 @@ function legacyDefaultI18nPayload() {
       "wrongbook.correctAnswer": "正確答案：",
       "wrongbook.badgeAria": "錯題 {n} 道",
       "home.soon.expandBrackets": "拆括號：功能即將上線",
-      "home.soon.gcd": "公因數：功能即將上線",
-      "home.soon.lcm": "公倍數：功能即將上線",
+      "home.soon.divisibility": "整除：功能即將上線",
+      "home.soon.factorsMultiples": "因數倍數：功能即將上線",
       "home.soon.achievementWall": "成就牆：功能即將上線",
       "home.soon.unitConversion": "單位換算：功能即將上線",
       "expand.title": "拆括號",
@@ -926,8 +993,8 @@ function legacyDefaultI18nPayload() {
       "home.mode.expandBrackets": "Brackets",
       "home.mode.unitConversion": "Units",
       "home.mode.primeComposite": "Primes",
-      "home.mode.gcd": "GCF",
-      "home.mode.lcm": "LCM",
+      "home.mode.divisibility": "Divisibility",
+      "home.mode.factorsMultiples": "Factors & Multiples",
       "home.mode.wrongbook": "Mistakes",
       "home.mode.stats": "Stats",
       "home.mode.ranking": "Ranks",
@@ -937,6 +1004,7 @@ function legacyDefaultI18nPayload() {
       "ranking.survival": "Survival",
       "ranking.levelClear": "Level Master",
       "ranking.primePerfect": "Prime Master",
+      "ranking.divisibilityPerfect": "Divisibility Master",
       "ranking.streak": "Streak",
       "ranking.combo": "Combo",
       "stats.subtitle": "Error rate and time by level (based on latest 500 runs).",
@@ -952,8 +1020,8 @@ function legacyDefaultI18nPayload() {
       "wrongbook.correctAnswer": "Correct:",
       "wrongbook.badgeAria": "{n} wrong questions",
       "home.soon.expandBrackets": "Expand Brackets: coming soon",
-      "home.soon.gcd": "Common Factors: coming soon",
-      "home.soon.lcm": "Common Multiples: coming soon",
+      "home.soon.divisibility": "Divisibility: coming soon",
+      "home.soon.factorsMultiples": "Factors & Multiples: coming soon",
       "home.soon.achievementWall": "Achievement Wall: coming soon",
       "home.soon.unitConversion": "Unit Conversion: coming soon",
       "expand.title": "Expand Brackets",
@@ -1535,6 +1603,7 @@ app.post("/api/register", async (req, res) => {
     recentExpandBracketsRuns: [],
     recentPerfectSquareRuns: [],
     recentDecimalRuns: [],
+    recentDivisibilityRuns: [],
     streakCurrent: 0,
     streakBest: 0,
     streakLastDate: "",
@@ -1549,6 +1618,8 @@ app.post("/api/register", async (req, res) => {
     levelPerfectSquareUnlockedMax: 0,
     levelDecimalCurrentLevel: 0,
     levelDecimalUnlockedMax: 0,
+    levelDivisibilityCurrentLevel: 0,
+    levelDivisibilityUnlockedMax: 0,
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
@@ -1810,7 +1881,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -1996,6 +2067,9 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
   if (!comboOnly && runEntry.mode === "primeComposite") {
     upsertPrimePerfectRankingEntry(username, runEntry);
   }
+  if (!comboOnly && runEntry.mode === "divisibility") {
+    upsertDivisibilityPerfectRankingEntry(username, runEntry);
+  }
 
   const userData = readJson(USERS_FILE, { users: [] });
   const uIdx = userData.users.findIndex((u) => u.username === username);
@@ -2040,6 +2114,10 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentDecimalRuns)) u.recentDecimalRuns = [];
       u.recentDecimalRuns.unshift(runEntry);
       if (u.recentDecimalRuns.length > 10) u.recentDecimalRuns = u.recentDecimalRuns.slice(0, 10);
+    } else if (!comboOnly && runEntry.mode === "divisibility") {
+      if (!Array.isArray(u.recentDivisibilityRuns)) u.recentDivisibilityRuns = [];
+      u.recentDivisibilityRuns.unshift(runEntry);
+      if (u.recentDivisibilityRuns.length > 10) u.recentDivisibilityRuns = u.recentDivisibilityRuns.slice(0, 10);
     }
     if (!comboOnly && runEntry.mode === "level") {
       const ml = Math.min(SURVIVAL_UNLOCK_L16_INDEX, Math.max(0, Number(runEntry.maxLevel) || 0));
@@ -2260,6 +2338,32 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
   );
 });
 
+// ========== 整除达人榜：L5 零错通关最短用时；前十名 + 当前用户 ==========
+function dedupeBestDivisibilityPerfect(list) {
+  const byUser = {};
+  (list || []).forEach((e) => {
+    if (!e || !e.username) return;
+    const cur = byUser[e.username];
+    if (!cur || isDivisibilityPerfectRankingBetter(e, cur)) byUser[e.username] = e;
+  });
+  return Object.values(byUser);
+}
+
+app.get("/api/divisibility-perfect-ranking", (req, res) => {
+  const data = readJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list: [] });
+  let list = Array.isArray(data.list) ? data.list : [];
+  list = dedupeBestDivisibilityPerfect(list);
+  list.sort(compareDivisibilityPerfectRankingEntries);
+  const ctx = createRankingLookupContext(req);
+  res.json(
+    buildPublicRankingJson(list, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
+      toEntry: (e, rank) => formatPrimePerfectRankingEntry(ctx, e, rank),
+    })
+  );
+});
+
 // ========== 耐力榜：按最长连续挑战天数；前十名 + 当前用户 ==========
 app.get("/api/streak-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
@@ -2431,9 +2535,12 @@ app.post("/api/admin/users", async (req, res) => {
     levelPerfectSquareUnlockedMax: 0,
     levelDecimalCurrentLevel: 0,
     levelDecimalUnlockedMax: 0,
+    levelDivisibilityCurrentLevel: 0,
+    levelDivisibilityUnlockedMax: 0,
     recentExpandBracketsRuns: [],
     recentPerfectSquareRuns: [],
     recentDecimalRuns: [],
+    recentDivisibilityRuns: [],
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
@@ -2520,6 +2627,7 @@ function purgeUserCompletely(username) {
   const survivalRankingRemoved = removeUsernameFromRankingFile(SURVIVAL_RANKING_FILE, name);
   const levelRankingRemoved = removeUsernameFromRankingFile(LEVEL_RANKING_FILE, name);
   const primeRankingRemoved = removeUsernameFromRankingFile(PRIME_PERFECT_RANKING_FILE, name);
+  const divisibilityRankingRemoved = removeUsernameFromRankingFile(DIVISIBILITY_PERFECT_RANKING_FILE, name);
 
   const fbStore = readJson(FEEDBACK_FILE, { items: [] });
   const fbItems = Array.isArray(fbStore.items) ? fbStore.items : [];
@@ -3427,6 +3535,7 @@ app.get("/api/admin/backup", (req, res) => {
   const survivalRanking = readJson(SURVIVAL_RANKING_FILE, { list: [] });
   const levelRanking = readJson(LEVEL_RANKING_FILE, { list: [] });
   const primePerfectRanking = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
+  const divisibilityPerfectRanking = readJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list: [] });
   const avatars = readJson(AVATARS_FILE, { avatars: [] });
   const avatarAssets = packImageAssetDir(AVATAR_ASSET_DIR);
   const achievementAssets = packImageAssetDir(ACHIEVEMENT_ASSET_DIR);
@@ -3443,6 +3552,7 @@ app.get("/api/admin/backup", (req, res) => {
     survivalRanking,
     levelRanking,
     primePerfectRanking,
+    divisibilityPerfectRanking,
     avatars,
     avatarAssets,
     achievementAssets,
@@ -3523,6 +3633,14 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
       } catch (e) {
         notes.push("闯关榜回填失败：" + (e.message || String(e)));
       }
+    }
+    if (body.divisibilityPerfectRanking && typeof body.divisibilityPerfectRanking === "object") {
+      const dr = body.divisibilityPerfectRanking;
+      writeJson(DIVISIBILITY_PERFECT_RANKING_FILE, Array.isArray(dr.list) ? dr : { list: Array.isArray(dr) ? dr : [] });
+      restored.push("divisibilityPerfectRanking");
+    } else if (body.rebuildDivisibilityPerfectRanking === true) {
+      rebuildDivisibilityPerfectRankingFromRuns();
+      restored.push("divisibilityPerfectRanking(rebuilt)");
     }
     if (body.primePerfectRanking && typeof body.primePerfectRanking === "object") {
       const pr = body.primePerfectRanking;

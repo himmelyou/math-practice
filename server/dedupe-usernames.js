@@ -21,6 +21,7 @@ function userSubstanceScore(u) {
     "recentExpandBracketsRuns",
     "recentPerfectSquareRuns",
     "recentDecimalRuns",
+    "recentDivisibilityRuns",
   ];
   for (let i = 0; i < recentKeys.length; i++) {
     const arr = u[recentKeys[i]];

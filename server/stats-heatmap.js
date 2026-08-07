@@ -13,7 +13,14 @@ function clampLevel(i) {
 function filterArithmeticRuns(runs) {
   return (runs || []).filter((r) => {
     const m = String(r && r.mode ? r.mode : "survival").toLowerCase();
-      if (m === "expandbrackets" || m === "primecomposite" || m === "perfectsquare") return false;
+      if (
+        m === "expandbrackets" ||
+        m === "primecomposite" ||
+        m === "perfectsquare" ||
+        m === "divisibility" ||
+        m === "factorsmultiples"
+      )
+        return false;
     return m === "survival" || m === "level" || m === "training";
   });
 }

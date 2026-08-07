@@ -726,6 +726,11 @@
       psSec.style.display = "none";
       psSec.classList.remove("visible");
     }
+    const divSec = document.getElementById("divisibility-section");
+    if (divSec) {
+      divSec.style.display = "none";
+      divSec.classList.remove("visible");
+    }
     const sec = document.getElementById("decimal-section");
     if (sec) {
       sec.style.display = "flex";
