@@ -578,20 +578,18 @@
 
     .profile-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
     .nickname-row {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 4px;
-      width: 100%;
-      max-width: 100%;
       min-width: 0;
-      box-sizing: border-box;
+      max-width: 100%;
       padding-left: 8px;
       color: var(--text-main);
     }
     .nickname-row .user-name {
-      flex: 1 1 auto;
+      max-width: 140px;
       min-width: 0;
-      max-width: none;
+      flex-shrink: 1;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
