@@ -586,7 +586,7 @@
           '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.primeProgress)) +
           '</td>' +
-          '<td class="jml-ov-col-prog">' +
+          '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.divisibilityProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
@@ -616,7 +616,7 @@
       overviewSortLabel('trainingProgress', '训练流畅', 'num') +
       overviewSortLabel('survivalProgress', '生存') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
-      overviewSortLabel('divisibilityProgress', '整除') +
+      overviewSortLabel('divisibilityProgress', '整除', 'num') +
       overviewSortLabel('perfectSquareProgress', '平方数') +
       overviewSortLabel('decimalProgress', '小数') +
       overviewSortLabel('expandProgress', '拆括号') +

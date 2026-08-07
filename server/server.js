@@ -2455,6 +2455,10 @@ app.get("/api/admin/student-overview", (req, res) => {
   const primeList = (Array.isArray(primeData.list) ? primeData.list : []).filter(
     (e) => e && e.username && (Number(e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
   );
+  const divisibilityData = readJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list: [] });
+  const divisibilityList = (Array.isArray(divisibilityData.list) ? divisibilityData.list : []).filter(
+    (e) => e && e.username && (Number(e.wrongCount) || 0) === 0 && (Number(e.survivalTimeSec) || 0) > 0
+  );
   const cohort = readCohortResultForHeatmap();
   const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
   let users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
@@ -2478,6 +2482,7 @@ app.get("/api/admin/student-overview", (req, res) => {
     users,
     runsByUser: scopedRuns,
     primeList,
+    divisibilityList,
     cohort,
     capMs,
   });

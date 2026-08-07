@@ -156,6 +156,46 @@ function formatSpecialModeProgress(unlockedMax, maxLevelIndex, prefix, runs, mod
   return { text: prefix + (u + 1), cleared: false, sortKey: u };
 }
 
+/**
+ * 整除概览：未通关 → Zn；有错通关 →「通关」；无错通关 → 最佳用时
+ * perfectEntry 来自 divisibility-perfect-ranking（Z5 零错）
+ */
+function formatDivisibilityProgress(unlockedMax, runs, perfectEntry) {
+  const hasRuns = hasRunMode(runs, "divisibility");
+  const u = Math.max(0, Math.floor(Number(unlockedMax) || 0));
+  const perfectSec = perfectEntry ? Number(perfectEntry.survivalTimeSec) || 0 : 0;
+  if (perfectSec > 0) {
+    return {
+      text: formatCompactRunTime(perfectSec),
+      cleared: true,
+      perfect: true,
+      perfectSec,
+      // 无错通关排在「通关」与 Zn 之上；同档内用时越短 sortKey 越大（降序靠前）
+      sortKey: 1e6 - perfectSec,
+    };
+  }
+  if (!hasRuns && u <= 0) {
+    return { text: null, cleared: false, perfect: false, perfectSec: null, sortKey: null };
+  }
+  if (u > DIV_MAX_LEVEL) {
+    return {
+      text: "通关",
+      cleared: true,
+      perfect: false,
+      perfectSec: null,
+      sortKey: DIV_MAX_LEVEL + 1,
+    };
+  }
+  const level = Math.min(DIV_MAX_LEVEL, u);
+  return {
+    text: "Z" + (level + 1),
+    cleared: false,
+    perfect: false,
+    perfectSec: null,
+    sortKey: level,
+  };
+}
+
 function gradeSortKey(grade) {
   if (grade === null || grade === undefined || grade === "") return null;
   const n = Number(grade);
@@ -273,10 +313,32 @@ function buildPrimeRankingMap(primeList) {
   return map;
 }
 
+/** 整除达人榜：每人保留最短零错通关用时 */
+function buildDivisibilityPerfectMap(divisibilityList) {
+  const map = {};
+  (divisibilityList || []).forEach((e) => {
+    if (!e || !e.username) return;
+    if ((Number(e.wrongCount) || 0) !== 0) return;
+    const cur = map[e.username];
+    const entry = {
+      survivalTimeSec: Number(e.survivalTimeSec) || 0,
+      ts: Number(e.ts) || 0,
+    };
+    if (!entry.survivalTimeSec) return;
+    if (!cur || entry.survivalTimeSec < cur.survivalTimeSec) {
+      map[e.username] = entry;
+    } else if (entry.survivalTimeSec === cur.survivalTimeSec && entry.ts < cur.ts) {
+      map[e.username] = entry;
+    }
+  });
+  return map;
+}
+
 function buildStudentOverviewRows(options) {
   const users = options.users || [];
   const runsByUser = options.runsByUser || {};
   const primeList = options.primeList || [];
+  const divisibilityList = options.divisibilityList || [];
   const cohort = options.cohort || null;
   const capMs = options.capMs != null ? options.capMs : 60 * 1000;
   const nowMs = options.nowMs != null ? options.nowMs : Date.now();
@@ -290,6 +352,7 @@ function buildStudentOverviewRows(options) {
   }
 
   const primeMap = buildPrimeRankingMap(primeList);
+  const divPerfectMap = buildDivisibilityPerfectMap(divisibilityList);
   const rows = [];
 
   users.forEach((u) => {
@@ -330,7 +393,7 @@ function buildStudentOverviewRows(options) {
     const psP = formatSpecialModeProgress(psUnlocked, PS_MAX_LEVEL, "L", runs, "perfectSquare");
     const decP = formatSpecialModeProgress(decUnlocked, DECIMAL_MAX_LEVEL, "D", runs, "decimal");
     const expP = formatSpecialModeProgress(expUnlocked, EXPAND_MAX_LEVEL, "L", runs, "expandBrackets");
-    const divP = formatSpecialModeProgress(divUnlocked, DIV_MAX_LEVEL, "Z", runs, "divisibility");
+    const divP = formatDivisibilityProgress(divUnlocked, runs, divPerfectMap[username]);
 
     rows.push({
       username,
@@ -355,6 +418,7 @@ function buildStudentOverviewRows(options) {
       primeProgressSec: primeEntry ? Number(primeEntry.survivalTimeSec) || null : null,
       divisibilityProgress: divP.text,
       divisibilityProgressSort: divP.sortKey,
+      divisibilityPerfectSec: divP.perfectSec,
       perfectSquareProgress: psP.text,
       perfectSquareProgressSort: psP.sortKey,
       decimalProgress: decP.text,
