@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=101"></script>
+  <script src="shared/app-version.js?v=102"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4771,8 +4771,8 @@
 
   <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
-  <script src="shared/stats-i18n-pack.js?v=70"></script>
-  <script src="stats-heatmap-browser.js?v=68"></script>
+  <script src="shared/stats-i18n-pack.js?v=71"></script>
+  <script src="stats-heatmap-browser.js?v=69"></script>
   <script src="stats-aggregate-browser.js?v=50"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=43"></script>
@@ -5141,6 +5141,7 @@
     let expandScore = 0;
     const EXPAND_SCORE_PER_CORRECT = 5;
     let expandAttempts = [];
+    let expandQuestionShownAt = 0;
     let expandStartTs = 0;
     let expandTimerId = null;
     let expandLocked = false;
@@ -6673,7 +6674,12 @@
         expandCurrent.choiceTexts && canonical
           ? expandCurrent.choiceTexts.findIndex((t) => String(t).replace(/\s+/g, " ").trim() === canonical)
           : expandCurrent.correctIndex;
-      expandAttempts.push({ correct: ok === true, ts: Date.now() });
+      const timeSpentMs = Math.max(0, Date.now() - (expandQuestionShownAt || Date.now()));
+      expandAttempts.push({
+        levelIndex: expandRunStartLevel,
+        correct: ok === true,
+        timeSpentMs: timeSpentMs,
+      });
       if (!dom.expandChoices) return;
       const btns = Array.from(dom.expandChoices.querySelectorAll("button.expand-choice-btn"));
       const markCorrect = correctIdx >= 0 ? correctIdx : expandCurrent.correctIndex;
@@ -6721,6 +6727,7 @@
       if (dom.expandProgressText) dom.expandProgressText.textContent = `${expandQuestionIndex + 1} / 20`;
       if (dom.expandWrongText) dom.expandWrongText.textContent = String(expandWrongCount);
       renderExpandChoices(q);
+      expandQuestionShownAt = Date.now();
       expandQuestionIndex += 1;
       scheduleFitExpandQuestionTextSize();
     }
@@ -7361,6 +7368,8 @@
         "stats.levelEmpty": "暫無按題記錄的難度數據，多玩幾局後查看。",
         "stats.cat.arithmetic": "四則運算",
         "stats.cat.decimal": "小數運算",
+        "stats.cat.perfectSquare": "平方數",
+        "stats.cat.divisibility": "整除",
         "stats.scriptNotLoaded": "統計腳本未載入。",
         "stats.needServer": "需連接伺服器才能查看數據統計，請設定 API 後重試。",
         "stats.loading": "載入中…",
@@ -7734,6 +7743,8 @@
         "stats.levelEmpty": "No per-question stats yet. Play more runs.",
         "stats.cat.arithmetic": "Arithmetic",
         "stats.cat.decimal": "Decimals",
+        "stats.cat.perfectSquare": "Perfect squares",
+        "stats.cat.divisibility": "Divisibility",
         "stats.scriptNotLoaded": "Stats scripts failed to load.",
         "stats.needServer": "Statistics require a server connection. Configure API and try again.",
         "stats.loading": "Loading…",
@@ -12201,6 +12212,32 @@
       }
     }
 
+    async function fetchPublicPerfectSquareCohort() {
+      const base = getApiBase();
+      if (!base) return null;
+      try {
+        const res = await fetch(base + "/api/public/perfect-square-cohort", { credentials: "include" });
+        if (!res.ok) return null;
+        const d = await res.json();
+        return d && d.ok ? d : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function fetchPublicDivisibilityCohort() {
+      const base = getApiBase();
+      if (!base) return null;
+      try {
+        const res = await fetch(base + "/api/public/divisibility-cohort", { credentials: "include" });
+        if (!res.ok) return null;
+        const d = await res.json();
+        return d && d.ok ? d : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
     async function showStatsView() {
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
@@ -12246,9 +12283,11 @@
         showStudentStatsLoading();
       }
       try {
-        const [levelCohort, decimalCohort, runsRes] = await Promise.all([
+        const [levelCohort, decimalCohort, psCohort, divCohort, runsRes] = await Promise.all([
           fetchPublicLevelCohortForTraining(),
           fetchPublicDecimalCohort(),
+          fetchPublicPerfectSquareCohort(),
+          fetchPublicDivisibilityCohort(),
           fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() }),
         ]);
         const runsData = await runsRes.json();
@@ -12258,6 +12297,8 @@
         const cohorts = {
           arithmetic: levelCohort && levelCohort.ok ? levelCohort : null,
           decimal: decimalCohort && decimalCohort.ok ? decimalCohort : null,
+          perfectSquare: psCohort && psCohort.ok ? psCohort : null,
+          divisibility: divCohort && divCohort.ok ? divCohort : null,
         };
         saveStudentStatsCache(name, runs, cohorts);
         renderStudentStatsFromRuns(runs, cohorts);

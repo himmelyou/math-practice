@@ -7,11 +7,13 @@
 (function (global) {
   var LEVEL_COUNT = 16;
   var DECIMAL_LEVEL_COUNT = 6;
+  var PERFECT_SQUARE_LEVEL_COUNT = 4;
+  var DIVISIBILITY_LEVEL_COUNT = 5;
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
 
-  /** 热图分类注册表（后期可加平方数 / 整除 / 因数倍数等） */
+  /** 热图分类注册表（拆括号仅补 attempt，暂不进热图） */
   var HEATMAP_CATEGORIES = [
     {
       id: 'arithmetic',
@@ -30,6 +32,24 @@
       labelKey: 'stats.cat.decimal',
       labelFallback: '小数运算',
       cohortKind: 'decimal',
+    },
+    {
+      id: 'perfectSquare',
+      modes: ['perfectSquare'],
+      levelCount: PERFECT_SQUARE_LEVEL_COUNT,
+      levelPrefix: 'L',
+      labelKey: 'stats.cat.perfectSquare',
+      labelFallback: '平方数',
+      cohortKind: 'perfectSquare',
+    },
+    {
+      id: 'divisibility',
+      modes: ['divisibility'],
+      levelCount: DIVISIBILITY_LEVEL_COUNT,
+      levelPrefix: 'Z',
+      labelKey: 'stats.cat.divisibility',
+      labelFallback: '整除',
+      cohortKind: 'divisibility',
     },
   ];
 
@@ -1397,6 +1417,8 @@
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
     DECIMAL_LEVEL_COUNT: DECIMAL_LEVEL_COUNT,
+    PERFECT_SQUARE_LEVEL_COUNT: PERFECT_SQUARE_LEVEL_COUNT,
+    DIVISIBILITY_LEVEL_COUNT: DIVISIBILITY_LEVEL_COUNT,
     HEATMAP_CATEGORIES: HEATMAP_CATEGORIES,
     getHeatmapCategories: getHeatmapCategories,
     getHeatmapCategory: getHeatmapCategory,

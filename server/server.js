@@ -217,6 +217,8 @@ const I18N_FILE = path.join(DATA_DIR, "i18n.json");
 const RUNS_FILE = path.join(DATA_DIR, "runs.json");
 const COHORT_LEVEL_STATS_FILE = path.join(DATA_DIR, "cohort-level-stats.json");
 const COHORT_DECIMAL_STATS_FILE = path.join(DATA_DIR, "cohort-decimal-stats.json");
+const COHORT_PERFECT_SQUARE_STATS_FILE = path.join(DATA_DIR, "cohort-perfect-square-stats.json");
+const COHORT_DIVISIBILITY_STATS_FILE = path.join(DATA_DIR, "cohort-divisibility-stats.json");
 /** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
 const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
@@ -2684,6 +2686,14 @@ function purgeUserCompletely(username) {
       fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
       cohortStatsInvalidated = true;
     }
+    if (fs.existsSync(COHORT_PERFECT_SQUARE_STATS_FILE)) {
+      fs.unlinkSync(COHORT_PERFECT_SQUARE_STATS_FILE);
+      cohortStatsInvalidated = true;
+    }
+    if (fs.existsSync(COHORT_DIVISIBILITY_STATS_FILE)) {
+      fs.unlinkSync(COHORT_DIVISIBILITY_STATS_FILE);
+      cohortStatsInvalidated = true;
+    }
   } catch (e) {
     /* ignore */
   }
@@ -3232,6 +3242,18 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   writeCohortLevelStatsCache(builtAt, result);
   const decimalResult = computeDecimalCohortResult();
   writeCohortDecimalStatsCache(builtAt, decimalResult);
+  const perfectSquareResult = computePerfectSquareCohortResult();
+  writeCohortPerfectSquareStatsCache(builtAt, perfectSquareResult);
+  const divisibilityResult = computeDivisibilityCohortResult();
+  writeCohortDivisibilityStatsCache(builtAt, divisibilityResult);
+  const wrapExtra = (extra) => ({
+    ...extra,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+    rebuilt: true,
+  });
   return res.json({
     ...result,
     builtAt,
@@ -3239,14 +3261,9 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
     expiresAt: builtAt + COHORT_STATS_TTL_MS,
     servedFromCache: false,
     rebuilt: true,
-    decimal: {
-      ...decimalResult,
-      builtAt,
-      ttlMs: COHORT_STATS_TTL_MS,
-      expiresAt: builtAt + COHORT_STATS_TTL_MS,
-      servedFromCache: false,
-      rebuilt: true,
-    },
+    decimal: wrapExtra(decimalResult),
+    perfectSquare: wrapExtra(perfectSquareResult),
+    divisibility: wrapExtra(divisibilityResult),
   });
 });
 
@@ -3412,6 +3429,186 @@ app.post("/api/admin/stats/decimal-cohort/rebuild", (req, res) => {
     expiresAt: builtAt + COHORT_STATS_TTL_MS,
     servedFromCache: false,
     rebuilt: true,
+  });
+});
+
+/** 平方数全体常模（L1–L4） */
+const COHORT_PERFECT_SQUARE_LEVEL_COUNT = 4;
+
+function computePerfectSquareCohortResult() {
+  const personLnByLevel = collectPersonMeanLnByLevel(
+    (mode) => mode === "perfectSquare",
+    COHORT_PERFECT_SQUARE_LEVEL_COUNT
+  );
+  const levels = [];
+  for (let k = 0; k < COHORT_PERFECT_SQUARE_LEVEL_COUNT; k++) {
+    const lnQ = summarizeQuantiles(personLnByLevel[k]);
+    levels.push({
+      levelIndex: k,
+      cohortLnTimeCorrect: lnQ,
+      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+    });
+  }
+  return {
+    ok: true,
+    kind: "perfectSquare",
+    levelCount: COHORT_PERFECT_SQUARE_LEVEL_COUNT,
+    sampleUnit: "person",
+    minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
+    timeSpentMsCapNote:
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。",
+    levels,
+  };
+}
+
+function readCohortPerfectSquareStatsCache() {
+  const raw = readJson(COHORT_PERFECT_SQUARE_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortPerfectSquareStatsCache(builtAt, result) {
+  writeJson(COHORT_PERFECT_SQUARE_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/public/perfect-square-cohort", (req, res) => {
+  const cache = readCohortPerfectSquareStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({ ok: false, error: "暂无平方数常模，请管理员在后台拉取或刷新常模后再试" });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
+app.get("/api/admin/stats/perfect-square-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortPerfectSquareStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computePerfectSquareCohortResult();
+  const builtAt = now;
+  writeCohortPerfectSquareStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+  });
+});
+
+/** 整除全体常模（Z1–Z5） */
+const COHORT_DIVISIBILITY_LEVEL_COUNT = 5;
+
+function computeDivisibilityCohortResult() {
+  const personLnByLevel = collectPersonMeanLnByLevel(
+    (mode) => mode === "divisibility",
+    COHORT_DIVISIBILITY_LEVEL_COUNT
+  );
+  const levels = [];
+  for (let k = 0; k < COHORT_DIVISIBILITY_LEVEL_COUNT; k++) {
+    const lnQ = summarizeQuantiles(personLnByLevel[k]);
+    levels.push({
+      levelIndex: k,
+      cohortLnTimeCorrect: lnQ,
+      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+    });
+  }
+  return {
+    ok: true,
+    kind: "divisibility",
+    levelCount: COHORT_DIVISIBILITY_LEVEL_COUNT,
+    sampleUnit: "person",
+    minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
+    timeSpentMsCapNote:
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。",
+    levels,
+  };
+}
+
+function readCohortDivisibilityStatsCache() {
+  const raw = readJson(COHORT_DIVISIBILITY_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortDivisibilityStatsCache(builtAt, result) {
+  writeJson(COHORT_DIVISIBILITY_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/public/divisibility-cohort", (req, res) => {
+  const cache = readCohortDivisibilityStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({ ok: false, error: "暂无整除常模，请管理员在后台拉取或刷新常模后再试" });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
+app.get("/api/admin/stats/divisibility-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortDivisibilityStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computeDivisibilityCohortResult();
+  const builtAt = now;
+  writeCohortDivisibilityStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
   });
 });
 
@@ -3628,6 +3825,8 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
       try {
         if (fs.existsSync(COHORT_LEVEL_STATS_FILE)) fs.unlinkSync(COHORT_LEVEL_STATS_FILE);
         if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
+        if (fs.existsSync(COHORT_PERFECT_SQUARE_STATS_FILE)) fs.unlinkSync(COHORT_PERFECT_SQUARE_STATS_FILE);
+        if (fs.existsSync(COHORT_DIVISIBILITY_STATS_FILE)) fs.unlinkSync(COHORT_DIVISIBILITY_STATS_FILE);
         notes.push("已清除常模快照（请在报表刷新全体常模）");
       } catch (e2) {
         /* 忽略 */

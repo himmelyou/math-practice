@@ -1253,13 +1253,23 @@
       apiFetch('/api/admin/stats/decimal-cohort').catch(function (e) {
         return { ok: false, error: e.message || String(e) };
       }),
+      apiFetch('/api/admin/stats/perfect-square-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
+      apiFetch('/api/admin/stats/divisibility-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
     ])
       .then(function (results) {
         var level = results[0];
         var decimal = results[1];
+        var perfectSquare = results[2];
+        var divisibility = results[3];
         state.cohortByCategory = {
           arithmetic: level && level.ok ? level : null,
           decimal: decimal && decimal.ok ? decimal : null,
+          perfectSquare: perfectSquare && perfectSquare.ok ? perfectSquare : null,
+          divisibility: divisibility && divisibility.ok ? divisibility : null,
         };
         state.cohort = state.cohortByCategory.arithmetic;
         var errs = [];
@@ -1268,6 +1278,12 @@
         }
         if (!state.cohortByCategory.decimal) {
           errs.push('小数：' + ((decimal && decimal.error) || '常模接口返回异常'));
+        }
+        if (!state.cohortByCategory.perfectSquare) {
+          errs.push('平方数：' + ((perfectSquare && perfectSquare.error) || '常模接口返回异常'));
+        }
+        if (!state.cohortByCategory.divisibility) {
+          errs.push('整除：' + ((divisibility && divisibility.error) || '常模接口返回异常'));
         }
         state.cohortError = errs.length ? errs.join('；') : '';
       })
@@ -2106,7 +2122,7 @@
     ensureStudentStatsBuilt();
     if (!anyStatsCategoryHasData()) {
       wrap.innerHTML =
-        '<div class="jml-report-empty">暂无热图相关 attempts（四则：survival / level / training；小数：decimal）</div>';
+        '<div class="jml-report-empty">暂无热图相关 attempts（四则 / 小数 / 平方数 / 整除）</div>';
       return;
     }
 
@@ -2507,6 +2523,8 @@
             state.cohortByCategory = {
               arithmetic: state.cohort,
               decimal: d && d.decimal && d.decimal.ok ? d.decimal : null,
+              perfectSquare: d && d.perfectSquare && d.perfectSquare.ok ? d.perfectSquare : null,
+              divisibility: d && d.divisibility && d.divisibility.ok ? d.divisibility : null,
             };
             state.cohortError = d && d.ok ? '' : '常模重建返回异常';
             if (state.selectedUsername) renderStatsPanel();
