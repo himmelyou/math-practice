@@ -1718,6 +1718,10 @@ app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData,
   }
   const u = data.users[idx];
   if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+  // 整除为选择题，不进错题本（与学员端策略一致）
+  if (String(raw.mode || "") === "divisibility") {
+    return res.json({ ok: true, skipped: true, ...wrongAnswersPayload(u) });
+  }
   const entry = normalizeWrongAnswerEntry(raw);
   u.wrongAnswers.unshift(entry);
   if (u.wrongAnswers.length > WRONGBOOK_MAX_STORE) {
@@ -3743,6 +3747,34 @@ app.post("/api/admin/maintenance/backfill-prime-perfect-ranking", (req, res) => 
 });
 
 // ========== 管理员：从 runs 重建整除达人榜（L5 零错最短用时） ==========
+/** 全库清除错题本中 mode=divisibility 的条目（整除已改为不进错题本） */
+app.post("/api/admin/maintenance/purge-divisibility-wrong-answers", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(data.users) ? data.users : [];
+  let usersTouched = 0;
+  let entriesRemoved = 0;
+  users.forEach((u) => {
+    if (!u || !Array.isArray(u.wrongAnswers) || u.wrongAnswers.length === 0) return;
+    const before = u.wrongAnswers.length;
+    u.wrongAnswers = u.wrongAnswers.filter((w) => String((w && w.mode) || "") !== "divisibility");
+    const removed = before - u.wrongAnswers.length;
+    if (removed > 0) {
+      usersTouched += 1;
+      entriesRemoved += removed;
+    }
+  });
+  if (entriesRemoved > 0) writeJson(USERS_FILE, data);
+  return res.json({
+    ok: true,
+    usersTouched,
+    entriesRemoved,
+    userCount: users.length,
+  });
+});
+
 app.post("/api/admin/maintenance/backfill-divisibility-perfect-ranking", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });

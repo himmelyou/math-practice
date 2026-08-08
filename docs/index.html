@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=99"></script>
+  <script src="shared/app-version.js?v=101"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1438,15 +1438,13 @@
     #global-back-home-btn:active {
       opacity: 0.92;
     }
-    #global-back-home-btn.is-abandon-cooldown,
-    #abandon-game-btn.is-abandon-cooldown {
+    #global-back-home-btn.is-abandon-cooldown {
       opacity: 0.45;
       filter: grayscale(0.35);
       cursor: not-allowed;
       box-shadow: none;
     }
-    #global-back-home-btn.is-abandon-cooldown:active,
-    #abandon-game-btn.is-abandon-cooldown:active {
+    #global-back-home-btn.is-abandon-cooldown:active {
       opacity: 0.45;
     }
 
@@ -1803,22 +1801,6 @@
       gap: 10px;
       margin-top: 0;
     }
-    .game-back-row {
-      margin-top: 10px;
-      margin-left: auto;
-      margin-right: auto;
-      width: min(47%, 192px);
-    }
-    .game-back-row.hidden {
-      display: none;
-    }
-    #game-back-home-btn {
-      width: 100% !important;
-      padding: 12px 16px;
-      min-height: 3em;
-      flex: none !important;
-    }
-
     .game-card-action-anchor .btn-primary {
       padding: 8px 12px;
       min-height: 2.25em;
@@ -1828,12 +1810,6 @@
 
     #start-row {
       width: 100%;
-    }
-
-    #game-back-row {
-      width: min(47%, 192px);
-      margin-left: auto;
-      margin-right: auto;
     }
 
 
@@ -4016,9 +3992,6 @@
             <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
           </div>
         </div>
-        <div class="button-row" id="abandon-row" style="display:none;">
-          <button type="button" class="btn-primary btn-secondary" id="abandon-game-btn">放弃本局</button>
-        </div>
       </form>
 
       <div class="batch-summary" id="batch-summary"></div>
@@ -4812,7 +4785,7 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=48"></script>
-  <script src="divisibility-page.js?v=5"></script>
+  <script src="divisibility-page.js?v=6"></script>
   <script src="decimal-page.js?v=12"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -6031,16 +6004,10 @@
       const gate = getAbandonGate();
       const cooling = inProgress && !gate.ok;
       const globalBackBtn = document.getElementById("global-back-home-btn");
-      const abandonGameBtn = document.getElementById("abandon-game-btn");
       if (globalBackBtn) {
         globalBackBtn.classList.toggle("is-abandon-cooldown", cooling);
         if (cooling) globalBackBtn.setAttribute("aria-disabled", "true");
         else globalBackBtn.removeAttribute("aria-disabled");
-      }
-      if (abandonGameBtn) {
-        abandonGameBtn.classList.toggle("is-abandon-cooldown", cooling);
-        if (cooling) abandonGameBtn.setAttribute("aria-disabled", "true");
-        else abandonGameBtn.removeAttribute("aria-disabled");
       }
       if (cooling && gate.reason === "cooldown" && gate.waitMs > 0) {
         abandonCooldownUiTimerId = setTimeout(function () {
@@ -7970,7 +7937,6 @@
         ai.placeholder = t("game.answer.placeholder");
       }
       setT("start-game-btn", "game.btn.startGame");
-      setT("abandon-game-btn", "game.btn.abandon");
       setT("play-again-btn", "game.btn.playAgain");
       setT("expand-play-again-btn", "game.btn.playAgain");
       setT("game-over-duration-label", "game.over.survivalDuration");
@@ -8852,14 +8818,14 @@
       return apiAppendRun(name, runEntry);
     }
 
-    const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare", "divisibility"]);
+    const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare"]);
+    const WRONGBOOK_EXCLUDED_MODES = new Set(["divisibility"]);
     const WRONG_ANSWER_LEVEL_MAX = {
       survival: 15,
       level: 15,
       training: 15,
       decimal: 5,
       perfectSquare: 3,
-      divisibility: 4,
     };
 
     function normalizeWrongAnswerMode(mode) {
@@ -8885,7 +8851,7 @@
       let lv;
       if (typeof levelIndex === "number" && Number.isFinite(levelIndex)) {
         lv = clampWrongAnswerLevelIndex(resolvedMode, levelIndex);
-      } else if (resolvedMode === "decimal" || resolvedMode === "perfectSquare" || resolvedMode === "divisibility") {
+      } else if (resolvedMode === "decimal" || resolvedMode === "perfectSquare") {
         lv = 0;
       } else {
         lv = clampWrongAnswerLevelIndex(resolvedMode, currentLevelIndex);
@@ -9493,8 +9459,6 @@
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
@@ -9526,8 +9490,6 @@
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
@@ -9627,8 +9589,6 @@
         dom.submitBtn.style.display = "";
         dom.submitBtn.disabled = false;
       }
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
@@ -9666,8 +9626,6 @@
       setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       setGameCardActionSlot("hidden");
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       dom.answerInput.disabled = true;
       dom.answerInput.value = "";
 
@@ -9731,8 +9689,6 @@
       setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
       setGameCardActionSlot("hidden");
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       dom.answerInput.disabled = true;
       dom.answerInput.value = "";
 
@@ -9813,8 +9769,6 @@
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const abandonRow = document.getElementById("abandon-row");
-        if (abandonRow) abandonRow.style.display = "none";
         appendRun(survivalTimeSec, 0, maxLevelThisRun, runWrongCount, "survival", currentRunAttempts.slice(), false, true);
         renderRecentRuns();
         return;
@@ -9862,8 +9816,6 @@
       }
       setGameCardActionSlot("hidden");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
     }
 
     function handleSubmit() {
@@ -9954,8 +9906,6 @@
       setSoftKeyboardVisible(true);
       if (dom.submitBtn) dom.submitBtn.style.display = "";
       setGameCardActionSlot("input");
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
     }
 
     function evaluateAnswerWrong(userAnswer) {
@@ -10220,8 +10170,6 @@
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const abandonRow = document.getElementById("abandon-row");
-        if (abandonRow) abandonRow.style.display = "none";
         recordTrainingCompletedTrack(!!trainingRunBrushMode);
         appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
           abandoned: true,
@@ -10281,8 +10229,6 @@
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const abandonRow = document.getElementById("abandon-row");
-        if (abandonRow) abandonRow.style.display = "none";
         return;
       }
 
@@ -10357,8 +10303,6 @@
       }
       setGameCardActionSlot("hidden");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
     }
 
     function endLevelGame(completed, abandoned) {
@@ -10408,8 +10352,6 @@
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const abandonRow = document.getElementById("abandon-row");
-        if (abandonRow) abandonRow.style.display = "none";
         updateLevelStatusUI();
         return;
       }
@@ -10458,8 +10400,6 @@
       }
       setGameCardActionSlot("hidden");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       updateTrainingButtonLabel();
     }
 
@@ -10546,8 +10486,6 @@
       }
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       setGameCardActionSlot("start");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       setFeedback("", null);
@@ -12431,8 +12369,6 @@
       }
       renderRecentRuns();
       if (dom.submitBtn) dom.submitBtn.style.display = "none";
-      const abandonRow = document.getElementById("abandon-row");
-      if (abandonRow) abandonRow.style.display = "none";
       setGameCardActionSlot("start");
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
@@ -12480,7 +12416,11 @@
       return Number.isFinite(n) && n > 0 ? n : 0;
     }
 
-    /** 学员端可见错题：游标之后，最多 WRONGBOOK_DISPLAY_MAX 条（新→旧） */
+    function isWrongbookExcludedMode(mode) {
+      return WRONGBOOK_EXCLUDED_MODES.has(String(mode || "").trim());
+    }
+
+    /** 学员端可见错题：游标之后，最多 WRONGBOOK_DISPLAY_MAX 条（新→旧）；整除等排除模式不进列表/练习 */
     function getWrongAnswers() {
       const user = getCurrentUser();
       if (!user || isGuestMode) return [];
@@ -12488,6 +12428,7 @@
       const all = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
       const clearedBefore = getWrongAnswersClearedBeforeTs();
       const visible = all.filter(function (w) {
+        if (isWrongbookExcludedMode(w && w.mode)) return false;
         return (Number(w && w.ts) || 0) > clearedBefore;
       });
       return visible.slice(0, WRONGBOOK_DISPLAY_MAX);
@@ -13915,8 +13856,6 @@
       }
       const globalBackHomeBtn = document.getElementById("global-back-home-btn");
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
-      const abandonGameBtn = document.getElementById("abandon-game-btn");
-      if (abandonGameBtn) abandonGameBtn.addEventListener("click", abandonCurrentRun);
 
       const modeSurvival = document.getElementById("mode-survival");
       const modeLevel = document.getElementById("mode-level");

@@ -1532,6 +1532,25 @@
     }
   }
 
+  async function purgeDivisibilityWrongAnswers() {
+    try {
+      var msg = '将从全库 users.json 清除错题本中 mode=divisibility 的条目。\n\n'
+        + '只删整除错题，其他模式不受影响。\n'
+        + '操作前请先备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('正在清除整除错题…', '');
+      var data = await apiFetch('/api/admin/maintenance/purge-divisibility-wrong-answers', { method: 'POST' });
+      var usersTouched = Number(data && data.usersTouched) || 0;
+      var entriesRemoved = Number(data && data.entriesRemoved) || 0;
+      setStatus(
+        '清除完成：影响 ' + usersTouched + ' 人，删除 ' + entriesRemoved + ' 条整除错题',
+        'ok'
+      );
+    } catch (e) {
+      setStatus(e.message || '清除失败', 'err');
+    }
+  }
+
   async function verifyRunsStore() {
     var out = document.getElementById('jml-runs-store-verify-out');
     if (out) {
@@ -1739,6 +1758,8 @@
     if (backfillDivisibilityPerfectRankingBtn) {
       backfillDivisibilityPerfectRankingBtn.addEventListener('click', backfillDivisibilityPerfectRanking);
     }
+    var purgeDivWrongBtn = document.getElementById('jml-btn-purge-divisibility-wrong');
+    if (purgeDivWrongBtn) purgeDivWrongBtn.addEventListener('click', purgeDivisibilityWrongAnswers);
     var runsStoreVerifyBtn = document.getElementById('jml-btn-runs-store-verify');
     if (runsStoreVerifyBtn) runsStoreVerifyBtn.addEventListener('click', verifyRunsStore);
     var runsStoreSyncBtn = document.getElementById('jml-btn-runs-store-sync');

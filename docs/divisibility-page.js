@@ -426,19 +426,6 @@
       correct: q.correctValue,
       prompt: q.promptStem || q.prompt || q.text,
     });
-    const promptText = q.promptStem || q.text || "";
-    const userAns =
-      letter === "A"
-        ? String(q.optionA != null ? q.optionA : "")
-        : String(q.optionB != null ? q.optionB : "");
-    deps.recordWrongAnswer(
-      promptText,
-      String(q.correctValue),
-      userAns,
-      divRunStartLevel,
-      "divisibility"
-    );
-
     divChoicesLocked = true;
     const wrongBtn = document.getElementById(letter === "A" ? "div-btn-a" : "div-btn-b");
     if (wrongBtn) wrongBtn.classList.add("div-choice-wrong");
