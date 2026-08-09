@@ -3797,7 +3797,7 @@
             </button>
             <div id="home-settings-menu" class="home-settings-menu" role="menu" hidden>
               <button type="button" id="home-settings-lang-btn" class="home-settings-menu-item" role="menuitem">
-                <span id="home-settings-lang-label">切换语言</span>
+                <span id="home-settings-lang-label">English</span>
               </button>
               <button type="button" id="change-password-btn" class="home-settings-menu-item" role="menuitem">
                 <span id="change-password-btn-label">修改密码</span>
@@ -5722,7 +5722,11 @@
     }
 
     function updateHomeSettingsMenuI18n() {
-      setTextById("home-settings-lang-label", "home.menu.switchLang");
+      const langLabel = document.getElementById("home-settings-lang-label");
+      if (langLabel) {
+        /* 显示「可切换到」的语言名；繁體中文固定写汉字，避免英文界面变成 Traditional Chinese */
+        langLabel.textContent = currentLang === "en" ? "繁體中文" : "English";
+      }
       setTextById("home-settings-contact-label", "home.menu.contactUs");
       setTextById("change-password-btn-label", "home.btn.changePassword");
       setTextById("logout-btn-label", "home.btn.logout");
@@ -5731,7 +5735,7 @@
       if (langBtn) {
         langBtn.setAttribute(
           "aria-label",
-          t("home.menu.switchLang") + " · " + (currentLang === "en" ? t("lang.zhHant") : t("lang.en"))
+          currentLang === "en" ? "Switch to 繁體中文" : "切換到 English"
         );
       }
     }
