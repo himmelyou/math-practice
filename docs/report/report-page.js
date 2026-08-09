@@ -118,7 +118,7 @@
     trainDebugPayload: null,
   };
 
-  var REPORT_LANG_KEY = 'jml_lang_v1';
+  var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
   var OVERVIEW_SORTABLE_KEYS = {
@@ -144,6 +144,52 @@
     } catch (e) {
       return 'zhHant';
     }
+  }
+
+  function setReportLang(lang) {
+    var next = lang === 'en' ? 'en' : 'zhHant';
+    try {
+      localStorage.setItem(REPORT_LANG_KEY, next);
+    } catch (e) {}
+    return next;
+  }
+
+  function syncReportDocumentLang() {
+    var root = document.documentElement;
+    if (!root) return;
+    root.lang = getReportLang() === 'en' ? 'en' : 'zh-Hant';
+  }
+
+  function syncReportLangBtn() {
+    var btn = document.getElementById('jml-report-lang-btn');
+    if (!btn) return;
+    var isEn = getReportLang() === 'en';
+    btn.textContent = isEn ? '繁體中文' : 'English';
+    btn.setAttribute('aria-label', isEn ? 'Switch to 繁體中文' : '切換到 English');
+  }
+
+  function refreshReportAfterLangChange() {
+    syncReportDocumentLang();
+    syncReportLangBtn();
+    var tab = activeTabId();
+    if (tab === 'stats') {
+      if (state.selectedUsername && state.loadedStudentUsername === state.selectedUsername) {
+        renderStatsPanel();
+      }
+      return;
+    }
+    if (tab === 'train-debug') {
+      if (state.selectedUsername) void loadTrainDebug(false);
+      return;
+    }
+    if (tab === 'overview') {
+      renderOverviewTable();
+    }
+  }
+
+  function toggleReportLang() {
+    setReportLang(getReportLang() === 'en' ? 'zhHant' : 'en');
+    refreshReportAfterLangChange();
   }
 
   function rt(key) {
@@ -2305,6 +2351,13 @@
         switchTab(btn.getAttribute('data-tab'));
       });
     });
+    var reportLangBtn = document.getElementById('jml-report-lang-btn');
+    if (reportLangBtn && !reportLangBtn.dataset.bound) {
+      reportLangBtn.dataset.bound = '1';
+      reportLangBtn.addEventListener('click', function () {
+        toggleReportLang();
+      });
+    }
     var trainDebugBody = document.getElementById('jml-report-train-debug-body');
     if (trainDebugBody && !trainDebugBody.dataset.debugBound) {
       trainDebugBody.dataset.debugBound = '1';
@@ -2593,6 +2646,8 @@
   window.JmlReportPage = {
     init: function () {
       showApiWarning();
+      syncReportDocumentLang();
+      syncReportLangBtn();
       readStoredOverviewSort();
       state.userScope = readStoredUserScope();
       updateScopeButtons();
