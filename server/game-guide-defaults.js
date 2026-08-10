@@ -11,7 +11,7 @@ const BODY_ZH = `## 1. 這是什麼
 
 這是一套口算與數感練習工具。請用**登入帳號**練習，進度、積分、排行榜和數據分析才會保存。遊客模式功能有限，重要練習請先註冊登入。
 
-建議：**每天先完成系統推薦的訓練，再按需要刷弱項或挑戰其它模式。**
+建議：**先用闖關摸清水平並打開熱圖，再每天跟著訓練推薦練**；專項與刷弱項按需進行。
 
 ---
 
@@ -19,7 +19,7 @@ const BODY_ZH = `## 1. 這是什麼
 
 | 入口 | 做什麼 |
 |------|--------|
-| **闖關模式** | 按 L1→L16 推進四則運算，適合系統過關 |
+| **闖關模式** | 按 L1→L16 推進四則運算；適合快速打開熱圖、摸清水平 |
 | **訓練模式** | 日常主練；系統會按你的數據推薦關卡（當日闖關 / 刷熱圖） |
 | **生存挑戰** | 限時闖關，連對升級、答錯降級，追求高分與通關 |
 | **小數 / 平方數 / 整除 / 拆括號 / 質數合數** 等 | 專項練習；多數從低等級逐步解鎖 |
@@ -33,20 +33,27 @@ const BODY_ZH = `## 1. 這是什麼
 
 ## 3. 正確使用方式（最重要）
 
-### 3.1 訓練模式：跟著推薦走
+### 3.1 先打一局闖關，摸清水平
+
+- 新手或很久沒練時，**先玩闖關模式**：從低關一路往上推，可以較快把四則熱圖「打開」，大致看出你目前卡在哪一級。
+- 熱圖有了輪廓之後，**訓練模式的默認選關**才能更快對準你的真實水平，而不是從過低或過高的關瞎猜。
+- 若闖關是因為**失誤**提前結束，不妨**再試一兩局**；多一點有效答題，定位會更準。
+- 摸清位置後，再進入訓練做日常主練；不必每次都重闖一遍。
+
+### 3.2 訓練模式：跟著推薦走
 
 - 開局前看難度旁的**短說明**，確認題型。
 - **優先用系統默認選中的等級**——這是按你近期表現算出來的下一步。
 - 手動改難度可以，但會按「刷熱圖 / 自選」記錄，和「當日闖關」路徑不同。
 - 目標不是一味衝最高關，而是把已開的關練到**又準又快**。
 
-### 3.2 怎麼算「練好了」
+### 3.3 怎麼算「練好了」
 
 - **準**：少錯；熱圖裡顏色會反映加權正確率。
 - **快**：答對且不過分拖沓才計入速度；長時間掛機、切屏的超長耗時一般不進速度統計。
 - 熱圖有足夠題量後才會穩定著色；偶爾幾題波動很正常。
 
-### 3.3 專項模式：怎麼解鎖下一關
+### 3.4 專項模式：怎麼解鎖下一關
 
 小數、平方數、整除、拆括號等（共用一套升降規則）：
 
@@ -56,7 +63,7 @@ const BODY_ZH = `## 1. 這是什麼
 - 已解鎖的關可隨時重練；重練 0 錯多為「完美」，不會重複提示解鎖。
 - 等級進度寫在帳號上；**解鎖本身不單獨記一局排行**。
 
-### 3.4 放棄本局請慎重
+### 3.5 放棄本局請慎重
 
 頂欄在對局中是「放棄本局」：
 
@@ -72,6 +79,7 @@ const BODY_ZH = `## 1. 這是什麼
 ### 闖關模式（四則 L1–L16）
 
 - 按關推進；每關有題量與通關要求（以局內提示為準）。
+- 適合用來**快速打開四則熱圖、定位目前水平**（見 3.1）。
 - **全通 L1–L16** 後，可看「闖關達人」類榜單。
 
 ### 訓練模式
@@ -87,12 +95,12 @@ const BODY_ZH = `## 1. 這是什麼
 
 ### 小數運算
 
-- 選關練習；解鎖規則見上文 3.3。
+- 選關練習；解鎖規則見上文 3.4。
 - 練習會進**小數熱圖**（D 檔）。
 
 ### 平方數
 
-- 鍵盤輸入；解鎖規則見 3.3。
+- 鍵盤輸入；解鎖規則見 3.4。
 - 練習會進**平方數熱圖**。
 
 ### 整除
@@ -104,7 +112,7 @@ const BODY_ZH = `## 1. 這是什麼
 
 ### 拆括號
 
-- 選擇題；解鎖規則見 3.3。
+- 選擇題；解鎖規則見 3.4。
 - 當前主要用於練習與進度，**不做熱圖展示**。
 
 ### 質數 / 合數等
@@ -140,6 +148,9 @@ const BODY_ZH = `## 1. 這是什麼
 
 ## 6. 常見問題
 
+**Q：為什麼一開始不直接進訓練？**  
+A：先闖關能較快打開熱圖、摸清水平，訓練的默認選關才更準（見 3.1）。
+
 **Q：為什麼系統推薦的關不是最高關？**  
 A：訓練會優先補弱項或穩住當前前沿，不是永遠衝最高。
 
@@ -163,7 +174,7 @@ A：設置 → 語言（界面語言；題目以當前題庫為準）。
 ## 7. 練習小建議
 
 1. 固定時段短練，比偶爾爆肝更有效。
-2. 訓練跟推薦；專項用解鎖推進；弱項用熱圖點名補。
+2. 先闖關摸水平，再訓練跟推薦；專項用解鎖推進；弱項用熱圖點名補。
 3. 少放棄、少掛機，速度統計才準。
 4. 通關榜單前，先把對應模式認真打通一局。
 
@@ -174,7 +185,7 @@ const BODY_EN = `## 1. What this is
 
 A mental-math practice app. **Sign in** so progress, scores, rankings, and stats are saved. Guest mode is limited—register for real practice.
 
-Tip: **follow the recommended training first each day**, then drill weak spots or try other modes.
+Tip: **start with Level clear to open the heatmap and find your level**, then follow daily Training picks; use specialty modes and weak-spot drills as needed.
 
 ---
 
@@ -182,7 +193,7 @@ Tip: **follow the recommended training first each day**, then drill weak spots o
 
 | Entry | Purpose |
 |------|--------|
-| **Level clear** | Progress through arithmetic L1–L16 |
+| **Level clear** | Progress through arithmetic L1–L16; good for opening the heatmap fast |
 | **Training** | Daily main practice; system picks the next level |
 | **Survival** | Timed runs; streak up / miss down |
 | **Decimals / squares / divisibility / brackets / primes** | Specialty modes; unlock levels step by step |
@@ -196,26 +207,33 @@ Tip: **follow the recommended training first each day**, then drill weak spots o
 
 ## 3. How to practice well
 
-### 3.1 Training: follow the pick
+### 3.1 Play Level clear first to find your level
+
+- If you are new or returning after a long break, **play Level clear first**: pushing upward from low levels quickly “opens” the arithmetic heatmap and shows roughly where you are.
+- Once the heatmap has a shape, **Training’s default pick** can aim closer to your real level instead of guessing too low or too high.
+- If a Level-clear run ends early from a **slip**, try **one or two more runs**—a bit more data makes placement more accurate.
+- After you know where you stand, use Training for daily practice; you do not need to re-clear every time.
+
+### 3.2 Training: follow the pick
 
 - Read the short level blurb before you start.
 - Prefer the **default selected level**—it is your next step from recent data.
 - You may change the level, but that counts as heatmap / self-pick, not the daily path.
 - Aim for **accurate and fast** on opened levels, not only the highest number.
 
-### 3.2 What “good” means
+### 3.3 What “good” means
 
 - **Accuracy** and **speed** (correct answers; very long idle times are ignored for speed).
 - Heatmap colors stabilize after enough attempts.
 
-### 3.3 Specialty unlocks
+### 3.4 Specialty unlocks
 
 Decimals, perfect squares, divisibility, expand brackets, etc.:
 
 - On your **frontier level**: **0 or 1 wrong** unlocks the next level; **2+ wrongs** does not.
 - Replay already unlocked levels anytime; a clean replay is usually “Perfect”, not another unlock notice.
 
-### 3.4 Abandon carefully
+### 3.5 Abandon carefully
 
 - Abandoning **drops this run’s score**; some modes still feed answered items into the heatmap.
 - Shared cooldown: after the 1st–4th abandon, wait about **10 / 20 / 40 / 80 minutes**; **max 5 abandons per day**.
@@ -225,11 +243,11 @@ Decimals, perfect squares, divisibility, expand brackets, etc.:
 
 ## 4. Modes (quick)
 
-- **Level clear**: clear L1–L16 for related leaderboards.
-- **Training**: feeds the **arithmetic heatmap**.
+- **Level clear**: clear L1–L16; also a fast way to open the arithmetic heatmap and place yourself (see §3.1). Related leaderboards after a full clear.
+- **Training**: feeds the **arithmetic heatmap**; follow the default pick day to day.
 - **Survival**: time/score; clear to open survival boards.
-- **Decimals / squares / divisibility**: unlocks per §3.3; heatmaps where noted. Divisibility ~24 Q/run, ±5 scoring; L5 zero-wrong clears compete on the master board; **not** in the wrong book.
-- **Expand brackets**: unlocks per §3.3; **no heatmap** for now.
+- **Decimals / squares / divisibility**: unlocks per §3.4; heatmaps where noted. Divisibility ~24 Q/run, ±5 scoring; L5 zero-wrong clears compete on the master board; **not** in the wrong book.
+- **Expand brackets**: unlocks per §3.4; **no heatmap** for now.
 - **Stats**: tap a cell for daily curves and cohort speed when available.
 
 ---
@@ -242,6 +260,8 @@ Decimals, perfect squares, divisibility, expand brackets, etc.:
 ---
 
 ## 6. FAQ
+
+**Why not jump straight into Training?** Level clear opens the heatmap and places you faster so Training’s pick is more accurate (see §3.1).
 
 **Why isn’t the recommended level the highest?** Weak spots and frontier stability come first.
 
@@ -258,7 +278,7 @@ Decimals, perfect squares, divisibility, expand brackets, etc.:
 ## 7. Tips
 
 1. Short daily sessions beat rare marathons.
-2. Follow training picks; use specialty unlocks; fix weak cells on the heatmap.
+2. Level-clear to place yourself, then follow Training picks; use specialty unlocks; fix weak cells on the heatmap.
 3. Avoid abandon and idle for cleaner speed stats.
 4. Clear a mode before chasing its leaderboard.
 
