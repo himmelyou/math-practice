@@ -22,12 +22,10 @@ npm start
 
 ## 数据存储
 
-数据保存在 `server/data/` 目录下的 JSON 文件中：
+数据保存在 `DATA_DIR`（默认 `~/.jarvis-math-lab/data/`）下的 JSON 文件中，例如：
 - `users.json` - 学员账号
 - `settings.json` - 练习设置
-- `runs-by-user/<user>.json` - 各学员对局记录（业务热路径只读写单用户文件）
-- `runs.json` - 历史总库（仅作首次迁移源与核对基准，日常不再写入）
-
-启动时若尚未同步，会从 `runs.json` 一次性拆到 `runs-by-user/`（不改动原文件）。管理页「维护」可核对两边是否一致。
+- `runs.json` / `runs/` - 练习记录
+- `game-guide.json` - 游戏说明自定义稿（可选；无则用内置默认）
 
 部署时请确保该目录可写，或配置持久化存储。

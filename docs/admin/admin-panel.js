@@ -1659,6 +1659,85 @@
     }
   }
 
+  function fillGameGuideForm(guide, fromDefault) {
+    var g = guide || {};
+    var titles = g.titleByLang || {};
+    var bodies = g.bodyByLang || {};
+    var titleZh = document.getElementById('jml-game-guide-title-zh');
+    var titleEn = document.getElementById('jml-game-guide-title-en');
+    var bodyZh = document.getElementById('jml-game-guide-body-zh');
+    var bodyEn = document.getElementById('jml-game-guide-body-en');
+    var meta = document.getElementById('jml-game-guide-meta');
+    if (titleZh) titleZh.value = titles.zhHant || '';
+    if (titleEn) titleEn.value = titles.en || '';
+    if (bodyZh) bodyZh.value = bodies.zhHant || '';
+    if (bodyEn) bodyEn.value = bodies.en || '';
+    if (meta) {
+      var parts = [];
+      parts.push(fromDefault ? '当前：内置默认稿（尚未自定义）' : '当前：已保存自定义稿');
+      if (g.updatedAt) {
+        try {
+          parts.push('更新于 ' + new Date(g.updatedAt).toLocaleString());
+        } catch (e) {}
+      }
+      meta.textContent = ' · ' + parts.join(' · ');
+    }
+  }
+
+  async function loadGameGuide() {
+    setStatus('加载游戏说明…', '');
+    try {
+      var data = await apiFetch('/api/admin/game-guide', { method: 'GET' });
+      fillGameGuideForm(data && data.guide, !!(data && data.fromDefault));
+      setStatus(data && data.fromDefault ? '已加载默认游戏说明' : '游戏说明已加载', 'ok');
+    } catch (e) {
+      setStatus(e.message || '加载失败', 'err');
+    }
+  }
+
+  async function saveGameGuide() {
+    var titleZh = document.getElementById('jml-game-guide-title-zh');
+    var titleEn = document.getElementById('jml-game-guide-title-en');
+    var bodyZh = document.getElementById('jml-game-guide-body-zh');
+    var bodyEn = document.getElementById('jml-game-guide-body-en');
+    var payload = {
+      titleByLang: {
+        zhHant: titleZh ? titleZh.value : '',
+        en: titleEn ? titleEn.value : '',
+      },
+      bodyByLang: {
+        zhHant: bodyZh ? bodyZh.value : '',
+        en: bodyEn ? bodyEn.value : '',
+      },
+    };
+    setStatus('保存游戏说明…', '');
+    try {
+      var data = await apiFetch('/api/admin/game-guide', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      fillGameGuideForm(data && data.guide, false);
+      setStatus('游戏说明已保存', 'ok');
+    } catch (e) {
+      setStatus(e.message || '保存失败', 'err');
+    }
+  }
+
+  async function resetGameGuide() {
+    if (!window.confirm('恢复内置默认稿？将删除服务器上的自定义 game-guide.json。')) return;
+    setStatus('恢复默认游戏说明…', '');
+    try {
+      var data = await apiFetch('/api/admin/game-guide/reset', {
+        method: 'POST',
+        body: '{}',
+      });
+      fillGameGuideForm(data && data.guide, true);
+      setStatus('已恢复默认游戏说明', 'ok');
+    } catch (e) {
+      setStatus(e.message || '恢复失败', 'err');
+    }
+  }
+
   function renderAdminVersion() {
     var el = document.getElementById('jml-admin-version');
     if (!el) return;
@@ -1686,6 +1765,7 @@
         if (id === 'levels') loadLevels();
         if (id === 'avatars') loadAvatars();
         if (id === 'i18n') loadI18n();
+        if (id === 'gameGuide') loadGameGuide();
         if (id === 'feedback') loadFeedback();
         if (id === 'worksheet' && typeof JmlAdminWorksheet !== 'undefined') JmlAdminWorksheet.init();
       });
@@ -1772,6 +1852,12 @@
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');
     if (saveI18nBtn) saveI18nBtn.addEventListener('click', saveI18n);
+    var loadGameGuideBtn = document.getElementById('jml-btn-load-game-guide');
+    if (loadGameGuideBtn) loadGameGuideBtn.addEventListener('click', loadGameGuide);
+    var saveGameGuideBtn = document.getElementById('jml-btn-save-game-guide');
+    if (saveGameGuideBtn) saveGameGuideBtn.addEventListener('click', saveGameGuide);
+    var resetGameGuideBtn = document.getElementById('jml-btn-reset-game-guide');
+    if (resetGameGuideBtn) resetGameGuideBtn.addEventListener('click', resetGameGuide);
 
     if (modal) {
       modal.addEventListener('click', function (e) {

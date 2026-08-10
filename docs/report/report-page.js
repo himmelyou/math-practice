@@ -949,13 +949,26 @@
       };
     }
     var li = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
+    var dayMode =
+      result.dayMode === 'heat' || result.dayMode === 'frontier'
+        ? result.dayMode
+        : dayState && (dayState.dayMode === 'heat' || dayState.dayMode === 'frontier')
+          ? dayState.dayMode
+          : result.brushMode || result.mode === 'brush'
+            ? 'heat'
+            : 'frontier';
     return {
       ok: true,
       label: label,
       todayKey: todayKey,
       levelIndex: li,
       pickedL: li + 1,
-      brushMode: !!(result.brushMode || result.mode === 'brush'),
+      dayMode: dayMode,
+      frontierLevel: result.frontierLevel != null ? result.frontierLevel : null,
+      frontierL: result.frontierLevel != null ? result.frontierLevel + 1 : null,
+      heatLevel: result.heatLevel != null ? result.heatLevel : null,
+      heatL: result.heatLevel != null ? result.heatLevel + 1 : null,
+      brushMode: dayMode === 'heat' || !!(result.brushMode || result.mode === 'brush'),
       mode: result.mode || '',
       reason: result.reason || '',
       pickReason: result.pickReason || result.reason || '',
@@ -1045,6 +1058,9 @@
       );
     }
     var cls = 'jml-train-debug-card' + (matchClass ? ' ' + matchClass : '');
+    var dayMode = block.dayMode || (block.dayState && block.dayState.dayMode) || '';
+    var fL = block.frontierL != null ? block.frontierL : block.frontierLevel != null ? block.frontierLevel + 1 : null;
+    var hL = block.heatL != null ? block.heatL : block.heatLevel != null ? block.heatLevel + 1 : null;
     return (
       '<div class="' +
       cls +
@@ -1054,9 +1070,13 @@
       '</h3><div class="big">L' +
       escapeHtml(String(block.pickedL)) +
       '</div><div class="meta">' +
-      escapeHtml(block.mode || '') +
+      escapeHtml(dayMode || block.mode || '') +
       ' · brush=' +
       escapeHtml(String(!!block.brushMode)) +
+      '<br/>F=' +
+      escapeHtml(fL != null ? 'L' + fL : '—') +
+      ' · H=' +
+      escapeHtml(hL != null ? 'L' + hL : '—') +
       '<br/>' +
       escapeHtml(block.reasonText || block.pickReason || block.reason || '') +
       '<br/>todayKey=' +

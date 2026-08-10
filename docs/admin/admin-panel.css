@@ -753,12 +753,46 @@
   resize: vertical;
 }
 
+.jml-game-guide-titles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.jml-game-guide-title-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: #475569;
+}
+
+.jml-game-guide-title-field input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+.jml-game-guide-body {
+  min-height: 520px;
+}
+
 @media (max-width: 980px) {
   .jml-i18n-grid {
     grid-template-columns: 1fr;
   }
   .jml-i18n-textarea {
     min-height: 280px;
+  }
+  .jml-game-guide-titles {
+    grid-template-columns: 1fr;
+  }
+  .jml-game-guide-body {
+    min-height: 320px;
   }
 }
 

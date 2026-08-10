@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=102"></script>
+  <script src="shared/app-version.js?v=104"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -1466,6 +1466,103 @@
       max-width: 90vw;
       box-shadow: 0 8px 24px rgba(0,0,0,0.15);
     }
+    .game-guide-modal {
+      width: min(560px, 94vw);
+      max-height: min(86vh, 720px);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 16px 14px;
+    }
+    .game-guide-modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .game-guide-modal-head h3 {
+      margin: 0;
+      font-size: 1.05rem;
+      color: #37474f;
+    }
+    .game-guide-close-btn {
+      border: none;
+      background: transparent;
+      color: #78909c;
+      font-size: 1.4rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+    .game-guide-close-btn:hover,
+    .game-guide-close-btn:focus-visible {
+      background: #eceff1;
+      color: #455a64;
+    }
+    .game-guide-updated {
+      margin: 0 0 8px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .game-guide-body {
+      flex: 1 1 auto;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 4px 2px 8px;
+      font-size: 0.88rem;
+      line-height: 1.55;
+      color: #37474f;
+    }
+    .game-guide-body h1,
+    .game-guide-body h2,
+    .game-guide-body h3 {
+      margin: 1em 0 0.45em;
+      line-height: 1.3;
+      color: #263238;
+    }
+    .game-guide-body h1 { font-size: 1.15rem; }
+    .game-guide-body h2 { font-size: 1.02rem; }
+    .game-guide-body h3 { font-size: 0.95rem; }
+    .game-guide-body p { margin: 0.55em 0; }
+    .game-guide-body ul,
+    .game-guide-body ol { margin: 0.45em 0 0.55em 1.2em; padding: 0; }
+    .game-guide-body li { margin: 0.25em 0; }
+    .game-guide-body hr {
+      border: none;
+      border-top: 1px solid #e0e6ed;
+      margin: 1em 0;
+    }
+    .game-guide-body table.jml-md-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.6em 0 0.8em;
+      font-size: 0.82rem;
+    }
+    .game-guide-body table.jml-md-table th,
+    .game-guide-body table.jml-md-table td {
+      border: 1px solid #e0e6ed;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .game-guide-body table.jml-md-table th {
+      background: #f5f7fa;
+      font-weight: 600;
+    }
+    .game-guide-body code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.86em;
+      background: #f1f5f9;
+      padding: 0.05em 0.3em;
+      border-radius: 4px;
+    }
+    .game-guide-body .game-guide-loading,
+    .game-guide-body .game-guide-error {
+      color: var(--muted);
+      margin: 12px 0;
+    }
+    .game-guide-body .game-guide-error { color: #c62828; }
     .change-password-modal h3 { margin: 0 0 14px 0; font-size: 1rem; color: #37474f; }
     .change-password-modal .login-field,
     #change-nickname-modal-overlay .login-field {
@@ -3802,6 +3899,9 @@
               <button type="button" id="change-password-btn" class="home-settings-menu-item" role="menuitem">
                 <span id="change-password-btn-label">修改密码</span>
               </button>
+              <button type="button" id="home-settings-guide-btn" class="home-settings-menu-item" role="menuitem">
+                <span id="home-settings-guide-label">游戏说明</span>
+              </button>
               <button type="button" id="home-settings-contact-btn" class="home-settings-menu-item" role="menuitem">
                 <span id="home-settings-contact-label">联系我们</span>
               </button>
@@ -4769,10 +4869,25 @@
     </div>
   </div>
 
+  <div id="game-guide-modal-overlay" class="change-password-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="game-guide-modal-title">
+    <div class="change-password-modal game-guide-modal">
+      <div class="game-guide-modal-head">
+        <h3 id="game-guide-modal-title">游戏说明</h3>
+        <button type="button" class="game-guide-close-btn" id="game-guide-close-btn" aria-label="关闭">×</button>
+      </div>
+      <p class="game-guide-updated" id="game-guide-updated" hidden></p>
+      <div class="game-guide-body" id="game-guide-body"></div>
+      <div class="modal-actions">
+        <button type="button" class="login-btn" id="game-guide-ok-btn">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="shared/simple-md.js?v=1"></script>
   <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=71"></script>
-  <script src="stats-heatmap-browser.js?v=69"></script>
+  <script src="stats-heatmap-browser.js?v=70"></script>
   <script src="stats-aggregate-browser.js?v=50"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=43"></script>
@@ -5727,9 +5842,14 @@
         /* 显示「可切换到」的语言名；繁體中文固定写汉字，避免英文界面变成 Traditional Chinese */
         langLabel.textContent = currentLang === "en" ? "繁體中文" : "English";
       }
+      setTextById("home-settings-guide-label", "home.menu.gameGuide");
       setTextById("home-settings-contact-label", "home.menu.contactUs");
       setTextById("change-password-btn-label", "home.btn.changePassword");
       setTextById("logout-btn-label", "home.btn.logout");
+      const guideOk = document.getElementById("game-guide-ok-btn");
+      if (guideOk) guideOk.textContent = t("home.guide.close");
+      const guideClose = document.getElementById("game-guide-close-btn");
+      if (guideClose) guideClose.setAttribute("aria-label", t("home.guide.close"));
       syncGuestTopActionButton();
       const langBtn = document.getElementById("home-settings-lang-btn");
       if (langBtn) {
@@ -5755,6 +5875,93 @@
         return;
       }
       showContactModal();
+    }
+
+    function hideGameGuideModal() {
+      const overlay = document.getElementById("game-guide-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    function formatGameGuideUpdated(ts) {
+      const n = Number(ts) || 0;
+      if (!n) return "";
+      try {
+        return tf("home.guide.updated", { time: new Date(n).toLocaleString() });
+      } catch (e) {
+        return "";
+      }
+    }
+
+    function pickGuideLangText(map, fallback) {
+      const m = map && typeof map === "object" ? map : {};
+      if (currentLang === "en") {
+        return (m.en && String(m.en).trim()) || (m.zhHant && String(m.zhHant).trim()) || fallback || "";
+      }
+      return (m.zhHant && String(m.zhHant).trim()) || (m.en && String(m.en).trim()) || fallback || "";
+    }
+
+    async function showGameGuideModal() {
+      const overlay = document.getElementById("game-guide-modal-overlay");
+      const titleEl = document.getElementById("game-guide-modal-title");
+      const bodyEl = document.getElementById("game-guide-body");
+      const updatedEl = document.getElementById("game-guide-updated");
+      if (!overlay || !bodyEl) return;
+      if (titleEl) titleEl.textContent = t("home.menu.gameGuide");
+      if (updatedEl) {
+        updatedEl.hidden = true;
+        updatedEl.textContent = "";
+      }
+      bodyEl.innerHTML = '<p class="game-guide-loading">' + escapeHtml(t("home.guide.loading")) + "</p>";
+      overlay.classList.add("active");
+
+      const base = getApiBase();
+      if (!base) {
+        bodyEl.innerHTML = '<p class="game-guide-error">' + escapeHtml(t("home.guide.needNet")) + "</p>";
+        return;
+      }
+      try {
+        const res = await fetch(base + "/api/game-guide", { credentials: "include" });
+        const data = await res.json().catch(function () { return null; });
+        if (!res.ok || !data || !data.ok || !data.guide) {
+          bodyEl.innerHTML =
+            '<p class="game-guide-error">' +
+            escapeHtml((data && data.error) || t("home.guide.loadFail")) +
+            "</p>";
+          return;
+        }
+        const guide = data.guide;
+        const title = pickGuideLangText(guide.titleByLang, t("home.menu.gameGuide"));
+        const bodyMd = pickGuideLangText(guide.bodyByLang, "");
+        if (titleEl) titleEl.textContent = title;
+        const updatedText = formatGameGuideUpdated(guide.updatedAt);
+        if (updatedEl) {
+          if (updatedText) {
+            updatedEl.hidden = false;
+            updatedEl.textContent = updatedText;
+          } else {
+            updatedEl.hidden = true;
+          }
+        }
+        if (!bodyMd.trim()) {
+          bodyEl.innerHTML = '<p class="game-guide-error">' + escapeHtml(t("home.guide.empty")) + "</p>";
+          return;
+        }
+        const Md = window.JmlSimpleMd;
+        bodyEl.innerHTML =
+          Md && typeof Md.render === "function"
+            ? Md.render(bodyMd)
+            : "<pre style='white-space:pre-wrap;margin:0;'>" + escapeHtml(bodyMd) + "</pre>";
+        try {
+          bodyEl.scrollTop = 0;
+        } catch (e) {}
+      } catch (e) {
+        bodyEl.innerHTML = '<p class="game-guide-error">' + escapeHtml(t("home.guide.loadFail")) + "</p>";
+      }
+    }
+
+    function handleHomeSettingsGuide() {
+      closeHomeSettingsMenu();
+      void showGameGuideModal();
     }
 
     function showContactModal() {
@@ -7183,7 +7390,14 @@
         "home.btn.backHome": "返回首頁",
         "home.btn.settings": "設置",
         "home.menu.switchLang": "切換語言",
+        "home.menu.gameGuide": "遊戲說明",
         "home.menu.contactUs": "聯繫我們",
+        "home.guide.close": "關閉",
+        "home.guide.loading": "載入中…",
+        "home.guide.needNet": "需要連接伺服器才能查看遊戲說明。",
+        "home.guide.loadFail": "遊戲說明載入失敗，請稍後重試。",
+        "home.guide.empty": "暫無說明內容。",
+        "home.guide.updated": "更新於 {time}",
         "home.contact.needLogin": "請先登入後再聯繫我們。",
         "home.contact.title": "聯繫我們",
         "home.contact.hint": "我們會盡快處理您的反饋。",
@@ -7575,7 +7789,14 @@
         "home.btn.backHome": "Home",
         "home.btn.settings": "Settings",
         "home.menu.switchLang": "Language",
+        "home.menu.gameGuide": "How to play",
         "home.menu.contactUs": "Contact us",
+        "home.guide.close": "Close",
+        "home.guide.loading": "Loading…",
+        "home.guide.needNet": "Server connection required to view the guide.",
+        "home.guide.loadFail": "Failed to load the guide. Please try again.",
+        "home.guide.empty": "No guide content yet.",
+        "home.guide.updated": "Updated {time}",
         "home.contact.needLogin": "Please sign in before contacting us.",
         "home.contact.title": "Contact us",
         "home.contact.hint": "We will review your feedback as soon as we can.",
@@ -10185,10 +10406,14 @@
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        recordTrainingCompletedTrack(!!trainingRunBrushMode);
+        const abandonMode = applyLocalTrainingDayModeAfterPlay(true);
         appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
           abandoned: true,
-          trainingMeta: buildTrainingRunMeta({ abandoned: true, runBrushMode: !!trainingRunBrushMode }),
+          trainingMeta: buildTrainingRunMeta({
+            abandoned: true,
+            runBrushMode: abandonMode.st.dayMode === "heat",
+            runKind: abandonMode.runKind,
+          }),
         });
         renderRecentRuns();
         return;
@@ -10209,9 +10434,14 @@
         );
         setTrainingRunFinalizeUi(true);
         try {
-          recordTrainingCompletedTrack(true);
+          const modeAfter = applyLocalTrainingDayModeAfterPlay(false);
           await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
-            trainingMeta: buildTrainingRunMeta({ runPass, failCount: 0, runBrushMode: true }),
+            trainingMeta: buildTrainingRunMeta({
+              runPass,
+              failCount: 0,
+              runBrushMode: modeAfter.st.dayMode === "heat" || modeAfter.runKind === "heat",
+              runKind: modeAfter.runKind,
+            }),
           });
           await runTrainingFinalizeWithTimeout();
         } catch (e) {
@@ -10247,26 +10477,11 @@
         return;
       }
 
-      const stBefore = loadTrainingFlowState();
-      let failCount = 0;
-      if (!runPass) {
-        if (
-          stBefore.lastRun &&
-          stBefore.lastRun.levelIndex === levelThisRun &&
-          stBefore.lastRun.passed === false
-        ) {
-          failCount = Math.min(3, (stBefore.lastRun.failCount || 0) + 1);
-        } else {
-          failCount = 1;
-        }
-      }
-      recordTrainingLastRun(levelThisRun, runPass, failCount);
-      recordTrainingCompletedTrack(false);
+      const failCount = runPass ? 0 : 1;
+      const modeAfter = applyLocalTrainingDayModeAfterPlay(false);
       let tipText = "";
       if (runPass) {
         tipText = t("game.training.dailyRunPass");
-      } else if (failCount >= 3) {
-        tipText = t("game.training.dailyRunEnterBrush");
       } else {
         tipText = tf("game.training.dailyRunFail", {
           n: failCount,
@@ -10280,14 +10495,12 @@
           trainingMeta: buildTrainingRunMeta({
             runPass,
             failCount,
-            runBrushMode: false,
+            runBrushMode: modeAfter.st.dayMode === "heat" || modeAfter.runKind === "heat",
+            runKind: modeAfter.runKind,
             enterBrushAfter: false,
           }),
         });
-        const finalizeResult = await runTrainingFinalizeWithTimeout();
-        if (finalizeResult && finalizeResult.enterBrush) {
-          trainingSessionBrushMode = true;
-        }
+        await runTrainingFinalizeWithTimeout();
       } catch (e) {
         console.warn("训练当日局 finalize 失败，使用同步选关占位", e);
       } finally {
@@ -12721,6 +12934,8 @@
     function defaultTrainingFlowState() {
       return {
         dayKey: getLocalTrainingDayKey(),
+        dayMode: "frontier",
+        prevDayMode: null,
         brushMode: false,
         brushPoolMax: null,
         lastRun: null,
@@ -12734,28 +12949,7 @@
       if (HM && typeof HM.normalizeTrainingDayState === "function") {
         return HM.normalizeTrainingDayState(o, today);
       }
-      const d = defaultTrainingFlowState();
-      const prevTrack =
-        o && (o.lastCompletedTrack === "daily" || o.lastCompletedTrack === "brush")
-          ? o.lastCompletedTrack
-          : null;
-      if (!o || typeof o !== "object") return d;
-      if (o.dayKey !== today) {
-        return {
-          dayKey: today,
-          brushMode: false,
-          brushPoolMax: null,
-          lastRun: null,
-          lastCompletedTrack: prevTrack,
-        };
-      }
-      return {
-        dayKey: today,
-        brushMode: !!(o.brushMode || o.forcedBrush),
-        brushPoolMax: o.brushPoolMax != null ? o.brushPoolMax : null,
-        lastRun: o.lastRun && typeof o.lastRun === "object" ? o.lastRun : null,
-        lastCompletedTrack: prevTrack,
-      };
+      return defaultTrainingFlowState();
     }
 
     function getTrainingFlowStorageKey() {
@@ -12782,27 +12976,28 @@
       const today = getLocalTrainingDayKey();
       const st = loadTrainingFlowState();
       if (st.dayKey !== today) {
-        saveTrainingFlowState({
-          dayKey: today,
-          brushMode: false,
-          brushPoolMax: null,
-          lastRun: null,
-          lastCompletedTrack:
-            st.lastCompletedTrack === "daily" || st.lastCompletedTrack === "brush"
-              ? st.lastCompletedTrack
-              : null,
-        });
+        saveTrainingFlowState(normalizeTrainingFlowState(st));
       }
     }
 
     function applyTrainingNextLevelResult(st, result) {
       st.dayKey = getLocalTrainingDayKey();
-      if (result && result.enterBrush) {
+      if (result && (result.dayMode === "frontier" || result.dayMode === "heat")) {
+        st.dayMode = result.dayMode;
+        st.brushMode = result.dayMode === "heat";
+        st.brushPoolMax = result.dayMode === "heat" ? 15 : null;
+        st.lastCompletedTrack = result.dayMode === "heat" ? "brush" : "daily";
+        st.lastRun = null;
+        return st;
+      }
+      if (result && result.brushMode) {
+        st.dayMode = "heat";
         st.brushMode = true;
         st.brushPoolMax =
           result.brushPoolMax != null && Number.isFinite(Number(result.brushPoolMax))
             ? Math.min(15, Math.max(0, Math.floor(Number(result.brushPoolMax))))
             : 15;
+        st.lastCompletedTrack = "brush";
         st.lastRun = null;
       }
       return st;
@@ -12811,8 +13006,47 @@
     function recordTrainingCompletedTrack(isBrush) {
       const st = loadTrainingFlowState();
       st.dayKey = getLocalTrainingDayKey();
+      st.dayMode = isBrush ? "heat" : "frontier";
+      st.brushMode = !!isBrush;
+      st.brushPoolMax = isBrush ? 15 : null;
       st.lastCompletedTrack = isBrush ? "brush" : "daily";
       saveTrainingFlowState(st);
+    }
+
+    /** 局末按手改规则更新日模式，返回 { st, runKind } */
+    function applyLocalTrainingDayModeAfterPlay(abandoned) {
+      const HM = window.JmlStatsHeatmap;
+      const today = getLocalTrainingDayKey();
+      let st = loadTrainingFlowState();
+      const pick = lastTrainingPickResult || {};
+      const playedLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const autoLv = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
+      const F =
+        pick.frontierLevel != null && Number.isFinite(Number(pick.frontierLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(pick.frontierLevel))))
+          : null;
+      const H =
+        pick.heatLevel != null && Number.isFinite(Number(pick.heatLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(pick.heatLevel))))
+          : null;
+      const beforeMode = st.dayMode === "heat" ? "heat" : "frontier";
+      if (HM && typeof HM.applyTrainingDayModeAfterRun === "function") {
+        st = HM.applyTrainingDayModeAfterRun(st, today, {
+          abandoned: !!abandoned,
+          playedLevel: playedLv,
+          autoPickLevel: autoLv,
+          frontierLevel: F,
+          heatLevel: H,
+        });
+      }
+      saveTrainingFlowState(st);
+      let runKind = "extra";
+      if (abandoned) runKind = beforeMode;
+      else if (playedLv === autoLv) runKind = beforeMode;
+      else if (beforeMode === "frontier" && H != null && playedLv === H && (F == null || playedLv !== F)) runKind = "heat";
+      else if (beforeMode === "heat" && F != null && playedLv === F && (H == null || playedLv !== H)) runKind = "frontier";
+      else runKind = "extra";
+      return { st: st, runKind: runKind, beforeMode: beforeMode };
     }
 
     function snapshotTrainingRunStartMeta() {
@@ -12821,27 +13055,32 @@
       const autoLv = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
       const playedLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
       const manualOverride = playedLv !== autoLv;
-      const effectiveBrush = !!trainingSessionBrushMode || manualOverride;
+      const dayMode = st.dayMode === "heat" ? "heat" : "frontier";
+      const F =
+        pick && pick.frontierLevel != null && Number.isFinite(Number(pick.frontierLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(pick.frontierLevel))))
+          : null;
+      const H =
+        pick && pick.heatLevel != null && Number.isFinite(Number(pick.heatLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(pick.heatLevel))))
+          : null;
       const heatSpeed = captureTrainingHeatSpeedMeta(playedLv);
       return {
         pickedLevel: playedLv,
         autoPickLevel: autoLv,
         manualOverride: manualOverride,
-        pickMode: trainingSessionBrushMode ? "brush" : "daily",
-        effectivePickMode: effectiveBrush ? "brush" : "daily",
+        dayMode: dayMode,
+        frontierLevel: F,
+        heatLevel: H,
+        pickMode: dayMode === "heat" ? "brush" : "daily",
+        effectivePickMode: dayMode === "heat" ? "brush" : "daily",
         pickReason: pick && pick.pickReason ? String(pick.pickReason) : pick && pick.reason ? String(pick.reason) : "",
-        brushPoolMax: st.brushMode && st.brushPoolMax != null ? st.brushPoolMax : null,
-        brushMode: !!st.brushMode,
-        runBrushMode: effectiveBrush,
+        brushPoolMax: dayMode === "heat" ? 15 : null,
+        brushMode: dayMode === "heat",
+        runBrushMode: dayMode === "heat",
         heatMeanLnAtStart: heatSpeed.heatMeanLnAtStart,
         heatAvgSecAtStart: heatSpeed.heatAvgSecAtStart,
-        lastRunBefore: st.lastRun
-          ? {
-              levelIndex: st.lastRun.levelIndex,
-              passed: !!st.lastRun.passed,
-              failCount: st.lastRun.failCount || 0,
-            }
-          : null,
+        lastRunBefore: null,
         dayKey: getLocalTrainingDayKey(),
         heatReady: !!(trainingHeatSnapshot && trainingHeatSnapshot.cells),
         entrySource: lastTrainingEntrySource || "unknown",
@@ -12857,22 +13096,17 @@
           ? Math.min(15, Math.max(0, Math.floor(Number(base.pickedLevel))))
           : Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
       const runSpeed = captureTrainingRunSpeedMeta(playedLv, currentRunAttempts);
+      const dayMode = st.dayMode === "heat" ? "heat" : "frontier";
       const meta = Object.assign({}, base, runSpeed, extra || {}, {
+        dayMode: dayMode,
         dayStateAfter: {
-          dayKey: st.dayKey,
-          brushMode: !!st.brushMode,
-          brushPoolMax: st.brushMode && st.brushPoolMax != null ? st.brushPoolMax : null,
-          lastRun: st.lastRun
-            ? {
-                levelIndex: st.lastRun.levelIndex,
-                passed: !!st.lastRun.passed,
-                failCount: st.lastRun.failCount || 0,
-              }
-            : null,
-          lastCompletedTrack:
-            st.lastCompletedTrack === "daily" || st.lastCompletedTrack === "brush"
-              ? st.lastCompletedTrack
-              : null,
+          dayKey: st.dayKey || getLocalTrainingDayKey(),
+          dayMode: dayMode,
+          prevDayMode: st.prevDayMode === "frontier" || st.prevDayMode === "heat" ? st.prevDayMode : null,
+          brushMode: dayMode === "heat",
+          brushPoolMax: dayMode === "heat" ? 15 : null,
+          lastRun: null,
+          lastCompletedTrack: dayMode === "heat" ? "brush" : "daily",
         },
       });
       return meta;
@@ -12900,9 +13134,22 @@
       return played !== auto;
     }
 
-    /** 系统刷热图轨，或推进轨下手改了关 → 本局按刷热图结算/记轨 */
+    /** 热图日用刷热图结算 UI；前沿日用手改到热图关时也走刷热图结算样式 */
     function resolveTrainingRunBrushMode() {
-      return !!trainingSessionBrushMode || isTrainingManualLevelOverride();
+      const st = loadTrainingFlowState();
+      if (st.dayMode === "heat" || trainingSessionBrushMode) return true;
+      const pick = lastTrainingPickResult || {};
+      const played = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const H =
+        pick.heatLevel != null && Number.isFinite(Number(pick.heatLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(pick.heatLevel))))
+          : null;
+      const F =
+        pick.frontierLevel != null && Number.isFinite(Number(pick.frontierLevel))
+          ? Math.min(15, Math.max(0, Math.floor(Number(pick.frontierLevel))))
+          : null;
+      if (H != null && played === H && (F == null || played !== F)) return true;
+      return false;
     }
 
     function setTrainingLevelSelectVisible(visible) {
@@ -13088,16 +13335,31 @@
       if (!data || data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
       const levelIndex = Math.min(15, Math.max(0, Math.floor(Number(data.levelIndex))));
       lastTrainingEntrySource = "server";
+      const dayMode = data.dayMode === "heat" || data.dayMode === "frontier"
+        ? data.dayMode
+        : data.brushMode
+          ? "heat"
+          : "frontier";
       lastTrainingPickResult = data.result || {
         mode: data.mode,
         levelIndex: levelIndex,
         reason: data.reason,
         pickReason: data.pickReason,
-        brushMode: data.brushMode,
+        brushMode: dayMode === "heat",
         brushPoolMax: data.brushPoolMax,
         enterBrush: data.enterBrush,
+        dayMode: dayMode,
+        frontierLevel: data.frontierLevel,
+        heatLevel: data.heatLevel,
       };
-      trainingSessionBrushMode = !!data.brushMode;
+      if (lastTrainingPickResult.dayMode == null) lastTrainingPickResult.dayMode = dayMode;
+      if (lastTrainingPickResult.frontierLevel == null && data.frontierLevel != null) {
+        lastTrainingPickResult.frontierLevel = data.frontierLevel;
+      }
+      if (lastTrainingPickResult.heatLevel == null && data.heatLevel != null) {
+        lastTrainingPickResult.heatLevel = data.heatLevel;
+      }
+      trainingSessionBrushMode = dayMode === "heat";
       trainingAutoPickLevelIndex = levelIndex;
       if (data.heat && Array.isArray(data.heat.cells)) {
         trainingHeatSnapshot = data.heat;
@@ -13121,6 +13383,9 @@
               at: new Date().toISOString(),
               source: "server",
               dayKey: data.todayKey,
+              dayMode: dayMode,
+              frontierL: data.frontierLevel != null ? data.frontierLevel + 1 : null,
+              heatL: data.heatLevel != null ? data.heatLevel + 1 : null,
               brushMode: trainingSessionBrushMode,
               result: lastTrainingPickResult,
               reasonText: reasonText,
@@ -13195,8 +13460,8 @@
       const result = HM.computeTrainingNextLevel(heat, st, today);
       lastTrainingPickResult = result;
       st = applyTrainingNextLevelResult(st, result);
-      if (result.enterBrush) saveTrainingFlowState(st);
-      trainingSessionBrushMode = !!(result.brushMode || result.mode === "brush");
+      saveTrainingFlowState(st);
+      trainingSessionBrushMode = result.dayMode === "heat" || !!(result.brushMode || result.mode === "brush");
       try {
         const reasonText =
           typeof HM.trainingNextLevelReasonText === "function"
@@ -13205,8 +13470,10 @@
         console.log("[JML 训练选关]", JSON.stringify({
           at: new Date().toISOString(),
           dayKey: today,
+          dayMode: result.dayMode || st.dayMode,
+          frontierL: result.frontierLevel != null ? result.frontierLevel + 1 : null,
+          heatL: result.heatLevel != null ? result.heatLevel + 1 : null,
           brushMode: trainingSessionBrushMode,
-          lastRun: st.lastRun,
           result: result,
           reasonText: reasonText,
           pickedL: result.levelIndex + 1,
@@ -13283,16 +13550,11 @@
       trainingEntryRefreshGen += 1;
     }
 
-    /** 无缓存时阻塞选关：Waiting + 禁用开始，算完再展示关卡 */
+    /** 每次进 prestart 都重算选关（cache 仅作超时/首屏占位，不再钉死下一关） */
     async function ensureTrainingEntryReadyAsync() {
       if (gameMode !== "training") return;
       if (isTrainingNextEntryCacheValid()) {
         applyTrainingNextEntryCacheIfValid();
-        setTrainingPickPendingUi(false);
-        setTrainingPracticeSubtitle();
-        updateTrainingStatusUI();
-        renderTrainingLevelSelect();
-        return;
       }
       setTrainingPickPendingUi(true);
       updateTrainingStatusUI();
@@ -14055,6 +14317,8 @@
           toggleAppLang();
         });
       }
+      const homeSettingsGuideBtn = document.getElementById("home-settings-guide-btn");
+      if (homeSettingsGuideBtn) homeSettingsGuideBtn.addEventListener("click", handleHomeSettingsGuide);
       const homeSettingsContactBtn = document.getElementById("home-settings-contact-btn");
       if (homeSettingsContactBtn) homeSettingsContactBtn.addEventListener("click", handleHomeSettingsContact);
       const changePwdBtn = document.getElementById("change-password-btn");
@@ -14093,6 +14357,15 @@
         if (e.target === contactOverlay) hideContactModal();
       });
 
+      const gameGuideClose = document.getElementById("game-guide-close-btn");
+      if (gameGuideClose) gameGuideClose.addEventListener("click", hideGameGuideModal);
+      const gameGuideOk = document.getElementById("game-guide-ok-btn");
+      if (gameGuideOk) gameGuideOk.addEventListener("click", hideGameGuideModal);
+      const gameGuideOverlay = document.getElementById("game-guide-modal-overlay");
+      if (gameGuideOverlay) gameGuideOverlay.addEventListener("click", (e) => {
+        if (e.target === gameGuideOverlay) hideGameGuideModal();
+      });
+
       const logoutBtn = document.getElementById("logout-btn");
       if (logoutBtn) {
         logoutBtn.addEventListener("click", function () {
@@ -14110,6 +14383,7 @@
       });
       document.addEventListener("keydown", function (e) {
         if (e.key !== "Escape") return;
+        hideGameGuideModal();
         closeHomeSettingsMenu();
         closeRankingModeMenu();
       });

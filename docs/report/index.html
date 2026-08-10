@@ -56,7 +56,7 @@
         </select>
         <button type="button" class="jml-btn" id="jml-report-refresh-student-btn" title="重新拉取当前学员最新记录" disabled>刷新</button>
       </div>
-      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析热图「推荐下一练」按该学员 runs 反推当日状态。排查选关不一致时用「训练选关Debug」Tab，复制 JSON 即可。</p>
+      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析热图「推荐下一练」按前沿日/热图日 + 每次重算 F/H。排查选关用「训练选关Debug」Tab。</p>
 
       <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
 
@@ -91,7 +91,7 @@
   </div>
 
   <script src="../config.js?v=21"></script>
-  <script src="../shared/app-version.js?v=102"></script>
+  <script src="../shared/app-version.js?v=104"></script>
   <script>
     (function () {
       if (!window.__JML_API_BASE__ && window.API_BASE_URL) {
@@ -102,9 +102,9 @@
   <script src="../shared/admin-auth.js?v=21"></script>
   <script src="../shared/stats-i18n-pack.js?v=71"></script>
   <script src="../stats-aggregate-browser.js?v=50"></script>
-  <script src="../stats-heatmap-browser.js?v=69"></script>
+  <script src="../stats-heatmap-browser.js?v=70"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=58"></script>
+  <script src="report-page.js?v=59"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

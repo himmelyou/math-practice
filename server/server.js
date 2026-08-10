@@ -22,6 +22,7 @@ const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { createRunsStore } = require("./runs-store");
+const { defaultGameGuide } = require("./game-guide-defaults");
 const {
   REGISTERED_RULE_TYPES,
   IMPLEMENTED_RULE_TYPES,
@@ -232,6 +233,9 @@ const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
 const ACHIEVEMENT_ASSET_DIR = path.join(DATA_DIR, "achievement-assets");
 const FEEDBACK_FILE = path.join(DATA_DIR, "feedback.json");
 const ACHIEVEMENTS_CATALOG_FILE = path.join(DATA_DIR, "achievements-catalog.json");
+const GAME_GUIDE_FILE = path.join(DATA_DIR, "game-guide.json");
+const GAME_GUIDE_BODY_MAX_LEN = 80000;
+const GAME_GUIDE_TITLE_MAX_LEN = 80;
 const catalogStore = achievementCatalog.createCatalogStore(ACHIEVEMENTS_CATALOG_FILE);
 const FEEDBACK_CATEGORIES = new Set(["bug", "suggestion", "account", "other"]);
 const FEEDBACK_MESSAGE_MAX_LEN = 2000;
@@ -1976,10 +1980,11 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
 app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const data = readJson(USERS_FILE, { users: [] });
-  if (!data.users.some((u) => u.username === username)) {
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-    const runs = runsStore.getUserRuns(username).map((r) => ({
+  const runs = runsStore.getUserRuns(username).map((r) => ({
     ...r,
     mode: normalizeRunMode(r.mode),
   }));
@@ -1989,6 +1994,7 @@ app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwn
     pick = computeTrainingNextLevelForUser({
       runs,
       cohort,
+      storedDayMode: user.trainingDayMode || null,
       capMs: cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS,
     });
   } catch (e) {
@@ -2002,12 +2008,33 @@ app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwn
       todayKey: pick && pick.todayKey,
     });
   }
+  // 若日模式已跨日归一，写回用户标记（无新局时也保持隔日切换）
+  if (pick.dayState && pick.dayState.dayKey && pick.dayState.dayMode) {
+    const nextMark = {
+      dayKey: pick.dayState.dayKey,
+      dayMode: pick.dayState.dayMode,
+      prevDayMode: pick.dayState.prevDayMode || null,
+    };
+    const prev = user.trainingDayMode || null;
+    if (
+      !prev ||
+      prev.dayKey !== nextMark.dayKey ||
+      prev.dayMode !== nextMark.dayMode ||
+      prev.prevDayMode !== nextMark.prevDayMode
+    ) {
+      user.trainingDayMode = nextMark;
+      writeJson(USERS_FILE, data);
+    }
+  }
   return res.json({
     ok: true,
     source: "server",
     todayKey: pick.todayKey,
     levelIndex: pick.levelIndex,
     brushMode: pick.brushMode,
+    dayMode: pick.dayMode,
+    frontierLevel: pick.frontierLevel,
+    heatLevel: pick.heatLevel,
     mode: pick.mode,
     reason: pick.reason,
     pickReason: pick.pickReason,
@@ -2106,6 +2133,19 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
       u.recentTrainingRuns.unshift(runEntry);
       if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
+      const da =
+        runEntry.trainingMeta &&
+        runEntry.trainingMeta.dayStateAfter &&
+        typeof runEntry.trainingMeta.dayStateAfter === "object"
+          ? runEntry.trainingMeta.dayStateAfter
+          : null;
+      if (da && (da.dayMode === "frontier" || da.dayMode === "heat") && da.dayKey) {
+        u.trainingDayMode = {
+          dayKey: String(da.dayKey),
+          dayMode: da.dayMode,
+          prevDayMode: da.prevDayMode === "frontier" || da.prevDayMode === "heat" ? da.prevDayMode : null,
+        };
+      }
     } else if (!comboOnly && runEntry.mode === "primeComposite") {
       if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
       u.recentPrimeCompositeRuns.unshift(runEntry);
@@ -2813,6 +2853,102 @@ app.get("/api/i18n", (req, res) => {
   res.json({ ok: true, i18n: data });
 });
 
+function clampGuideText(s, maxLen) {
+  const t = typeof s === "string" ? s : "";
+  if (t.length <= maxLen) return t;
+  return t.slice(0, maxLen);
+}
+
+function normalizeGameGuidePayload(raw) {
+  const def = defaultGameGuide();
+  const src = raw && typeof raw === "object" ? raw : {};
+  const titleByLangIn = src.titleByLang && typeof src.titleByLang === "object" ? src.titleByLang : {};
+  const bodyByLangIn = src.bodyByLang && typeof src.bodyByLang === "object" ? src.bodyByLang : {};
+  const zhTitle = clampGuideText(
+    titleByLangIn.zhHant != null ? titleByLangIn.zhHant : def.titleByLang.zhHant,
+    GAME_GUIDE_TITLE_MAX_LEN
+  ).trim() || def.titleByLang.zhHant;
+  const enTitle = clampGuideText(
+    titleByLangIn.en != null ? titleByLangIn.en : def.titleByLang.en,
+    GAME_GUIDE_TITLE_MAX_LEN
+  ).trim() || def.titleByLang.en;
+  const zhBody = clampGuideText(
+    bodyByLangIn.zhHant != null ? bodyByLangIn.zhHant : def.bodyByLang.zhHant,
+    GAME_GUIDE_BODY_MAX_LEN
+  );
+  const enBody = clampGuideText(
+    bodyByLangIn.en != null ? bodyByLangIn.en : def.bodyByLang.en,
+    GAME_GUIDE_BODY_MAX_LEN
+  );
+  const updatedAt =
+    typeof src.updatedAt === "number" && Number.isFinite(src.updatedAt) && src.updatedAt > 0
+      ? Math.floor(src.updatedAt)
+      : 0;
+  return {
+    updatedAt,
+    titleByLang: { zhHant: zhTitle, en: enTitle },
+    bodyByLang: { zhHant: zhBody, en: enBody },
+  };
+}
+
+function readGameGuide() {
+  if (!fs.existsSync(GAME_GUIDE_FILE)) return defaultGameGuide();
+  return normalizeGameGuidePayload(readJson(GAME_GUIDE_FILE, null));
+}
+
+function writeGameGuide(guide) {
+  writeJson(GAME_GUIDE_FILE, guide);
+}
+
+/** 学员端：游戏说明（公开；无自定义文件时回落默认稿） */
+app.get("/api/game-guide", (req, res) => {
+  const guide = readGameGuide();
+  return res.json({ ok: true, guide, fromDefault: !fs.existsSync(GAME_GUIDE_FILE) });
+});
+
+app.get("/api/admin/game-guide", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const guide = readGameGuide();
+  return res.json({
+    ok: true,
+    guide,
+    fromDefault: !fs.existsSync(GAME_GUIDE_FILE),
+    defaults: defaultGameGuide(),
+  });
+});
+
+app.put("/api/admin/game-guide", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const guide = normalizeGameGuidePayload({
+    titleByLang: body.titleByLang,
+    bodyByLang: body.bodyByLang,
+    updatedAt: Date.now(),
+  });
+  if (!guide.bodyByLang.zhHant.trim() && !guide.bodyByLang.en.trim()) {
+    return res.status(400).json({ ok: false, error: "正文不能为空（至少填写一种语言）" });
+  }
+  writeGameGuide(guide);
+  return res.json({ ok: true, guide, fromDefault: false });
+});
+
+app.post("/api/admin/game-guide/reset", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    if (fs.existsSync(GAME_GUIDE_FILE)) fs.unlinkSync(GAME_GUIDE_FILE);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "清除自定义稿失败" });
+  }
+  const guide = defaultGameGuide();
+  return res.json({ ok: true, guide, fromDefault: true });
+});
+
 // ========== 管理员：获取某学员全部练习记录（生存+闯关，按时间排序） ==========
 app.get("/api/admin/records/:username", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -2885,6 +3021,7 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
     pick = computeTrainingNextLevelForUser({
       runs,
       cohort,
+      storedDayMode: user.trainingDayMode || null,
       capMs,
     });
   } catch (e) {
@@ -2938,6 +3075,10 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
         effectivePickMode: m && m.effectivePickMode != null ? m.effectivePickMode : null,
         pickReason: m && m.pickReason != null ? String(m.pickReason) : "",
         entrySource: m && m.entrySource != null ? String(m.entrySource) : "",
+        dayMode: m && m.dayMode != null ? String(m.dayMode) : "",
+        frontierLevel: m && m.frontierLevel != null ? m.frontierLevel : null,
+        heatLevel: m && m.heatLevel != null ? m.heatLevel : null,
+        runKind: m && m.runKind != null ? String(m.runKind) : "",
         dayStateAfter: m && m.dayStateAfter && typeof m.dayStateAfter === "object" ? m.dayStateAfter : null,
         heatAvgSecAtStart: m && m.heatAvgSecAtStart != null ? m.heatAvgSecAtStart : null,
         runAvgSec: m && m.runAvgSec != null ? m.runAvgSec : null,
@@ -2953,6 +3094,11 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
           levelIndex: pick.levelIndex,
           pickedL: pick.levelIndex + 1,
           brushMode: pick.brushMode,
+          dayMode: pick.dayMode,
+          frontierLevel: pick.frontierLevel,
+          frontierL: pick.frontierLevel != null ? pick.frontierLevel + 1 : null,
+          heatLevel: pick.heatLevel,
+          heatL: pick.heatLevel != null ? pick.heatLevel + 1 : null,
           mode: pick.mode,
           reason: pick.reason,
           pickReason: pick.pickReason,
@@ -2978,7 +3124,8 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
     username,
     at: new Date().toISOString(),
     note:
-      "server 块与学员端 GET /api/user/:user/training/next-level 同口径；recentTraining 便于核对上一局 meta。",
+      "server 块与学员端 GET /api/user/:user/training/next-level 同口径；日模式 frontier/heat 隔日切换；每次重算 F/H。",
+    trainingDayMode: user.trainingDayMode || null,
     levelTrainingCurrentLevel:
       typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,
     levelTrainingCurrentL:
@@ -3764,6 +3911,7 @@ app.get("/api/admin/backup", (req, res) => {
   const i18n = readJson(I18N_FILE, defaultI18nPayload());
   const feedback = readFeedbackStore();
   const achievementsCatalog = readAchievementsCatalog();
+  const gameGuide = fs.existsSync(GAME_GUIDE_FILE) ? readGameGuide() : null;
   const survivalRanking = readJson(SURVIVAL_RANKING_FILE, { list: [] });
   const levelRanking = readJson(LEVEL_RANKING_FILE, { list: [] });
   const primePerfectRanking = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
@@ -3781,6 +3929,7 @@ app.get("/api/admin/backup", (req, res) => {
     i18n,
     feedback,
     achievementsCatalog,
+    gameGuide,
     survivalRanking,
     levelRanking,
     primePerfectRanking,
@@ -3840,6 +3989,10 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
     if (body.i18n && typeof body.i18n === "object") {
       writeJson(I18N_FILE, normalizeI18nPayload(body.i18n));
       restored.push("i18n");
+    }
+    if (body.gameGuide && typeof body.gameGuide === "object") {
+      writeGameGuide(normalizeGameGuidePayload(body.gameGuide));
+      restored.push("gameGuide");
     }
     if (body.feedback && typeof body.feedback === "object") {
       const fb = body.feedback;

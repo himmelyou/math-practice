@@ -951,6 +951,9 @@
       enterBrush: !!enterBrush,
       brushMode: true,
       brushPoolMax: poolMax,
+      dayMode: 'heat',
+      frontierLevel: null,
+      heatLevel: levelIndex,
     };
   }
 
@@ -960,209 +963,224 @@
     return pick ? pick.levelIndex : null;
   }
 
-  function normalizeTrainingDayState(o, todayKey) {
-    var prevTrack = null;
-    if (o && typeof o === 'object') {
-      if (o.lastCompletedTrack === 'daily' || o.lastCompletedTrack === 'brush') {
-        prevTrack = o.lastCompletedTrack;
-      }
-    }
-    var d = {
-      dayKey: todayKey,
-      brushMode: false,
-      brushPoolMax: null,
-      lastRun: null,
-      lastCompletedTrack: prevTrack,
-    };
-    if (!o || typeof o !== 'object') return d;
-    // 跨日：保留 lastCompletedTrack，清空当日推进链 / 刷热图会话
-    if (o.dayKey !== todayKey) return d;
-    var lr = o.lastRun;
-    var lastRun = null;
-    if (lr && typeof lr === 'object') {
-      var li = Math.min(15, Math.max(0, Math.floor(Number(lr.levelIndex))));
-      lastRun = {
-        levelIndex: li,
-        passed: !!lr.passed,
-        failCount: Math.min(
-          TRAINING_FAILS_BEFORE_BRUSH,
-          Math.max(0, Math.floor(Number(lr.failCount) || 0))
-        ),
-      };
-    }
-    var brushMode = !!(o.brushMode || o.forcedBrush);
-    var brushPoolMax = null;
-    if (brushMode) {
-      brushPoolMax =
-        o.brushPoolMax != null && Number.isFinite(Number(o.brushPoolMax))
-          ? clampLevel(Number(o.brushPoolMax))
-          : LEVEL_COUNT - 1;
-    }
+  function oppositeTrainingDayMode(mode) {
+    return mode === 'heat' ? 'frontier' : 'heat';
+  }
+
+  function trackFromDayMode(dayMode) {
+    return dayMode === 'heat' ? 'brush' : 'daily';
+  }
+
+  /** 从旧/新字段解析 dayMode；无法判断则 null */
+  function resolveDayModeFromObject(o) {
+    if (!o || typeof o !== 'object') return null;
+    if (o.dayMode === 'frontier' || o.dayMode === 'heat') return o.dayMode;
+    if (o.brushMode || o.forcedBrush) return 'heat';
+    if (o.lastCompletedTrack === 'brush') return 'heat';
+    if (o.lastCompletedTrack === 'daily') return 'frontier';
+    return null;
+  }
+
+  function decorateDayState(dayKey, dayMode, prevDayMode) {
+    var mode = dayMode === 'heat' ? 'heat' : 'frontier';
     return {
-      dayKey: todayKey,
-      brushMode: brushMode,
-      brushPoolMax: brushPoolMax,
-      lastRun: brushMode ? null : lastRun,
-      lastCompletedTrack: prevTrack,
+      dayKey: dayKey || '',
+      dayMode: mode,
+      prevDayMode: prevDayMode === 'frontier' || prevDayMode === 'heat' ? prevDayMode : null,
+      brushMode: mode === 'heat',
+      brushPoolMax: mode === 'heat' ? LEVEL_COUNT - 1 : null,
+      lastRun: null,
+      lastCompletedTrack: trackFromDayMode(mode),
     };
   }
 
   /**
-   * 训练 / Report 统一：根据热图 + 当日状态计算下一局关卡。
-   * dayState: { dayKey, brushMode, brushPoolMax, lastRun|null, lastCompletedTrack:'daily'|'brush'|null }
-   *
-   * 推/刷 1:1：看「最近一次已完成训练局」类型——
-   * 上次完成推进 → 下一次新开局（无当日 lastRun、未在刷热图会话）优先刷热图；
-   * 上次完成刷热图 → 走推进 frontier。
-   * 推进失败进入刷热图但未打完刷热图局：lastCompletedTrack 仍为 daily → 下次仍刷热图。
+   * dayState: { dayKey, dayMode:'frontier'|'heat', prevDayMode, brushMode, brushPoolMax, lastCompletedTrack }
+   * 跨自然日：今天默认 = 上一练习日最终模式的反面（隔日切换）；无历史则前沿日。
+   */
+  function normalizeTrainingDayState(o, todayKey) {
+    var today = todayKey || '';
+    if (!o || typeof o !== 'object') {
+      return decorateDayState(today, 'frontier', null);
+    }
+    var storedPrev =
+      o.prevDayMode === 'frontier' || o.prevDayMode === 'heat' ? o.prevDayMode : null;
+    if (!storedPrev) {
+      if (o.lastCompletedTrack === 'daily') storedPrev = 'frontier';
+      else if (o.lastCompletedTrack === 'brush') storedPrev = 'heat';
+    }
+
+    if (o.dayKey !== today) {
+      var settled = null;
+      if (o.dayKey) {
+        settled = resolveDayModeFromObject(o);
+        if (!settled) settled = storedPrev;
+      } else {
+        settled = storedPrev;
+      }
+      var nextMode = settled ? oppositeTrainingDayMode(settled) : 'frontier';
+      return decorateDayState(today, nextMode, settled || null);
+    }
+
+    var mode = resolveDayModeFromObject(o) || 'frontier';
+    return decorateDayState(today, mode, storedPrev);
+  }
+
+  /** 同时算前沿关 F 与热图关 H（每次重算，不钉死 lastRun+1） */
+  function computeTrainingDualPicks(cellsResult) {
+    var frontier = computeDailyFrontierStart(cellsResult);
+    var heatPick = recommendTrainingBrushInPool(cellsResult, LEVEL_COUNT - 1) || {
+      levelIndex: 0,
+      reason: 'brush_pick_speed',
+    };
+    var frontierLevel =
+      frontier && !frontier.enterBrush && frontier.levelIndex != null && Number.isFinite(Number(frontier.levelIndex))
+        ? clampLevel(frontier.levelIndex)
+        : null;
+    var heatLevel = clampLevel(heatPick.levelIndex);
+    return {
+      frontier: frontier,
+      heatPick: heatPick,
+      frontierLevel: frontierLevel,
+      heatLevel: heatLevel,
+    };
+  }
+
+  /**
+   * 训练 / Report 统一选关：
+   * - 日模式 frontier → 用当前热图前沿 F（顶已全清则本局用 H，日模式不变）
+   * - 日模式 heat → 用当前热图关 H
+   * - 每次开局都重算 F/H，不再 lastRun+1
    */
   function computeTrainingNextLevel(cellsResult, dayState, todayKey) {
     var today = todayKey || '';
     var st = normalizeTrainingDayState(dayState, today);
-    if (st.brushMode) {
-      return makeBrushPickResult(cellsResult, st.brushPoolMax, false, null);
-    }
-    var lr = st.lastRun;
-    if (!lr) {
-      // 隔轨：上一完成局是推进 → 本局刷热图
-      if (st.lastCompletedTrack === 'daily') {
-        return makeBrushPickResult(cellsResult, LEVEL_COUNT - 1, true, 'alt_after_daily');
-      }
-      var start = computeDailyFrontierStart(cellsResult);
-      if (start.enterBrush) {
-        return makeBrushPickResult(cellsResult, start.brushPoolMax, true, start.reason);
-      }
+    var dual = computeTrainingDualPicks(cellsResult);
+    var F = dual.frontierLevel;
+    var H = dual.heatLevel;
+    var heatReason = dual.heatPick && dual.heatPick.reason ? dual.heatPick.reason : 'brush_pick_speed';
+
+    if (st.dayMode === 'heat') {
       return {
-        mode: 'daily',
-        levelIndex: start.levelIndex,
-        reason: start.reason,
+        mode: 'brush',
+        levelIndex: H,
+        reason: heatReason,
+        pickReason: heatReason,
         enterBrush: false,
-        brushMode: false,
-        brushPoolMax: null,
+        brushMode: true,
+        brushPoolMax: LEVEL_COUNT - 1,
+        dayMode: 'heat',
+        frontierLevel: F,
+        heatLevel: H,
       };
     }
-    if (lr.passed) {
-      var next = lr.levelIndex + 1;
-      if (next >= LEVEL_COUNT) {
-        return makeBrushPickResult(cellsResult, LEVEL_COUNT - 1, true, 'daily_pass_all_clear');
-      }
-      // 单局达标不足以开全新关：须本关热图已流畅（与稳梯子顶同一口径）
-      var cellPassed = getCell(cellsResult, lr.levelIndex);
-      if (!isCellFluent(cellPassed)) {
-        return {
-          mode: 'daily',
-          levelIndex: lr.levelIndex,
-          reason: 'daily_pass_stay_not_fluent',
-          enterBrush: false,
-          brushMode: false,
-          brushPoolMax: null,
-        };
-      }
+
+    if (dual.frontier && dual.frontier.enterBrush) {
       return {
-        mode: 'daily',
-        levelIndex: next,
-        reason: 'daily_pass_next',
-        enterBrush: false,
+        mode: 'brush',
+        levelIndex: H,
+        reason: dual.frontier.reason || 'daily_clear',
+        pickReason: heatReason,
+        enterBrush: true,
         brushMode: false,
         brushPoolMax: null,
+        dayMode: 'frontier',
+        frontierLevel: null,
+        heatLevel: H,
       };
     }
-    if (lr.failCount >= TRAINING_FAILS_BEFORE_BRUSH) {
-      var poolMax = lr.levelIndex - 1;
-      if (poolMax < 0) poolMax = 0;
-      return makeBrushPickResult(cellsResult, poolMax, true, 'daily_fail_enter_brush');
-    }
+
+    var fReason = dual.frontier && dual.frontier.reason ? dual.frontier.reason : 'frontier_open_M1';
+    var fLevel = F != null ? F : 0;
     return {
       mode: 'daily',
-      levelIndex: lr.levelIndex,
-      reason: 'retry_same',
+      levelIndex: fLevel,
+      reason: fReason,
+      pickReason: fReason,
       enterBrush: false,
       brushMode: false,
       brushPoolMax: null,
+      dayMode: 'frontier',
+      frontierLevel: fLevel,
+      heatLevel: H,
     };
   }
 
   /**
-   * 不依赖热图 cells 的当日选关（与 computeTrainingNextLevel 中不需 heat 的分支一致）。
-   * needsHeatmap=true 时 levelIndex 仅为占位，须等 buildHeatmapCells 后再算准。
+   * 局后更新日模式：
+   * - 实打系统推荐关 → 不切
+   * - 前沿日手改到 H（H≠F）→ 热图日
+   * - 热图日手改到 F（F≠H）→ 前沿日
+   * - 既非 F 也非 H → 额外局，不切
+   * - F===H → 不切
+   */
+  function applyTrainingDayModeAfterRun(dayState, todayKey, opts) {
+    opts = opts || {};
+    var st = normalizeTrainingDayState(dayState, todayKey);
+    if (opts.abandoned) return st;
+
+    var P =
+      opts.playedLevel != null && Number.isFinite(Number(opts.playedLevel))
+        ? clampLevel(Number(opts.playedLevel))
+        : null;
+    if (P == null) return st;
+
+    var F =
+      opts.frontierLevel != null && Number.isFinite(Number(opts.frontierLevel))
+        ? clampLevel(Number(opts.frontierLevel))
+        : null;
+    var H =
+      opts.heatLevel != null && Number.isFinite(Number(opts.heatLevel))
+        ? clampLevel(Number(opts.heatLevel))
+        : null;
+    var auto =
+      opts.autoPickLevel != null && Number.isFinite(Number(opts.autoPickLevel))
+        ? clampLevel(Number(opts.autoPickLevel))
+        : null;
+
+    var nextMode = st.dayMode;
+    if (auto != null && P === auto) {
+      nextMode = st.dayMode;
+    } else if (F != null && H != null && F === H) {
+      nextMode = st.dayMode;
+    } else if (st.dayMode === 'frontier' && H != null && P === H && (F == null || P !== F)) {
+      nextMode = 'heat';
+    } else if (st.dayMode === 'heat' && F != null && P === F && (H == null || P !== H)) {
+      nextMode = 'frontier';
+    }
+
+    return decorateDayState(st.dayKey || todayKey, nextMode, st.prevDayMode);
+  }
+
+  /**
+   * 不依赖热图 cells 的同步占位：日模式已知时给出占位关，正式关号仍需 heat。
    */
   function computeTrainingNextLevelSync(dayState, todayKey) {
     var today = todayKey || '';
     var st = normalizeTrainingDayState(dayState, today);
-    if (st.brushMode) {
-      var brushPool = st.brushPoolMax != null ? clampLevel(st.brushPoolMax) : LEVEL_COUNT - 1;
+    if (st.dayMode === 'heat') {
       return {
         mode: 'brush',
-        levelIndex: brushPool,
+        levelIndex: LEVEL_COUNT - 1,
         brushMode: true,
-        brushPoolMax: brushPool,
+        brushPoolMax: LEVEL_COUNT - 1,
         needsHeatmap: true,
-        reason: 'brush_sync_pool_max',
-      };
-    }
-    var lr = st.lastRun;
-    if (!lr) {
-      if (st.lastCompletedTrack === 'daily') {
-        return {
-          mode: 'brush',
-          levelIndex: LEVEL_COUNT - 1,
-          brushMode: true,
-          brushPoolMax: LEVEL_COUNT - 1,
-          needsHeatmap: true,
-          reason: 'alt_after_daily',
-          enterBrush: true,
-        };
-      }
-      return {
-        mode: 'daily',
-        levelIndex: null,
-        brushMode: false,
-        brushPoolMax: null,
-        needsHeatmap: true,
-        reason: 'frontier_needs_heat',
-      };
-    }
-    if (lr.passed) {
-      var next = lr.levelIndex + 1;
-      if (next >= LEVEL_COUNT) {
-        return {
-          mode: 'brush',
-          levelIndex: LEVEL_COUNT - 1,
-          brushMode: true,
-          brushPoolMax: LEVEL_COUNT - 1,
-          needsHeatmap: true,
-          reason: 'daily_pass_all_clear',
-        };
-      }
-      // 是否开下一关取决于热图流畅；同步占位先停本关，等 heat 后再定
-      return {
-        mode: 'daily',
-        levelIndex: lr.levelIndex,
-        brushMode: false,
-        brushPoolMax: null,
-        needsHeatmap: true,
-        reason: 'daily_pass_needs_heat',
-      };
-    }
-    if (lr.failCount >= TRAINING_FAILS_BEFORE_BRUSH) {
-      var poolMax = lr.levelIndex - 1;
-      if (poolMax < 0) poolMax = 0;
-      return {
-        mode: 'brush',
-        levelIndex: poolMax,
-        brushMode: true,
-        brushPoolMax: poolMax,
-        needsHeatmap: true,
-        reason: 'daily_fail_enter_brush',
+        reason: 'heat_day_needs_heat',
+        dayMode: 'heat',
+        frontierLevel: null,
+        heatLevel: null,
       };
     }
     return {
       mode: 'daily',
-      levelIndex: lr.levelIndex,
+      levelIndex: null,
       brushMode: false,
       brushPoolMax: null,
-      needsHeatmap: false,
-      reason: 'retry_same',
+      needsHeatmap: true,
+      reason: 'frontier_needs_heat',
+      dayMode: 'frontier',
+      frontierLevel: null,
+      heatLevel: null,
     };
   }
 
@@ -1170,32 +1188,57 @@
     if (!result) return '';
     var L = labels || {};
     var code = result.pickReason || result.reason;
+    var frontierPrefix = L.frontierDayPrefix || '前沿日';
+    var heatPrefix = L.heatDayPrefix || '热图日';
     if (code === 'brush_fix_orange_acc') {
-      return L.brushFixOrangeAcc || '刷热图：补橙区（准<90%，最差）';
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushFixOrangeAccPlain || '补橙区（准<90%，最差）')
+        : L.brushFixOrangeAcc || '刷热图：补橙区（准<90%，最差）';
     }
     if (code === 'brush_fix_orange_slow') {
-      return L.brushFixOrangeSlow || '刷热图：补橙区（过慢≥mean+1σ，最差）';
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushFixOrangeSlowPlain || '补橙区（过慢≥mean+1σ，最差）')
+        : L.brushFixOrangeSlow || '刷热图：补橙区（过慢≥mean+1σ，最差）';
     }
     if (code === 'brush_fix_yellow') {
-      return L.brushFixYellow || '刷热图：补黄区（90%≤准<95%，最低）';
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushFixYellowPlain || '补黄区（90%≤准<95%，最低）')
+        : L.brushFixYellow || '刷热图：补黄区（90%≤准<95%，最低）';
     }
-    if (code === 'brush_fix_red') return L.brushFixRed || '刷热图：补 pool 内加权<95%（最低）';
-    if (code === 'brush_fix_slow') return L.brushFixSlow || '刷热图：补 pool 内准但过慢（≥mean+1σ）';
+    if (code === 'brush_fix_red') {
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushFixRedPlain || '补加权<95%')
+        : L.brushFixRed || '刷热图：补 pool 内加权<95%（最低）';
+    }
+    if (code === 'brush_fix_slow') {
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushFixSlowPlain || '补准但过慢')
+        : L.brushFixSlow || '刷热图：补 pool 内准但过慢（≥mean+1σ）';
+    }
     if (code === 'brush_pick_mastery') {
-      return L.brushPickMastery || '刷热图：补未达熟练顶（热图短板最低）';
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushPickMasteryPlain || '补未达熟练顶')
+        : L.brushPickMastery || '刷热图：补未达熟练顶（热图短板最低）';
     }
-    if (code === 'brush_pick_speed') return L.brushPickSpeed || '刷热图：pool 内已熟练，相对最慢';
+    if (code === 'brush_pick_speed') {
+      return result.dayMode === 'heat'
+        ? heatPrefix + '：' + (L.brushPickSpeedPlain || '已熟练，相对最慢')
+        : L.brushPickSpeed || '刷热图：pool 内已熟练，相对最慢';
+    }
     if (result.reason === 'frontier_stabilize_M') {
-      return L.frontierStabilizeM || '当日闯关：稳梯子顶 M（加权<95%）';
+      return frontierPrefix + '：' + (L.frontierStabilizeMPlain || '稳梯子顶 M（加权<95%）');
     }
     if (result.reason === 'frontier_stabilize_slow') {
-      return L.frontierStabilizeSlow || '当日闯关：稳梯子顶 M（准但过慢）';
+      return frontierPrefix + '：' + (L.frontierStabilizeSlowPlain || '稳梯子顶 M（准但过慢）');
     }
-    if (result.reason === 'frontier_open_M1') return L.frontierOpenM1 || '当日闯关：开 M+1（顶已流畅）';
-    if (result.reason === 'daily_clear') return L.dailyClear || '当日闯关全清，进刷热图 L1–L16';
-    if (result.reason === 'daily_pass_all_clear') {
-      return L.dailyPassAllClear || '当日线性推完，进刷热图 L1–L16';
+    if (result.reason === 'frontier_open_M1') {
+      return frontierPrefix + '：' + (L.frontierOpenM1Plain || '开 M+1（顶已流畅）');
     }
+    if (result.reason === 'daily_clear' || result.reason === 'daily_pass_all_clear') {
+      return frontierPrefix + '：' + (L.dailyClearPlain || '顶已全清，本局按热图关');
+    }
+    if (result.reason === 'heat_day_needs_heat') return L.heatDayNeedsHeat || '热图日：待热图选关';
+    if (result.reason === 'frontier_needs_heat') return L.frontierNeedsHeat || '前沿日：待热图选关';
     if (result.reason === 'daily_fail_enter_brush') {
       return L.dailyFailEnterBrush || '本关三败，进刷热图（不含本关及以上）';
     }
@@ -1215,7 +1258,7 @@
     if (result.reason === 'scan_below') return L.scanBelow || '当日闯关：第一个加权准确率<95%';
     if (result.reason === 'open_new') return L.openNew || '当日闯关：开新关（题数<10）';
     if (result.reason === 'after_fail_below') return L.afterFailBelow || '当日闯关：三败后下一弱关';
-    return L.dailyDefault || '当日闯关';
+    return L.dailyDefault || '训练选关';
   }
 
   /**
@@ -1264,11 +1307,11 @@
   }
 
   /**
-   * 从服务端 runs 反推当日训练流程状态（Report 建议下一关；不依赖浏览器 localStorage）。
-   * buildHeatOpts: { cohort, maxTimeSpentMs }
+   * 从服务端 runs 反推当日训练日模式（权威；不依赖浏览器 localStorage）。
+   * 优先信任局末 dayStateAfter.dayMode；否则按手改规则回放。
+   * buildHeatOpts: { cohort, maxTimeSpentMs }（兼容旧调用，重建日模式不再依赖逐步热图）
    */
   function reconstructTrainingDayStateFromRuns(runs, todayKey, buildHeatOpts) {
-    var priorTrack = null;
     var allTraining = (runs || [])
       .filter(function (r) {
         return String(r && r.mode ? r.mode : '').toLowerCase() === 'training';
@@ -1276,143 +1319,132 @@
       .filter(function (r) {
         return r && r.comboOnly !== true;
       })
+      .filter(function (r) {
+        return !(r && (r.abandoned === true || (r.trainingMeta && r.trainingMeta.abandoned === true)));
+      })
       .slice()
       .sort(function (a, b) {
         return (a.ts || 0) - (b.ts || 0);
       });
+
+    var prevDayMode = null;
     for (var pi = 0; pi < allTraining.length; pi++) {
       var pr = allTraining[pi];
       if (localDayKeyFromTs(pr.ts) === todayKey) break;
-      priorTrack = pr.trainingMeta && pr.trainingMeta.runBrushMode ? 'brush' : 'daily';
+      var pda = pr.trainingMeta && pr.trainingMeta.dayStateAfter;
+      var pm = resolveDayModeFromObject(pda);
+      if (!pm && pr.trainingMeta) {
+        if (pr.trainingMeta.dayMode === 'frontier' || pr.trainingMeta.dayMode === 'heat') {
+          pm = pr.trainingMeta.dayMode;
+        } else if (pr.trainingMeta.runBrushMode) pm = 'heat';
+        else pm = 'frontier';
+      }
+      if (!pm) pm = pr.trainingMeta && pr.trainingMeta.runBrushMode ? 'heat' : 'frontier';
+      prevDayMode = pm;
     }
 
-    var st = {
-      dayKey: todayKey,
-      brushMode: false,
-      brushPoolMax: null,
-      lastRun: null,
-      lastCompletedTrack: priorTrack,
-    };
-    if (!todayKey) return normalizeTrainingDayState(st, todayKey);
+    var st = normalizeTrainingDayState(
+      {
+        dayKey: '',
+        dayMode: prevDayMode || undefined,
+        prevDayMode: prevDayMode,
+        lastCompletedTrack: prevDayMode === 'heat' ? 'brush' : prevDayMode === 'frontier' ? 'daily' : null,
+      },
+      todayKey
+    );
+
     var trainingToday = allTraining.filter(function (r) {
       return localDayKeyFromTs(r.ts) === todayKey;
     });
 
-    // 快路径：当日最后一局已写入 dayStateAfter 时，无需回放/重建热图
     if (trainingToday.length) {
       var lastToday = trainingToday[trainingToday.length - 1];
       var lastDa = lastToday && lastToday.trainingMeta && lastToday.trainingMeta.dayStateAfter;
-      if (lastDa && typeof lastDa === 'object') {
-        var trackAfterFast =
-          lastDa.lastCompletedTrack === 'daily' || lastDa.lastCompletedTrack === 'brush'
-            ? lastDa.lastCompletedTrack
-            : lastToday.trainingMeta && lastToday.trainingMeta.runBrushMode
-              ? 'brush'
-              : 'daily';
+      if (lastDa && typeof lastDa === 'object' && (lastDa.dayMode === 'frontier' || lastDa.dayMode === 'heat')) {
         return normalizeTrainingDayState(
           {
             dayKey: todayKey,
-            brushMode: !!lastDa.brushMode,
-            brushPoolMax:
-              lastDa.brushPoolMax != null && Number.isFinite(Number(lastDa.brushPoolMax))
-                ? clampLevel(Number(lastDa.brushPoolMax))
-                : lastDa.brushMode
-                  ? LEVEL_COUNT - 1
-                  : null,
-            lastRun: lastDa.brushMode
-              ? null
-              : lastDa.lastRun && typeof lastDa.lastRun === 'object'
-                ? lastDa.lastRun
-                : null,
-            lastCompletedTrack: trackAfterFast,
+            dayMode: lastDa.dayMode,
+            prevDayMode:
+              lastDa.prevDayMode === 'frontier' || lastDa.prevDayMode === 'heat'
+                ? lastDa.prevDayMode
+                : st.prevDayMode,
+            brushMode: lastDa.dayMode === 'heat',
+            lastCompletedTrack: trackFromDayMode(lastDa.dayMode),
           },
           todayKey
         );
       }
     }
 
-    var arith = filterArithmeticRuns(runs || [])
-      .slice()
-      .sort(function (a, b) {
-        return (a.ts || 0) - (b.ts || 0);
-      });
-    var arithEnd = 0;
-    var capMs =
-      buildHeatOpts && Number(buildHeatOpts.maxTimeSpentMs)
-        ? Number(buildHeatOpts.maxTimeSpentMs)
-        : 60 * 1000;
-    var cohort = buildHeatOpts && buildHeatOpts.cohort ? buildHeatOpts.cohort : null;
-
     for (var i = 0; i < trainingToday.length; i++) {
       var run = trainingToday[i];
-      var runBrush = !!(run.trainingMeta && run.trainingMeta.runBrushMode);
-      st.lastCompletedTrack = runBrush ? 'brush' : 'daily';
-
-      if (run.trainingMeta && run.trainingMeta.dayStateAfter) {
-        var da = run.trainingMeta.dayStateAfter;
-        var trackAfter =
-          da.lastCompletedTrack === 'daily' || da.lastCompletedTrack === 'brush'
-            ? da.lastCompletedTrack
-            : st.lastCompletedTrack;
-        st = {
-          dayKey: todayKey,
-          brushMode: !!da.brushMode,
-          brushPoolMax:
-            da.brushPoolMax != null && Number.isFinite(Number(da.brushPoolMax))
-              ? clampLevel(Number(da.brushPoolMax))
-              : da.brushMode
-                ? LEVEL_COUNT - 1
-                : null,
-          lastRun: da.brushMode ? null : da.lastRun && typeof da.lastRun === 'object' ? da.lastRun : null,
-          lastCompletedTrack: trackAfter,
-        };
-        continue;
-      }
-      var levelIndex = Math.min(15, Math.max(0, Math.floor(Number(run.maxLevel) || 0)));
-      var runPass = run.cleared === true;
-
-      if (runBrush) {
+      var m = run.trainingMeta && typeof run.trainingMeta === 'object' ? run.trainingMeta : null;
+      if (m && m.dayStateAfter && (m.dayStateAfter.dayMode === 'frontier' || m.dayStateAfter.dayMode === 'heat')) {
+        st = normalizeTrainingDayState(
+          {
+            dayKey: todayKey,
+            dayMode: m.dayStateAfter.dayMode,
+            prevDayMode:
+              m.dayStateAfter.prevDayMode === 'frontier' || m.dayStateAfter.prevDayMode === 'heat'
+                ? m.dayStateAfter.prevDayMode
+                : st.prevDayMode,
+            brushMode: m.dayStateAfter.dayMode === 'heat',
+            lastCompletedTrack: trackFromDayMode(m.dayStateAfter.dayMode),
+          },
+          todayKey
+        );
         continue;
       }
 
-      var failCount = 0;
-      if (!runPass) {
-        if (
-          st.lastRun &&
-          st.lastRun.levelIndex === levelIndex &&
-          st.lastRun.passed === false
-        ) {
-          failCount = Math.min(
-            TRAINING_FAILS_BEFORE_BRUSH,
-            (st.lastRun.failCount || 0) + 1
-          );
-        } else {
-          failCount = 1;
-        }
-      }
-      st.lastRun = { levelIndex: levelIndex, passed: runPass, failCount: failCount };
+      var played =
+        m && m.pickedLevel != null && Number.isFinite(Number(m.pickedLevel))
+          ? clampLevel(Number(m.pickedLevel))
+          : clampLevel(Number(run.maxLevel) || 0);
+      var auto =
+        m && m.autoPickLevel != null && Number.isFinite(Number(m.autoPickLevel))
+          ? clampLevel(Number(m.autoPickLevel))
+          : null;
+      var F =
+        m && m.frontierLevel != null && Number.isFinite(Number(m.frontierLevel))
+          ? clampLevel(Number(m.frontierLevel))
+          : null;
+      var H =
+        m && m.heatLevel != null && Number.isFinite(Number(m.heatLevel))
+          ? clampLevel(Number(m.heatLevel))
+          : null;
 
-      if (typeof buildHeatmapCells === 'function' && typeof computeTrainingNextLevel === 'function') {
-        var runTs = run.ts || 0;
-        while (arithEnd < arith.length && (arith[arithEnd].ts || 0) <= runTs) {
-          arithEnd += 1;
+      // 旧局无 F/H：用手改+runBrushMode 近似
+      if (F == null && H == null && m) {
+        if (m.manualOverride && m.runBrushMode && auto != null && played !== auto) {
+          // 旧「手改刷」：若当日原是前沿则切热图
+          if (st.dayMode === 'frontier') {
+            st = decorateDayState(todayKey, 'heat', st.prevDayMode);
+          }
+          continue;
         }
-        var heat = buildHeatmapCells({
-          runs: arith.slice(0, arithEnd),
-          cohort: cohort,
-          maxTimeSpentMs: capMs,
-        });
-        var result = computeTrainingNextLevel(heat, st, todayKey);
-        if (result && result.enterBrush) {
-          st.brushMode = true;
-          st.brushPoolMax =
-            result.brushPoolMax != null ? clampLevel(result.brushPoolMax) : LEVEL_COUNT - 1;
-          st.lastRun = null;
+        if (m.manualOverride && !m.runBrushMode && auto != null && played !== auto) {
+          if (st.dayMode === 'heat') {
+            st = decorateDayState(todayKey, 'frontier', st.prevDayMode);
+          }
+          continue;
         }
+        // 系统局：保持日模式
+        continue;
       }
+
+      st = applyTrainingDayModeAfterRun(st, todayKey, {
+        playedLevel: played,
+        autoPickLevel: auto,
+        frontierLevel: F,
+        heatLevel: H,
+        abandoned: false,
+      });
     }
+
     return normalizeTrainingDayState(st, todayKey);
   }
+
 
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
@@ -1445,6 +1477,8 @@
     computeDailyFrontierStart: computeDailyFrontierStart,
     computeTrainingNextLevel: computeTrainingNextLevel,
     computeTrainingNextLevelSync: computeTrainingNextLevelSync,
+    computeTrainingDualPicks: computeTrainingDualPicks,
+    applyTrainingDayModeAfterRun: applyTrainingDayModeAfterRun,
     normalizeTrainingDayState: normalizeTrainingDayState,
     reconstructTrainingDayStateFromRuns: reconstructTrainingDayStateFromRuns,
     localDayKeyFromTs: localDayKeyFromTs,

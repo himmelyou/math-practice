@@ -10,6 +10,7 @@ const DEFAULT_CAP_MS = 60 * 1000;
  * @param {object} opts
  * @param {Array} opts.runs 该学员全部 runs
  * @param {object|null} opts.cohort 四则常模（ok 快照）
+ * @param {object|null} [opts.storedDayMode] 用户上持久化的 {dayKey,dayMode,prevDayMode}
  * @param {number} [opts.capMs]
  * @param {number} [opts.nowMs]
  * @param {string} [opts.todayKey] 默认中国日历日
@@ -43,6 +44,8 @@ function computeTrainingNextLevelForUser(opts) {
 
   let dayState = {
     dayKey: todayKey,
+    dayMode: "frontier",
+    prevDayMode: null,
     brushMode: false,
     brushPoolMax: null,
     lastRun: null,
@@ -53,6 +56,31 @@ function computeTrainingNextLevelForUser(opts) {
       cohort,
       maxTimeSpentMs: capMs,
     });
+  }
+  // 用户持久化日模式：同日以标记为准（局末写入，跨端一致）；无 runs 反推时用标记做隔日切换
+  const stored = opts.storedDayMode && typeof opts.storedDayMode === "object" ? opts.storedDayMode : null;
+  if (stored && typeof HM.normalizeTrainingDayState === "function") {
+    if (stored.dayKey === todayKey && (stored.dayMode === "frontier" || stored.dayMode === "heat")) {
+      dayState = HM.normalizeTrainingDayState(
+        {
+          dayKey: todayKey,
+          dayMode: stored.dayMode,
+          prevDayMode:
+            stored.prevDayMode === "frontier" || stored.prevDayMode === "heat"
+              ? stored.prevDayMode
+              : dayState.prevDayMode,
+          brushMode: stored.dayMode === "heat",
+          lastCompletedTrack: stored.dayMode === "heat" ? "brush" : "daily",
+        },
+        todayKey
+      );
+    } else if (
+      (!runs || !runs.length) &&
+      stored.dayKey &&
+      stored.dayKey !== todayKey
+    ) {
+      dayState = HM.normalizeTrainingDayState(stored, todayKey);
+    }
   }
 
   const result = HM.computeTrainingNextLevel(heat, dayState, todayKey);
@@ -68,7 +96,8 @@ function computeTrainingNextLevelForUser(opts) {
   }
 
   const levelIndex = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
-  const brushMode = !!(result.brushMode || result.mode === "brush");
+  const dayMode = result.dayMode === "heat" || result.dayMode === "frontier" ? result.dayMode : dayState.dayMode;
+  const brushMode = dayMode === "heat" || !!(result.brushMode || result.mode === "brush");
   const cell =
     heat && Array.isArray(heat.cells)
       ? heat.cells.find((c) => c && c.levelIndex === levelIndex) || heat.cells[levelIndex]
@@ -90,6 +119,9 @@ function computeTrainingNextLevelForUser(opts) {
     todayKey,
     levelIndex,
     brushMode,
+    dayMode,
+    frontierLevel: result.frontierLevel != null ? result.frontierLevel : null,
+    heatLevel: result.heatLevel != null ? result.heatLevel : null,
     mode: result.mode || (brushMode ? "brush" : "daily"),
     reason: result.reason || "",
     pickReason: result.pickReason || result.reason || "",
