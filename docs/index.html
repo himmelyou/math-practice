@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=104"></script>
+  <script src="shared/app-version.js?v=105"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4900,7 +4900,7 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=48"></script>
-  <script src="divisibility-page.js?v=6"></script>
+  <script src="divisibility-page.js?v=7"></script>
   <script src="decimal-page.js?v=12"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -8582,6 +8582,7 @@
       if (sync.recentExpandBracketsRuns) cachedUser.recentExpandBracketsRuns = sync.recentExpandBracketsRuns;
       if (sync.recentPerfectSquareRuns) cachedUser.recentPerfectSquareRuns = sync.recentPerfectSquareRuns;
       if (sync.recentDecimalRuns) cachedUser.recentDecimalRuns = sync.recentDecimalRuns;
+      if (sync.recentDivisibilityRuns) cachedUser.recentDivisibilityRuns = sync.recentDivisibilityRuns;
       if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
       if (sync.bestSurvivalSec != null) cachedUser.bestSurvivalSec = sync.bestSurvivalSec;
       if (sync.bestScore != null) cachedUser.bestScore = sync.bestScore;
@@ -8818,6 +8819,7 @@
         renderPrimeRecentRuns();
         renderExpandBracketsRecentRuns();
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+        if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
         if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
         return !!updated;
       } catch (e) {

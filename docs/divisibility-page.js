@@ -296,15 +296,22 @@
       return;
     }
     deps.ensureUserProgressDefault(user);
-    let runs = Array.isArray(user.recentDivisibilityRuns) ? user.recentDivisibilityRuns : [];
-    if ((!runs || !runs.length) && deps.fetchUserRuns) {
+    let runs = Array.isArray(user.recentDivisibilityRuns) ? user.recentDivisibilityRuns.slice() : [];
+    // 有缓存也尽量用全量 runs 对齐（避免 sync 漏写导致列表过期）
+    if (deps.fetchUserRuns) {
       try {
         const all = await deps.fetchUserRuns();
-        runs = (all || []).filter(function (r) {
-          return r && r.mode === "divisibility";
-        }).slice(0, 10);
+        const fromApi = (all || [])
+          .filter(function (r) {
+            return r && String(r.mode || "").toLowerCase() === "divisibility" && r.comboOnly !== true;
+          })
+          .slice(0, 10);
+        if (fromApi.length) {
+          runs = fromApi;
+          if (deps.getCachedUser()) deps.getCachedUser().recentDivisibilityRuns = fromApi.slice();
+        }
       } catch (e) {
-        /* ignore */
+        /* keep cached runs */
       }
     }
     renderDivRecentRunsTable(runs);
@@ -526,6 +533,22 @@
       deps.getCachedUser().levelDivisibilityUnlockedMax = outcome.savedUnlockedMax;
       if (!Array.isArray(deps.getCachedUser().recentDivisibilityRuns)) {
         deps.getCachedUser().recentDivisibilityRuns = [];
+      }
+      // appendRun 的 sync 路径若漏写 recent，这里兜底保证本局立刻出现在列表
+      const list = deps.getCachedUser().recentDivisibilityRuns;
+      const latestTs = list.length && list[0] && list[0].ts != null ? Number(list[0].ts) : 0;
+      const nowTs = Date.now();
+      if (!list.length || latestTs < nowTs - 2000) {
+        list.unshift({
+          survivalTimeSec: durationSec,
+          score: awardedScore,
+          maxLevel: startLevel,
+          wrongCount: divWrongCount,
+          ts: nowTs,
+          mode: "divisibility",
+          attempts: divAttempts.slice(),
+        });
+        if (list.length > 10) list.length = 10;
       }
     }
 
