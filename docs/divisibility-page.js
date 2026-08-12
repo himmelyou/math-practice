@@ -317,6 +317,104 @@
     renderDivRecentRunsTable(runs);
   }
 
+  function isDivisibilityCleared(unlockedMax) {
+    const u =
+      unlockedMax != null && unlockedMax !== ""
+        ? unlockedMax
+        : getDivisibilityStoredUnlockedMax();
+    return Math.floor(Number(u) || 0) > divMaxLevel();
+  }
+
+  async function fetchDivisibilityRunsForHeat() {
+    if (typeof deps.fetchUserRuns === "function") {
+      try {
+        return await deps.fetchUserRuns();
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  async function fetchDivisibilityCohortForHeat() {
+    if (typeof deps.fetchDivisibilityCohort === "function") {
+      try {
+        return await deps.fetchDivisibilityCohort();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 通关后推荐关；未通关返回 null（调用方勿覆盖原逻辑）。
+   * @param {number} [unlockedMaxHint] 局末可用 outcome.savedUnlockedMax（含本局刚通关）
+   * @returns {Promise<number|null>}
+   */
+  async function resolveDivisibilityRecommendedLevel(unlockedMaxHint) {
+    if (!isDivisibilityCleared(unlockedMaxHint)) return null;
+    const HM = global.JmlStatsHeatmap;
+    if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
+    const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("divisibility") : null;
+    const heatCount =
+      cat && cat.levelCount > 0
+        ? cat.levelCount
+        : HM.DIVISIBILITY_LEVEL_COUNT > 0
+          ? HM.DIVISIBILITY_LEVEL_COUNT
+          : 4;
+    const modes = cat && cat.modes ? cat.modes : ["divisibility"];
+    const [runs, cohort] = await Promise.all([
+      fetchDivisibilityRunsForHeat(),
+      fetchDivisibilityCohortForHeat(),
+    ]);
+    const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+    const heat = HM.buildHeatmapCells({
+      runs: runs || [],
+      cohort: cohort && cohort.ok ? cohort : null,
+      modes: modes,
+      levelCount: heatCount,
+      maxTimeSpentMs: capMs,
+    });
+    const pick =
+      typeof HM.recommendDivisibilityPostClearLevel === "function"
+        ? HM.recommendDivisibilityPostClearLevel(heat)
+        : null;
+    if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+    return Math.max(0, Math.min(divMaxLevel(), Math.floor(Number(pick.levelIndex))));
+  }
+
+  let divRecommendSeq = 0;
+
+  /** 进场：通关后异步改默认关（防过期回调） */
+  async function applyRecommendedLevelOnPrestart() {
+    const seq = ++divRecommendSeq;
+    let lv = null;
+    try {
+      lv = await resolveDivisibilityRecommendedLevel();
+    } catch (e) {
+      console.warn("整除通关后推荐选关失败", e);
+      return;
+    }
+    if (seq !== divRecommendSeq) return;
+    if (lv == null) return;
+    if (deps.getIsPlaying && deps.getIsPlaying()) return;
+    const finished = document.getElementById("div-panel-finished");
+    const playing = document.getElementById("div-panel-playing");
+    if (playing && playing.style.display !== "none") return;
+    if (finished && finished.style.display !== "none") return;
+
+    divLevel = lv;
+    divPrestartLevel = lv;
+    void saveDivisibilityProgress(lv, getDivisibilityStoredUnlockedMax());
+    if (deps.getCachedUser()) {
+      deps.getCachedUser().levelDivisibilityCurrentLevel = lv;
+    }
+    renderDivLevelSelect();
+    syncDivLevelTexts();
+    updateDivStatusStrip();
+  }
+
   function showDivisibilityPrestart(opts) {
     const keepLevel = !!(opts && opts.keepLevel);
     stopDivTimer();
@@ -330,6 +428,7 @@
     divCurrent = null;
     divRunDeck = [];
     resetDivChoiceButtons();
+    divRecommendSeq += 1;
 
     if (keepLevel) {
       divLevel = Math.min(
@@ -351,6 +450,10 @@
     if (recent) recent.style.display = "";
     void renderDivisibilityRecentRuns();
     deps.updateGlobalBackButtonState();
+
+    if (!keepLevel && isDivisibilityCleared()) {
+      void applyRecommendedLevelOnPrestart();
+    }
   }
 
   function renderDivQuestion() {
@@ -516,67 +619,6 @@
       .join("");
   }
 
-  async function fetchDivisibilityRunsForHeat() {
-    if (typeof deps.fetchUserRuns === "function") {
-      try {
-        return await deps.fetchUserRuns();
-      } catch (e) {
-        return [];
-      }
-    }
-    return [];
-  }
-
-  async function fetchDivisibilityCohortForHeat() {
-    if (typeof deps.fetchDivisibilityCohort === "function") {
-      try {
-        return await deps.fetchDivisibilityCohort();
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  function isDivisibilityClearedUnlock(unlockedMax) {
-    return Math.floor(Number(unlockedMax) || 0) > divMaxLevel();
-  }
-
-  /**
-   * 通关后：Z1–Z4 未全流畅则刷弱项，否则 Z5。
-   * @returns {number|null}
-   */
-  async function pickDivisibilityPostClearLevel() {
-    const HM = global.JmlStatsHeatmap;
-    if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
-    const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("divisibility") : null;
-    const heatCount =
-      cat && cat.levelCount > 0
-        ? cat.levelCount
-        : HM.DIVISIBILITY_LEVEL_COUNT > 0
-          ? HM.DIVISIBILITY_LEVEL_COUNT
-          : 4;
-    const modes = cat && cat.modes ? cat.modes : ["divisibility"];
-    const [runs, cohort] = await Promise.all([
-      fetchDivisibilityRunsForHeat(),
-      fetchDivisibilityCohortForHeat(),
-    ]);
-    const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
-    const heat = HM.buildHeatmapCells({
-      runs: runs || [],
-      cohort: cohort && cohort.ok ? cohort : null,
-      modes: modes,
-      levelCount: heatCount,
-      maxTimeSpentMs: capMs,
-    });
-    const pick =
-      typeof HM.recommendDivisibilityPostClearLevel === "function"
-        ? HM.recommendDivisibilityPostClearLevel(heat)
-        : null;
-    if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
-    return Math.max(0, Math.min(divMaxLevel(), Math.floor(Number(pick.levelIndex))));
-  }
-
   async function endDivisibilityGame() {
     if (deps.getGameMode() !== "divisibility") return;
     deps.setIsPlaying(false);
@@ -596,22 +638,23 @@
       divAttempts.slice()
     );
 
-    const cleared =
-      isDivisibilityClearedUnlock(outcome.savedUnlockedMax) ||
-      isDivisibilityClearedUnlock(divUnlockedMaxBeforeRun);
-    if (cleared) {
-      let brushLv = null;
-      try {
-        brushLv = await pickDivisibilityPostClearLevel();
-      } catch (e) {
-        console.warn("整除通关后刷选型选关失败，留在本关", e);
-      }
-      if (brushLv != null) {
-        outcome = Object.assign({}, outcome, {
-          playAgainLevel: brushLv,
-          savedCurrent: brushLv,
-        });
-      }
+    // 通关后：唯一推荐关入口（未通关 resolve 返回 null，不覆盖）
+    let brushLv = null;
+    try {
+      brushLv = await resolveDivisibilityRecommendedLevel(
+        Math.max(
+          Math.floor(Number(outcome.savedUnlockedMax) || 0),
+          Math.floor(Number(divUnlockedMaxBeforeRun) || 0)
+        )
+      );
+    } catch (e) {
+      console.warn("整除通关后推荐选关失败，留在本关", e);
+    }
+    if (brushLv != null) {
+      outcome = Object.assign({}, outcome, {
+        playAgainLevel: brushLv,
+        savedCurrent: brushLv,
+      });
     }
 
     divPrestartLevel = outcome.playAgainLevel;
