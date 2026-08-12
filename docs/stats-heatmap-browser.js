@@ -1495,6 +1495,36 @@
   }
 
 
+  /**
+   * 整除通关后选关：Z1–Z4 未全部流畅（准≥95% 且未过慢）→ 刷选型；否则打 Z5。
+   * @returns {{ levelIndex: number, reason: string }|null}
+   */
+  function recommendDivisibilityPostClearLevel(cellsResult) {
+    var heatMax = Math.max(0, DIVISIBILITY_LEVEL_COUNT - 1);
+    var playableZ5 = DIVISIBILITY_LEVEL_COUNT; // 热图 4 档时 Z5 index=4
+    var allFluent = true;
+    for (var li = 0; li <= heatMax; li++) {
+      if (!isCellFluent(getCell(cellsResult, li))) {
+        allFluent = false;
+        break;
+      }
+    }
+    if (allFluent) {
+      return { levelIndex: playableZ5, reason: 'div_post_clear_z5' };
+    }
+    var pick =
+      typeof recommendUnlockedWeightedBrush === 'function'
+        ? recommendUnlockedWeightedBrush(cellsResult, heatMax)
+        : recommendTrainingBrushInPool(cellsResult, heatMax);
+    if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) {
+      return { levelIndex: 0, reason: 'div_post_clear_fallback' };
+    }
+    return {
+      levelIndex: clampLevel(pick.levelIndex, DIVISIBILITY_LEVEL_COUNT),
+      reason: pick.reason || 'div_post_clear_brush',
+    };
+  }
+
   global.JmlStatsHeatmap = {
     LEVEL_COUNT: LEVEL_COUNT,
     DECIMAL_LEVEL_COUNT: DECIMAL_LEVEL_COUNT,
@@ -1522,6 +1552,7 @@
     recommendTrainingBrushSlowAmongPass: recommendTrainingBrushSlowAmongPass,
     recommendTrainingBrushInPool: recommendTrainingBrushInPool,
     recommendUnlockedWeightedBrush: recommendUnlockedWeightedBrush,
+    recommendDivisibilityPostClearLevel: recommendDivisibilityPostClearLevel,
     computeActiveLadderTopM: computeActiveLadderTopM,
     computeDailyFrontierStart: computeDailyFrontierStart,
     computeTrainingNextLevel: computeTrainingNextLevel,

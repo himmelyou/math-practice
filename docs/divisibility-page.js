@@ -516,17 +516,77 @@
       .join("");
   }
 
+  async function fetchDivisibilityRunsForHeat() {
+    if (typeof deps.fetchUserRuns === "function") {
+      try {
+        return await deps.fetchUserRuns();
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  async function fetchDivisibilityCohortForHeat() {
+    if (typeof deps.fetchDivisibilityCohort === "function") {
+      try {
+        return await deps.fetchDivisibilityCohort();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function isDivisibilityClearedUnlock(unlockedMax) {
+    return Math.floor(Number(unlockedMax) || 0) > divMaxLevel();
+  }
+
+  /**
+   * 通关后：Z1–Z4 未全流畅则刷弱项，否则 Z5。
+   * @returns {number|null}
+   */
+  async function pickDivisibilityPostClearLevel() {
+    const HM = global.JmlStatsHeatmap;
+    if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
+    const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("divisibility") : null;
+    const heatCount =
+      cat && cat.levelCount > 0
+        ? cat.levelCount
+        : HM.DIVISIBILITY_LEVEL_COUNT > 0
+          ? HM.DIVISIBILITY_LEVEL_COUNT
+          : 4;
+    const modes = cat && cat.modes ? cat.modes : ["divisibility"];
+    const [runs, cohort] = await Promise.all([
+      fetchDivisibilityRunsForHeat(),
+      fetchDivisibilityCohortForHeat(),
+    ]);
+    const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+    const heat = HM.buildHeatmapCells({
+      runs: runs || [],
+      cohort: cohort && cohort.ok ? cohort : null,
+      modes: modes,
+      levelCount: heatCount,
+      maxTimeSpentMs: capMs,
+    });
+    const pick =
+      typeof HM.recommendDivisibilityPostClearLevel === "function"
+        ? HM.recommendDivisibilityPostClearLevel(heat)
+        : null;
+    if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+    return Math.max(0, Math.min(divMaxLevel(), Math.floor(Number(pick.levelIndex))));
+  }
+
   async function endDivisibilityGame() {
     if (deps.getGameMode() !== "divisibility") return;
     deps.setIsPlaying(false);
     stopDivTimer();
     const durationSec = Math.floor((Date.now() - (divStartTs || Date.now())) / 1000);
     const startLevel = divRunStartLevel;
-    const outcome = resolveDivRunOutcome(startLevel, divWrongCount, divUnlockedMaxBeforeRun);
-    divPrestartLevel = outcome.playAgainLevel;
-    divLevel = outcome.playAgainLevel;
+    let outcome = resolveDivRunOutcome(startLevel, divWrongCount, divUnlockedMaxBeforeRun);
 
     const awardedScore = Math.max(0, divScore);
+    // 先入库，再用含本局的 attempts 建热图（通关后刷选型）
     await deps.appendRun(
       durationSec,
       awardedScore,
@@ -535,6 +595,28 @@
       "divisibility",
       divAttempts.slice()
     );
+
+    const cleared =
+      isDivisibilityClearedUnlock(outcome.savedUnlockedMax) ||
+      isDivisibilityClearedUnlock(divUnlockedMaxBeforeRun);
+    if (cleared) {
+      let brushLv = null;
+      try {
+        brushLv = await pickDivisibilityPostClearLevel();
+      } catch (e) {
+        console.warn("整除通关后刷选型选关失败，留在本关", e);
+      }
+      if (brushLv != null) {
+        outcome = Object.assign({}, outcome, {
+          playAgainLevel: brushLv,
+          savedCurrent: brushLv,
+        });
+      }
+    }
+
+    divPrestartLevel = outcome.playAgainLevel;
+    divLevel = outcome.playAgainLevel;
+
     saveDivisibilityProgress(outcome.savedCurrent, outcome.savedUnlockedMax);
 
     if (deps.getCachedUser()) {

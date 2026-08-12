@@ -2,8 +2,8 @@
  * 发布时修改版本号、构建号与缓存标签；各 HTML 中 ?v= 须与本文件 JML_CACHE_TAG 一致。
  */
 (function (g) {
-  g.JML_APP_VERSION = "v1.7.32";
-  g.JML_BUILD_ID = "20260812a";
-  g.JML_CACHE_TAG = "106";
+  g.JML_APP_VERSION = "v1.7.33";
+  g.JML_BUILD_ID = "20260812b";
+  g.JML_CACHE_TAG = "107";
   g.JML_ADMIN_STATIC_REV = "44";
 })(typeof window !== "undefined" ? window : globalThis);
