@@ -618,7 +618,7 @@
           '<td class="jml-ov-col-offline num">' +
           escapeHtml(r.daysOffline != null ? String(r.daysOffline) : '—') +
           '</td>' +
-          '<td class="jml-ov-col-prog">' +
+          '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.levelProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog num"' +
@@ -626,7 +626,7 @@
           '>' +
           escapeHtml(dashCell(r.trainingProgress)) +
           '</td>' +
-          '<td class="jml-ov-col-prog">' +
+          '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.survivalProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog num">' +
@@ -658,9 +658,9 @@
       '<th scope="col">昵称</th>' +
       overviewSortLabel('daysActiveLast30', '最近30天上线天数', 'num') +
       overviewSortLabel('daysOffline', '未上线(天)', 'num') +
-      overviewSortLabel('levelProgress', '闯关') +
+      overviewSortLabel('levelProgress', '闯关', 'num') +
       overviewSortLabel('trainingProgress', '训练流畅', 'num') +
-      overviewSortLabel('survivalProgress', '生存') +
+      overviewSortLabel('survivalProgress', '生存', 'num') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
       overviewSortLabel('divisibilityProgress', '整除', 'num') +
       overviewSortLabel('perfectSquareProgress', '平方数') +

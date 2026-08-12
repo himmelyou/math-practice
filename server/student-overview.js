@@ -113,12 +113,28 @@ function hasRunMode(runs, mode) {
   return (runs || []).some((r) => String(r && r.mode ? r.mode : "survival").toLowerCase() === want);
 }
 
-function formatLevelChallengeProgress(u, runs) {
+function formatLevelChallengeProgress(u, runs, rankingEntry) {
+  const rankSec = rankingEntry ? Number(rankingEntry.survivalTimeSec) || 0 : 0;
+  if (rankSec > 0) {
+    return {
+      text: formatCompactRunTime(rankSec),
+      cleared: true,
+      ranked: true,
+      rankSec,
+      sortKey: 1e6 - rankSec,
+    };
+  }
   if (!hasRunMode(runs, "level") && u.hasClearedLevel !== true) {
-    return { text: null, cleared: false, sortKey: null };
+    return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   }
   if (userHasClearedLevel(u, runs)) {
-    return { text: "通关", cleared: true, sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1 };
+    return {
+      text: "通关",
+      cleared: true,
+      ranked: false,
+      rankSec: null,
+      sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1,
+    };
   }
   let best =
     typeof u.levelChallengeBestLevel === "number" && Number.isFinite(u.levelChallengeBestLevel)
@@ -129,22 +145,50 @@ function formatLevelChallengeProgress(u, runs) {
     const ml = Number(r.maxLevel);
     if (Number.isFinite(ml) && Math.floor(ml) > best) best = Math.floor(ml);
   });
-  if (best < 0) return { text: null, cleared: false, sortKey: null };
+  if (best < 0) return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   best = Math.min(LEVEL_CHALLENGE_MAX_INDEX, Math.max(0, best));
-  return { text: "L" + (best + 1), cleared: false, sortKey: best };
+  return {
+    text: "L" + (best + 1),
+    cleared: false,
+    ranked: false,
+    rankSec: null,
+    sortKey: best,
+  };
 }
 
-function formatSurvivalProgress(u, runs) {
+function formatSurvivalProgress(u, runs, rankingEntry) {
+  const rankSec = rankingEntry ? Number(rankingEntry.survivalTimeSec) || 0 : 0;
+  if (rankSec > 0) {
+    return {
+      text: formatCompactRunTime(rankSec),
+      cleared: true,
+      ranked: true,
+      rankSec,
+      sortKey: 1e6 - rankSec,
+    };
+  }
   if (!hasRunMode(runs, "survival") && u.hasClearedSurvival !== true) {
-    return { text: null, cleared: false, sortKey: null };
+    return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   }
   if (userHasClearedSurvival(u, runs)) {
-    return { text: "通关", cleared: true, sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1 };
+    return {
+      text: "通关",
+      cleared: true,
+      ranked: false,
+      rankSec: null,
+      sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1,
+    };
   }
   const best = maxSurvivalLevelFromRuns(runs);
-  if (best < 0) return { text: null, cleared: false, sortKey: null };
+  if (best < 0) return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   const idx = Math.min(LEVEL_CHALLENGE_MAX_INDEX, best);
-  return { text: "L" + (idx + 1), cleared: false, sortKey: idx };
+  return {
+    text: "L" + (idx + 1),
+    cleared: false,
+    ranked: false,
+    rankSec: null,
+    sortKey: idx,
+  };
 }
 
 function formatSpecialModeProgress(unlockedMax, maxLevelIndex, prefix, runs, mode) {
@@ -334,11 +378,45 @@ function buildDivisibilityPerfectMap(divisibilityList) {
   return map;
 }
 
+/** 生存/闯关通关榜：每人保留最短用时（同用时错题更少、更早优先） */
+function buildClearRankingMap(list) {
+  const map = {};
+  (list || []).forEach((e) => {
+    if (!e || !e.username) return;
+    const survivalTimeSec = Number(e.survivalTimeSec) || 0;
+    if (survivalTimeSec <= 0) return;
+    const entry = {
+      survivalTimeSec,
+      wrongCount: Number(e.wrongCount) || 0,
+      ts: Number(e.ts) || 0,
+    };
+    const cur = map[e.username];
+    if (!cur) {
+      map[e.username] = entry;
+      return;
+    }
+    if (entry.survivalTimeSec < cur.survivalTimeSec) {
+      map[e.username] = entry;
+      return;
+    }
+    if (entry.survivalTimeSec > cur.survivalTimeSec) return;
+    if (entry.wrongCount < cur.wrongCount) {
+      map[e.username] = entry;
+      return;
+    }
+    if (entry.wrongCount > cur.wrongCount) return;
+    if (entry.ts && (!cur.ts || entry.ts < cur.ts)) map[e.username] = entry;
+  });
+  return map;
+}
+
 function buildStudentOverviewRows(options) {
   const users = options.users || [];
   const runsByUser = options.runsByUser || {};
   const primeList = options.primeList || [];
   const divisibilityList = options.divisibilityList || [];
+  const survivalList = options.survivalList || [];
+  const levelList = options.levelList || [];
   const cohort = options.cohort || null;
   const capMs = options.capMs != null ? options.capMs : 60 * 1000;
   const nowMs = options.nowMs != null ? options.nowMs : Date.now();
@@ -353,6 +431,8 @@ function buildStudentOverviewRows(options) {
 
   const primeMap = buildPrimeRankingMap(primeList);
   const divPerfectMap = buildDivisibilityPerfectMap(divisibilityList);
+  const survivalMap = buildClearRankingMap(survivalList);
+  const levelMap = buildClearRankingMap(levelList);
   const rows = [];
 
   users.forEach((u) => {
@@ -362,8 +442,8 @@ function buildStudentOverviewRows(options) {
     const lastTs = Number(u.lastGameTs) || latestRunTsFromRuns(runs);
     const daysOff = computeDaysOffline(lastTs, nowMs);
     const daysActive30 = computeDaysActiveLast30(runs, nowMs);
-    const levelP = formatLevelChallengeProgress(u, runs);
-    const survivalP = formatSurvivalProgress(u, runs);
+    const levelP = formatLevelChallengeProgress(u, runs, levelMap[username]);
+    const survivalP = formatSurvivalProgress(u, runs, survivalMap[username]);
     const trainingP = formatTrainingProgress(runs, cohort, capMs, HM, todayKey);
     const psUnlocked =
       typeof u.levelPerfectSquareUnlockedMax === "number"
@@ -408,8 +488,10 @@ function buildStudentOverviewRows(options) {
       daysActiveLast30: daysActive30,
       levelProgress: levelP.text,
       levelProgressSort: levelP.sortKey,
+      levelRankSec: levelP.rankSec,
       survivalProgress: survivalP.text,
       survivalProgressSort: survivalP.sortKey,
+      survivalRankSec: survivalP.rankSec,
       trainingProgress: trainingP.text,
       trainingProgressSort: trainingProgressSortKey(trainingP),
       trainingMode: trainingP.mode,

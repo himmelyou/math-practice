@@ -2511,6 +2511,14 @@ app.get("/api/admin/student-overview", (req, res) => {
   const divisibilityList = (Array.isArray(divisibilityData.list) ? divisibilityData.list : []).filter(
     (e) => e && e.username && (Number(e.wrongCount) || 0) === 0 && (Number(e.survivalTimeSec) || 0) > 0
   );
+  const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
+  const survivalList = (Array.isArray(survivalData.list) ? survivalData.list : []).filter(
+    (e) => e && e.username && (Number(e.survivalTimeSec) || 0) > 0
+  );
+  const levelData = readJson(LEVEL_RANKING_FILE, { list: [] });
+  const levelList = (Array.isArray(levelData.list) ? levelData.list : []).filter(
+    (e) => e && e.username && (Number(e.survivalTimeSec) || 0) > 0
+  );
   const cohort = readCohortResultForHeatmap();
   const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
   let users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
@@ -2535,6 +2543,8 @@ app.get("/api/admin/student-overview", (req, res) => {
     runsByUser: scopedRuns,
     primeList,
     divisibilityList,
+    survivalList,
+    levelList,
     cohort,
     capMs,
   });
