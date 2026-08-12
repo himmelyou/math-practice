@@ -22,6 +22,10 @@ const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { createRunsStore } = require("./runs-store");
+const {
+  DIVISIBILITY_HEATMAP_LEVEL_COUNT,
+  heatLevelIndexFromAttempt,
+} = require("./divisibility-heat-level");
 const { defaultGameGuide } = require("./game-guide-defaults");
 const {
   REGISTERED_RULE_TYPES,
@@ -3262,7 +3266,7 @@ function personMeanLnFromCorrectTimes(lnTimes, minAttempts) {
  * @param {number} levelCount
  * @returns {number[][]} 每档的人级 meanLn 列表
  */
-function collectPersonMeanLnByLevel(modeFilter, levelCount) {
+function collectPersonMeanLnByLevel(modeFilter, levelCount, attemptLevelIndexFn) {
   const personLnByLevel = Array.from({ length: levelCount }, () => []);
   const minN = COHORT_MIN_ATTEMPTS_PER_USER_LEVEL;
 
@@ -3273,7 +3277,14 @@ function collectPersonMeanLnByLevel(modeFilter, levelCount) {
       if (!modeFilter(mode)) return;
       if (!Array.isArray(r.attempts)) return;
       r.attempts.forEach((a) => {
-        const idx = Math.max(0, Math.min(levelCount - 1, Number(a.levelIndex) || 0));
+        let idx;
+        if (typeof attemptLevelIndexFn === "function") {
+          idx = attemptLevelIndexFn(a);
+          if (idx == null || !Number.isFinite(Number(idx))) return;
+          idx = Math.max(0, Math.min(levelCount - 1, Math.floor(Number(idx))));
+        } else {
+          idx = Math.max(0, Math.min(levelCount - 1, Number(a.levelIndex) || 0));
+        }
         if (!a.correct) return;
         const ms = Number(a.timeSpentMs);
         if (Number.isFinite(ms) && ms > 0 && ms <= COHORT_MAX_TIME_SPENT_MS) {
@@ -3669,13 +3680,14 @@ app.get("/api/admin/stats/perfect-square-cohort", (req, res) => {
   });
 });
 
-/** 整除全体常模（Z1–Z5） */
-const COHORT_DIVISIBILITY_LEVEL_COUNT = 5;
+/** 整除全体常模（热图 Z1–Z4；Z5 按除数拆入） */
+const COHORT_DIVISIBILITY_LEVEL_COUNT = DIVISIBILITY_HEATMAP_LEVEL_COUNT;
 
 function computeDivisibilityCohortResult() {
   const personLnByLevel = collectPersonMeanLnByLevel(
     (mode) => mode === "divisibility",
-    COHORT_DIVISIBILITY_LEVEL_COUNT
+    COHORT_DIVISIBILITY_LEVEL_COUNT,
+    heatLevelIndexFromAttempt
   );
   const levels = [];
   for (let k = 0; k < COHORT_DIVISIBILITY_LEVEL_COUNT; k++) {
@@ -3695,7 +3707,7 @@ function computeDivisibilityCohortResult() {
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。",
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。Z5 混合局按除数归入 Z1–Z4。",
     levels,
   };
 }

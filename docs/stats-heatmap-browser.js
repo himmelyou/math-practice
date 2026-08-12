@@ -8,7 +8,7 @@
   var LEVEL_COUNT = 16;
   var DECIMAL_LEVEL_COUNT = 6;
   var PERFECT_SQUARE_LEVEL_COUNT = 4;
-  var DIVISIBILITY_LEVEL_COUNT = 5;
+  var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 按除数拆入 Z1–Z4
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
@@ -126,13 +126,38 @@
       return { categoryId: 'arithmetic', levelIndex: 0, run: null };
     }
     var levelIndex = 0;
-    if (typeof best.maxLevel === 'number' && Number.isFinite(best.maxLevel) && best.maxLevel >= 0) {
+    if (bestCat.id === 'divisibility' && Array.isArray(best.attempts) && best.attempts.length) {
+      var lastA = best.attempts[best.attempts.length - 1];
+      var mapped =
+        typeof resolveDivisibilityAttemptLevel === 'function'
+          ? resolveDivisibilityAttemptLevel(lastA)
+          : null;
+      if (mapped == null && lastA) {
+        var li0 = Math.floor(Number(lastA.levelIndex));
+        if (Number.isFinite(li0) && li0 >= 0 && li0 < bestCat.levelCount) mapped = li0;
+      }
+      levelIndex = clampLevel(mapped != null ? mapped : 0, bestCat.levelCount);
+    } else if (typeof best.maxLevel === 'number' && Number.isFinite(best.maxLevel) && best.maxLevel >= 0) {
       levelIndex = clampLevel(best.maxLevel, bestCat.levelCount);
     } else if (Array.isArray(best.attempts) && best.attempts.length) {
       var last = best.attempts[best.attempts.length - 1];
       levelIndex = clampLevel(last && last.levelIndex, bestCat.levelCount);
     }
     return { categoryId: bestCat.id, levelIndex: levelIndex, run: best };
+  }
+
+  function resolveDivisibilityAttemptLevel(a) {
+    var D = global.JmlDivisibility;
+    if (D && typeof D.heatLevelIndexFromAttempt === 'function') {
+      return D.heatLevelIndexFromAttempt(a);
+    }
+    // report 页可能未加载出题脚本：内联同一映射
+    var d = Math.floor(Number(a && a.divisor));
+    var map = { 2: 0, 5: 0, 3: 1, 9: 1, 4: 2, 8: 2, 6: 3, 12: 3 };
+    if (Number.isFinite(d) && Object.prototype.hasOwnProperty.call(map, d)) return map[d];
+    var li = Math.floor(Number(a && a.levelIndex));
+    if (Number.isFinite(li) && li >= 0 && li < DIVISIBILITY_LEVEL_COUNT) return li;
+    return null;
   }
 
   function levelLabel(prefix, levelIndex) {
@@ -205,7 +230,7 @@
    * 每档：按 run.ts 排序后取最近 window 条，再按「年龄整天数」指数权重聚合。
    * @returns {Array<{ n, weightedP, meanLnCorrect, sumW, nEff, minAgeDays, maxAgeDays }>}
    */
-  function personalWeightedByLevel(filteredRuns, maxTimeMs, nowMs, windowMax, halfLifeDays, levelCount) {
+  function personalWeightedByLevel(filteredRuns, maxTimeMs, nowMs, windowMax, halfLifeDays, levelCount, resolveLevelIndex) {
     nowMs = Number(nowMs) && Number.isFinite(nowMs) ? nowMs : Date.now();
     windowMax =
       Number(windowMax) > 0 && Number.isFinite(Number(windowMax))
@@ -230,7 +255,14 @@
       if (!Array.isArray(r.attempts)) return;
       var runTs = Number(r.ts) || 0;
       r.attempts.forEach(function (a) {
-        var k = clampLevel(a.levelIndex, nLevels);
+        var k;
+        if (typeof resolveLevelIndex === 'function') {
+          k = resolveLevelIndex(a);
+          if (k == null || !Number.isFinite(Number(k))) return;
+          k = clampLevel(k, nLevels);
+        } else {
+          k = clampLevel(a.levelIndex, nLevels);
+        }
         var ageDays = runTs > 0 ? Math.max(0, Math.floor((nowMs - runTs) / MS_PER_DAY)) : 0;
         var wRaw = Math.exp(-lambda * ageDays);
         buckets[k].push({
@@ -326,6 +358,15 @@
         : LEVEL_COUNT;
     var modes = opts.modes || ['survival', 'level', 'training'];
     var runs = filterRunsByModes(opts.runs, modes);
+    var resolveLevelIndex = opts.resolveAttemptLevelIndex;
+    if (typeof resolveLevelIndex !== 'function') {
+      var onlyDiv =
+        modes.length === 1 &&
+        String(modes[0] || '')
+          .toLowerCase()
+          .replace(/[_-]/g, '') === 'divisibility';
+      if (onlyDiv) resolveLevelIndex = resolveDivisibilityAttemptLevel;
+    }
     var cohort = opts.cohort && opts.cohort.ok ? opts.cohort : null;
     var minAttempts =
       Number(opts.minAttempts) ||
@@ -341,7 +382,15 @@
     var halfLifeDays =
       Number(opts.personalHalfLifeDays) > 0 ? Number(opts.personalHalfLifeDays) : PERSONAL_HALF_LIFE_DAYS;
 
-    var by = personalWeightedByLevel(runs, maxTimeMs, nowMs, windowAttempts, halfLifeDays, levelCount);
+    var by = personalWeightedByLevel(
+      runs,
+      maxTimeMs,
+      nowMs,
+      windowAttempts,
+      halfLifeDays,
+      levelCount,
+      resolveLevelIndex
+    );
     var cohortLevels = cohort && Array.isArray(cohort.levels) ? cohort.levels : [];
 
     var cells = [];

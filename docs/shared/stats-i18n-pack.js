@@ -40,7 +40,7 @@
       "stats.heat.capNote": "答對題單題耗時超過 {cap} 的記錄不納入個人/全體速度側統計（排除掛機、長時間切屏等異常偏慢）。",
       "stats.heat.legend.title": "圖例：",
       "stats.heat.legend.body":
-        "按分類聚合：四則為 survival / level / training；小數為 decimal；平方數為 perfectSquare；整除為 divisibility。個人：每檔取時間上最近的 {window} 題，按 run.ts 與「今天」相差的整天數做指數權重（半衰期 {halfLife} 天）。格內準確率、答對均時為加權值（僅答對且≤1 分鐘）。窗口 n≥{minAttempts} 激活著色。顏色為二維短板：準確率&lt;90% 或速分位≥約84（mean+1σ）為同一橙（準越低越偏紅）；否則取 min(準分,速分) 由黃過渡到檸綠——約準確率95% 且達 mean 為檸綠門檻；≥98% 且速分位≤約16（mean−1σ）達熟練綠並封頂。無常模分位時速度不拖後腿。",
+        "按分類聚合：四則為 survival / level / training；小數為 decimal；平方數為 perfectSquare；整除為 divisibility（熱圖僅 Z1–Z4，Z5 按除數拆入）。個人：每檔取時間上最近的 {window} 題，按 run.ts 與「今天」相差的整天數做指數權重（半衰期 {halfLife} 天）。格內準確率、答對均時為加權值（僅答對且≤1 分鐘）。窗口 n≥{minAttempts} 激活著色。顏色為二維短板：準確率&lt;90% 或速分位≥約84（mean+1σ）為同一橙（準越低越偏紅）；否則取 min(準分,速分) 由黃過渡到檸綠——約準確率95% 且達 mean 為檸綠門檻；≥98% 且速分位≤約16（mean−1σ）達熟練綠並封頂。無常模分位時速度不拖後腿。",
       "stats.heat.legend.speedCap": "速度上限：",
       "stats.heat.legend.cohortSnap": "常模快照：",
       "stats.heat.legend.cohortBuilt": "生成 {built}，過期 {expires}（默認 TTL 24h，環境變量 COHORT_STATS_TTL_MS 可改）。",
@@ -55,7 +55,7 @@
       "stats.heat.cohortWarnTail": "熱圖仍可顯示本學員該分類數據，但無百分位對比。",
       "stats.heat.scriptMissing": "熱圖腳本未載入（請確認已加載 stats-heatmap-browser.js）",
       "stats.report.intro":
-        "本頁熱圖按分類折疊展示（四則 L1–L16、小數 D1–D6、平方數 L1–L4、整除 Z1–Z5）。點分類標題展開/收起（展開一個會收起其他）。點擊任一難度格：下方共用按日曲線與常模圖會切換到該關。默認展開最近一次熱圖相關練習所屬分類。直方圖需先點工具欄「刷新全體常模」重算後才有數據。",
+        "本頁熱圖按分類折疊展示（四則 L1–L16、小數 D1–D6、平方數 L1–L4、整除 Z1–Z4；Z5 混合局按除數拆入 Z1–Z4）。點分類標題展開/收起（展開一個會收起其他）。點擊任一難度格：下方共用按日曲線與常模圖會切換到該關。默認展開最近一次熱圖相關練習所屬分類。直方圖需先點工具欄「刷新全體常模」重算後才有數據。",
       "stats.report.chartHeading": "按日曲線（{name} · 最近最多 14 個有練習日）",
       "stats.report.boxHeading": "全體人級均時 · 分位箱線圖（{name}）",
       "stats.report.histHeading": "全體人級均時 · 直方圖（{name}）",
@@ -122,7 +122,7 @@
         "Correct-answer times over {cap} are excluded from personal/cohort speed stats (idle/tab-away outliers).",
       "stats.heat.legend.title": "Legend:",
       "stats.heat.legend.body":
-        "By category: arithmetic = survival / level / training; decimals = decimal; perfect squares = perfectSquare; divisibility = divisibility. Per level: latest {window} attempts, day-age exponential weights (half-life {halfLife} d). Cell accuracy & avg correct time are weighted (correct only, ≤1 min). Active when window n ≥ {minAttempts}. Color is 2D bottleneck (min of accuracy & speed scores): orange if accuracy&lt;90% or speed pct≥~84 (mean+1σ), same orange family (redder when less accurate); else yellow→lime gate at ~95% accuracy and cohort mean; fluent soft green caps at ≥98% accuracy and speed pct≤~16 (mean−1σ). Missing speed percentile does not hold the cell back.",
+        "By category: arithmetic = survival / level / training; decimals = decimal; perfect squares = perfectSquare; divisibility = divisibility (heatmap Z1–Z4 only; Z5 split by divisor). Per level: latest {window} attempts, day-age exponential weights (half-life {halfLife} d). Cell accuracy & avg correct time are weighted (correct only, ≤1 min). Active when window n ≥ {minAttempts}. Color is 2D bottleneck (min of accuracy & speed scores): orange if accuracy&lt;90% or speed pct≥~84 (mean+1σ), same orange family (redder when less accurate); else yellow→lime gate at ~95% accuracy and cohort mean; fluent soft green caps at ≥98% accuracy and speed pct≤~16 (mean−1σ). Missing speed percentile does not hold the cell back.",
       "stats.heat.legend.speedCap": "Speed cap:",
       "stats.heat.legend.cohortSnap": "Cohort snapshot:",
       "stats.heat.legend.cohortBuilt": "Built {built}, expires {expires} (default TTL 24h; COHORT_STATS_TTL_MS).",
@@ -137,7 +137,7 @@
       "stats.heat.cohortWarnTail": "Heatmap still shows this category without percentile comparison.",
       "stats.heat.scriptMissing": "Heatmap script not loaded (stats-heatmap-browser.js).",
       "stats.report.intro":
-        "Heatmaps are grouped by collapsible category (arithmetic L1–L16, decimals D1–D6, perfect squares L1–L4, divisibility Z1–Z5). Expand one category to collapse others. Tap any cell to drive the shared daily chart and cohort plots. Default expand follows the latest heatmap-related run. Rebuild cohort for histogram bins.",
+        "Heatmaps are grouped by collapsible category (arithmetic L1–L16, decimals D1–D6, perfect squares L1–L4, divisibility Z1–Z4; Z5 mixed runs are split into Z1–Z4 by divisor). Expand one category to collapse others. Tap any cell to drive the shared daily chart and cohort plots. Default expand follows the latest heatmap-related run. Rebuild cohort for histogram bins.",
       "stats.report.chartHeading": "Daily chart ({name} · up to 14 practice days)",
       "stats.report.boxHeading": "Cohort person-level time · box plot ({name})",
       "stats.report.histHeading": "Cohort person-level time · histogram ({name})",

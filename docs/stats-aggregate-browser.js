@@ -93,9 +93,22 @@
     return Math.round(sec * 10) / 10;
   }
 
+  function resolveDivisibilityAttemptLevel(a) {
+    var D = typeof window !== 'undefined' ? window.JmlDivisibility : null;
+    if (D && typeof D.heatLevelIndexFromAttempt === 'function') {
+      return D.heatLevelIndexFromAttempt(a);
+    }
+    var d = Math.floor(Number(a && a.divisor));
+    var map = { 2: 0, 5: 0, 3: 1, 9: 1, 4: 2, 8: 2, 6: 3, 12: 3 };
+    if (Number.isFinite(d) && Object.prototype.hasOwnProperty.call(map, d)) return map[d];
+    var li = Math.floor(Number(a && a.levelIndex));
+    if (Number.isFinite(li) && li >= 0 && li <= 3) return li;
+    return null;
+  }
+
   /**
    * @param {Array} runs
-   * @param {{ levelCount?: number, modes?: string[], maxTimeSpentMs?: number }} [opts]
+   * @param {{ levelCount?: number, modes?: string[], maxTimeSpentMs?: number, resolveAttemptLevelIndex?: function }} [opts]
    */
   function aggregateFromRuns(runs, opts) {
     opts = opts || {};
@@ -105,6 +118,15 @@
         : LEVEL_COUNT;
     var modes = opts.modes || ['survival', 'level', 'training'];
     var maxTimeMs = resolveMaxTimeSpentMs(opts);
+    var resolveLevelIndex = opts.resolveAttemptLevelIndex;
+    if (typeof resolveLevelIndex !== 'function') {
+      var onlyDiv =
+        modes.length === 1 &&
+        String(modes[0] || '')
+          .toLowerCase()
+          .replace(/[_-]/g, '') === 'divisibility';
+      if (onlyDiv) resolveLevelIndex = resolveDivisibilityAttemptLevel;
+    }
     var byLevel = Array.from({ length: levelCount }, function () {
       return emptyLevelAgg();
     });
@@ -126,7 +148,14 @@
       }
       if (!Array.isArray(r.attempts)) return;
       r.attempts.forEach(function (a) {
-        var idx = Math.max(0, Math.min(levelCount - 1, Number(a.levelIndex) || 0));
+        var idx;
+        if (typeof resolveLevelIndex === 'function') {
+          idx = resolveLevelIndex(a);
+          if (idx == null || !Number.isFinite(Number(idx))) return;
+          idx = Math.max(0, Math.min(levelCount - 1, Math.floor(Number(idx))));
+        } else {
+          idx = Math.max(0, Math.min(levelCount - 1, Number(a.levelIndex) || 0));
+        }
         var ms = Number(a.timeSpentMs) || 0;
         byLevel[idx].total += 1;
         if (a.correct) byLevel[idx].correct += 1;

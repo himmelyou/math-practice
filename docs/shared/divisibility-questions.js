@@ -256,6 +256,38 @@
     return QUESTIONS_PER_RUN;
   }
 
+  /** 热图仅 Z1–Z4；Z5 按除数归入对应基础档 */
+  var HEATMAP_LEVEL_COUNT = 4;
+  var DIVISOR_TO_HEAT_LEVEL = {
+    2: 0,
+    5: 0,
+    3: 1,
+    9: 1,
+    4: 2,
+    8: 2,
+    6: 3,
+    12: 3,
+  };
+
+  function heatLevelIndexFromDivisor(divisor) {
+    var d = Math.floor(Number(divisor));
+    if (!isFinite(d)) return null;
+    if (Object.prototype.hasOwnProperty.call(DIVISOR_TO_HEAT_LEVEL, d)) {
+      return DIVISOR_TO_HEAT_LEVEL[d];
+    }
+    return null;
+  }
+
+  /** 优先 divisor；旧数据 levelIndex 0–3 可用；无 divisor 的旧 L5 题返回 null（不进热图） */
+  function heatLevelIndexFromAttempt(a) {
+    if (!a || typeof a !== "object") return null;
+    var fromDiv = heatLevelIndexFromDivisor(a.divisor);
+    if (fromDiv != null) return fromDiv;
+    var li = Math.floor(Number(a.levelIndex));
+    if (isFinite(li) && li >= 0 && li < HEATMAP_LEVEL_COUNT) return li;
+    return null;
+  }
+
   var LEVEL_LABELS = LEVEL_DEFS.map(function (level) {
     var shortName = String(level.name || "").replace(/^第\s*\d+\s*级\s*·\s*/, "");
     return (level.id || "") + " · " + shortName;
@@ -264,6 +296,7 @@
   global.JmlDivisibility = {
     LEVEL_COUNT: LEVEL_DEFS.length,
     DIV_MAX_LEVEL: DIV_MAX_LEVEL,
+    HEATMAP_LEVEL_COUNT: HEATMAP_LEVEL_COUNT,
     QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
     LEVEL_LABELS: LEVEL_LABELS,
     questionsPerRun: questionsPerRun,
@@ -272,5 +305,7 @@
     getLevelMeta: function (levelIndex) {
       return LEVEL_DEFS[clampLevelIndex(levelIndex)];
     },
+    heatLevelIndexFromDivisor: heatLevelIndexFromDivisor,
+    heatLevelIndexFromAttempt: heatLevelIndexFromAttempt,
   };
 })(typeof window !== "undefined" ? window : this);

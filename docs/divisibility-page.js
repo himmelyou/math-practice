@@ -412,8 +412,17 @@
     const correctLetter = q.answerLetter === "B" ? "B" : "A";
     const correct = letter === correctLetter;
     const timeSpentMs = Math.max(0, Date.now() - (divQuestionShownAt || Date.now()));
+    const heatLv =
+      global.JmlDivisibility && typeof global.JmlDivisibility.heatLevelIndexFromDivisor === "function"
+        ? global.JmlDivisibility.heatLevelIndexFromDivisor(q.divisor)
+        : null;
     divAttempts.push({
-      levelIndex: divRunStartLevel,
+      // 热图档：按除数归入 Z1–Z4（L5 混合局拆分）；解锁/排行榜用局级 maxLevel，不读此字段
+      levelIndex:
+        heatLv != null
+          ? heatLv
+          : Math.min(3, Math.max(0, Math.floor(Number(divRunStartLevel) || 0))),
+      runLevelIndex: divRunStartLevel,
       correct: correct,
       timeSpentMs: timeSpentMs,
       divisor: q.divisor,
