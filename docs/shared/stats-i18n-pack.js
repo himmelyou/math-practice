@@ -57,6 +57,7 @@
       "stats.heat.cohortWarnTail": "熱圖仍可顯示本學員該分類數據，但無百分位對比。",
       "stats.heat.scriptMissing": "熱圖腳本未載入（請確認已加載 stats-heatmap-browser.js）",
       "stats.report.helpSummary": "熱圖與圖表說明",
+      "stats.report.helpCohortBuilt": "常模生成 {built}",
       "stats.report.intro":
         "左側按分類折疊熱圖（四則 L1–L16、小數 D1–D6、平方數 L1–L4、整除 Z1–Z4；Z5 混合局按除數拆入 Z1–Z4）。點分類標題展開/收起（同時只展開一個）；點任一格子切換右側按日曲線與常模圖。四則標題旁顯示訓練「下一練」短標（詳細原因見「訓練選關 Debug」）。直方圖需先點工具欄「刷新全體常模」後才有數據。",
       "stats.report.chartHeading": "按日曲線（{name} · 最近最多 14 個有練習日）",
@@ -142,6 +143,7 @@
       "stats.heat.cohortWarnTail": "Heatmap still shows this category without percentile comparison.",
       "stats.heat.scriptMissing": "Heatmap script not loaded (stats-heatmap-browser.js).",
       "stats.report.helpSummary": "Heatmap & chart notes",
+      "stats.report.helpCohortBuilt": "Cohort built {built}",
       "stats.report.intro":
         "Left: collapsible heatmaps (arithmetic L1–L16, decimals D1–D6, perfect squares L1–L4, divisibility Z1–Z4; Z5 mixed runs split by divisor). Expand one category at a time; tap a cell to drive the right-side daily chart and cohort plots. Arithmetic header shows training “next” (details in Training next-level Debug). Rebuild cohort for histogram bins.",
       "stats.report.chartHeading": "Daily chart ({name} · up to 14 practice days)",

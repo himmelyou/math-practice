@@ -2032,10 +2032,25 @@
         '</p>';
     }
 
+    var summaryMeta = '';
+    if (chartCohort && chartCohort.builtAt) {
+      summaryMeta =
+        '<span class="jml-stats-help-meta">' +
+        escapeHtml(
+          rtf('stats.report.helpCohortBuilt', {
+            built: formatDateTime(chartCohort.builtAt),
+          })
+        ) +
+        '</span>';
+    }
+
     return (
       '<details class="jml-stats-help">' +
       '<summary>' +
+      '<span class="jml-stats-help-summary-main">' +
       escapeHtml(rt('stats.report.helpSummary')) +
+      '</span>' +
+      summaryMeta +
       '</summary>' +
       '<div class="jml-stats-help-body">' +
       body +

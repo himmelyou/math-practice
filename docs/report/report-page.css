@@ -428,6 +428,10 @@
 .jml-stats-help > summary {
   cursor: pointer;
   list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 14px;
   font-size: 13px;
   font-weight: 600;
@@ -440,7 +444,13 @@
   display: none;
 }
 
-.jml-stats-help > summary::before {
+.jml-stats-help-summary-main {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.jml-stats-help-summary-main::before {
   content: '▶';
   display: inline-block;
   margin-right: 8px;
@@ -449,8 +459,16 @@
   transition: transform 0.15s ease;
 }
 
-.jml-stats-help[open] > summary::before {
+.jml-stats-help[open] .jml-stats-help-summary-main::before {
   transform: rotate(90deg);
+}
+
+.jml-stats-help-meta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .jml-stats-help-body {
