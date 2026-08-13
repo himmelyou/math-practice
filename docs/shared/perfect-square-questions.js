@@ -28,6 +28,9 @@
     9: "⁹",
   };
 
+  /** 藏指数时的上标占位（无正式上标 ?，用修饰字母 ˀ，高度接近 ²³） */
+  const SUPERSCRIPT_QUESTION = "ˀ";
+
   /** L4 固定 26 张牌（b≤30 的平方已去掉；不含 12³） */
   const L4_CARDS = [
     { base: 2, exp: 3, value: 8 },
@@ -99,7 +102,7 @@
       prompt = "?" + expStr + " = " + card.value;
       answer = card.base;
     } else {
-      prompt = card.base + "? = " + card.value;
+      prompt = card.base + SUPERSCRIPT_QUESTION + " = " + card.value;
       answer = card.exp;
     }
     return {
