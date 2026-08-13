@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=111"></script>
+  <script src="shared/app-version.js?v=112"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -12038,6 +12038,7 @@
     let studentStatsHeatmapBound = false;
 
     function studentHeatmapCellStyle(c) {
+      if (c && typeof c.cellStyle === "string" && c.cellStyle) return c.cellStyle;
       const HM = window.JmlStatsHeatmap;
       if (HM && typeof HM.heatmapCellInlineStyle === "function") {
         return HM.heatmapCellInlineStyle(c) || "";
@@ -12294,7 +12295,7 @@
       scheduleSyncAllRuleHints();
     });
 
-    function renderStudentStatsFromRuns(runs, cohortByCategory) {
+    function renderStudentStatsFromRuns(runs, cohortByCategory, heatPayloadByCategory) {
       const heatHost = document.getElementById("stats-heatmap-host");
       const chartBlock = document.getElementById("stats-chart-block");
       const empty = document.getElementById("stats-level-empty");
@@ -12322,19 +12323,19 @@
 
       const cats = HM.getHeatmapCategories();
       let anyData = false;
+      const serverHeat =
+        heatPayloadByCategory && typeof heatPayloadByCategory === "object" ? heatPayloadByCategory : null;
       cats.forEach(function (cat) {
         const cohort = cohorts[cat.id] && cohorts[cat.id].ok ? cohorts[cat.id] : null;
         studentStatsState.cohortByCategory[cat.id] = cohort;
-        const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
-        const heat = HM.buildHeatmapCells({
-          runs: runs || [],
-          cohort: cohort,
-          modes: cat.modes,
-          levelCount: cat.levelCount,
-          maxTimeSpentMs: capMs,
-        });
+        let heat = null;
+        if (serverHeat && serverHeat[cat.id]) {
+          heat = serverHeat[cat.id].heat || serverHeat[cat.id];
+        }
         const agg = Agg.aggregateFromRuns(runs || [], { modes: cat.modes, levelCount: cat.levelCount });
-        studentStatsState.heatByCategory[cat.id] = heat;
+        if (heat && Array.isArray(heat.cells)) {
+          studentStatsState.heatByCategory[cat.id] = heat;
+        }
         studentStatsState.aggByCategory[cat.id] = agg;
         if (agg.hasAny) anyData = true;
       });
@@ -12385,7 +12386,7 @@
     }
 
     function getStudentStatsCacheKey(username) {
-      return "jml_student_stats_v2_" + String(username || "");
+      return "jml_student_stats_v3_" + String(username || "");
     }
 
     function loadStudentStatsCache(username) {
@@ -12394,17 +12395,22 @@
         if (!raw) return null;
         const o = JSON.parse(raw);
         if (!o || !Array.isArray(o.runs)) return null;
-        return { runs: o.runs, cohorts: o.cohorts || null, cohort: o.cohort || null };
+        return {
+          runs: o.runs,
+          cohorts: o.cohorts || null,
+          cohort: o.cohort || null,
+          heatByCategory: o.heatByCategory || null,
+        };
       } catch (e) {
         return null;
       }
     }
 
-    function saveStudentStatsCache(username, runs, cohorts) {
+    function saveStudentStatsCache(username, runs, cohorts, heatByCategory) {
       try {
         sessionStorage.setItem(
           getStudentStatsCacheKey(username),
-          JSON.stringify({ runs, cohorts, ts: Date.now() })
+          JSON.stringify({ runs, cohorts, heatByCategory: heatByCategory || null, ts: Date.now() })
         );
       } catch (e) { /* ignore */ }
     }
@@ -12500,20 +12506,28 @@
       }
       const cached = loadStudentStatsCache(name);
       if (cached) {
-        renderStudentStatsFromRuns(cached.runs, cached.cohorts || { arithmetic: cached.cohort });
+        renderStudentStatsFromRuns(
+          cached.runs,
+          cached.cohorts || { arithmetic: cached.cohort },
+          cached.heatByCategory || null
+        );
       } else {
         showStudentStatsLoading();
       }
       try {
-        const [levelCohort, decimalCohort, psCohort, divCohort, runsRes] = await Promise.all([
+        const [levelCohort, decimalCohort, psCohort, divCohort, runsRes, heatRes] = await Promise.all([
           fetchPublicLevelCohortForTraining(),
           fetchPublicDecimalCohort(),
           fetchPublicPerfectSquareCohort(),
           fetchPublicDivisibilityCohort(),
           fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", { credentials: "include", headers: getAuthHeaders() }),
+          fetch(base + "/api/user/" + encodeURIComponent(name) + "/heatmap", { credentials: "include", headers: getAuthHeaders() }),
         ]);
         const runsData = await runsRes.json();
-        if (runsRes.status === 401) { handleAuthRequired(); return; }
+        const heatData = await heatRes.json().catch(function () {
+          return null;
+        });
+        if (runsRes.status === 401 || heatRes.status === 401) { handleAuthRequired(); return; }
         if (!statsSection || !statsSection.classList.contains("visible")) return;
         const runs = runsData.ok ? runsData.runs : [];
         const cohorts = {
@@ -12522,8 +12536,10 @@
           perfectSquare: psCohort && psCohort.ok ? psCohort : null,
           divisibility: divCohort && divCohort.ok ? divCohort : null,
         };
-        saveStudentStatsCache(name, runs, cohorts);
-        renderStudentStatsFromRuns(runs, cohorts);
+        const heatByCategory =
+          heatData && heatData.ok && heatData.byCategory ? heatData.byCategory : null;
+        saveStudentStatsCache(name, runs, cohorts, heatByCategory);
+        renderStudentStatsFromRuns(runs, cohorts, heatByCategory);
       } catch (e) {
         console.warn("加载数据统计失败", e);
         if (!cached) {

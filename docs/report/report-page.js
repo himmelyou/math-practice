@@ -106,6 +106,7 @@
     cohortError: '',
     heat: null,
     heatByCategory: {},
+    heatmapFromServer: false,
     overviewRows: [],
     /** true = 已拉过全员概览；false = 仅有零散单人行（深链/切换补齐） */
     overviewComplete: false,
@@ -1197,6 +1198,7 @@
     state.chartModel = null;
     state.heat = null;
     state.heatByCategory = {};
+    state.heatmapFromServer = false;
     state.trainDebugPayload = null;
     state.serverTrainingPick = null;
     renderRunsTable();
@@ -1501,6 +1503,20 @@
         state.loadedStudentUsername = u;
         state.serverTrainingPick = null;
         state.trainDebugPayload = null;
+        state.heatmapFromServer = false;
+        state.heatByCategory = {};
+        // 后台拉服务器热图格子（权威）
+        void fetchServerHeatmapForSelectedUser()
+          .then(function (ok) {
+            if (state.selectedUsername !== u) return;
+            if (activeTabId() === 'stats') {
+              ensureStudentStatsBuilt();
+              renderStatsPanel();
+              redrawAllStatsCharts();
+            }
+            return ok;
+          })
+          .catch(function () {});
         // 后台拉服务器选关，供热图图例与 Debug 共用
         void apiFetch(
           '/api/admin/user/' + encodeURIComponent(u) + '/training/next-level-debug'
@@ -1810,6 +1826,7 @@
   }
 
   function heatmapCellInlineStyle(c) {
+    if (c && typeof c.cellStyle === 'string' && c.cellStyle) return c.cellStyle;
     var HM = window.JmlStatsHeatmap;
     if (HM && typeof HM.heatmapCellInlineStyle === 'function') {
       return HM.heatmapCellInlineStyle(c) || '';
@@ -1902,30 +1919,46 @@
       .join('');
   }
 
+  function applyServerHeatmapPayload(payload) {
+    state.heatByCategory = {};
+    state.heatmapFromServer = false;
+    if (!payload || !payload.ok || !payload.byCategory) return false;
+    Object.keys(payload.byCategory).forEach(function (id) {
+      var block = payload.byCategory[id];
+      if (block && block.heat) state.heatByCategory[id] = block.heat;
+    });
+    state.heatmapFromServer = Object.keys(state.heatByCategory).length > 0;
+    state.heat = state.heatByCategory[state.chartCategoryId] || null;
+    return state.heatmapFromServer;
+  }
+
+  function fetchServerHeatmapForSelectedUser() {
+    if (!state.selectedUsername) return Promise.resolve(false);
+    return apiFetch(
+      '/api/admin/user/' + encodeURIComponent(state.selectedUsername) + '/heatmap'
+    ).then(function (payload) {
+      return applyServerHeatmapPayload(payload);
+    });
+  }
+
   function buildHeatmapSectionHtml() {
     var HM = window.JmlStatsHeatmap;
-    if (!HM || !HM.buildHeatmapCells || !HM.getHeatmapCategories) {
+    if (!HM || !HM.getHeatmapCategories) {
       return '<p class="jml-stats-cohort-warn">' + escapeHtml(rt('stats.heat.scriptMissing')) + '</p>';
+    }
+    if (!state.heatmapFromServer || !Object.keys(state.heatByCategory || {}).length) {
+      return (
+        '<p class="jml-stats-cohort-warn">热图格子由服务器计算；正在等待拉取或拉取失败。请刷新学员数据。</p>'
+      );
     }
 
     var cats = HM.getHeatmapCategories();
-    state.heatByCategory = {};
     var anyLegendHeat = null;
     var trainingRecHtml = '';
 
     cats.forEach(function (cat) {
-      var cohort = (state.cohortByCategory && state.cohortByCategory[cat.id]) || null;
-      if (cat.id === 'arithmetic' && !cohort) cohort = state.cohort;
-      var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
-      var heat = HM.buildHeatmapCells({
-        runs: state.runs,
-        cohort: cohort && cohort.ok ? cohort : null,
-        modes: cat.modes,
-        levelCount: cat.levelCount,
-        maxTimeSpentMs: capMs,
-      });
-      state.heatByCategory[cat.id] = heat;
-      if (!anyLegendHeat) anyLegendHeat = heat;
+      var heat = state.heatByCategory[cat.id];
+      if (heat && !anyLegendHeat) anyLegendHeat = heat;
 
       if (cat.id === 'arithmetic') {
         var sp = state.serverTrainingPick;
@@ -1949,12 +1982,12 @@
                 brush: String(!!(sp.brushMode || sp.dayMode === 'heat')),
               })
             ) +
-            ' <span style="opacity:.75">（服务器）</span>';
+            ' <span style="opacity:.75">（服务器选关）</span>';
         } else {
           trainingRecHtml =
             '<br /><strong>' +
             escapeHtml(rt('stats.heat.legend.recommend')) +
-            '</strong>见「训练选关Debug」（服务器权威；打开该 Tab 或点重新拉取）';
+            '</strong>见「训练选关Debug」（服务器权威）';
         }
       }
     });

@@ -21,6 +21,7 @@ const { buildTrafficStats } = require("./traffic-stats");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
+const { buildUserHeatmapsByCategory } = require("./user-heatmap");
 const { createRunsStore } = require("./runs-store");
 const {
   DIVISIBILITY_HEATMAP_LEVEL_COUNT,
@@ -590,6 +591,50 @@ function runsMaxLevelChallengeBest(runs) {
 function readCohortResultForHeatmap() {
   const cache = readCohortLevelStatsCache();
   return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
+function readCohortDecimalResultForHeatmap() {
+  const cache = readCohortDecimalStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
+function readCohortPerfectSquareResultForHeatmap() {
+  const cache = readCohortPerfectSquareStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
+function readCohortDivisibilityResultForHeatmap() {
+  const cache = readCohortDivisibilityStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
+function cohortsByCategoryForHeatmap() {
+  return {
+    arithmetic: readCohortResultForHeatmap(),
+    decimal: readCohortDecimalResultForHeatmap(),
+    perfectSquare: readCohortPerfectSquareResultForHeatmap(),
+    divisibility: readCohortDivisibilityResultForHeatmap(),
+  };
+}
+
+function buildHeatmapPayloadForUsername(username) {
+  const runs = runsStore.getUserRuns(username).map((r) => ({
+    ...r,
+    mode: normalizeRunMode(r.mode),
+  }));
+  const built = buildUserHeatmapsByCategory({
+    runs,
+    cohortsByCategory: cohortsByCategoryForHeatmap(),
+  });
+  return {
+    ok: !!built.ok,
+    error: built.error || null,
+    username,
+    at: new Date().toISOString(),
+    source: "server_buildUserHeatmapsByCategory",
+    categories: built.categories || [],
+    byCategory: built.byCategory || {},
+  };
 }
 
 function computeHeatmapL16PassedFromRuns(runs) {
@@ -2063,6 +2108,26 @@ app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwn
   });
 });
 
+/** 学员：各分类热图（服务器权威建格） */
+app.get("/api/user/:username/heatmap", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const payload = buildHeatmapPayloadForUsername(username);
+    if (!payload.ok) {
+      return res.status(500).json({ ok: false, error: payload.error || "热图计算失败" });
+    }
+    return res.json(payload);
+  } catch (e) {
+    console.warn("[user/heatmap]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "热图计算失败" });
+  }
+});
+
 // ========== 添加生存局记录（用于完整历史，供 report 页面使用），需登录且只能访问自己 ==========
 app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -3148,6 +3213,29 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
     server: serverBlock,
     recentTraining: trainingRuns,
   });
+});
+
+/** 管理员：各分类热图（与学员端 /heatmap 同口径） */
+app.get("/api/admin/user/:username/heatmap", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = usersData.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const payload = buildHeatmapPayloadForUsername(username);
+    if (!payload.ok) {
+      return res.status(500).json({ ok: false, error: payload.error || "热图计算失败" });
+    }
+    return res.json(payload);
+  } catch (e) {
+    console.warn("[admin user/heatmap]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "热图计算失败" });
+  }
 });
 
 // ========== 管理员：获取某学员信息（用于 report 页面） ==========
