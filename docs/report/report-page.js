@@ -1941,6 +1941,108 @@
     });
   }
 
+  function formatArithmeticNextBadgeHtml() {
+    var sp = state.serverTrainingPick;
+    if (sp && sp.ok !== false && sp.levelIndex != null && Number.isFinite(Number(sp.levelIndex))) {
+      var recK = Math.min(15, Math.max(0, Math.floor(Number(sp.levelIndex))));
+      var isBrush = !!(sp.brushMode || sp.dayMode === 'heat' || sp.mode === 'brush');
+      var modeLabel = isBrush ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily');
+      return (
+        '<span class="jml-heat-cat-next" title="' +
+        escapeHtml(rt('stats.heat.legend.recommend')) +
+        '">' +
+        escapeHtml(
+          rtf('stats.heat.catNext', {
+            level: recK + 1,
+            mode: modeLabel,
+          })
+        ) +
+        '</span>'
+      );
+    }
+    return (
+      '<span class="jml-heat-cat-next jml-heat-cat-next-muted" title="见「训练选关 Debug」">' +
+      escapeHtml(rt('stats.heat.catNextPending')) +
+      '</span>'
+    );
+  }
+
+  function buildStatsHelpDetailsHtml() {
+    var anyLegendHeat = null;
+    var cats =
+      window.JmlStatsHeatmap && window.JmlStatsHeatmap.getHeatmapCategories
+        ? window.JmlStatsHeatmap.getHeatmapCategories()
+        : [];
+    cats.forEach(function (cat) {
+      var heat = state.heatByCategory && state.heatByCategory[cat.id];
+      if (heat && !anyLegendHeat) anyLegendHeat = heat;
+    });
+    var heat = anyLegendHeat || {
+      personalWindowAttempts: 200,
+      personalHalfLifeDays: 14,
+      minAttempts: 10,
+    };
+    var chartCohort =
+      (state.cohortByCategory && state.cohortByCategory[state.chartCategoryId]) || state.cohort;
+    var capMs =
+      chartCohort && Number(chartCohort.timeSpentMsCap) ? Number(chartCohort.timeSpentMsCap) : 60 * 1000;
+    var capStr = capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's';
+    var capNote =
+      chartCohort && chartCohort.timeSpentMsCapNote
+        ? chartCohort.timeSpentMsCapNote
+        : rtf('stats.heat.capNote', { cap: capStr });
+    var legendBody = rtf('stats.heat.legend.body', {
+      window: heat.personalWindowAttempts || 200,
+      halfLife: heat.personalHalfLifeDays || 14,
+      minAttempts: heat.minAttempts,
+    });
+
+    var body =
+      '<p class="jml-stats-help-p">' +
+      escapeHtml(rt('stats.report.intro')) +
+      '</p>' +
+      '<p class="jml-stats-help-p">' +
+      '<strong>' +
+      escapeHtml(rt('stats.heat.legend.title')) +
+      '</strong>' +
+      escapeHtml(legendBody) +
+      '</p>' +
+      '<p class="jml-stats-help-p">' +
+      '<strong>' +
+      escapeHtml(rt('stats.heat.legend.speedCap')) +
+      '</strong>' +
+      escapeHtml(capNote) +
+      '</p>';
+
+    if (chartCohort && chartCohort.builtAt) {
+      body +=
+        '<p class="jml-stats-help-p">' +
+        '<strong>' +
+        escapeHtml(rt('stats.heat.legend.cohortSnap')) +
+        '</strong>' +
+        escapeHtml(
+          rtf('stats.heat.legend.cohortBuilt', {
+            built: formatDateTime(chartCohort.builtAt),
+            expires: formatDateTime(chartCohort.expiresAt),
+          })
+        ) +
+        (chartCohort.servedFromCache
+          ? ' ' + escapeHtml(rt('stats.heat.legend.cohortCache'))
+          : ' ' + escapeHtml(rt('stats.heat.legend.cohortRebuilt'))) +
+        '</p>';
+    }
+
+    return (
+      '<details class="jml-stats-help">' +
+      '<summary>' +
+      escapeHtml(rt('stats.report.helpSummary')) +
+      '</summary>' +
+      '<div class="jml-stats-help-body">' +
+      body +
+      '</div></details>'
+    );
+  }
+
   function buildHeatmapSectionHtml() {
     var HM = window.JmlStatsHeatmap;
     if (!HM || !HM.getHeatmapCategories) {
@@ -1954,44 +2056,10 @@
 
     var cats = HM.getHeatmapCategories();
     var anyLegendHeat = null;
-    var trainingRecHtml = '';
-
     cats.forEach(function (cat) {
       var heat = state.heatByCategory[cat.id];
       if (heat && !anyLegendHeat) anyLegendHeat = heat;
-
-      if (cat.id === 'arithmetic') {
-        var sp = state.serverTrainingPick;
-        if (sp && sp.ok !== false && sp.levelIndex != null && Number.isFinite(Number(sp.levelIndex))) {
-          var recK = Math.min(15, Math.max(0, Math.floor(Number(sp.levelIndex))));
-          var recMode = sp.mode || (sp.brushMode || sp.dayMode === 'heat' ? 'brush' : 'daily');
-          var recReason =
-            sp.reasonText ||
-            (window.JmlStatsHeatmap && window.JmlStatsHeatmap.trainingNextLevelReasonText
-              ? window.JmlStatsHeatmap.trainingNextLevelReasonText(sp.result || sp, getReportTrainingReasonLabels())
-              : sp.pickReason || sp.reason || '');
-          trainingRecHtml =
-            '<br /><strong>' +
-            escapeHtml(rt('stats.heat.legend.recommend')) +
-            '</strong>' +
-            escapeHtml(
-              rtf('stats.heat.legend.recommendDetail', {
-                level: recK + 1,
-                mode: recMode === 'brush' || sp.dayMode === 'heat' ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily'),
-                reason: recReason || '',
-                brush: String(!!(sp.brushMode || sp.dayMode === 'heat')),
-              })
-            ) +
-            ' <span style="opacity:.75">（服务器选关）</span>';
-        } else {
-          trainingRecHtml =
-            '<br /><strong>' +
-            escapeHtml(rt('stats.heat.legend.recommend')) +
-            '</strong>见「训练选关Debug」（服务器权威）';
-        }
-      }
     });
-
     state.heat = state.heatByCategory[state.chartCategoryId] || anyLegendHeat;
 
     var cohortWarn = '';
@@ -2006,55 +2074,13 @@
         '</div>';
     }
 
-    var heat = anyLegendHeat || { personalWindowAttempts: 200, personalHalfLifeDays: 14, minAttempts: 10 };
-    var chartCohort =
-      (state.cohortByCategory && state.cohortByCategory[state.chartCategoryId]) || state.cohort;
-    var capMs =
-      chartCohort && Number(chartCohort.timeSpentMsCap) ? Number(chartCohort.timeSpentMsCap) : 60 * 1000;
-    var capStr = capMs >= 60000 ? Math.round(capMs / 60000) + 'm' : Math.round(capMs / 1000) + 's';
-    var capNote =
-      chartCohort && chartCohort.timeSpentMsCapNote
-        ? chartCohort.timeSpentMsCapNote
-        : rtf('stats.heat.capNote', { cap: capStr });
-
-    var legendBody = rtf('stats.heat.legend.body', {
-      window: heat.personalWindowAttempts || 200,
-      halfLife: heat.personalHalfLifeDays || 14,
-      minAttempts: heat.minAttempts,
-    });
-    var legend =
-      '<div class="jml-heatmap-legend">' +
-      '<strong>' +
-      escapeHtml(rt('stats.heat.legend.title')) +
-      '</strong>' +
-      escapeHtml(legendBody) +
-      '<br /><strong>' +
-      escapeHtml(rt('stats.heat.legend.speedCap')) +
-      '</strong>' +
-      escapeHtml(capNote) +
-      (chartCohort && chartCohort.builtAt
-        ? '<br /><strong>' +
-          escapeHtml(rt('stats.heat.legend.cohortSnap')) +
-          '</strong>' +
-          escapeHtml(
-            rtf('stats.heat.legend.cohortBuilt', {
-              built: formatDateTime(chartCohort.builtAt),
-              expires: formatDateTime(chartCohort.expiresAt),
-            })
-          ) +
-          (chartCohort.servedFromCache
-            ? ' ' + escapeHtml(rt('stats.heat.legend.cohortCache'))
-            : ' ' + escapeHtml(rt('stats.heat.legend.cohortRebuilt')))
-        : '') +
-      trainingRecHtml +
-      '</div>';
-
     var catsHtml = cats
       .map(function (cat) {
         var cHeat = state.heatByCategory[cat.id];
         var open = state.expandedCategoryId === cat.id;
         var label = rt(cat.labelKey);
         if (!label || label === cat.labelKey) label = cat.labelFallback || cat.id;
+        var nextBadge = cat.id === 'arithmetic' ? formatArithmeticNextBadgeHtml() : '';
         return (
           '<div class="jml-heat-cat' +
           (open ? ' open' : '') +
@@ -2066,8 +2092,11 @@
           '" aria-expanded="' +
           (open ? 'true' : 'false') +
           '">' +
-          '<span>' +
+          '<span class="jml-heat-cat-title-row">' +
+          '<span class="jml-heat-cat-name">' +
           escapeHtml(label) +
+          '</span>' +
+          nextBadge +
           '</span>' +
           '<span class="jml-heat-cat-chevron" aria-hidden="true">▶</span>' +
           '</button>' +
@@ -2105,7 +2134,6 @@
     return (
       cohortWarn +
       '<div class="jml-heatmap-section">' +
-      legend +
       '<div class="jml-heatmap-categories" id="jml-heatmap-categories">' +
       catsHtml +
       '</div>' +
@@ -2142,11 +2170,10 @@
     }
 
     var heatmapBlock = buildHeatmapSectionHtml();
+    var helpBlock = buildStatsHelpDetailsHtml();
 
     wrap.innerHTML =
-      '<p class="jml-stats-intro">' +
-      escapeHtml(rt('stats.report.intro')) +
-      '</p>' +
+      helpBlock +
       '<div class="jml-stats-layout">' +
       '<div class="jml-stats-col-heat">' +
       heatmapBlock +
