@@ -1075,13 +1075,39 @@
     return decorateDayState(today, mode, storedPrev);
   }
 
+  /**
+   * 刷热图候选池上限：梯子顶 M 以下（不含 M），避免与前沿日抢稳顶。
+   * 全通关 enterBrush 时刷整张；M≤0 无下层则返回 null（空池）。
+   */
+  function resolveTrainingHeatBrushPoolMax(cellsResult, frontier) {
+    if (frontier && frontier.enterBrush) {
+      return LEVEL_COUNT - 1;
+    }
+    var M = computeActiveLadderTopM(cellsResult);
+    if (M <= 0) return null;
+    return M - 1;
+  }
+
   /** 同时算前沿关 F 与热图关 H（每次重算，不钉死 lastRun+1） */
   function computeTrainingDualPicks(cellsResult) {
     var frontier = computeDailyFrontierStart(cellsResult);
-    var heatPick = recommendTrainingBrushInPool(cellsResult, LEVEL_COUNT - 1) || {
-      levelIndex: 0,
-      reason: 'brush_pick_speed',
-    };
+    var heatPoolMax = resolveTrainingHeatBrushPoolMax(cellsResult, frontier);
+    var heatPick;
+    if (heatPoolMax == null) {
+      // 仅 L1 激活等：无下层可刷，退回前沿关（不可避免重叠）
+      heatPick = {
+        levelIndex:
+          frontier && frontier.levelIndex != null && Number.isFinite(Number(frontier.levelIndex))
+            ? clampLevel(frontier.levelIndex)
+            : 0,
+        reason: 'brush_pool_empty_fallback',
+      };
+    } else {
+      heatPick = recommendTrainingBrushInPool(cellsResult, heatPoolMax) || {
+        levelIndex: 0,
+        reason: 'brush_pick_speed',
+      };
+    }
     var frontierLevel =
       frontier && !frontier.enterBrush && frontier.levelIndex != null && Number.isFinite(Number(frontier.levelIndex))
         ? clampLevel(frontier.levelIndex)
@@ -1092,13 +1118,14 @@
       heatPick: heatPick,
       frontierLevel: frontierLevel,
       heatLevel: heatLevel,
+      heatBrushPoolMax: heatPoolMax,
     };
   }
 
   /**
    * 训练 / Report 统一选关：
    * - 日模式 frontier → 用当前热图前沿 F（顶已全清则本局用 H，日模式不变）
-   * - 日模式 heat → 用当前热图关 H
+   * - 日模式 heat → 用当前热图关 H（池为梯子顶以下）
    * - 每次开局都重算 F/H，不再 lastRun+1
    */
   function computeTrainingNextLevel(cellsResult, dayState, todayKey) {
@@ -1108,6 +1135,10 @@
     var F = dual.frontierLevel;
     var H = dual.heatLevel;
     var heatReason = dual.heatPick && dual.heatPick.reason ? dual.heatPick.reason : 'brush_pick_speed';
+    var heatPool =
+      dual.heatBrushPoolMax != null && Number.isFinite(Number(dual.heatBrushPoolMax))
+        ? clampLevel(dual.heatBrushPoolMax)
+        : null;
 
     if (st.dayMode === 'heat') {
       return {
@@ -1117,7 +1148,7 @@
         pickReason: heatReason,
         enterBrush: false,
         brushMode: true,
-        brushPoolMax: LEVEL_COUNT - 1,
+        brushPoolMax: heatPool != null ? heatPool : LEVEL_COUNT - 1,
         dayMode: 'heat',
         frontierLevel: F,
         heatLevel: H,
@@ -1132,7 +1163,7 @@
         pickReason: heatReason,
         enterBrush: true,
         brushMode: false,
-        brushPoolMax: null,
+        brushPoolMax: LEVEL_COUNT - 1,
         dayMode: 'frontier',
         frontierLevel: null,
         heatLevel: H,
@@ -1554,6 +1585,7 @@
     recommendUnlockedWeightedBrush: recommendUnlockedWeightedBrush,
     recommendDivisibilityPostClearLevel: recommendDivisibilityPostClearLevel,
     computeActiveLadderTopM: computeActiveLadderTopM,
+    resolveTrainingHeatBrushPoolMax: resolveTrainingHeatBrushPoolMax,
     computeDailyFrontierStart: computeDailyFrontierStart,
     computeTrainingNextLevel: computeTrainingNextLevel,
     computeTrainingNextLevelSync: computeTrainingNextLevelSync,
