@@ -20,6 +20,12 @@ npm start
    window.API_BASE_URL = "https://你的API地址";
    ```
 
+### 训练选关 / 热图算法
+
+- **训练选关权威**：仅服务器 `computeTrainingNextLevelForUser`（`server/stats-heatmap-browser.js` + `training-next-level.js`）。学员端与报表 Debug 都只展示该 API 结果。
+- **部署**：改选关逻辑后须提交 `server/stats-heatmap-browser.js`（或 `npm run sync-heatmap` 从 docs 同步后再提交），否则 Render（Root=`server`）不会更新。
+- **docs 侧** `docs/stats-heatmap-browser.js` 仍用于热图**展示上色**等浏览器逻辑；与选关双轨对照已废弃。长期可将展示也改为吃 API。
+
 ## 数据存储
 
 数据保存在 `DATA_DIR`（默认 `~/.jarvis-math-lab/data/`）下的 JSON 文件中，例如：

@@ -3010,8 +3010,7 @@ app.get("/api/admin/student-detail/:username", (req, res) => {
 });
 
 /**
- * 管理员：训练选关 Debug（与学员端 /training/next-level 同口径，外加近期 trainingMeta）
- * 仅用于排查「管理页推荐 vs 学员端选关」不一致。
+ * 管理员：训练选关 Debug（与学员端 /training/next-level 同口径）
  */
 app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -3138,7 +3137,7 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
     username,
     at: new Date().toISOString(),
     note:
-      "server 块与学员端 GET /api/user/:user/training/next-level 同口径；日模式 frontier/heat 隔日切换；每次重算 F/H。",
+      "server 与学员端 GET /api/user/:user/training/next-level 同口径；选关权威只在服务器。",
     trainingDayMode: user.trainingDayMode || null,
     levelTrainingCurrentLevel:
       typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=110"></script>
+  <script src="shared/app-version.js?v=111"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -13500,16 +13500,33 @@
 
     async function resolveTrainingEntryLevelAsync() {
       refreshTrainingDayLocalState();
+      // 游客无服务端选关：本地热图兜底
+      if (isGuestMode) {
+        const { heat } = await buildTrainingHeatmapAsync();
+        trainingHeatSnapshot = heat;
+        const entry = computeTrainingEntryFromHeat(heat);
+        writeTrainingNextEntryCache(entry.levelIndex, entry.brushMode);
+        return entry.levelIndex;
+      }
       const serverPick = await fetchServerTrainingNextLevel();
       if (serverPick) {
         const applied = applyServerTrainingNextLevel(serverPick);
         if (applied) return applied.levelIndex;
       }
-      const { heat } = await buildTrainingHeatmapAsync();
-      trainingHeatSnapshot = heat;
-      const entry = computeTrainingEntryFromHeat(heat);
-      writeTrainingNextEntryCache(entry.levelIndex, entry.brushMode);
-      return entry.levelIndex;
+      // 登录学员：API 失败时只用缓存/档案占位，不再本地重算（避免与服务器口径分叉）
+      console.warn("[JML 训练选关] 服务端不可用，使用缓存/档案占位（不再本地重算）");
+      lastTrainingEntrySource = "fallback";
+      if (applyTrainingNextEntryCacheIfValid()) {
+        return currentLevelIndex;
+      }
+      const saved = getLevelTrainingCurrentLevel();
+      let idx =
+        saved >= 0 ? Math.min(15, Math.max(0, saved)) : Math.min(15, Math.max(0, getTrainingStartLevel()));
+      const stFb = loadTrainingFlowState();
+      trainingAutoPickLevelIndex = idx;
+      trainingSessionBrushMode = !!(stFb && stFb.brushMode);
+      writeTrainingNextEntryCache(idx, trainingSessionBrushMode);
+      return idx;
     }
 
     /** 不拉 runs：用本地已同步等级 / 闯关进度 / 刷热图状态先展示 */

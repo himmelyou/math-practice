@@ -116,6 +116,7 @@
     overviewSortDir: 'desc',
     /** 训练选关 Debug 最近一次完整 JSON（供复制） */
     trainDebugPayload: null,
+    serverTrainingPick: null,
   };
 
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
@@ -926,117 +927,63 @@
     el.innerHTML = '<div class="jml-report-empty">' + escapeHtml(msg || '—') + '</div>';
   }
 
-  /** 与数据分析图例相同的「浏览器本地日历日」todayKey（可能与中国时区不一致） */
-  function reportBrowserLocalTodayKey() {
-    var now = new Date();
-    return (
-      now.getFullYear() +
-      '-' +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(now.getDate()).padStart(2, '0')
-    );
-  }
-
-  function summarizePickResult(result, dayState, todayKey, label) {
-    if (!result || result.levelIndex == null || !Number.isFinite(Number(result.levelIndex))) {
+  function summarizeServerPick(server) {
+    if (!server) {
+      return { ok: false, error: 'no_server_block' };
+    }
+    if (server.ok === false) {
       return {
         ok: false,
-        label: label,
-        todayKey: todayKey,
-        dayState: dayState || null,
-        error: 'no_pick',
+        error: server.error || 'failed',
+        todayKey: server.todayKey || '',
+        dayState: server.dayState || null,
       };
     }
-    var li = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
+    var li =
+      server.levelIndex != null && Number.isFinite(Number(server.levelIndex))
+        ? Math.min(15, Math.max(0, Math.floor(Number(server.levelIndex))))
+        : null;
+    if (li == null) {
+      return { ok: false, error: 'no_pick', todayKey: server.todayKey || '' };
+    }
     var dayMode =
-      result.dayMode === 'heat' || result.dayMode === 'frontier'
-        ? result.dayMode
-        : dayState && (dayState.dayMode === 'heat' || dayState.dayMode === 'frontier')
-          ? dayState.dayMode
-          : result.brushMode || result.mode === 'brush'
-            ? 'heat'
-            : 'frontier';
+      server.dayMode === 'heat' || server.dayMode === 'frontier'
+        ? server.dayMode
+        : server.brushMode
+          ? 'heat'
+          : 'frontier';
     return {
       ok: true,
-      label: label,
-      todayKey: todayKey,
+      todayKey: server.todayKey || '',
       levelIndex: li,
       pickedL: li + 1,
       dayMode: dayMode,
-      frontierLevel: result.frontierLevel != null ? result.frontierLevel : null,
-      frontierL: result.frontierLevel != null ? result.frontierLevel + 1 : null,
-      heatLevel: result.heatLevel != null ? result.heatLevel : null,
-      heatL: result.heatLevel != null ? result.heatLevel + 1 : null,
-      brushMode: dayMode === 'heat' || !!(result.brushMode || result.mode === 'brush'),
-      mode: result.mode || '',
-      reason: result.reason || '',
-      pickReason: result.pickReason || result.reason || '',
-      enterBrush: !!result.enterBrush,
-      brushPoolMax: result.brushPoolMax != null ? result.brushPoolMax : null,
-      dayState: dayState || null,
-      result: result,
+      frontierLevel: server.frontierLevel != null ? server.frontierLevel : null,
+      frontierL:
+        server.frontierL != null
+          ? server.frontierL
+          : server.frontierLevel != null
+            ? server.frontierLevel + 1
+            : null,
+      heatLevel: server.heatLevel != null ? server.heatLevel : null,
+      heatL:
+        server.heatL != null ? server.heatL : server.heatLevel != null ? server.heatLevel + 1 : null,
+      brushMode: dayMode === 'heat' || !!server.brushMode,
+      mode: server.mode || '',
+      reason: server.reason || '',
+      pickReason: server.pickReason || server.reason || '',
+      reasonText: server.reasonText || '',
+      enterBrush: !!server.enterBrush,
+      brushPoolMax: server.brushPoolMax != null ? server.brushPoolMax : null,
+      dayState: server.dayState || null,
+      heatAvgSecAtStart: server.heatAvgSecAtStart,
+      cohortLoaded: server.cohortLoaded,
+      cellsSummary: server.cellsSummary || null,
+      result: server.result || null,
     };
   }
 
-  function computeReportLocalPicks(runs, cohort) {
-    var HM = window.JmlStatsHeatmap;
-    if (!HM || typeof HM.computeTrainingNextLevel !== 'function') {
-      return { error: 'JmlStatsHeatmap missing' };
-    }
-    var capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
-    var heat = HM.buildHeatmapCells({
-      runs: runs || [],
-      cohort: cohort && cohort.ok ? cohort : null,
-      modes: ['survival', 'level', 'training'],
-      levelCount: 16,
-      maxTimeSpentMs: capMs,
-    });
-    var browserToday = reportBrowserLocalTodayKey();
-    var chinaToday =
-      typeof HM.localDayKeyFromTs === 'function' ? HM.localDayKeyFromTs(Date.now()) : browserToday;
-
-    function one(todayKey, label) {
-      var dayState =
-        typeof HM.reconstructTrainingDayStateFromRuns === 'function'
-          ? HM.reconstructTrainingDayStateFromRuns(runs || [], todayKey, {
-              cohort: cohort && cohort.ok ? cohort : null,
-              maxTimeSpentMs: capMs,
-            })
-          : { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
-      var result = HM.computeTrainingNextLevel(heat, dayState, todayKey);
-      var reasonText =
-        typeof HM.trainingNextLevelReasonText === 'function'
-          ? HM.trainingNextLevelReasonText(result, getReportTrainingReasonLabels())
-          : '';
-      var summary = summarizePickResult(result, dayState, todayKey, label);
-      summary.reasonText = reasonText;
-      return summary;
-    }
-
-    return {
-      heatCells: (heat && heat.cells
-        ? heat.cells.map(function (c) {
-            return {
-              L: (c.levelIndex || 0) + 1,
-              active: !!c.active,
-              n: c.n || 0,
-              p: c.p != null ? Math.round(Number(c.p) * 1000) / 1000 : null,
-              timePct: c.timePct != null ? Math.round(Number(c.timePct) * 10) / 10 : null,
-              tooSlow: c.tooSlow === true,
-              fluent: c.fluent === true,
-            };
-          })
-        : []),
-      reportAsStatsLegend: one(browserToday, 'report_stats_legend_browser_local_today'),
-      reportWithChinaDay: one(chinaToday, 'report_china_today_same_as_server_clock'),
-      browserTodayKey: browserToday,
-      chinaTodayKey: chinaToday,
-      todayKeyMismatch: browserToday !== chinaToday,
-    };
-  }
-
-  function pickCardHtml(title, block, matchClass) {
+  function pickCardHtml(title, block) {
     if (!block) {
       return (
         '<div class="jml-train-debug-card">' +
@@ -1057,14 +1004,15 @@
         '</div></div>'
       );
     }
-    var cls = 'jml-train-debug-card' + (matchClass ? ' ' + matchClass : '');
     var dayMode = block.dayMode || (block.dayState && block.dayState.dayMode) || '';
     var fL = block.frontierL != null ? block.frontierL : block.frontierLevel != null ? block.frontierLevel + 1 : null;
     var hL = block.heatL != null ? block.heatL : block.heatLevel != null ? block.heatLevel + 1 : null;
+    var pool =
+      block.brushPoolMax != null && Number.isFinite(Number(block.brushPoolMax))
+        ? 'L1–L' + (Number(block.brushPoolMax) + 1)
+        : '—';
     return (
-      '<div class="' +
-      cls +
-      '">' +
+      '<div class="jml-train-debug-card">' +
       '<h3>' +
       escapeHtml(title) +
       '</h3><div class="big">L' +
@@ -1077,6 +1025,8 @@
       escapeHtml(fL != null ? 'L' + fL : '—') +
       ' · H=' +
       escapeHtml(hL != null ? 'L' + hL : '—') +
+      ' · pool=' +
+      escapeHtml(pool) +
       '<br/>' +
       escapeHtml(block.reasonText || block.pickReason || block.reason || '') +
       '<br/>todayKey=' +
@@ -1091,9 +1041,7 @@
     }
     var rows = list
       .map(function (r) {
-        var da = r.dayStateAfter
-          ? JSON.stringify(r.dayStateAfter)
-          : '—';
+        var da = r.dayStateAfter ? JSON.stringify(r.dayStateAfter) : '—';
         return (
           '<tr>' +
           '<td>' +
@@ -1145,53 +1093,22 @@
       renderTrainDebugPlaceholder('无 Debug 数据');
       return;
     }
-    var server = payload.server || {};
-    var local = payload.reportLocal || {};
-    var legend = local.reportAsStatsLegend || null;
-    var china = local.reportWithChinaDay || null;
-    var serverOk = server && server.ok !== false && server.pickedL != null;
-    var legendL = legend && legend.ok ? legend.pickedL : null;
-    var chinaL = china && china.ok ? china.pickedL : null;
-    var serverL = serverOk ? server.pickedL : null;
-    var matchServerLegend =
-      serverL != null && legendL != null ? (serverL === legendL ? 'match' : 'mismatch') : '';
-    var matchServerChina =
-      serverL != null && chinaL != null ? (serverL === chinaL ? 'match' : 'mismatch') : '';
-
-    var diffLines = [];
-    if (local.todayKeyMismatch) {
-      diffLines.push(
-        'todayKey 不一致：browser=' + local.browserTodayKey + ' / china=' + local.chinaTodayKey
-      );
-    } else {
-      diffLines.push('todayKey 一致：' + (local.chinaTodayKey || local.browserTodayKey || ''));
-    }
-    if (serverL != null && legendL != null && serverL !== legendL) {
-      diffLines.push('服务器 L' + serverL + ' ≠ 管理页图例口径 L' + legendL);
-    }
-    if (serverL != null && chinaL != null && serverL !== chinaL) {
-      diffLines.push('服务器 L' + serverL + ' ≠ 中国日本地重算 L' + chinaL + '（同函数不同输入？）');
-    }
-    if (serverL != null && legendL != null && chinaL != null && serverL === legendL && serverL === chinaL) {
-      diffLines.push('三路选关关号一致（L' + serverL + '）。若学员端仍不同，查学员 Console source / 占位。');
-    }
+    var server = summarizeServerPick(payload.server);
 
     el.innerHTML =
       '<div class="jml-train-debug">' +
-      '<p class="jml-train-debug-hint">对比「服务器权威选关」（与学员端 API 同口径）vs「管理页图例算法」vs「中国日本地重算」。把下方 JSON 整段贴给 AI 即可。</p>' +
+      '<p class="jml-train-debug-hint">训练选关以服务器为准（与学员端 <code>/api/user/…/training/next-level</code> 同口径）。</p>' +
       '<div class="jml-train-debug-toolbar">' +
-      '<button type="button" class="jml-btn" id="jml-train-debug-refresh">重新计算</button>' +
-      '<button type="button" class="jml-btn" id="jml-train-debug-copy">复制完整 JSON</button>' +
+      '<button type="button" class="jml-btn" id="jml-train-debug-refresh">重新拉取</button>' +
+      '<button type="button" class="jml-btn" id="jml-train-debug-copy">复制 JSON</button>' +
       '<span class="jml-train-debug-copy-ok" id="jml-train-debug-copy-status" hidden>已复制</span>' +
       '</div>' +
       '<div class="jml-train-debug-cards">' +
-      pickCardHtml('服务器（学员端同口径）', server, matchServerChina || matchServerLegend) +
-      pickCardHtml('管理页图例口径（浏览器本地日）', legend, matchServerLegend) +
-      pickCardHtml('本地重算（中国日）', china, matchServerChina) +
-      '<div class="jml-train-debug-card"><h3>差异摘要</h3><div class="meta">' +
-      escapeHtml(diffLines.join('\n')).replace(/\n/g, '<br/>') +
-      '<br/>levelTrainingCurrentL=' +
+      pickCardHtml('服务器选关（学员端同口径）', server) +
+      '<div class="jml-train-debug-card"><h3>档案</h3><div class="meta">levelTrainingCurrentL=' +
       escapeHtml(String(payload.levelTrainingCurrentL)) +
+      '<br/>trainingDayMode=' +
+      escapeHtml(JSON.stringify(payload.trainingDayMode || null)) +
       '</div></div>' +
       '</div>' +
       '<h3 class="jml-report-h3" style="margin:8px 0 4px;font-size:14px;">近期 training 局</h3>' +
@@ -1210,7 +1127,7 @@
       return Promise.resolve();
     }
     if (el) {
-      el.innerHTML = '<div class="jml-report-empty">正在拉取训练选关 Debug…</div>';
+      el.innerHTML = '<div class="jml-report-empty">正在拉取训练选关…</div>';
     }
     return apiFetch(
       '/api/admin/user/' +
@@ -1218,13 +1135,11 @@
         '/training/next-level-debug'
     )
       .then(function (apiData) {
-        var cohort =
-          (state.cohortByCategory && state.cohortByCategory.arithmetic) || state.cohort || null;
-        var reportLocal = computeReportLocalPicks(state.runs, cohort);
         var server = apiData && apiData.server ? apiData.server : null;
         if (
           server &&
           server.ok !== false &&
+          !server.reasonText &&
           window.JmlStatsHeatmap &&
           window.JmlStatsHeatmap.trainingNextLevelReasonText
         ) {
@@ -1233,46 +1148,26 @@
             getReportTrainingReasonLabels()
           );
         }
+        state.serverTrainingPick = server;
         var payload = {
           ok: true,
           username: state.selectedUsername,
           at: new Date().toISOString(),
           apiAt: apiData && apiData.at,
           note: apiData && apiData.note,
+          trainingDayMode: apiData && apiData.trainingDayMode,
           levelTrainingCurrentLevel: apiData && apiData.levelTrainingCurrentLevel,
           levelTrainingCurrentL: apiData && apiData.levelTrainingCurrentL,
           server: server,
-          reportLocal: reportLocal,
           recentTraining: (apiData && apiData.recentTraining) || [],
-          diff: {
-            serverPickedL: server && server.pickedL,
-            reportLegendPickedL:
-              reportLocal.reportAsStatsLegend && reportLocal.reportAsStatsLegend.pickedL,
-            reportChinaPickedL:
-              reportLocal.reportWithChinaDay && reportLocal.reportWithChinaDay.pickedL,
-            todayKeyMismatch: !!(reportLocal && reportLocal.todayKeyMismatch),
-            serverVsLegend:
-              server &&
-              reportLocal.reportAsStatsLegend &&
-              server.pickedL != null &&
-              reportLocal.reportAsStatsLegend.pickedL != null
-                ? server.pickedL === reportLocal.reportAsStatsLegend.pickedL
-                : null,
-            serverVsChina:
-              server &&
-              reportLocal.reportWithChinaDay &&
-              server.pickedL != null &&
-              reportLocal.reportWithChinaDay.pickedL != null
-                ? server.pickedL === reportLocal.reportWithChinaDay.pickedL
-                : null,
-          },
         };
         state.trainDebugPayload = payload;
         renderTrainDebugPanel(payload);
+        if (activeTabId() === 'stats') renderStatsPanel();
       })
       .catch(function (e) {
         state.trainDebugPayload = null;
-        renderTrainDebugPlaceholder('Debug 拉取失败：' + (e.message || String(e)));
+        renderTrainDebugPlaceholder('拉取失败：' + (e.message || String(e)));
       });
   }
 
@@ -1303,6 +1198,7 @@
     state.heat = null;
     state.heatByCategory = {};
     state.trainDebugPayload = null;
+    state.serverTrainingPick = null;
     renderRunsTable();
     renderWrongBook();
     renderExpandWrongBook();
@@ -1603,6 +1499,33 @@
         renderWrongBook();
         renderExpandWrongBook();
         state.loadedStudentUsername = u;
+        state.serverTrainingPick = null;
+        state.trainDebugPayload = null;
+        // 后台拉服务器选关，供热图图例与 Debug 共用
+        void apiFetch(
+          '/api/admin/user/' + encodeURIComponent(u) + '/training/next-level-debug'
+        )
+          .then(function (apiData) {
+            if (state.selectedUsername !== u) return;
+            var server = apiData && apiData.server ? apiData.server : null;
+            if (
+              server &&
+              server.ok !== false &&
+              !server.reasonText &&
+              window.JmlStatsHeatmap &&
+              window.JmlStatsHeatmap.trainingNextLevelReasonText
+            ) {
+              server.reasonText = window.JmlStatsHeatmap.trainingNextLevelReasonText(
+                server.result || server,
+                getReportTrainingReasonLabels()
+              );
+            }
+            state.serverTrainingPick = server;
+            if (activeTabId() === 'stats') renderStatsPanel();
+          })
+          .catch(function () {
+            /* 图例可稍后在 Debug Tab 拉取 */
+          });
 
         if (activeTabId() === 'stats') {
           ensureStudentStatsBuilt();
@@ -1616,7 +1539,7 @@
             statsWrap.innerHTML =
               '<div class="jml-report-empty">切换到「数据分析」时再计算热图与图表</div>';
           }
-          renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取对比数据');
+          renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取服务器选关');
         }
       })
       .catch(function (e) {
@@ -2004,29 +1927,16 @@
       state.heatByCategory[cat.id] = heat;
       if (!anyLegendHeat) anyLegendHeat = heat;
 
-      if (cat.id === 'arithmetic' && HM.reconstructTrainingDayStateFromRuns && HM.computeTrainingNextLevel) {
-        var todayKey = (function () {
-          var now = new Date();
-          return (
-            now.getFullYear() +
-            '-' +
-            String(now.getMonth() + 1).padStart(2, '0') +
-            '-' +
-            String(now.getDate()).padStart(2, '0')
-          );
-        })();
-        var dayState = HM.reconstructTrainingDayStateFromRuns(state.runs, todayKey, {
-          cohort: cohort && cohort.ok ? cohort : null,
-          maxTimeSpentMs: capMs,
-        });
-        var trainingNext = HM.computeTrainingNextLevel(heat, dayState, todayKey);
-        var recK = trainingNext != null ? trainingNext.levelIndex : null;
-        var recMode = trainingNext ? trainingNext.mode : '';
-        var recReason =
-          trainingNext && HM.trainingNextLevelReasonText
-            ? HM.trainingNextLevelReasonText(trainingNext, getReportTrainingReasonLabels())
-            : '';
-        if (recK != null) {
+      if (cat.id === 'arithmetic') {
+        var sp = state.serverTrainingPick;
+        if (sp && sp.ok !== false && sp.levelIndex != null && Number.isFinite(Number(sp.levelIndex))) {
+          var recK = Math.min(15, Math.max(0, Math.floor(Number(sp.levelIndex))));
+          var recMode = sp.mode || (sp.brushMode || sp.dayMode === 'heat' ? 'brush' : 'daily');
+          var recReason =
+            sp.reasonText ||
+            (window.JmlStatsHeatmap && window.JmlStatsHeatmap.trainingNextLevelReasonText
+              ? window.JmlStatsHeatmap.trainingNextLevelReasonText(sp.result || sp, getReportTrainingReasonLabels())
+              : sp.pickReason || sp.reason || '');
           trainingRecHtml =
             '<br /><strong>' +
             escapeHtml(rt('stats.heat.legend.recommend')) +
@@ -2034,11 +1944,17 @@
             escapeHtml(
               rtf('stats.heat.legend.recommendDetail', {
                 level: recK + 1,
-                mode: recMode === 'brush' ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily'),
-                reason: recReason || (trainingNext && trainingNext.reason) || '',
-                brush: String(!!(trainingNext.brushMode || (dayState && dayState.brushMode))),
+                mode: recMode === 'brush' || sp.dayMode === 'heat' ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily'),
+                reason: recReason || '',
+                brush: String(!!(sp.brushMode || sp.dayMode === 'heat')),
               })
-            );
+            ) +
+            ' <span style="opacity:.75">（服务器）</span>';
+        } else {
+          trainingRecHtml =
+            '<br /><strong>' +
+            escapeHtml(rt('stats.heat.legend.recommend')) +
+            '</strong>见「训练选关Debug」（服务器权威；打开该 Tab 或点重新拉取）';
         }
       }
     });
