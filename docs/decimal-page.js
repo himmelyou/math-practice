@@ -576,10 +576,33 @@
   }
 
   /**
-   * 非前沿 0 错：在已解锁关里按加权正确率刷选（有 p 才参与）。
+   * 非前沿 0 错：在已解锁关里刷选。登录学员走服务器；游客才本地建格兜底。
    * @returns {number|null} levelIndex
    */
   async function pickDecimalBrushLevel(unlockedPoolMax) {
+    const poolCap = Math.max(
+      0,
+      Math.min(decMaxLevel(), Math.floor(Number(unlockedPoolMax) || 0))
+    );
+    if (typeof deps.fetchDecimalBrushLevel === "function") {
+      try {
+        const fromApi = await deps.fetchDecimalBrushLevel(poolCap, decMaxLevel());
+        // undefined = 未调用成功（游客/无 API）；null = 服务器无推荐；number = 关号
+        if (fromApi === undefined) {
+          /* fall through */
+        } else if (fromApi != null && Number.isFinite(Number(fromApi))) {
+          return Math.max(0, Math.min(poolCap, Math.floor(Number(fromApi))));
+        } else {
+          return null;
+        }
+      } catch (e) {
+        console.warn("小数刷选 API 失败，尝试本地兜底", e);
+      }
+    }
+    const guest =
+      typeof deps.isGuestMode === "function" ? deps.isGuestMode() : !!deps.isGuestMode;
+    if (!guest) return null;
+
     const HM = global.JmlStatsHeatmap;
     if (!HM || typeof HM.buildHeatmapCells !== "function" || typeof HM.recommendUnlockedWeightedBrush !== "function") {
       return null;
@@ -587,10 +610,6 @@
     const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("decimal") : null;
     const levelCount = cat && cat.levelCount > 0 ? cat.levelCount : 5;
     const modes = cat && cat.modes ? cat.modes : ["decimal"];
-    const poolMax = Math.max(
-      0,
-      Math.min(decMaxLevel(), levelCount - 1, Math.floor(Number(unlockedPoolMax) || 0))
-    );
     const [runs, cohort] = await Promise.all([fetchDecimalRunsForHeat(), fetchDecimalCohortForHeat()]);
     const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
     const heat = HM.buildHeatmapCells({
@@ -600,9 +619,9 @@
       levelCount: levelCount,
       maxTimeSpentMs: capMs,
     });
-    const pick = HM.recommendUnlockedWeightedBrush(heat, poolMax);
+    const pick = HM.recommendUnlockedWeightedBrush(heat, poolCap);
     if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
-    return Math.max(0, Math.min(poolMax, Math.floor(Number(pick.levelIndex))));
+    return Math.max(0, Math.min(poolCap, Math.floor(Number(pick.levelIndex))));
   }
 
   async function endDecimalGame() {

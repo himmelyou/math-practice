@@ -1,9 +1,9 @@
 /**
- * 在 Node 中加载训练/热图选关模块（与 Report 口径一致）。
- * 优先读 server/stats-heatmap-browser.js（Render Root=server 可部署）；
- * 本地 monorepo 若无副本则回退 ../docs/stats-heatmap-browser.js。
+ * 在 Node 中加载热图/选关模块。
+ * 真源：server/stats-heatmap-browser.js（Render Root=server 必含此文件）。
+ * 本地若缺失才回退 ../docs（仅开发容错，勿把 docs 当改算法入口）。
  *
- * 改 docs 侧算法后请同步：npm run sync-heatmap（在 server/ 下）
+ * 改算法后：npm run sync-heatmap（server → docs）再提交。
  */
 const fs = require("fs");
 const path = require("path");
@@ -24,9 +24,7 @@ function getJmlStatsHeatmap() {
   if (cached) return cached;
   const filePath = resolveHeatmapBrowserPath();
   if (!filePath) {
-    throw new Error(
-      "Failed to load JmlStatsHeatmap: missing server/stats-heatmap-browser.js (and no ../docs fallback)"
-    );
+    throw new Error("Failed to load JmlStatsHeatmap: missing server/stats-heatmap-browser.js");
   }
   const code = fs.readFileSync(filePath, "utf8");
   const sandbox = {
@@ -55,7 +53,6 @@ function getJmlStatsHeatmap() {
   return cached;
 }
 
-/** 测试/热重载用；生产每次部署新进程即可 */
 function clearJmlStatsHeatmapCache() {
   cached = null;
   cachedFrom = null;

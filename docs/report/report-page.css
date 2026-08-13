@@ -1,6 +1,6 @@
 /* 学员数据页（与 admin 风格一致） */
 .jml-admin-wide.jml-shell-inner {
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
 .jml-banner-warn {
@@ -417,6 +417,28 @@
   margin-bottom: 14px;
 }
 
+.jml-stats-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr);
+  gap: 20px 24px;
+  align-items: start;
+}
+
+.jml-stats-col-heat,
+.jml-stats-col-charts {
+  min-width: 0;
+}
+
+.jml-stats-col-charts .jml-report-h3:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .jml-stats-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .jml-stats-level-row {
   display: flex;
   flex-wrap: wrap;
@@ -444,9 +466,9 @@
 
 .jml-stats-chart-wrap {
   width: 100%;
-  max-width: 720px;
+  max-width: 100%;
   height: 220px;
-  margin: 16px 0;
+  margin: 12px 0 18px;
   border: 1px solid #eceff1;
   border-radius: 8px;
   background: #fff;
@@ -461,7 +483,7 @@
 
 .jml-cohort-chart-wrap {
   height: 230px;
-  max-width: 720px;
+  max-width: 100%;
 }
 
 .jml-report-h3 + .jml-cohort-chart-wrap {
@@ -479,7 +501,7 @@
 }
 
 .jml-heatmap-section {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .jml-heatmap-legend {
@@ -493,7 +515,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  max-width: 720px;
+  max-width: 100%;
 }
 
 .jml-heat-cat {
@@ -503,7 +525,7 @@
   background: #fff;
   overflow: hidden;
   width: 100%;
-  max-width: 720px;
+  max-width: 100%;
 }
 
 .jml-heat-cat-toggle {

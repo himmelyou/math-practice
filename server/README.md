@@ -20,12 +20,20 @@ npm start
    window.API_BASE_URL = "https://你的API地址";
    ```
 
-### 训练选关 / 热图算法
+### 训练选关 / 热图算法（单一真源）
 
-- **训练选关权威**：仅服务器 `computeTrainingNextLevelForUser`（`server/stats-heatmap-browser.js`）。
-- **热图格子权威**：`GET /api/user|:admin/user/:username/heatmap`（`user-heatmap.js` → 同一 `buildHeatmapCells`）。学员端「数据统计」与报表「数据分析」展示都吃该 API，不再在浏览器本地建格。
-- **部署**：改选关/建格逻辑后须提交 `server/stats-heatmap-browser.js`（可用 `npm run sync-heatmap` 从 docs 拷入），否则 Render（Root=`server`）不会更新。
-- **docs 侧** `docs/stats-heatmap-browser.js`：仍用于上色兜底、文案、分类元数据；格子数据以服务器为准。
+- **真源文件**：`server/stats-heatmap-browser.js`（只在这里改算法）。
+- **兼容壳**：`server/stats-heatmap.js` 仅转发到真源，无第二套实现。
+- **Pages 副本**：`docs/stats-heatmap-browser.js` 由同步生成，供浏览器加载元数据/上色兜底。
+- **API**：选关 `…/training/next-level`；热图格子 `…/heatmap`；小数刷选 `…/decimal/next-level`；整除通关后 `…/divisibility/next-level`。
+- **改完后**：
+
+```bash
+cd server
+npm run sync-heatmap
+```
+
+再提交 `server/` + `docs/stats-heatmap-browser.js`，Render 与 Pages 才会一致。
 
 ## 数据存储
 

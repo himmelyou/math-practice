@@ -349,11 +349,35 @@
 
   /**
    * 通关后推荐关；未通关返回 null（调用方勿覆盖原逻辑）。
+   * 登录学员走服务器；游客才本地建格兜底。
    * @param {number} [unlockedMaxHint] 局末可用 outcome.savedUnlockedMax（含本局刚通关）
    * @returns {Promise<number|null>}
    */
   async function resolveDivisibilityRecommendedLevel(unlockedMaxHint) {
     if (!isDivisibilityCleared(unlockedMaxHint)) return null;
+
+    if (typeof deps.fetchDivisibilityRecommendedLevel === "function") {
+      try {
+        const fromApi = await deps.fetchDivisibilityRecommendedLevel(
+          unlockedMaxHint != null ? unlockedMaxHint : getDivisibilityStoredUnlockedMax(),
+          divMaxLevel()
+        );
+        if (fromApi === undefined) {
+          /* fall through to guest local */
+        } else if (fromApi != null && Number.isFinite(Number(fromApi))) {
+          return Math.max(0, Math.min(divMaxLevel(), Math.floor(Number(fromApi))));
+        } else {
+          return null;
+        }
+      } catch (e) {
+        console.warn("整除推荐关 API 失败，尝试本地兜底", e);
+      }
+    }
+
+    const guest =
+      typeof deps.isGuestMode === "function" ? deps.isGuestMode() : !!deps.isGuestMode;
+    if (!guest) return null;
+
     const HM = global.JmlStatsHeatmap;
     if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
     const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("divisibility") : null;

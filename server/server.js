@@ -22,6 +22,10 @@ const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { buildUserHeatmapsByCategory } = require("./user-heatmap");
+const {
+  computeDecimalBrushLevel,
+  computeDivisibilityPostClearLevel,
+} = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
 const {
   DIVISIBILITY_HEATMAP_LEVEL_COUNT,
@@ -2125,6 +2129,100 @@ app.get("/api/user/:username/heatmap", requireStudentAuth, ensureOwnData, (req, 
   } catch (e) {
     console.warn("[user/heatmap]", e && e.message ? e.message : e);
     return res.status(500).json({ ok: false, error: "热图计算失败" });
+  }
+});
+
+/** 学员：小数非前沿刷选型选关 */
+app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const runs = runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const cohort = readCohortDecimalResultForHeatmap();
+    const poolMax =
+      req.query.poolMax != null && req.query.poolMax !== ""
+        ? Number(req.query.poolMax)
+        : typeof user.levelDecimalUnlockedMax === "number"
+          ? user.levelDecimalUnlockedMax
+          : 0;
+    const playableMax =
+      req.query.playableMax != null && req.query.playableMax !== ""
+        ? Number(req.query.playableMax)
+        : undefined;
+    const pick = computeDecimalBrushLevel({
+      runs,
+      cohort,
+      poolMax,
+      playableMax,
+    });
+    if (!pick || !pick.ok) {
+      return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
+    }
+    return res.json({
+      ok: true,
+      source: "server",
+      levelIndex: pick.levelIndex,
+      reason: pick.reason,
+      poolMax: pick.poolMax,
+    });
+  } catch (e) {
+    console.warn("[user/decimal/next-level]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  }
+});
+
+/** 学员：整除通关后推荐关 */
+app.get("/api/user/:username/divisibility/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const runs = runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const cohort = readCohortDivisibilityResultForHeatmap();
+    const unlockedMax =
+      req.query.unlockedMax != null && req.query.unlockedMax !== ""
+        ? Number(req.query.unlockedMax)
+        : typeof user.levelDivisibilityUnlockedMax === "number"
+          ? user.levelDivisibilityUnlockedMax
+          : 0;
+    const playableMax =
+      req.query.playableMax != null && req.query.playableMax !== ""
+        ? Number(req.query.playableMax)
+        : undefined;
+    const pick = computeDivisibilityPostClearLevel({
+      runs,
+      cohort,
+      unlockedMax,
+      playableMax,
+    });
+    if (!pick || !pick.ok) {
+      return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
+    }
+    return res.json({
+      ok: true,
+      source: "server",
+      levelIndex: pick.levelIndex,
+      reason: pick.reason,
+      cleared: !!pick.cleared,
+      unlockedMax: pick.unlockedMax,
+      playableMax: pick.playableMax,
+    });
+  } catch (e) {
+    console.warn("[user/divisibility/next-level]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
   }
 });
 

@@ -1,262 +1,27 @@
 /**
- * 难度热图核心算法（服务端与 stats-heatmap-browser.js 口径一致）
+ * 兼容入口：热图算法真源为 server/stats-heatmap-browser.js（经 load-jml-stats-heatmap）。
+ * 勿在此文件再实现一套 buildHeatmapCells。
  */
-const LEVEL_COUNT = 16;
-const MS_PER_DAY = 86400000;
-const PERSONAL_WINDOW_ATTEMPTS = 200;
-const PERSONAL_HALF_LIFE_DAYS = 14;
+const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
 
-function clampLevel(i) {
-  return Math.max(0, Math.min(LEVEL_COUNT - 1, Number(i) || 0));
-}
-
-function filterArithmeticRuns(runs) {
-  return (runs || []).filter((r) => {
-    const m = String(r && r.mode ? r.mode : "survival").toLowerCase();
-      if (
-        m === "expandbrackets" ||
-        m === "primecomposite" ||
-        m === "perfectsquare" ||
-        m === "divisibility" ||
-        m === "factorsmultiples"
-      )
-        return false;
-    return m === "survival" || m === "level" || m === "training";
-  });
-}
-
-/** 标准正态 CDF Φ(z) */
-function standardNormalCdf(z) {
-  const x = Number(z);
-  if (!Number.isFinite(x)) return null;
-  const t = 1 / (1 + 0.2316419 * Math.abs(x));
-  const d = 0.3989422804014327;
-  const p = d * Math.exp(-0.5 * x * x);
-  const poly =
-    t *
-    (0.31938153 +
-      t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
-  const cdf = x >= 0 ? 1 - p * poly : p * poly;
-  return Math.max(0, Math.min(1, cdf));
-}
-
-/** ln 正态：value===mean → 50；mean+1σ → ≈84。越大越慢。 */
-function percentileFromMeanSd(value, mean, sd) {
-  if (!Number.isFinite(Number(value)) || !Number.isFinite(Number(mean))) return null;
-  const m = Number(mean);
-  const s = Number(sd);
-  if (!Number.isFinite(s) || s < 0) return null;
-  if (s < 1e-12) return 50;
-  const z = (Number(value) - m) / s;
-  const cdf = standardNormalCdf(z);
-  if (cdf == null) return null;
-  return Math.max(0, Math.min(100, cdf * 100));
-}
-
-/** 优先 mean/sd 正态分位；否则 q10…q90 插值 */
-function percentileFromQuantileSummary(value, q) {
-  if (value == null || !q) return null;
-  const fromMeanSd = percentileFromMeanSd(Number(value), Number(q.mean), Number(q.sd));
-  if (fromMeanSd != null) return fromMeanSd;
-
-  if (!q.n) return null;
-  const { q10, q25, q50, q75, q90 } = q;
-  if (![q10, q25, q50, q75, q90].every((x) => Number.isFinite(x))) return null;
-
-  function lerp(x, x1, y1, x2, y2) {
-    if (Math.abs(x2 - x1) < 1e-9) return y1;
-    return y1 + ((y2 - y1) * (x - x1)) / (x2 - x1);
-  }
-
-  if (value <= q10) {
-    const left = q10 - Math.max(1e-6, q25 - q10);
-    return Math.max(0, Math.min(100, lerp(value, left, 0, q10, 10)));
-  }
-  if (value <= q25) return lerp(value, q10, 10, q25, 25);
-  if (value <= q50) return lerp(value, q25, 25, q50, 50);
-  if (value <= q75) return lerp(value, q50, 50, q75, 75);
-  if (value <= q90) return lerp(value, q75, 75, q90, 90);
-  const right = q90 + Math.max(1e-6, q90 - q75);
-  return Math.max(0, Math.min(100, lerp(value, q90, 90, right, 100)));
-}
-
-function personalWeightedByLevel(filteredRuns, maxTimeMs, nowMs, windowMax, halfLifeDays) {
-  nowMs = Number(nowMs) && Number.isFinite(nowMs) ? nowMs : Date.now();
-  windowMax =
-    Number(windowMax) > 0 && Number.isFinite(Number(windowMax))
-      ? Math.min(500, Math.floor(Number(windowMax)))
-      : PERSONAL_WINDOW_ATTEMPTS;
-  const halfLife =
-    Number(halfLifeDays) > 0 && Number.isFinite(Number(halfLifeDays))
-      ? Number(halfLifeDays)
-      : PERSONAL_HALF_LIFE_DAYS;
-  const lambda = Math.LN2 / halfLife;
-
-  let cap = Number(maxTimeMs);
-  if (!Number.isFinite(cap) || cap <= 0) cap = 60 * 1000;
-
-  const buckets = Array.from({ length: LEVEL_COUNT }, () => []);
-
-  (filteredRuns || []).forEach((r) => {
-    if (!Array.isArray(r.attempts)) return;
-    const runTs = Number(r.ts) || 0;
-    r.attempts.forEach((a) => {
-      const k = clampLevel(a.levelIndex);
-      const ageDays = runTs > 0 ? Math.max(0, Math.floor((nowMs - runTs) / MS_PER_DAY)) : 0;
-      const wRaw = Math.exp(-lambda * ageDays);
-      buckets[k].push({
-        correct: !!a.correct,
-        timeSpentMs: Number(a.timeSpentMs),
-        runTs,
-        ageDays,
-        wRaw,
-      });
-    });
-  });
-
-  const by = [];
-  for (let k = 0; k < LEVEL_COUNT; k++) {
-    const arr = buckets[k];
-    arr.sort((u, v) => u.runTs - v.runTs);
-    const slice = arr.length > windowMax ? arr.slice(arr.length - windowMax) : arr;
-    const n = slice.length;
-    const empty = {
-      n: 0,
-      weightedP: null,
-      meanLnCorrect: null,
-      sumW: 0,
-      nEff: null,
-      minAgeDays: null,
-      maxAgeDays: null,
-    };
-    if (n === 0) {
-      by.push(empty);
-      continue;
-    }
-
-    let sumWRaw = 0;
-    for (let i = 0; i < n; i++) sumWRaw += slice[i].wRaw;
-    if (!(sumWRaw > 0) || !Number.isFinite(sumWRaw)) sumWRaw = 1;
-
-    let wc = 0;
-    let wLnNum = 0;
-    let wLnDen = 0;
-    let minAge = null;
-    let maxAge = null;
-    let sumW2 = 0;
-
-    for (let j = 0; j < n; j++) {
-      const it = slice[j];
-      const w = (it.wRaw * n) / sumWRaw;
-      wc += w * (it.correct ? 1 : 0);
-      sumW2 += w * w;
-      if (minAge === null || it.ageDays < minAge) minAge = it.ageDays;
-      if (maxAge === null || it.ageDays > maxAge) maxAge = it.ageDays;
-      if (it.correct) {
-        const ms = it.timeSpentMs;
-        if (Number.isFinite(ms) && ms > 0 && ms <= cap) {
-          wLnDen += w;
-          wLnNum += w * Math.log(ms);
-        }
-      }
-    }
-
-    const sumW = n;
-    by.push({
-      n,
-      weightedP: sumW > 0 ? wc / sumW : null,
-      meanLnCorrect: wLnDen > 0 ? wLnNum / wLnDen : null,
-      sumW,
-      nEff: sumW2 > 0 ? (sumW * sumW) / sumW2 : n,
-      minAgeDays: minAge,
-      maxAgeDays: maxAge,
-    });
-  }
-  return by;
+function HM() {
+  return getJmlStatsHeatmap();
 }
 
 function buildHeatmapCells(opts) {
-  const runs = filterArithmeticRuns(opts.runs);
-  const cohort = opts.cohort && opts.cohort.ok ? opts.cohort : null;
-  const minAttempts =
-    Number(opts.minAttempts) ||
-    (cohort && Number(cohort.minAttemptsForHeatmap)) ||
-    10;
-  const maxTimeMs =
-    Number(opts.maxTimeSpentMs) ||
-    (cohort && Number(cohort.timeSpentMsCap)) ||
-    60 * 1000;
-  const nowMs = Number(opts.nowTs) && Number.isFinite(Number(opts.nowTs)) ? Number(opts.nowTs) : Date.now();
-  const windowAttempts =
-    Number(opts.personalWindowAttempts) > 0 ? Math.floor(Number(opts.personalWindowAttempts)) : PERSONAL_WINDOW_ATTEMPTS;
-  const halfLifeDays =
-    Number(opts.personalHalfLifeDays) > 0 ? Number(opts.personalHalfLifeDays) : PERSONAL_HALF_LIFE_DAYS;
+  return HM().buildHeatmapCells(opts);
+}
 
-  const by = personalWeightedByLevel(runs, maxTimeMs, nowMs, windowAttempts, halfLifeDays);
-  const cohortLevels = cohort && Array.isArray(cohort.levels) ? cohort.levels : [];
-
-  const cells = [];
-  for (let k = 0; k < LEVEL_COUNT; k++) {
-    const b = by[k];
-    const p = b.weightedP;
-    const pText = p != null ? `${(Math.round(p * 1000) / 10).toFixed(1)}%` : "-";
-    const meanLn = b.meanLnCorrect;
-    const active = b.n >= minAttempts;
-
-    const cohortRow = cohortLevels[k] || {};
-    const lnQ = cohortRow.cohortLnTimeCorrect || null;
-    const timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
-    const tooSlow = (() => {
-      if (!active || meanLn == null || !lnQ) return null;
-      const mean = Number(lnQ.mean);
-      const sd = Number(lnQ.sd);
-      if (!Number.isFinite(mean) || !Number.isFinite(sd) || sd < 0) return null;
-      return meanLn >= mean + 1 * sd;
-    })();
-    const accurate = !!(active && p != null && Number.isFinite(p) && p >= 0.95);
-    const fluent = accurate && tooSlow !== true;
-
-    let avgSecText = "-";
-    if (meanLn != null && Number.isFinite(meanLn)) {
-      const geoMeanMs = Math.exp(meanLn);
-      const secDisplay = geoMeanMs / 1000;
-      if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
-        avgSecText = `${Math.round(secDisplay * 10) / 10}s`;
-      }
-    }
-
-    cells.push({
-      levelIndex: k,
-      active,
-      n: b.n,
-      p,
-      pText,
-      meanLnCorrect: meanLn,
-      medianLnCorrect: meanLn,
-      timePct,
-      tooSlow,
-      accurate,
-      fluent,
-      nEff: b.nEff != null ? Math.round(b.nEff * 10) / 10 : null,
-      ageDaysMin: b.minAgeDays,
-      ageDaysMax: b.maxAgeDays,
-      avgSecText,
-    });
-  }
-  return {
-    cells,
-    minAttempts,
-    maxTimeSpentMs: maxTimeMs,
-    cohortLoaded: !!cohort,
-    personalWindowAttempts: windowAttempts,
-    personalHalfLifeDays: halfLifeDays,
-    personalNowTs: nowMs,
-  };
+function filterArithmeticRuns(runs) {
+  return HM().filterArithmeticRuns(runs);
 }
 
 function isHeatmapLevelPassed(cellsResult, levelIndex, minP) {
+  if (typeof HM().isHeatmapLevelPassed === "function") {
+    return HM().isHeatmapLevelPassed(cellsResult, levelIndex, minP);
+  }
   const cells = (cellsResult && cellsResult.cells) || [];
-  const k = clampLevel(levelIndex);
+  const k = Math.max(0, Math.min(15, Math.floor(Number(levelIndex) || 0)));
   const cell = cells.find((c) => c && c.levelIndex === k) || cells[k];
   if (!cell || !cell.active) return false;
   if (cell.fluent === true) return true;
@@ -266,16 +31,35 @@ function isHeatmapLevelPassed(cellsResult, levelIndex, minP) {
   return p >= (Number(minP) || 0.95);
 }
 
+function personalWeightedByLevel() {
+  return HM().personalWeightedByLevel.apply(null, arguments);
+}
+
+function percentileFromQuantileSummary() {
+  return HM().percentileFromQuantileSummary.apply(null, arguments);
+}
+
+function percentileFromMeanSd() {
+  return HM().percentileFromMeanSd.apply(null, arguments);
+}
+
 module.exports = {
-  LEVEL_COUNT,
-  MS_PER_DAY,
-  PERSONAL_WINDOW_ATTEMPTS,
-  PERSONAL_HALF_LIFE_DAYS,
+  get LEVEL_COUNT() {
+    return HM().LEVEL_COUNT;
+  },
+  get MS_PER_DAY() {
+    return HM().MS_PER_DAY;
+  },
+  get PERSONAL_WINDOW_ATTEMPTS() {
+    return HM().PERSONAL_WINDOW_ATTEMPTS;
+  },
+  get PERSONAL_HALF_LIFE_DAYS() {
+    return HM().PERSONAL_HALF_LIFE_DAYS;
+  },
   filterArithmeticRuns,
   personalWeightedByLevel,
   buildHeatmapCells,
   isHeatmapLevelPassed,
   percentileFromQuantileSummary,
   percentileFromMeanSd,
-  standardNormalCdf,
 };

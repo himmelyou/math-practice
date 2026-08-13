@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=112"></script>
+  <script src="shared/app-version.js?v=114"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4887,7 +4887,7 @@
   <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=72"></script>
-  <script src="stats-heatmap-browser.js?v=73"></script>
+  <script src="stats-heatmap-browser.js?v=74"></script>
   <script src="stats-aggregate-browser.js?v=51"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=43"></script>
@@ -4900,8 +4900,8 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=48"></script>
-  <script src="divisibility-page.js?v=10"></script>
-  <script src="decimal-page.js?v=12"></script>
+  <script src="divisibility-page.js?v=11"></script>
+  <script src="decimal-page.js?v=13"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5493,6 +5493,33 @@
         fetchDivisibilityCohort: async function () {
           return fetchPublicDivisibilityCohort();
         },
+        fetchDivisibilityRecommendedLevel: async function (unlockedMax, playableMax) {
+          if (isGuestMode) return undefined;
+          const base = getApiBase();
+          const name = loadCurrentUsername();
+          if (!base || !name) return undefined;
+          const q =
+            "?unlockedMax=" +
+            encodeURIComponent(String(unlockedMax != null ? unlockedMax : "")) +
+            "&playableMax=" +
+            encodeURIComponent(String(playableMax != null ? playableMax : ""));
+          const res = await fetch(
+            base + "/api/user/" + encodeURIComponent(name) + "/divisibility/next-level" + q,
+            { credentials: "include", headers: getAuthHeaders() }
+          );
+          const data = await res.json().catch(function () {
+            return null;
+          });
+          if (res.status === 401) {
+            handleAuthRequired();
+            return undefined;
+          }
+          if (!res.ok || !data || data.ok !== true) {
+            throw new Error((data && data.error) || "divisibility next-level failed");
+          }
+          if (data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
+          return Math.floor(Number(data.levelIndex));
+        },
       });
     }
 
@@ -5532,6 +5559,33 @@
         },
         fetchDecimalCohort: async function () {
           return fetchPublicDecimalCohort();
+        },
+        fetchDecimalBrushLevel: async function (poolMax, playableMax) {
+          if (isGuestMode) return undefined;
+          const base = getApiBase();
+          const name = loadCurrentUsername();
+          if (!base || !name) return undefined;
+          const q =
+            "?poolMax=" +
+            encodeURIComponent(String(poolMax != null ? poolMax : "")) +
+            "&playableMax=" +
+            encodeURIComponent(String(playableMax != null ? playableMax : ""));
+          const res = await fetch(
+            base + "/api/user/" + encodeURIComponent(name) + "/decimal/next-level" + q,
+            { credentials: "include", headers: getAuthHeaders() }
+          );
+          const data = await res.json().catch(function () {
+            return null;
+          });
+          if (res.status === 401) {
+            handleAuthRequired();
+            return undefined;
+          }
+          if (!res.ok || !data || data.ok !== true) {
+            throw new Error((data && data.error) || "decimal next-level failed");
+          }
+          if (data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
+          return Math.floor(Number(data.levelIndex));
         },
       });
     }

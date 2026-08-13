@@ -1,8 +1,8 @@
 /**
- * 【服务端副本】与 docs/stats-heatmap-browser.js 同口径；Render Root=server 部署用。
- * 改 docs 后请在 server/ 执行：npm run sync-heatmap
+ * 【算法真源 · 服务端】Render Root=server 部署用。
+ * 改完后执行：npm run sync-heatmap（同步到 docs/ 供 Pages）。
  *
- * 难度热图：个人加权指标 × 全体速度常模（答对 ln(耗时) 分位）；主站与学员数据页共用，单文件置于 docs/。
+ * 难度热图：个人加权指标 × 全体速度常模（答对 ln(耗时) 分位）。
  *
  * 个人侧：每档「时间上最近」的最多 200 条 attempt；权重按 run.ts 与当前时间的「整天」年龄
  * 指数衰减，半衰期 14 天（λ = ln2 / 14）。同一局内多题共享同一 run.ts → 同一天，符合按天口径。
@@ -553,6 +553,26 @@
   function cellNeedsMasteryWork(cell) {
     if (!cell || !cell.active) return false;
     return !isCellFluent(cell);
+  }
+
+  /** 生存解锁等：某关是否达到准度门槛（优先 fluent 字段） */
+  function isHeatmapLevelPassed(cellsResult, levelIndex, minP) {
+    var cells = (cellsResult && cellsResult.cells) || [];
+    var k = clampLevel(levelIndex);
+    var cell = null;
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i] && cells[i].levelIndex === k) {
+        cell = cells[i];
+        break;
+      }
+    }
+    if (!cell) cell = cells[k];
+    if (!cell || !cell.active) return false;
+    if (cell.fluent === true) return true;
+    if (cell.fluent === false) return false;
+    var p = cell.p;
+    if (p == null || !Number.isFinite(p)) return false;
+    return p >= (Number(minP) || 0.95);
   }
 
   /** 热图上色阈值（二维短板） */
@@ -1605,6 +1625,7 @@
     isCellHeatMastered: isCellHeatMastered,
     heatMasteryScore: heatMasteryScore,
     cellNeedsMasteryWork: cellNeedsMasteryWork,
+    isHeatmapLevelPassed: isHeatmapLevelPassed,
     TRAINING_BRUSH_PASS_ACCURACY: TRAINING_BRUSH_PASS_ACCURACY,
     TRAINING_DAY_PASS_ACCURACY: TRAINING_DAY_PASS_ACCURACY,
     TRAINING_SPEED_SLOW_SD: TRAINING_SPEED_SLOW_SD,

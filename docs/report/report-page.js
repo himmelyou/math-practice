@@ -2144,14 +2144,22 @@
     var heatmapBlock = buildHeatmapSectionHtml();
 
     wrap.innerHTML =
-      '<p class="jml-stats-intro">' + escapeHtml(rt('stats.report.intro')) + '</p>' +
+      '<p class="jml-stats-intro">' +
+      escapeHtml(rt('stats.report.intro')) +
+      '</p>' +
+      '<div class="jml-stats-layout">' +
+      '<div class="jml-stats-col-heat">' +
       heatmapBlock +
+      '</div>' +
+      '<div class="jml-stats-col-charts">' +
       '<h3 class="jml-report-h3" id="jml-stats-chart-heading"></h3>' +
       '<div class="jml-stats-chart-wrap"><canvas id="jml-stats-canvas"></canvas></div>' +
       '<h3 class="jml-report-h3" id="jml-cohort-box-heading"></h3>' +
       '<div class="jml-stats-chart-wrap jml-cohort-chart-wrap"><canvas id="jml-cohort-box-canvas"></canvas></div>' +
       '<h3 class="jml-report-h3" id="jml-cohort-hist-heading"></h3>' +
-      '<div class="jml-stats-chart-wrap jml-cohort-chart-wrap"><canvas id="jml-cohort-hist-canvas"></canvas></div>';
+      '<div class="jml-stats-chart-wrap jml-cohort-chart-wrap"><canvas id="jml-cohort-hist-canvas"></canvas></div>' +
+      '</div>' +
+      '</div>';
 
     updateStatsChartHeadings();
     redrawAllStatsCharts();
