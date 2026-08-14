@@ -36,7 +36,7 @@
       "stats.heat.nEff": "n_eff≈{n}",
       "stats.heat.ageDays": "天齡 {min}–{max}",
       "stats.heat.cellTitle": "{label} 準確率 {p} 答對均時 {avg}",
-      "stats.heat.windowN": "窗口題數 n={n}（激活≥{min}）",
+      "stats.heat.windowN": "窗口題數 n={n}",
       "stats.heat.capNote": "答對題單題耗時超過 {cap} 的記錄不納入個人/全體速度側統計（排除掛機、長時間切屏等異常偏慢）。",
       "stats.heat.legend.title": "圖例：",
       "stats.heat.legend.body":
@@ -121,7 +121,7 @@
       "stats.heat.nEff": "n_eff≈{n}",
       "stats.heat.ageDays": "Age {min}–{max} d",
       "stats.heat.cellTitle": "{label} accuracy {p} avg time {avg}",
-      "stats.heat.windowN": "Window n={n} (active≥{min})",
+      "stats.heat.windowN": "Window n={n}",
       "stats.heat.capNote":
         "Correct-answer times over {cap} are excluded from personal/cohort speed stats (idle/tab-away outliers).",
       "stats.heat.legend.title": "Legend:",
