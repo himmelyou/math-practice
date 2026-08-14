@@ -1902,10 +1902,8 @@
           '</span></div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(
-            rtf('stats.heat.windowN', {
-              n: c.n != null && Number.isFinite(c.n) ? c.n : 0,
-              min: heat.minAttempts != null ? heat.minAttempts : 10,
-            })
+            (getReportLang() === 'en' ? 'Window n=' : '窗口題數 n=') +
+              (c.n != null && Number.isFinite(c.n) ? c.n : 0)
           ) +
           '</div>' +
           '<div class="jml-heatmap-cell-meta">' +
