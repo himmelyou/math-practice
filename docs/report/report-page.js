@@ -118,6 +118,8 @@
     /** 训练选关 Debug 最近一次完整 JSON（供复制） */
     trainDebugPayload: null,
     serverTrainingPick: null,
+    /** 小数/平方数/整除下一关（admin category-next-levels） */
+    serverCategoryNext: null,
   };
 
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
@@ -1201,6 +1203,7 @@
     state.heatmapFromServer = false;
     state.trainDebugPayload = null;
     state.serverTrainingPick = null;
+    state.serverCategoryNext = null;
     renderRunsTable();
     renderWrongBook();
     renderExpandWrongBook();
@@ -1502,6 +1505,7 @@
         renderExpandWrongBook();
         state.loadedStudentUsername = u;
         state.serverTrainingPick = null;
+        state.serverCategoryNext = null;
         state.trainDebugPayload = null;
         state.heatmapFromServer = false;
         state.heatByCategory = {};
@@ -1541,6 +1545,19 @@
           })
           .catch(function () {
             /* 图例可稍后在 Debug Tab 拉取 */
+          });
+        void apiFetch(
+          '/api/admin/user/' + encodeURIComponent(u) + '/category-next-levels'
+        )
+          .then(function (apiData) {
+            if (state.selectedUsername !== u) return;
+            state.serverCategoryNext =
+              apiData && apiData.ok && apiData.byCategory ? apiData.byCategory : null;
+            if (activeTabId() === 'stats') renderStatsPanel();
+          })
+          .catch(function () {
+            if (state.selectedUsername !== u) return;
+            state.serverCategoryNext = null;
           });
 
         if (activeTabId() === 'stats') {
@@ -1945,24 +1962,62 @@
       var recK = Math.min(15, Math.max(0, Math.floor(Number(sp.levelIndex))));
       var isBrush = !!(sp.brushMode || sp.dayMode === 'heat' || sp.mode === 'brush');
       var modeLabel = isBrush ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily');
-      return (
-        '<span class="jml-heat-cat-next" title="' +
-        escapeHtml(rt('stats.heat.legend.recommend')) +
-        '">' +
-        escapeHtml(
-          rtf('stats.heat.catNext', {
-            level: recK + 1,
-            mode: modeLabel,
-          })
-        ) +
-        '</span>'
-      );
+      return formatCategoryNextBadgeHtml('L' + (recK + 1), modeLabel, rt('stats.heat.legend.recommend'));
     }
+    return formatCategoryNextPendingHtml('见「训练选关 Debug」');
+  }
+
+  function formatCategoryNextBadgeHtml(levelLabel, modeLabel, title) {
     return (
-      '<span class="jml-heat-cat-next jml-heat-cat-next-muted" title="见「训练选关 Debug」">' +
+      '<span class="jml-heat-cat-next" title="' +
+      escapeHtml(title || '') +
+      '">' +
+      escapeHtml(
+        rtf('stats.heat.catNext', {
+          label: levelLabel,
+          mode: modeLabel,
+        })
+      ) +
+      '</span>'
+    );
+  }
+
+  function formatCategoryNextPendingHtml(title) {
+    return (
+      '<span class="jml-heat-cat-next jml-heat-cat-next-muted" title="' +
+      escapeHtml(title || '') +
+      '">' +
       escapeHtml(rt('stats.heat.catNextPending')) +
       '</span>'
     );
+  }
+
+  function formatSpecialCategoryNextBadgeHtml(categoryId, levelPrefix) {
+    var map = state.serverCategoryNext;
+    var pick = map && map[categoryId] ? map[categoryId] : null;
+    if (!pick || pick.ok === false) {
+      return formatCategoryNextPendingHtml(rt('stats.heat.catNextSpecialHint'));
+    }
+    if (pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) {
+      return formatCategoryNextPendingHtml(String(pick.reason || ''));
+    }
+    var prefix = levelPrefix || 'L';
+    var n = Math.max(0, Math.floor(Number(pick.levelIndex))) + 1;
+    var isBrush = pick.mode === 'brush' || pick.cleared === true;
+    var modeLabel = isBrush ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.frontier');
+    var title = isBrush
+      ? rt('stats.heat.legend.recommendCleared')
+      : rt('stats.heat.legend.recommendFrontier');
+    return formatCategoryNextBadgeHtml(prefix + n, modeLabel, title);
+  }
+
+  function formatHeatCategoryNextBadgeHtml(cat) {
+    if (!cat || !cat.id) return '';
+    if (cat.id === 'arithmetic') return formatArithmeticNextBadgeHtml();
+    if (cat.id === 'decimal' || cat.id === 'perfectSquare' || cat.id === 'divisibility') {
+      return formatSpecialCategoryNextBadgeHtml(cat.id, cat.levelPrefix || 'L');
+    }
+    return '';
   }
 
   function buildStatsHelpDetailsHtml() {
@@ -2093,7 +2148,7 @@
         var open = state.expandedCategoryId === cat.id;
         var label = rt(cat.labelKey);
         if (!label || label === cat.labelKey) label = cat.labelFallback || cat.id;
-        var nextBadge = cat.id === 'arithmetic' ? formatArithmeticNextBadgeHtml() : '';
+        var nextBadge = formatHeatCategoryNextBadgeHtml(cat);
         return (
           '<div class="jml-heat-cat' +
           (open ? ' open' : '') +

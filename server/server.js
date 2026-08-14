@@ -25,6 +25,7 @@ const { buildUserHeatmapsByCategory } = require("./user-heatmap");
 const {
   computeDecimalBrushLevel,
   computeDivisibilityPostClearLevel,
+  computeSpecialCategoryNextLevels,
 } = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
 const {
@@ -3333,6 +3334,57 @@ app.get("/api/admin/user/:username/heatmap", (req, res) => {
   } catch (e) {
     console.warn("[admin user/heatmap]", e && e.message ? e.message : e);
     return res.status(500).json({ ok: false, error: "热图计算失败" });
+  }
+});
+
+/**
+ * 管理员：小数 / 平方数 / 整除「模式下一关」
+ * 口径：通关前前沿（档案 current），通关后刷弱项。四则仍见 training/next-level-debug。
+ */
+app.get("/api/admin/user/:username/category-next-levels", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = usersData.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const runs = runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const built = computeSpecialCategoryNextLevels({
+      user,
+      runs,
+      cohorts: {
+        decimal: readCohortDecimalResultForHeatmap(),
+        perfectSquare: readCohortPerfectSquareResultForHeatmap(),
+        divisibility: readCohortDivisibilityResultForHeatmap(),
+      },
+    });
+    return res.json({
+      ok: true,
+      username,
+      at: new Date().toISOString(),
+      source: "server_computeSpecialCategoryNextLevels",
+      note:
+        "通关前 frontier=档案 current；通关后 brush。四则请用 /training/next-level-debug。",
+      byCategory: built.byCategory || {},
+      profile: {
+        levelDecimalCurrentLevel: user.levelDecimalCurrentLevel,
+        levelDecimalUnlockedMax: user.levelDecimalUnlockedMax,
+        levelPerfectSquareCurrentLevel: user.levelPerfectSquareCurrentLevel,
+        levelPerfectSquareUnlockedMax: user.levelPerfectSquareUnlockedMax,
+        levelDivisibilityCurrentLevel: user.levelDivisibilityCurrentLevel,
+        levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
+      },
+    });
+  } catch (e) {
+    console.warn("[admin category-next-levels]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
   }
 });
 

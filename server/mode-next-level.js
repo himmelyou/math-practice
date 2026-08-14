@@ -1,11 +1,19 @@
 /**
- * 小数刷选 / 整除通关后选关（服务器权威，与浏览器旧本地逻辑同函数）。
+ * 小数 / 整除 / 平方数选关（服务器权威）。
+ * 报表「模式下一关」口径：通关前推前沿（档案 current），通关后刷弱项。
+ * 局内局部刷选仍可直接调用 *Brush* / *PostClear*。
  */
 const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
 
 const DEFAULT_CAP_MS = 60 * 1000;
-const DEFAULT_DECIMAL_MAX = 5; // D1–D6 → index 0–5；页面 decMaxLevel 可能更严
+const DEFAULT_DECIMAL_MAX = 5; // D1–D6 → index 0–5
 const DEFAULT_DIV_PLAYABLE_MAX = 4; // Z1–Z5 可玩；热图 4 档
+const DEFAULT_PS_MAX = 3; // L1–L4 → index 0–3
+
+function clampInt(n, lo, hi) {
+  const v = Math.floor(Number(n) || 0);
+  return Math.max(lo, Math.min(hi, v));
+}
 
 function buildCategoryHeat(HM, runs, cohort, categoryId) {
   const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory(categoryId) : null;
@@ -16,7 +24,9 @@ function buildCategoryHeat(HM, runs, cohort, categoryId) {
         ? HM.DIVISIBILITY_LEVEL_COUNT || 4
         : categoryId === "decimal"
           ? HM.DECIMAL_LEVEL_COUNT || 6
-          : 16;
+          : categoryId === "perfectSquare"
+            ? HM.PERFECT_SQUARE_LEVEL_COUNT || 4
+            : 16;
   const modes = cat && cat.modes ? cat.modes : [categoryId];
   const capMs =
     cohort && Number(cohort.timeSpentMsCap) > 0 ? Number(cohort.timeSpentMsCap) : DEFAULT_CAP_MS;
@@ -30,6 +40,14 @@ function buildCategoryHeat(HM, runs, cohort, categoryId) {
   return { heat, levelCount, modes, capMs };
 }
 
+function loadHeatmapModule() {
+  try {
+    return { ok: true, HM: getJmlStatsHeatmap() };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || "heatmap unavailable" };
+  }
+}
+
 /**
  * @param {object} opts
  * @param {Array} opts.runs
@@ -39,12 +57,9 @@ function buildCategoryHeat(HM, runs, cohort, categoryId) {
  */
 function computeDecimalBrushLevel(opts) {
   opts = opts || {};
-  let HM;
-  try {
-    HM = getJmlStatsHeatmap();
-  } catch (e) {
-    return { ok: false, error: (e && e.message) || "heatmap unavailable" };
-  }
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
   if (!HM || typeof HM.buildHeatmapCells !== "function") {
     return { ok: false, error: "buildHeatmapCells missing" };
   }
@@ -82,6 +97,63 @@ function computeDecimalBrushLevel(opts) {
 }
 
 /**
+ * 小数模式下一关：未通关 → 前沿 current；通关后 → 全池刷弱项。
+ */
+function computeDecimalNextLevel(opts) {
+  opts = opts || {};
+  const playableMax =
+    opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
+      ? Math.max(0, Math.floor(Number(opts.playableMax)))
+      : DEFAULT_DECIMAL_MAX;
+  const clearedUnlock = playableMax + 1;
+  const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
+  const playableUnlocked = Math.min(unlockedMax, playableMax);
+  const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
+
+  if (unlockedMax <= playableMax) {
+    return {
+      ok: true,
+      levelIndex: Math.min(currentLevel, playableUnlocked),
+      reason: "frontier",
+      mode: "frontier",
+      cleared: false,
+      unlockedMax,
+      playableMax,
+    };
+  }
+
+  const brush = computeDecimalBrushLevel({
+    runs: opts.runs,
+    cohort: opts.cohort,
+    poolMax: playableMax,
+    playableMax,
+  });
+  if (!brush.ok) return brush;
+  if (brush.levelIndex == null) {
+    return {
+      ok: true,
+      levelIndex: currentLevel,
+      reason: "current_fallback",
+      mode: "brush",
+      cleared: true,
+      unlockedMax,
+      playableMax,
+      poolMax: playableMax,
+    };
+  }
+  return {
+    ok: true,
+    levelIndex: brush.levelIndex,
+    reason: brush.reason || "cleared_brush",
+    mode: "brush",
+    cleared: true,
+    unlockedMax,
+    playableMax,
+    poolMax: brush.poolMax,
+  };
+}
+
+/**
  * @param {object} opts
  * @param {Array} opts.runs
  * @param {object|null} opts.cohort
@@ -90,12 +162,9 @@ function computeDecimalBrushLevel(opts) {
  */
 function computeDivisibilityPostClearLevel(opts) {
   opts = opts || {};
-  let HM;
-  try {
-    HM = getJmlStatsHeatmap();
-  } catch (e) {
-    return { ok: false, error: (e && e.message) || "heatmap unavailable" };
-  }
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
   if (!HM || typeof HM.buildHeatmapCells !== "function") {
     return { ok: false, error: "buildHeatmapCells missing" };
   }
@@ -144,7 +213,227 @@ function computeDivisibilityPostClearLevel(opts) {
   };
 }
 
+/**
+ * 整除模式下一关：未通关 → 前沿 current；通关后 → post-clear 刷弱项。
+ */
+function computeDivisibilityNextLevel(opts) {
+  opts = opts || {};
+  const playableMax =
+    opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
+      ? Math.max(0, Math.floor(Number(opts.playableMax)))
+      : DEFAULT_DIV_PLAYABLE_MAX;
+  const clearedUnlock = playableMax + 1;
+  const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
+  const playableUnlocked = Math.min(unlockedMax, playableMax);
+  const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
+
+  if (unlockedMax <= playableMax) {
+    return {
+      ok: true,
+      levelIndex: Math.min(currentLevel, playableUnlocked),
+      reason: "frontier",
+      mode: "frontier",
+      cleared: false,
+      unlockedMax,
+      playableMax,
+    };
+  }
+
+  const post = computeDivisibilityPostClearLevel({
+    runs: opts.runs,
+    cohort: opts.cohort,
+    unlockedMax,
+    playableMax,
+  });
+  if (!post.ok) return post;
+  if (post.levelIndex == null) {
+    return {
+      ok: true,
+      levelIndex: currentLevel,
+      reason: post.reason || "current_fallback",
+      mode: "brush",
+      cleared: true,
+      unlockedMax,
+      playableMax,
+    };
+  }
+  return {
+    ok: true,
+    levelIndex: post.levelIndex,
+    reason: post.reason || "cleared_brush",
+    mode: "brush",
+    cleared: true,
+    unlockedMax,
+    playableMax,
+  };
+}
+
+/**
+ * 平方数解锁池刷选（通关后 / 局内刷用）。
+ */
+function computePerfectSquareBrushLevel(opts) {
+  opts = opts || {};
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { ok: false, error: "buildHeatmapCells missing" };
+  }
+  if (typeof HM.recommendUnlockedWeightedBrush !== "function") {
+    return { ok: false, error: "recommendUnlockedWeightedBrush missing" };
+  }
+
+  const playableMax =
+    opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
+      ? Math.max(0, Math.floor(Number(opts.playableMax)))
+      : DEFAULT_PS_MAX;
+  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "perfectSquare");
+  const poolMax = Math.max(
+    0,
+    Math.min(playableMax, levelCount - 1, Math.floor(Number(opts.poolMax) || 0))
+  );
+  const pick = HM.recommendUnlockedWeightedBrush(heat, poolMax);
+  if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) {
+    return {
+      ok: true,
+      levelIndex: null,
+      reason: "no_pick",
+      poolMax,
+      heat,
+    };
+  }
+  const levelIndex = Math.max(0, Math.min(poolMax, Math.floor(Number(pick.levelIndex))));
+  return {
+    ok: true,
+    levelIndex,
+    reason: pick.reason || "brush",
+    poolMax,
+    heat,
+  };
+}
+
+/**
+ * 平方数模式下一关：未通关 → 前沿 current；通关后 → 全池刷弱项。
+ */
+function computePerfectSquareNextLevel(opts) {
+  opts = opts || {};
+  const playableMax =
+    opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
+      ? Math.max(0, Math.floor(Number(opts.playableMax)))
+      : DEFAULT_PS_MAX;
+  const clearedUnlock = playableMax + 1;
+  const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
+  const playableUnlocked = Math.min(unlockedMax, playableMax);
+  const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
+
+  if (unlockedMax <= playableMax) {
+    return {
+      ok: true,
+      levelIndex: Math.min(currentLevel, playableUnlocked),
+      reason: "frontier",
+      mode: "frontier",
+      cleared: false,
+      unlockedMax,
+      playableMax,
+    };
+  }
+
+  const brush = computePerfectSquareBrushLevel({
+    runs: opts.runs,
+    cohort: opts.cohort,
+    poolMax: playableMax,
+    playableMax,
+  });
+  if (!brush.ok) return brush;
+  if (brush.levelIndex == null) {
+    return {
+      ok: true,
+      levelIndex: currentLevel,
+      reason: "current_fallback",
+      mode: "brush",
+      cleared: true,
+      unlockedMax,
+      playableMax,
+      poolMax: playableMax,
+    };
+  }
+  return {
+    ok: true,
+    levelIndex: brush.levelIndex,
+    reason: brush.reason || "cleared_brush",
+    mode: "brush",
+    cleared: true,
+    unlockedMax,
+    playableMax,
+    poolMax: brush.poolMax,
+  };
+}
+
+/**
+ * 从 user 档案字段组装三类特殊模式推荐（不含四则）。
+ * @param {object} opts
+ * @param {object} opts.user
+ * @param {Array} opts.runs
+ * @param {object} opts.cohorts { decimal, perfectSquare, divisibility }
+ */
+function computeSpecialCategoryNextLevels(opts) {
+  opts = opts || {};
+  const user = opts.user || {};
+  const runs = opts.runs || [];
+  const cohorts = opts.cohorts || {};
+
+  const decimal = computeDecimalNextLevel({
+    runs,
+    cohort: cohorts.decimal || null,
+    unlockedMax:
+      typeof user.levelDecimalUnlockedMax === "number" ? user.levelDecimalUnlockedMax : 0,
+    currentLevel:
+      typeof user.levelDecimalCurrentLevel === "number" ? user.levelDecimalCurrentLevel : 0,
+  });
+  const perfectSquare = computePerfectSquareNextLevel({
+    runs,
+    cohort: cohorts.perfectSquare || null,
+    unlockedMax:
+      typeof user.levelPerfectSquareUnlockedMax === "number"
+        ? user.levelPerfectSquareUnlockedMax
+        : 0,
+    currentLevel:
+      typeof user.levelPerfectSquareCurrentLevel === "number"
+        ? user.levelPerfectSquareCurrentLevel
+        : 0,
+  });
+  const divisibility = computeDivisibilityNextLevel({
+    runs,
+    cohort: cohorts.divisibility || null,
+    unlockedMax:
+      typeof user.levelDivisibilityUnlockedMax === "number"
+        ? user.levelDivisibilityUnlockedMax
+        : 0,
+    currentLevel:
+      typeof user.levelDivisibilityCurrentLevel === "number"
+        ? user.levelDivisibilityCurrentLevel
+        : 0,
+  });
+
+  return {
+    ok: true,
+    byCategory: {
+      decimal,
+      perfectSquare,
+      divisibility,
+    },
+  };
+}
+
 module.exports = {
+  DEFAULT_DECIMAL_MAX,
+  DEFAULT_DIV_PLAYABLE_MAX,
+  DEFAULT_PS_MAX,
   computeDecimalBrushLevel,
+  computeDecimalNextLevel,
   computeDivisibilityPostClearLevel,
+  computeDivisibilityNextLevel,
+  computePerfectSquareBrushLevel,
+  computePerfectSquareNextLevel,
+  computeSpecialCategoryNextLevels,
 };
