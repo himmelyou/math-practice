@@ -333,6 +333,7 @@
   function showDecimalPrestart(opts) {
     opts = opts || {};
     const keepLevel = opts.keepLevel === true;
+    decRecommendSeq += 1;
     if (!keepLevel) {
       decLevel = Math.min(Math.max(getDecimalCurrentLevel(), 0), decMaxLevel());
     } else {
@@ -381,6 +382,9 @@
     renderDecimalRecentRuns();
     deps.updateGlobalBackButtonState();
     if (deps.scheduleSyncAllRuleHints) deps.scheduleSyncAllRuleHints();
+    if (!keepLevel) {
+      void applyRecommendedLevelOnPrestart();
+    }
   }
 
   function escapeDecHtml(s) {
@@ -576,39 +580,41 @@
   }
 
   /**
-   * 非前沿 0 错：在已解锁关里刷选。登录学员走服务器；游客才本地建格兜底。
-   * @returns {number|null} levelIndex
+   * 模式下一关（解锁与选关分离）：登录走服务器；游客本地梯子/刷选兜底。
+   * @param {number} [unlockedMaxHint] 局末可用 outcome.savedUnlockedMax
+   * @returns {Promise<number|null>}
    */
-  async function pickDecimalBrushLevel(unlockedPoolMax) {
-    const poolCap = Math.max(
-      0,
-      Math.min(decMaxLevel(), Math.floor(Number(unlockedPoolMax) || 0))
-    );
-    if (typeof deps.fetchDecimalBrushLevel === "function") {
+  async function resolveDecimalRecommendedLevel(unlockedMaxHint) {
+    const unlockedHint =
+      unlockedMaxHint != null
+        ? Math.floor(Number(unlockedMaxHint) || 0)
+        : getDecimalStoredUnlockedMax();
+
+    if (typeof deps.fetchDecimalRecommendedLevel === "function") {
       try {
-        const fromApi = await deps.fetchDecimalBrushLevel(poolCap, decMaxLevel());
-        // undefined = 未调用成功（游客/无 API）；null = 服务器无推荐；number = 关号
+        const fromApi = await deps.fetchDecimalRecommendedLevel(unlockedHint, decMaxLevel());
         if (fromApi === undefined) {
           /* fall through */
         } else if (fromApi != null && Number.isFinite(Number(fromApi))) {
-          return Math.max(0, Math.min(poolCap, Math.floor(Number(fromApi))));
+          return Math.max(0, Math.min(decMaxLevel(), Math.floor(Number(fromApi))));
         } else {
           return null;
         }
       } catch (e) {
-        console.warn("小数刷选 API 失败，尝试本地兜底", e);
+        console.warn("小数选关 API 失败，尝试本地兜底", e);
       }
     }
+
     const guest =
       typeof deps.isGuestMode === "function" ? deps.isGuestMode() : !!deps.isGuestMode;
     if (!guest) return null;
 
     const HM = global.JmlStatsHeatmap;
-    if (!HM || typeof HM.buildHeatmapCells !== "function" || typeof HM.recommendUnlockedWeightedBrush !== "function") {
-      return null;
-    }
+    if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
+    const playableMax = decMaxLevel();
+    const cleared = unlockedHint > playableMax;
     const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("decimal") : null;
-    const levelCount = cat && cat.levelCount > 0 ? cat.levelCount : 5;
+    const levelCount = cat && cat.levelCount > 0 ? cat.levelCount : playableMax + 1;
     const modes = cat && cat.modes ? cat.modes : ["decimal"];
     const [runs, cohort] = await Promise.all([fetchDecimalRunsForHeat(), fetchDecimalCohortForHeat()]);
     const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
@@ -619,9 +625,51 @@
       levelCount: levelCount,
       maxTimeSpentMs: capMs,
     });
-    const pick = HM.recommendUnlockedWeightedBrush(heat, poolCap);
-    if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
-    return Math.max(0, Math.min(poolCap, Math.floor(Number(pick.levelIndex))));
+
+    if (!cleared) {
+      if (typeof HM.recommendSpecialModeLadderLevel !== "function") return null;
+      const pick = HM.recommendSpecialModeLadderLevel({
+        cellsResult: heat,
+        unlockedMax: unlockedHint,
+        playableMax: playableMax,
+        runs: runs || [],
+        mode: "decimal",
+      });
+      if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+      return Math.max(0, Math.min(playableMax, Math.floor(Number(pick.levelIndex))));
+    }
+
+    if (typeof HM.recommendUnlockedWeightedBrush !== "function") return null;
+    const pickBrush = HM.recommendUnlockedWeightedBrush(heat, playableMax);
+    if (!pickBrush || pickBrush.levelIndex == null || !Number.isFinite(Number(pickBrush.levelIndex))) {
+      return null;
+    }
+    return Math.max(0, Math.min(playableMax, Math.floor(Number(pickBrush.levelIndex))));
+  }
+
+  let decRecommendSeq = 0;
+
+  async function applyRecommendedLevelOnPrestart() {
+    const seq = ++decRecommendSeq;
+    let lv = null;
+    try {
+      lv = await resolveDecimalRecommendedLevel();
+    } catch (e) {
+      console.warn("小数选关失败", e);
+      return;
+    }
+    if (seq !== decRecommendSeq) return;
+    if (lv == null) return;
+    if (deps.getIsPlaying && deps.getIsPlaying()) return;
+    if (dom().decGameOverPanel && dom().decGameOverPanel.style.display !== "none") return;
+    decLevel = lv;
+    decPrestartLevel = lv;
+    void saveDecimalProgress(lv, getDecimalStoredUnlockedMax());
+    if (deps.getCachedUser()) {
+      deps.getCachedUser().levelDecimalCurrentLevel = lv;
+    }
+    renderDecLevelSelect();
+    syncDecLevelTexts();
   }
 
   async function endDecimalGame() {
@@ -632,22 +680,24 @@
     const startLevel = decRunStartLevel;
     let outcome = resolveDecRunOutcome(startLevel, decWrongCount, decUnlockedMaxBeforeRun);
 
-    // 先入库，再用含本局的 attempts 建小数热图
-    // 非前沿（perfect / keepGoing）：不新开关时，再玩关与默认关都走刷选型热图
-    // 前沿 unlockNew 不动（0 错进下一关 / 1 错留本关并解锁）
+    // 先入库再选关：解锁仍用 special-mode；选关看热图梯子/刷弱项（不看本局 0/1 错）
     await deps.appendRun(durationSec, decScore, startLevel, decWrongCount, "decimal", decAttempts.slice());
 
-    if (outcome.resultKey === "perfect" || outcome.resultKey === "keepGoing") {
-      const poolCap = Math.min(decMaxLevel(), Math.floor(Number(outcome.savedUnlockedMax) || 0));
-      let brushLv = null;
-      try {
-        brushLv = await pickDecimalBrushLevel(poolCap);
-      } catch (e) {
-        console.warn("小数刷选型选关失败，留在本关", e);
-      }
+    let pickLv = null;
+    try {
+      pickLv = await resolveDecimalRecommendedLevel(
+        Math.max(
+          Math.floor(Number(outcome.savedUnlockedMax) || 0),
+          Math.floor(Number(decUnlockedMaxBeforeRun) || 0)
+        )
+      );
+    } catch (e) {
+      console.warn("小数选关失败，沿用局末默认", e);
+    }
+    if (pickLv != null) {
       outcome = Object.assign({}, outcome, {
-        playAgainLevel: brushLv != null ? brushLv : startLevel,
-        savedCurrent: brushLv != null ? brushLv : startLevel,
+        playAgainLevel: pickLv,
+        savedCurrent: pickLv,
       });
     }
 

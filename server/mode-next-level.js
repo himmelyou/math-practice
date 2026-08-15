@@ -1,7 +1,8 @@
 /**
  * 小数 / 整除 / 平方数选关（服务器权威）。
- * 报表「模式下一关」口径：通关前推前沿（档案 current），通关后刷弱项。
- * 局内局部刷选仍可直接调用 *Brush* / *PostClear*。
+ *
+ * 解锁（局内 special-mode）：0/1 错开下一档，不看热图。
+ * 选关：不看上一局 0/1 错——未通关看梯子顶热图流畅；通关后刷弱项。
  */
 const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
 
@@ -46,6 +47,56 @@ function loadHeatmapModule() {
   } catch (e) {
     return { ok: false, error: (e && e.message) || "heatmap unavailable" };
   }
+}
+
+/**
+ * 通关前梯子选关。
+ */
+function pickLadderBeforeClear(HM, opts) {
+  const playableMax = opts.playableMax;
+  const unlockedMax = opts.unlockedMax;
+  const categoryId = opts.categoryId;
+  const mode = opts.mode || categoryId;
+  const { heat } = buildCategoryHeat(HM, opts.runs, opts.cohort, categoryId);
+
+  if (typeof HM.recommendSpecialModeLadderLevel !== "function") {
+    const U = Math.min(unlockedMax, playableMax);
+    return {
+      ok: true,
+      levelIndex: U,
+      reason: "ladder_fallback_unlock_tip",
+      mode: "frontier",
+      cleared: false,
+      unlockedMax,
+      playableMax,
+      ladderTop: null,
+      heat,
+    };
+  }
+
+  const pick = HM.recommendSpecialModeLadderLevel({
+    cellsResult: heat,
+    unlockedMax,
+    playableMax,
+    runs: opts.runs,
+    mode,
+  });
+  const levelIndex = Math.max(
+    0,
+    Math.min(playableMax, Math.floor(Number(pick && pick.levelIndex) || 0))
+  );
+  return {
+    ok: true,
+    levelIndex,
+    reason: (pick && pick.reason) || "ladder",
+    mode: "frontier",
+    cleared: false,
+    unlockedMax,
+    playableMax,
+    ladderTop: pick && pick.ladderTop != null ? pick.ladderTop : null,
+    unlockedPlayable: pick && pick.unlockedPlayable != null ? pick.unlockedPlayable : null,
+    heat,
+  };
 }
 
 /**
@@ -97,29 +148,34 @@ function computeDecimalBrushLevel(opts) {
 }
 
 /**
- * 小数模式下一关：未通关 → 前沿 current；通关后 → 全池刷弱项。
+ * 小数模式下一关：未通关 → 梯子顶热图；通关后 → 全池刷弱项。
  */
 function computeDecimalNextLevel(opts) {
   opts = opts || {};
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { ok: false, error: "buildHeatmapCells missing" };
+  }
+
   const playableMax =
     opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
       ? Math.max(0, Math.floor(Number(opts.playableMax)))
       : DEFAULT_DECIMAL_MAX;
   const clearedUnlock = playableMax + 1;
   const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
-  const playableUnlocked = Math.min(unlockedMax, playableMax);
   const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
 
   if (unlockedMax <= playableMax) {
-    return {
-      ok: true,
-      levelIndex: Math.min(currentLevel, playableUnlocked),
-      reason: "frontier",
-      mode: "frontier",
-      cleared: false,
+    return pickLadderBeforeClear(HM, {
+      runs: opts.runs,
+      cohort: opts.cohort,
       unlockedMax,
       playableMax,
-    };
+      categoryId: "decimal",
+      mode: "decimal",
+    });
   }
 
   const brush = computeDecimalBrushLevel({
@@ -214,29 +270,34 @@ function computeDivisibilityPostClearLevel(opts) {
 }
 
 /**
- * 整除模式下一关：未通关 → 前沿 current；通关后 → post-clear 刷弱项。
+ * 整除模式下一关：未通关 → 梯子顶热图；通关后 → post-clear 刷弱项。
  */
 function computeDivisibilityNextLevel(opts) {
   opts = opts || {};
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { ok: false, error: "buildHeatmapCells missing" };
+  }
+
   const playableMax =
     opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
       ? Math.max(0, Math.floor(Number(opts.playableMax)))
       : DEFAULT_DIV_PLAYABLE_MAX;
   const clearedUnlock = playableMax + 1;
   const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
-  const playableUnlocked = Math.min(unlockedMax, playableMax);
   const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
 
   if (unlockedMax <= playableMax) {
-    return {
-      ok: true,
-      levelIndex: Math.min(currentLevel, playableUnlocked),
-      reason: "frontier",
-      mode: "frontier",
-      cleared: false,
+    return pickLadderBeforeClear(HM, {
+      runs: opts.runs,
+      cohort: opts.cohort,
       unlockedMax,
       playableMax,
-    };
+      categoryId: "divisibility",
+      mode: "divisibility",
+    });
   }
 
   const post = computeDivisibilityPostClearLevel({
@@ -269,7 +330,7 @@ function computeDivisibilityNextLevel(opts) {
 }
 
 /**
- * 平方数解锁池刷选（通关后 / 局内刷用）。
+ * 平方数解锁池刷选（通关后）。
  */
 function computePerfectSquareBrushLevel(opts) {
   opts = opts || {};
@@ -313,29 +374,34 @@ function computePerfectSquareBrushLevel(opts) {
 }
 
 /**
- * 平方数模式下一关：未通关 → 前沿 current；通关后 → 全池刷弱项。
+ * 平方数模式下一关：未通关 → 梯子顶热图；通关后 → 全池刷弱项。
  */
 function computePerfectSquareNextLevel(opts) {
   opts = opts || {};
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { ok: false, error: "buildHeatmapCells missing" };
+  }
+
   const playableMax =
     opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
       ? Math.max(0, Math.floor(Number(opts.playableMax)))
       : DEFAULT_PS_MAX;
   const clearedUnlock = playableMax + 1;
   const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
-  const playableUnlocked = Math.min(unlockedMax, playableMax);
   const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
 
   if (unlockedMax <= playableMax) {
-    return {
-      ok: true,
-      levelIndex: Math.min(currentLevel, playableUnlocked),
-      reason: "frontier",
-      mode: "frontier",
-      cleared: false,
+    return pickLadderBeforeClear(HM, {
+      runs: opts.runs,
+      cohort: opts.cohort,
       unlockedMax,
       playableMax,
-    };
+      categoryId: "perfectSquare",
+      mode: "perfectSquare",
+    });
   }
 
   const brush = computePerfectSquareBrushLevel({

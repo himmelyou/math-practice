@@ -23,8 +23,9 @@ const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { buildUserHeatmapsByCategory } = require("./user-heatmap");
 const {
-  computeDecimalBrushLevel,
-  computeDivisibilityPostClearLevel,
+  computeDecimalNextLevel,
+  computeDivisibilityNextLevel,
+  computePerfectSquareNextLevel,
   computeSpecialCategoryNextLevels,
 } = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
@@ -2133,7 +2134,7 @@ app.get("/api/user/:username/heatmap", requireStudentAuth, ensureOwnData, (req, 
   }
 });
 
-/** 学员：小数非前沿刷选型选关 */
+/** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
 app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const data = readJson(USERS_FILE, { users: [] });
@@ -2147,9 +2148,9 @@ app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnD
       mode: normalizeRunMode(r.mode),
     }));
     const cohort = readCohortDecimalResultForHeatmap();
-    const poolMax =
-      req.query.poolMax != null && req.query.poolMax !== ""
-        ? Number(req.query.poolMax)
+    const unlockedMax =
+      req.query.unlockedMax != null && req.query.unlockedMax !== ""
+        ? Number(req.query.unlockedMax)
         : typeof user.levelDecimalUnlockedMax === "number"
           ? user.levelDecimalUnlockedMax
           : 0;
@@ -2157,11 +2158,13 @@ app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnD
       req.query.playableMax != null && req.query.playableMax !== ""
         ? Number(req.query.playableMax)
         : undefined;
-    const pick = computeDecimalBrushLevel({
+    const pick = computeDecimalNextLevel({
       runs,
       cohort,
-      poolMax,
+      unlockedMax,
       playableMax,
+      currentLevel:
+        typeof user.levelDecimalCurrentLevel === "number" ? user.levelDecimalCurrentLevel : 0,
     });
     if (!pick || !pick.ok) {
       return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
@@ -2171,7 +2174,11 @@ app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnD
       source: "server",
       levelIndex: pick.levelIndex,
       reason: pick.reason,
-      poolMax: pick.poolMax,
+      mode: pick.mode,
+      cleared: !!pick.cleared,
+      unlockedMax: pick.unlockedMax,
+      playableMax: pick.playableMax,
+      ladderTop: pick.ladderTop != null ? pick.ladderTop : null,
     });
   } catch (e) {
     console.warn("[user/decimal/next-level]", e && e.message ? e.message : e);
@@ -2179,7 +2186,7 @@ app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnD
   }
 });
 
-/** 学员：整除通关后推荐关 */
+/** 学员：整除下一关（未通关梯子 / 通关后刷弱项） */
 app.get("/api/user/:username/divisibility/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const data = readJson(USERS_FILE, { users: [] });
@@ -2203,11 +2210,15 @@ app.get("/api/user/:username/divisibility/next-level", requireStudentAuth, ensur
       req.query.playableMax != null && req.query.playableMax !== ""
         ? Number(req.query.playableMax)
         : undefined;
-    const pick = computeDivisibilityPostClearLevel({
+    const pick = computeDivisibilityNextLevel({
       runs,
       cohort,
       unlockedMax,
       playableMax,
+      currentLevel:
+        typeof user.levelDivisibilityCurrentLevel === "number"
+          ? user.levelDivisibilityCurrentLevel
+          : 0,
     });
     if (!pick || !pick.ok) {
       return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
@@ -2217,12 +2228,68 @@ app.get("/api/user/:username/divisibility/next-level", requireStudentAuth, ensur
       source: "server",
       levelIndex: pick.levelIndex,
       reason: pick.reason,
+      mode: pick.mode,
       cleared: !!pick.cleared,
       unlockedMax: pick.unlockedMax,
       playableMax: pick.playableMax,
+      ladderTop: pick.ladderTop != null ? pick.ladderTop : null,
     });
   } catch (e) {
     console.warn("[user/divisibility/next-level]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  }
+});
+
+/** 学员：平方数下一关（未通关梯子 / 通关后刷弱项） */
+app.get("/api/user/:username/perfect-square/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const runs = runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const cohort = readCohortPerfectSquareResultForHeatmap();
+    const unlockedMax =
+      req.query.unlockedMax != null && req.query.unlockedMax !== ""
+        ? Number(req.query.unlockedMax)
+        : typeof user.levelPerfectSquareUnlockedMax === "number"
+          ? user.levelPerfectSquareUnlockedMax
+          : 0;
+    const playableMax =
+      req.query.playableMax != null && req.query.playableMax !== ""
+        ? Number(req.query.playableMax)
+        : undefined;
+    const pick = computePerfectSquareNextLevel({
+      runs,
+      cohort,
+      unlockedMax,
+      playableMax,
+      currentLevel:
+        typeof user.levelPerfectSquareCurrentLevel === "number"
+          ? user.levelPerfectSquareCurrentLevel
+          : 0,
+    });
+    if (!pick || !pick.ok) {
+      return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
+    }
+    return res.json({
+      ok: true,
+      source: "server",
+      levelIndex: pick.levelIndex,
+      reason: pick.reason,
+      mode: pick.mode,
+      cleared: !!pick.cleared,
+      unlockedMax: pick.unlockedMax,
+      playableMax: pick.playableMax,
+      ladderTop: pick.ladderTop != null ? pick.ladderTop : null,
+    });
+  } catch (e) {
+    console.warn("[user/perfect-square/next-level]", e && e.message ? e.message : e);
     return res.status(500).json({ ok: false, error: "选关计算失败" });
   }
 });
@@ -3371,7 +3438,7 @@ app.get("/api/admin/user/:username/category-next-levels", (req, res) => {
       at: new Date().toISOString(),
       source: "server_computeSpecialCategoryNextLevels",
       note:
-        "通关前 frontier=档案 current；通关后 brush。四则请用 /training/next-level-debug。",
+        "未通关：梯子顶热图选关（稳 M / 开 M+1）；通关后刷弱项。解锁仍由局内 0/1 错决定。四则请用 /training/next-level-debug。",
       byCategory: built.byCategory || {},
       profile: {
         levelDecimalCurrentLevel: user.levelDecimalCurrentLevel,

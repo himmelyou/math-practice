@@ -348,9 +348,131 @@
     renderPsRecentRunsTable(runs);
   }
 
+  async function fetchPerfectSquareRunsForHeat() {
+    if (typeof deps.fetchUserRuns === "function") {
+      try {
+        return await deps.fetchUserRuns();
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  async function fetchPerfectSquareCohortForHeat() {
+    if (typeof deps.fetchPerfectSquareCohort === "function") {
+      try {
+        return await deps.fetchPerfectSquareCohort();
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 模式下一关：未通关梯子 / 通关后刷弱项。
+   * @param {number} [unlockedMaxHint]
+   * @returns {Promise<number|null>}
+   */
+  async function resolvePerfectSquareRecommendedLevel(unlockedMaxHint) {
+    const unlockedHint =
+      unlockedMaxHint != null
+        ? Math.floor(Number(unlockedMaxHint) || 0)
+        : getPerfectSquareStoredUnlockedMax();
+
+    if (typeof deps.fetchPerfectSquareRecommendedLevel === "function") {
+      try {
+        const fromApi = await deps.fetchPerfectSquareRecommendedLevel(
+          unlockedHint,
+          psMaxLevel()
+        );
+        if (fromApi === undefined) {
+          /* fall through */
+        } else if (fromApi != null && Number.isFinite(Number(fromApi))) {
+          return Math.max(0, Math.min(psMaxLevel(), Math.floor(Number(fromApi))));
+        } else {
+          return null;
+        }
+      } catch (e) {
+        console.warn("平方数选关 API 失败，尝试本地兜底", e);
+      }
+    }
+
+    const guest =
+      typeof deps.isGuestMode === "function" ? deps.isGuestMode() : !!deps.isGuestMode;
+    if (!guest) return null;
+
+    const HM = global.JmlStatsHeatmap;
+    if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
+    const playableMax = psMaxLevel();
+    const cleared = unlockedHint > playableMax;
+    const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("perfectSquare") : null;
+    const levelCount = cat && cat.levelCount > 0 ? cat.levelCount : playableMax + 1;
+    const modes = cat && cat.modes ? cat.modes : ["perfectSquare"];
+    const [runs, cohort] = await Promise.all([
+      fetchPerfectSquareRunsForHeat(),
+      fetchPerfectSquareCohortForHeat(),
+    ]);
+    const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+    const heat = HM.buildHeatmapCells({
+      runs: runs || [],
+      cohort: cohort && cohort.ok ? cohort : null,
+      modes: modes,
+      levelCount: levelCount,
+      maxTimeSpentMs: capMs,
+    });
+
+    if (!cleared) {
+      if (typeof HM.recommendSpecialModeLadderLevel !== "function") return null;
+      const pick = HM.recommendSpecialModeLadderLevel({
+        cellsResult: heat,
+        unlockedMax: unlockedHint,
+        playableMax: playableMax,
+        runs: runs || [],
+        mode: "perfectSquare",
+      });
+      if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+      return Math.max(0, Math.min(playableMax, Math.floor(Number(pick.levelIndex))));
+    }
+
+    if (typeof HM.recommendUnlockedWeightedBrush !== "function") return null;
+    const pickBrush = HM.recommendUnlockedWeightedBrush(heat, playableMax);
+    if (!pickBrush || pickBrush.levelIndex == null || !Number.isFinite(Number(pickBrush.levelIndex))) {
+      return null;
+    }
+    return Math.max(0, Math.min(playableMax, Math.floor(Number(pickBrush.levelIndex))));
+  }
+
+  let psRecommendSeq = 0;
+
+  async function applyRecommendedLevelOnPrestart() {
+    const seq = ++psRecommendSeq;
+    let lv = null;
+    try {
+      lv = await resolvePerfectSquareRecommendedLevel();
+    } catch (e) {
+      console.warn("平方数选关失败", e);
+      return;
+    }
+    if (seq !== psRecommendSeq) return;
+    if (lv == null) return;
+    if (deps.getIsPlaying && deps.getIsPlaying()) return;
+    if (dom().psGameOverPanel && dom().psGameOverPanel.style.display !== "none") return;
+    psLevel = lv;
+    psPrestartLevel = lv;
+    void savePerfectSquareProgress(lv, getPerfectSquareStoredUnlockedMax());
+    if (deps.getCachedUser()) {
+      deps.getCachedUser().levelPerfectSquareCurrentLevel = lv;
+    }
+    renderPsLevelSelect();
+    syncPsLevelTexts();
+  }
+
   function showPerfectSquarePrestart(opts) {
     opts = opts || {};
     const keepLevel = opts.keepLevel === true;
+    psRecommendSeq += 1;
     if (!keepLevel) {
       psLevel = Math.min(Math.max(getPerfectSquareCurrentLevel(), 0), psMaxLevel());
     } else {
@@ -398,6 +520,9 @@
     renderPerfectSquareRecentRuns();
     deps.updateGlobalBackButtonState();
     if (deps.scheduleSyncAllRuleHints) deps.scheduleSyncAllRuleHints();
+    if (!keepLevel) {
+      void applyRecommendedLevelOnPrestart();
+    }
   }
 
   function nextPsQuestion() {
@@ -537,11 +662,31 @@
     stopPsTimer();
     const durationSec = Math.floor((Date.now() - (psStartTs || Date.now())) / 1000);
     const startLevel = psRunStartLevel;
-    const outcome = resolvePsRunOutcome(startLevel, psWrongCount, psUnlockedMaxBeforeRun);
+    let outcome = resolvePsRunOutcome(startLevel, psWrongCount, psUnlockedMaxBeforeRun);
+
+    await deps.appendRun(durationSec, psScore, startLevel, psWrongCount, "perfectSquare", psAttempts.slice());
+
+    let pickLv = null;
+    try {
+      pickLv = await resolvePerfectSquareRecommendedLevel(
+        Math.max(
+          Math.floor(Number(outcome.savedUnlockedMax) || 0),
+          Math.floor(Number(psUnlockedMaxBeforeRun) || 0)
+        )
+      );
+    } catch (e) {
+      console.warn("平方数选关失败，沿用局末默认", e);
+    }
+    if (pickLv != null) {
+      outcome = Object.assign({}, outcome, {
+        playAgainLevel: pickLv,
+        savedCurrent: pickLv,
+      });
+    }
+
     psPrestartLevel = outcome.playAgainLevel;
     psLevel = outcome.playAgainLevel;
 
-    await deps.appendRun(durationSec, psScore, startLevel, psWrongCount, "perfectSquare", psAttempts.slice());
     savePerfectSquareProgress(outcome.savedCurrent, outcome.savedUnlockedMax);
 
     setPsSoftKeyboardVisible(false);

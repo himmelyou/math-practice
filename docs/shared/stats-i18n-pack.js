@@ -49,7 +49,7 @@
       "stats.heat.legend.recommend": "推薦下一練（與訓練同一邏輯）：",
       "stats.heat.legend.recommendDetail":
         "L{level}（{mode} · {reason}；brushMode={brush}；當日狀態由該學員 runs 反推，與學員端 localStorage 無關。）",
-      "stats.heat.legend.recommendFrontier": "未通關：推薦檔案當前關（闖關）",
+      "stats.heat.legend.recommendFrontier": "未通關：梯子頂熱圖（穩 M / 開 M+1）",
       "stats.heat.legend.recommendCleared": "已通關：熱圖刷弱項",
       "stats.heat.mode.brush": "刷熱圖",
       "stats.heat.mode.daily": "當日闖關",
@@ -139,7 +139,7 @@
       "stats.heat.legend.recommend": "Recommended next (training logic):",
       "stats.heat.legend.recommendDetail":
         "L{level} ({mode} · {reason}; brushMode={brush}; day state inferred from this student's runs, not admin browser storage.)",
-      "stats.heat.legend.recommendFrontier": "Not cleared: recommend profile current level (frontier)",
+      "stats.heat.legend.recommendFrontier": "Not cleared: ladder tip heatmap (hold M / open M+1)",
       "stats.heat.legend.recommendCleared": "Cleared: heatmap brush weak spots",
       "stats.heat.mode.brush": "Brush heatmap",
       "stats.heat.mode.daily": "Daily level",

@@ -348,18 +348,20 @@
   }
 
   /**
-   * 通关后推荐关；未通关返回 null（调用方勿覆盖原逻辑）。
-   * 登录学员走服务器；游客才本地建格兜底。
+   * 模式下一关：未通关梯子 / 通关后刷弱项。登录走服务器；游客本地兜底。
    * @param {number} [unlockedMaxHint] 局末可用 outcome.savedUnlockedMax（含本局刚通关）
    * @returns {Promise<number|null>}
    */
   async function resolveDivisibilityRecommendedLevel(unlockedMaxHint) {
-    if (!isDivisibilityCleared(unlockedMaxHint)) return null;
+    const unlockedHint =
+      unlockedMaxHint != null
+        ? Math.floor(Number(unlockedMaxHint) || 0)
+        : getDivisibilityStoredUnlockedMax();
 
     if (typeof deps.fetchDivisibilityRecommendedLevel === "function") {
       try {
         const fromApi = await deps.fetchDivisibilityRecommendedLevel(
-          unlockedMaxHint != null ? unlockedMaxHint : getDivisibilityStoredUnlockedMax(),
+          unlockedHint,
           divMaxLevel()
         );
         if (fromApi === undefined) {
@@ -370,7 +372,7 @@
           return null;
         }
       } catch (e) {
-        console.warn("整除推荐关 API 失败，尝试本地兜底", e);
+        console.warn("整除选关 API 失败，尝试本地兜底", e);
       }
     }
 
@@ -380,6 +382,8 @@
 
     const HM = global.JmlStatsHeatmap;
     if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
+    const playableMax = divMaxLevel();
+    const cleared = unlockedHint > playableMax;
     const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("divisibility") : null;
     const heatCount =
       cat && cat.levelCount > 0
@@ -400,6 +404,20 @@
       levelCount: heatCount,
       maxTimeSpentMs: capMs,
     });
+
+    if (!cleared) {
+      if (typeof HM.recommendSpecialModeLadderLevel !== "function") return null;
+      const pick = HM.recommendSpecialModeLadderLevel({
+        cellsResult: heat,
+        unlockedMax: unlockedHint,
+        playableMax: playableMax,
+        runs: runs || [],
+        mode: "divisibility",
+      });
+      if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+      return Math.max(0, Math.min(playableMax, Math.floor(Number(pick.levelIndex))));
+    }
+
     const pick =
       typeof HM.recommendDivisibilityPostClearLevel === "function"
         ? HM.recommendDivisibilityPostClearLevel(heat)
@@ -410,14 +428,14 @@
 
   let divRecommendSeq = 0;
 
-  /** 进场：通关后异步改默认关（防过期回调） */
+  /** 进场：异步改默认关（防过期回调） */
   async function applyRecommendedLevelOnPrestart() {
     const seq = ++divRecommendSeq;
     let lv = null;
     try {
       lv = await resolveDivisibilityRecommendedLevel();
     } catch (e) {
-      console.warn("整除通关后推荐选关失败", e);
+      console.warn("整除选关失败", e);
       return;
     }
     if (seq !== divRecommendSeq) return;
@@ -475,7 +493,7 @@
     void renderDivisibilityRecentRuns();
     deps.updateGlobalBackButtonState();
 
-    if (!keepLevel && isDivisibilityCleared()) {
+    if (!keepLevel) {
       void applyRecommendedLevelOnPrestart();
     }
   }
@@ -652,7 +670,7 @@
     let outcome = resolveDivRunOutcome(startLevel, divWrongCount, divUnlockedMaxBeforeRun);
 
     const awardedScore = Math.max(0, divScore);
-    // 先入库，再用含本局的 attempts 建热图（通关后刷选型）
+    // 先入库再选关：解锁仍用 special-mode；选关看热图梯子/通关后刷弱项
     await deps.appendRun(
       durationSec,
       awardedScore,
@@ -662,7 +680,6 @@
       divAttempts.slice()
     );
 
-    // 通关后：唯一推荐关入口（未通关 resolve 返回 null，不覆盖）
     let brushLv = null;
     try {
       brushLv = await resolveDivisibilityRecommendedLevel(
@@ -672,7 +689,7 @@
         )
       );
     } catch (e) {
-      console.warn("整除通关后推荐选关失败，留在本关", e);
+      console.warn("整除选关失败，沿用局末默认", e);
     }
     if (brushLv != null) {
       outcome = Object.assign({}, outcome, {

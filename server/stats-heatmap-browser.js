@@ -1550,6 +1550,84 @@
 
 
   /**
+   * 特殊模式通关前选关（解锁与选关分离）：
+   * 梯子顶 M = 已解锁且「已玩过」的最高关（不含解锁了但 0 题的那一档）。
+   * M 未流畅 → 练 M；M 流畅且还有更高已解锁 → 开 M+1；否则继续 M。
+   * 「玩过」优先看 runs 的 maxLevel；否则看热图格 n>0。
+   *
+   * @param {object} opts
+   * @param {object} opts.cellsResult
+   * @param {number} opts.unlockedMax 已解锁上限（可含通关位；选关时会 clamp 到 playableMax）
+   * @param {number} opts.playableMax 可玩最高 index
+   * @param {Array} [opts.runs]
+   * @param {string} [opts.mode] run.mode，如 decimal / perfectSquare / divisibility
+   * @returns {{ levelIndex: number, reason: string, ladderTop: number, unlockedPlayable: number }}
+   */
+  function recommendSpecialModeLadderLevel(opts) {
+    opts = opts || {};
+    var cellsResult = opts.cellsResult;
+    var playableMax = Math.max(0, Math.floor(Number(opts.playableMax) || 0));
+    var unlockedRaw = Math.max(0, Math.floor(Number(opts.unlockedMax) || 0));
+    var U = Math.min(unlockedRaw, playableMax);
+    var runs = Array.isArray(opts.runs) ? opts.runs : [];
+    var modeNorm = String(opts.mode || '')
+      .toLowerCase()
+      .replace(/[_-]/g, '');
+
+    function levelPlayed(li) {
+      var cell = getCell(cellsResult, li);
+      if (cell && Number(cell.n) > 0) return true;
+      if (!modeNorm) return false;
+      for (var ri = 0; ri < runs.length; ri++) {
+        var r = runs[ri];
+        if (!r || r.comboOnly === true) continue;
+        var rm = String(r.mode || '')
+          .toLowerCase()
+          .replace(/[_-]/g, '');
+        if (rm !== modeNorm) continue;
+        if (Math.floor(Number(r.maxLevel)) === li) return true;
+      }
+      return false;
+    }
+
+    var M = -1;
+    for (var li = 0; li <= U; li++) {
+      if (levelPlayed(li)) M = li;
+    }
+    if (M < 0) {
+      return {
+        levelIndex: 0,
+        reason: 'ladder_start',
+        ladderTop: -1,
+        unlockedPlayable: U,
+      };
+    }
+
+    // 热图档外（如整除 Z5）：无法判流畅 → 稳住该关，靠 0/1 错解锁通关位后再走通关后刷选
+    var heatCount =
+      cellsResult && Array.isArray(cellsResult.cells) ? cellsResult.cells.length : 0;
+    var fluent = false;
+    if (M < heatCount) {
+      fluent = isCellFluent(getCell(cellsResult, M));
+    }
+
+    if (fluent && U > M) {
+      return {
+        levelIndex: Math.min(playableMax, M + 1),
+        reason: 'ladder_open',
+        ladderTop: M,
+        unlockedPlayable: U,
+      };
+    }
+    return {
+      levelIndex: M,
+      reason: fluent ? 'ladder_hold_fluent' : 'ladder_stabilize',
+      ladderTop: M,
+      unlockedPlayable: U,
+    };
+  }
+
+  /**
    * 整除通关后选关：Z1–Z4 未全部流畅（准≥95% 且未过慢）→ 刷选型；否则打 Z5。
    * @returns {{ levelIndex: number, reason: string }|null}
    */
@@ -1606,6 +1684,7 @@
     recommendTrainingBrushSlowAmongPass: recommendTrainingBrushSlowAmongPass,
     recommendTrainingBrushInPool: recommendTrainingBrushInPool,
     recommendUnlockedWeightedBrush: recommendUnlockedWeightedBrush,
+    recommendSpecialModeLadderLevel: recommendSpecialModeLadderLevel,
     recommendDivisibilityPostClearLevel: recommendDivisibilityPostClearLevel,
     computeActiveLadderTopM: computeActiveLadderTopM,
     resolveTrainingHeatBrushPoolMax: resolveTrainingHeatBrushPoolMax,
