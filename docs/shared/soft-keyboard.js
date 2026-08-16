@@ -156,9 +156,17 @@
     var cardEl = resolveCard(options.cardEl || options.kbdEl);
     var inputEl = options.inputEl;
     var onEnter = options.onEnter;
-    if (!cardEl || cardEl.__jmlSoftKbdBound) return cardEl;
-    ensureMounted(cardEl, options.layout, options.t);
-    var layout = resolveLayout(cardEl, options.layout);
+    if (!cardEl) return null;
+    var wantLayout =
+      options.layout && LAYOUT_KEYS[options.layout] ? options.layout : resolveLayout(cardEl, options.layout);
+    var mountedLayout = cardEl.getAttribute("data-jml-soft-kbd-layout");
+    // 已绑定且布局未变：只刷新文案；布局切换时 remount 并重新绑定
+    if (cardEl.__jmlSoftKbdBound && mountedLayout === wantLayout) {
+      applyI18nAfterMount(cardEl, options.t);
+      return cardEl;
+    }
+    ensureMounted(cardEl, wantLayout, options.t);
+    var layout = resolveLayout(cardEl, wantLayout);
     var allowDecimal = layout === "decimal" && options.allowDecimal !== false;
     var kbdEl = getKeysEl(cardEl);
     if (!kbdEl) return cardEl;

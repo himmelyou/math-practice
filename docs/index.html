@@ -4892,7 +4892,7 @@
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=43"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
-  <script src="shared/soft-keyboard.js?v=41"></script>
+  <script src="shared/soft-keyboard.js?v=42"></script>
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=44"></script>
   <script src="shared/divisibility-questions.js?v=5"></script>
@@ -5688,7 +5688,6 @@
 
     function initSoftKeyboardIfNeeded() {
       if (!window.JmlSoftKeyboard || !dom.softKbdCard) return;
-      window.JmlSoftKeyboard.ensureMounted(dom.softKbdCard, "integer", t);
       window.JmlSoftKeyboard.bind({
         cardEl: dom.softKbdCard,
         inputEl: dom.answerInput,
@@ -5704,10 +5703,54 @@
           onSubmit: handleSubmit,
           getShouldLock: shouldLockAnswerInputForSoftKeyboard,
         });
+        window.JmlAnswerInput.syncInteractionMode(dom.answerInput, {
+          inputModeWhenUnlocked: "numeric",
+          getShouldLock: shouldLockAnswerInputForSoftKeyboard,
+        });
       }
       if (dom.psSoftKbdCard) {
         window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbdCard, "integer", t);
       }
+    }
+
+    /** 错题练习：小数题用带小数点键盘，其余整数键盘 */
+    function wrongPracticeEntryNeedsDecimal(entry) {
+      return String((entry && entry.mode) || "")
+        .toLowerCase()
+        .replace(/[_-]/g, "") === "decimal";
+    }
+
+    function syncWrongPracticeSoftKeyboard() {
+      if (!window.JmlSoftKeyboard || !dom.softKbdCard) return;
+      const entry = wrongPracticeQueue[wrongPracticeIndex];
+      const needDec = wrongPracticeEntryNeedsDecimal(entry);
+      const layout = needDec ? "decimal" : "integer";
+      window.JmlSoftKeyboard.bind({
+        cardEl: dom.softKbdCard,
+        inputEl: dom.answerInput,
+        onEnter: handleSubmit,
+        layout: layout,
+        t: t,
+      });
+      if (dom.answerInput && window.JmlAnswerInput) {
+        window.JmlAnswerInput.syncInteractionMode(dom.answerInput, {
+          inputModeWhenUnlocked: needDec ? "decimal" : "numeric",
+          getShouldLock: shouldLockAnswerInputForSoftKeyboard,
+        });
+      }
+    }
+
+    function wrongPracticeAnswersEqual(userAnswer, expected, mode) {
+      const exp = Number(expected);
+      if (!Number.isFinite(userAnswer) || !Number.isFinite(exp)) return false;
+      if (
+        String(mode || "")
+          .toLowerCase()
+          .replace(/[_-]/g, "") === "decimal"
+      ) {
+        return Math.abs(userAnswer - exp) < 1e-6;
+      }
+      return userAnswer === exp;
     }
 
     function getModeTitle() {
@@ -10234,6 +10277,7 @@
       setFeedback("", null);
       updateWrongPracticeStatusUI();
       initSoftKeyboardIfNeeded();
+      syncWrongPracticeSoftKeyboard();
       setSoftKeyboardVisible(true);
       if (dom.submitBtn) dom.submitBtn.style.display = "";
       setGameCardActionSlot("input");
@@ -10241,7 +10285,7 @@
 
     function evaluateAnswerWrong(userAnswer) {
       const q = wrongPracticeQueue[wrongPracticeIndex];
-      const correct = userAnswer === q.answer;
+      const correct = wrongPracticeAnswersEqual(userAnswer, q.answer, q.mode);
       wrongPracticeResults.push({ text: q.text, answer: q.answer, studentAnswer: userAnswer, correct });
       if (correct) {
         setFeedback(t("game.feedback.correctHtml"), "correct");
@@ -10262,6 +10306,7 @@
         dom.answerInput.value = "";
         if (dom.submitBtn) dom.submitBtn.disabled = false;
         setFeedback("", null);
+        syncWrongPracticeSoftKeyboard();
       }, 800);
     }
 
