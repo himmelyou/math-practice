@@ -664,7 +664,25 @@
     const startLevel = psRunStartLevel;
     let outcome = resolvePsRunOutcome(startLevel, psWrongCount, psUnlockedMaxBeforeRun);
 
-    await deps.appendRun(durationSec, psScore, startLevel, psWrongCount, "perfectSquare", psAttempts.slice());
+    let speedMeta = null;
+    if (typeof deps.buildSingleLevelSpeedMeta === "function") {
+      try {
+        speedMeta = await deps.buildSingleLevelSpeedMeta("perfectSquare", startLevel, psAttempts.slice());
+      } catch (e) {
+        console.warn("平方数局速度快照失败", e);
+      }
+    }
+    await deps.appendRun(
+      durationSec,
+      psScore,
+      startLevel,
+      psWrongCount,
+      "perfectSquare",
+      psAttempts.slice(),
+      undefined,
+      undefined,
+      { trainingMeta: speedMeta || { pickedLevel: startLevel } }
+    );
 
     let pickLv = null;
     try {

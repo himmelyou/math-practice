@@ -1591,8 +1591,39 @@
     return escapeHtml(String(Number(v)) + 's');
   }
 
+  /** 训练 / 小数 / 平方数 / 整除 Z1–Z4 展示开局加权速与本局均速；闯关·生存·整除 Z5 为 — */
+  function normalizeRunModeKey(mode) {
+    return String(mode || '')
+      .toLowerCase()
+      .replace(/[_-]/g, '');
+  }
+
+  function runShowsHeatRunSpeed(r) {
+    var m = normalizeRunModeKey(r && r.mode);
+    if (m === 'training' || m === 'decimal' || m === 'perfectsquare') return true;
+    if (m === 'divisibility') {
+      var lv =
+        r.trainingMeta && Number.isFinite(Number(r.trainingMeta.pickedLevel))
+          ? Number(r.trainingMeta.pickedLevel)
+          : r.maxLevel != null && Number.isFinite(Number(r.maxLevel))
+            ? Number(r.maxLevel)
+            : null;
+      // Z5 = levelIndex 4
+      return !(lv != null && Math.floor(lv) >= 4);
+    }
+    return false;
+  }
+
+  function heatLevelCountForRun(r) {
+    var m = normalizeRunModeKey(r && r.mode);
+    if (m === 'decimal') return 6;
+    if (m === 'perfectsquare') return 4;
+    if (m === 'divisibility') return 4;
+    return 16;
+  }
+
   function formatTrainingRunHeatSpeedCell(r) {
-    if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
+    if (!runShowsHeatRunSpeed(r)) {
       return '<span class="jml-runs-pick-muted">—</span>';
     }
     var m = r.trainingMeta;
@@ -1603,7 +1634,7 @@
   }
 
   function formatTrainingRunAvgSpeedCell(r) {
-    if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
+    if (!runShowsHeatRunSpeed(r)) {
       return '<span class="jml-runs-pick-muted">—</span>';
     }
     var m = r.trainingMeta;
@@ -1621,7 +1652,7 @@
       var g = Agg.geoMeanSecFromAttempts(r.attempts, {
         levelIndex: picked != null ? picked : undefined,
         maxTimeSpentMs: Agg.DEFAULT_MAX_TIME_SPENT_MS || 60 * 1000,
-        levelCount: 16,
+        levelCount: heatLevelCountForRun(r),
       });
       if (g && g.avgSec != null) return formatTrainingSpeedSec(g.avgSec);
     }
@@ -2670,7 +2701,7 @@
         if (backfillRunSpeed.disabled) return;
         if (
           !window.confirm(
-            '临时维护：全库扫描 training 局，按新口径写回 runAvgSec 到 runs.json。\n\n确认执行？（Render 需已部署对应 API）'
+            '临时维护：全库扫描训练 / 小数 / 平方数 / 整除 Z1–Z4 局，按 attempts 写回 runAvgSec（不含开局加权速）。\n\n确认执行？（Render 需已部署对应 API）'
           )
         ) {
           return;
@@ -2692,13 +2723,22 @@
               '回填完成\n' +
                 '学员数：' +
                 d.usersScanned +
-                '\n训练局：' +
-                d.trainingRunsScanned +
+                '\n扫描局数：' +
+                (d.runsScanned != null ? d.runsScanned : d.trainingRunsScanned) +
+                '\n  训练：' +
+                (d.trainingRunsScanned || 0) +
+                '\n  小数：' +
+                (d.decimalRunsScanned || 0) +
+                '\n  平方：' +
+                (d.perfectSquareRunsScanned || 0) +
+                '\n  整除Z1–4：' +
+                (d.divisibilityRunsScanned || 0) +
                 '\n已更新：' +
                 d.updated +
                 '\n写入磁盘：' +
                 (d.written ? '是' : '否（无变更）') +
-                (d.skippedNoAttempts ? '\n无 attempts 跳过：' + d.skippedNoAttempts : '')
+                (d.skippedNoAttempts ? '\n无 attempts 跳过：' + d.skippedNoAttempts : '') +
+                (d.skippedZ5 ? '\n整除Z5 跳过：' + d.skippedZ5 : '')
             );
             if (state.selectedUsername) {
               return loadStudentData();

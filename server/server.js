@@ -3768,7 +3768,7 @@ app.post("/api/admin/maintenance/dedupe-usernames", (req, res) => {
   });
 });
 
-/** TEMP：全库回填 training runs 的 runMeanLn / runAvgSec（对+错几何均，≤60s）；用后删路由与报表按钮 */
+/** TEMP：全库回填本局均速 runMeanLn/runAvgSec（训练+小数+平方+整除Z1–4）；用后删路由与报表按钮 */
 app.post("/api/admin/maintenance/backfill-training-run-speed", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });

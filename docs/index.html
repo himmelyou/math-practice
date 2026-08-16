@@ -4899,9 +4899,9 @@
   <script src="shared/decimal-questions.js?v=49"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=49"></script>
-  <script src="divisibility-page.js?v=12"></script>
-  <script src="decimal-page.js?v=14"></script>
+  <script src="perfect-square-page.js?v=50"></script>
+  <script src="divisibility-page.js?v=13"></script>
+  <script src="decimal-page.js?v=15"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5442,6 +5442,7 @@
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
         appendRun: appendRun,
+        buildSingleLevelSpeedMeta: buildSingleLevelSpeedMeta,
         recordWrongAnswer: recordWrongAnswer,
         formatCompactRunTime: formatCompactRunTime,
         escapeHtml: escapeHtml,
@@ -5509,6 +5510,7 @@
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
         appendRun: appendRun,
+        buildSingleLevelSpeedMeta: buildSingleLevelSpeedMeta,
         recordWrongAnswer: recordWrongAnswer,
         formatCompactRunTime: formatCompactRunTime,
         escapeHtml: escapeHtml,
@@ -5573,6 +5575,7 @@
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
         appendRun: appendRun,
+        buildSingleLevelSpeedMeta: buildSingleLevelSpeedMeta,
         recordWrongAnswer: recordWrongAnswer,
         formatCompactRunTime: formatCompactRunTime,
         escapeHtml: escapeHtml,
@@ -13770,6 +13773,84 @@
       return {
         runMeanLn: meanLn,
         runAvgSec: secFromMeanLn(meanLn),
+      };
+    }
+
+    /**
+     * 小数 / 平方数 / 整除 Z1–Z4：开局加权速（入库前热图格）+ 本局均速。
+     * 整除 Z5 不写速度字段（Report 显示 —）。须在 appendRun 前调用。
+     */
+    async function buildSingleLevelSpeedMeta(mode, levelIndex, attempts) {
+      const m = normalizeAppendRunMode(mode);
+      const lv = Math.max(0, Math.floor(Number(levelIndex) || 0));
+      if (m === "divisibility" && lv >= 4) {
+        return { pickedLevel: lv };
+      }
+      const HM = window.JmlStatsHeatmap;
+      const Agg = window.JmlStatsAggregate;
+      const catId =
+        m === "decimal" ? "decimal" : m === "perfectSquare" ? "perfectSquare" : m === "divisibility" ? "divisibility" : null;
+      if (!catId) return { pickedLevel: lv };
+
+      const cat = HM && typeof HM.getHeatmapCategory === "function" ? HM.getHeatmapCategory(catId) : null;
+      const levelCount =
+        cat && cat.levelCount > 0
+          ? cat.levelCount
+          : m === "decimal"
+            ? 6
+            : 4;
+      const modes = cat && Array.isArray(cat.modes) ? cat.modes : [m];
+
+      let heatMeanLnAtStart = null;
+      let heatAvgSecAtStart = null;
+      let capMs = 60 * 1000;
+      try {
+        const fetchCohort =
+          m === "decimal"
+            ? fetchPublicDecimalCohort
+            : m === "perfectSquare"
+              ? fetchPublicPerfectSquareCohort
+              : fetchPublicDivisibilityCohort;
+        const [runs, cohort] = await Promise.all([fetchRunsForTrainingHeatmap(), fetchCohort()]);
+        capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+        if (HM && typeof HM.buildHeatmapCells === "function") {
+          const heat = HM.buildHeatmapCells({
+            runs: runs || [],
+            cohort: cohort && cohort.ok ? cohort : null,
+            modes: modes,
+            levelCount: levelCount,
+            maxTimeSpentMs: capMs,
+          });
+          const cell = getHeatCellForLevel(heat, Math.min(levelCount - 1, lv));
+          if (cell && cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))) {
+            heatMeanLnAtStart = Number(cell.meanLnCorrect);
+            heatAvgSecAtStart = secFromMeanLn(heatMeanLnAtStart);
+          }
+        }
+      } catch (e) {
+        console.warn("单关开局加权速快照失败", e);
+      }
+
+      let runMeanLn = null;
+      let runAvgSec = null;
+      if (Agg && typeof Agg.geoMeanSecFromAttempts === "function") {
+        const g = Agg.geoMeanSecFromAttempts(attempts, {
+          levelIndex: lv,
+          maxTimeSpentMs: capMs,
+          levelCount: levelCount,
+        });
+        if (g) {
+          runMeanLn = g.meanLn != null ? g.meanLn : null;
+          runAvgSec = g.avgSec != null ? g.avgSec : null;
+        }
+      }
+
+      return {
+        pickedLevel: lv,
+        heatMeanLnAtStart: heatMeanLnAtStart,
+        heatAvgSecAtStart: heatAvgSecAtStart,
+        runMeanLn: runMeanLn,
+        runAvgSec: runAvgSec,
       };
     }
 

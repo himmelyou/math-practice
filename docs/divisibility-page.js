@@ -671,13 +671,24 @@
 
     const awardedScore = Math.max(0, divScore);
     // 先入库再选关：解锁仍用 special-mode；选关看热图梯子/通关后刷弱项
+    let speedMeta = null;
+    if (typeof deps.buildSingleLevelSpeedMeta === "function") {
+      try {
+        speedMeta = await deps.buildSingleLevelSpeedMeta("divisibility", startLevel, divAttempts.slice());
+      } catch (e) {
+        console.warn("整除局速度快照失败", e);
+      }
+    }
     await deps.appendRun(
       durationSec,
       awardedScore,
       startLevel,
       divWrongCount,
       "divisibility",
-      divAttempts.slice()
+      divAttempts.slice(),
+      undefined,
+      undefined,
+      { trainingMeta: speedMeta || { pickedLevel: startLevel } }
     );
 
     let brushLv = null;

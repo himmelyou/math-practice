@@ -681,7 +681,25 @@
     let outcome = resolveDecRunOutcome(startLevel, decWrongCount, decUnlockedMaxBeforeRun);
 
     // 先入库再选关：解锁仍用 special-mode；选关看热图梯子/刷弱项（不看本局 0/1 错）
-    await deps.appendRun(durationSec, decScore, startLevel, decWrongCount, "decimal", decAttempts.slice());
+    let speedMeta = null;
+    if (typeof deps.buildSingleLevelSpeedMeta === "function") {
+      try {
+        speedMeta = await deps.buildSingleLevelSpeedMeta("decimal", startLevel, decAttempts.slice());
+      } catch (e) {
+        console.warn("小数局速度快照失败", e);
+      }
+    }
+    await deps.appendRun(
+      durationSec,
+      decScore,
+      startLevel,
+      decWrongCount,
+      "decimal",
+      decAttempts.slice(),
+      undefined,
+      undefined,
+      { trainingMeta: speedMeta || { pickedLevel: startLevel } }
+    );
 
     let pickLv = null;
     try {

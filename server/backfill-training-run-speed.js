@@ -1,9 +1,13 @@
 /**
  * 临时：按报表与本局均速统一口径回填 trainingMeta.runMeanLn / runAvgSec。
+ * 覆盖：training / decimal / perfectSquare / divisibility Z1–Z4。
  * 对+错、几何均、timeSpentMs > cap 剔除。用完后可删本文件与对应 admin 路由。
  */
 const DEFAULT_CAP_MS = 60 * 1000;
 const ARITH_LEVEL_COUNT = 16;
+const DECIMAL_LEVEL_COUNT = 6;
+const PERFECT_SQUARE_LEVEL_COUNT = 4;
+const DIVISIBILITY_HEAT_LEVEL_COUNT = 4; // Z1–Z4；Z5 不回填
 
 function normalizeRunMode(mode) {
   return String(mode || "survival")
@@ -43,13 +47,32 @@ function meanLnGeoFromAttempts(attempts, levelIndex, capMs, levelCount) {
   return n > 0 ? sum / n : null;
 }
 
-function resolvePickedLevel(run) {
+/** @returns {{ mode: string, levelCount: number } | null} */
+function resolveSpeedBackfillTarget(run) {
+  const m = normalizeRunMode(run && run.mode);
+  if (m === "training") return { mode: "training", levelCount: ARITH_LEVEL_COUNT };
+  if (m === "decimal") return { mode: "decimal", levelCount: DECIMAL_LEVEL_COUNT };
+  if (m === "perfectsquare") return { mode: "perfectSquare", levelCount: PERFECT_SQUARE_LEVEL_COUNT };
+  if (m === "divisibility") {
+    const meta = run.trainingMeta;
+    let lv = null;
+    if (meta && Number.isFinite(Number(meta.pickedLevel))) lv = Math.floor(Number(meta.pickedLevel));
+    else if (run.maxLevel != null && Number.isFinite(Number(run.maxLevel))) lv = Math.floor(Number(run.maxLevel));
+    // Z5 = index 4：不回填
+    if (lv != null && lv >= DIVISIBILITY_HEAT_LEVEL_COUNT) return null;
+    return { mode: "divisibility", levelCount: DIVISIBILITY_HEAT_LEVEL_COUNT };
+  }
+  return null;
+}
+
+function resolvePickedLevel(run, levelCount) {
+  const lc = levelCount > 0 ? levelCount : ARITH_LEVEL_COUNT;
   const m = run.trainingMeta;
   if (m && Number.isFinite(Number(m.pickedLevel))) {
-    return Math.max(0, Math.min(ARITH_LEVEL_COUNT - 1, Math.floor(Number(m.pickedLevel))));
+    return Math.max(0, Math.min(lc - 1, Math.floor(Number(m.pickedLevel))));
   }
   if (run.maxLevel != null && Number.isFinite(Number(run.maxLevel))) {
-    return Math.max(0, Math.min(ARITH_LEVEL_COUNT - 1, Math.floor(Number(run.maxLevel))));
+    return Math.max(0, Math.min(lc - 1, Math.floor(Number(run.maxLevel))));
   }
   return null;
 }
@@ -64,6 +87,11 @@ function backfillTrainingRunSpeedInRunsData(runsData, opts) {
     capMs,
     usersScanned: 0,
     trainingRunsScanned: 0,
+    decimalRunsScanned: 0,
+    perfectSquareRunsScanned: 0,
+    divisibilityRunsScanned: 0,
+    runsScanned: 0,
+    skippedZ5: 0,
     updated: 0,
     skippedNoAttempts: 0,
     skippedNoLevel: 0,
@@ -78,21 +106,43 @@ function backfillTrainingRunSpeedInRunsData(runsData, opts) {
     const runs = runsData.runs[username];
     if (!Array.isArray(runs)) return;
     runs.forEach((run) => {
-      if (!run || normalizeRunMode(run.mode) !== "training") return;
-      stats.trainingRunsScanned += 1;
+      if (!run) return;
+      const modeKey = normalizeRunMode(run.mode);
+      if (modeKey === "divisibility") {
+        const meta = run.trainingMeta;
+        let lv = null;
+        if (meta && Number.isFinite(Number(meta.pickedLevel))) lv = Math.floor(Number(meta.pickedLevel));
+        else if (run.maxLevel != null && Number.isFinite(Number(run.maxLevel))) lv = Math.floor(Number(run.maxLevel));
+        if (lv != null && lv >= DIVISIBILITY_HEAT_LEVEL_COUNT) {
+          stats.skippedZ5 += 1;
+          return;
+        }
+      }
+      const target = resolveSpeedBackfillTarget(run);
+      if (!target) return;
+
+      stats.runsScanned += 1;
+      if (target.mode === "training") stats.trainingRunsScanned += 1;
+      else if (target.mode === "decimal") stats.decimalRunsScanned += 1;
+      else if (target.mode === "perfectSquare") stats.perfectSquareRunsScanned += 1;
+      else if (target.mode === "divisibility") stats.divisibilityRunsScanned += 1;
+
       if (!Array.isArray(run.attempts) || run.attempts.length === 0) {
         stats.skippedNoAttempts += 1;
         return;
       }
-      const picked = resolvePickedLevel(run);
+      const picked = resolvePickedLevel(run, target.levelCount);
       if (picked == null) {
         stats.skippedNoLevel += 1;
         return;
       }
-      const meanLn = meanLnGeoFromAttempts(run.attempts, picked, capMs, ARITH_LEVEL_COUNT);
+      const meanLn = meanLnGeoFromAttempts(run.attempts, picked, capMs, target.levelCount);
       const runAvgSec = secFromMeanLn(meanLn);
       if (!run.trainingMeta || typeof run.trainingMeta !== "object") {
         run.trainingMeta = {};
+      }
+      if (run.trainingMeta.pickedLevel == null && Number.isFinite(picked)) {
+        run.trainingMeta.pickedLevel = picked;
       }
       const prevLn = run.trainingMeta.runMeanLn;
       const prevSec = run.trainingMeta.runAvgSec;
@@ -122,5 +172,6 @@ function backfillTrainingRunSpeedInRunsData(runsData, opts) {
 module.exports = {
   backfillTrainingRunSpeedInRunsData,
   meanLnGeoFromAttempts,
+  resolveSpeedBackfillTarget,
   DEFAULT_CAP_MS,
 };
