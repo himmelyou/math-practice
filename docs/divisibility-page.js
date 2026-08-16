@@ -222,29 +222,36 @@
       const sec = divStartTs ? Math.floor((Date.now() - divStartTs) / 1000) : 0;
       dom().divElapsed.textContent = formatElapsedSec(sec);
     }
-  }
-
-  function startDivTimer() {
-    divStartTs = Date.now();
-    if (divTimerId) clearInterval(divTimerId);
-    divTimerId = setInterval(function () {
-      if (dom().divElapsed) {
-        dom().divElapsed.textContent = formatElapsedSec(Math.floor((Date.now() - divStartTs) / 1000));
-      }
-    }, 250);
-  }
-
-  function stopDivTimer() {
-    if (divTimerId) clearInterval(divTimerId);
-    divTimerId = null;
-    if (divFeedbackTimerId) {
-      clearTimeout(divFeedbackTimerId);
-      divFeedbackTimerId = null;
+    const wrongRow = document.getElementById("div-status-row-wrong");
+    if (wrongRow) {
+      const playing = deps.getIsPlaying && deps.getIsPlaying() && !(deps.getGameOver && deps.getGameOver());
+      const finished =
+        document.getElementById("div-panel-finished") &&
+        document.getElementById("div-panel-finished").style.display !== "none";
+      // 局中与结算态隐藏错题数；选关预开始再显示
+      wrongRow.style.display = playing || finished ? "none" : "";
     }
+  }
+
+  function setDivRecentPanelMode(mode) {
+    const history = mode !== "wrongReview";
+    if (dom().divHistoryWrap) dom().divHistoryWrap.style.display = history ? "" : "none";
+    if (dom().divWrongReviewWrap) dom().divWrongReviewWrap.style.display = history ? "none" : "";
+    if (dom().divRecentTitle) {
+      dom().divRecentTitle.textContent = history
+        ? t("div.recentTitle")
+        : t("div.wrongReviewTitle");
+    }
+  }
+
+  function showDivRecentHistory() {
+    setDivRecentPanelMode("history");
+    void renderDivisibilityRecentRuns();
   }
 
   function renderDivRecentRunsTable(runs) {
     if (!dom().divHistoryBody || !dom().divHistoryEmpty) return;
+    setDivRecentPanelMode("history");
     const list = Array.isArray(runs) ? runs.slice(0, 10) : [];
     dom().divHistoryBody.innerHTML = "";
     if (!list.length) {
@@ -287,6 +294,25 @@
         );
       })
       .join("");
+  }
+
+  function startDivTimer() {
+    divStartTs = Date.now();
+    if (divTimerId) clearInterval(divTimerId);
+    divTimerId = setInterval(function () {
+      if (dom().divElapsed) {
+        dom().divElapsed.textContent = formatElapsedSec(Math.floor((Date.now() - divStartTs) / 1000));
+      }
+    }, 250);
+  }
+
+  function stopDivTimer() {
+    if (divTimerId) clearInterval(divTimerId);
+    divTimerId = null;
+    if (divFeedbackTimerId) {
+      clearTimeout(divFeedbackTimerId);
+      divFeedbackTimerId = null;
+    }
   }
 
   async function renderDivisibilityRecentRuns() {
@@ -490,7 +516,7 @@
     setDivPanel("idle");
     const recent = document.getElementById("div-recent-card");
     if (recent) recent.style.display = "";
-    void renderDivisibilityRecentRuns();
+    showDivRecentHistory();
     deps.updateGlobalBackButtonState();
 
     if (!keepLevel) {
@@ -579,27 +605,27 @@
       return;
     }
 
+    // 局中不标红、不延迟揭晓；结算后在下方展示本局错题
     divScore -= DIV_SCORE_PER_WRONG;
     divWrongCount += 1;
+    const pickedVal =
+      letter === "A"
+        ? q.optionA != null
+          ? q.optionA
+          : q.wrongValue
+        : q.optionB != null
+          ? q.optionB
+          : q.wrongValue;
     divWrongItems.push({
       divisor: q.divisor,
-      picked: letter === "A" ? q.optionA != null ? q.optionA : null : q.optionB != null ? q.optionB : null,
+      picked: pickedVal,
       correct: q.correctValue,
       prompt: q.promptStem || q.prompt || q.text,
+      studentAnswer: pickedVal,
+      correctAnswer: q.correctValue,
     });
-    divChoicesLocked = true;
-    const wrongBtn = document.getElementById(letter === "A" ? "div-btn-a" : "div-btn-b");
-    if (wrongBtn) wrongBtn.classList.add("div-choice-wrong");
-    const btnA = document.getElementById("div-btn-a");
-    const btnB = document.getElementById("div-btn-b");
-    if (btnA) btnA.disabled = true;
-    if (btnB) btnB.disabled = true;
     updateDivStatusStrip();
-    divFeedbackTimerId = setTimeout(function () {
-      divFeedbackTimerId = null;
-      if (wrongBtn) wrongBtn.classList.remove("div-choice-wrong");
-      advanceAfterAnswer();
-    }, 980);
+    advanceAfterAnswer();
   }
 
   function startDivisibilityGame() {
@@ -639,23 +665,50 @@
   }
 
   function renderDivWrongReview() {
-    const host = document.getElementById("div-finish-wrong-list");
-    const hint = document.getElementById("div-wrong-review-hint");
-    if (!host) return;
-    host.innerHTML = "";
+    const listEl = dom().divWrongReviewList;
+    const emptyEl = dom().divWrongReviewEmpty;
+    if (!listEl || !emptyEl) return;
+    setDivRecentPanelMode("wrongReview");
     if (!divWrongItems.length) {
-      if (hint) hint.style.display = "none";
+      listEl.innerHTML = "";
+      emptyEl.style.display = "block";
+      emptyEl.textContent = t("div.wrongReviewEmpty");
       return;
     }
-    if (hint) hint.style.display = "";
-    host.innerHTML = divWrongItems
+    emptyEl.style.display = "none";
+    listEl.innerHTML = divWrongItems
       .map(function (w) {
+        const q = deps.escapeHtml(String((w && w.prompt) || ""));
+        const yours = deps.escapeHtml(
+          String(
+            (w && (w.studentAnswer != null ? w.studentAnswer : w.picked)) != null
+              ? w.studentAnswer != null
+                ? w.studentAnswer
+                : w.picked
+              : ""
+          )
+        );
+        const ok = deps.escapeHtml(
+          String((w && (w.correctAnswer != null ? w.correctAnswer : w.correct)) != null
+            ? w.correctAnswer != null
+              ? w.correctAnswer
+              : w.correct
+            : "")
+        );
         return (
-          '<div class="prime-wrong-item">' +
-          deps.escapeHtml(String(w.prompt || "")) +
-          " → " +
-          deps.escapeHtml(String(w.correct)) +
-          "</div>"
+          '<div class="training-run-wrong-item">' +
+          '<div class="training-run-wrong-q">' +
+          q +
+          "</div>" +
+          '<div class="training-run-wrong-meta">' +
+          deps.escapeHtml(t("div.yourAnswer")) +
+          ' <span class="wrong-ans">' +
+          yours +
+          "</span> · " +
+          deps.escapeHtml(t("div.correctAnswer")) +
+          ' <span class="correct-ans">' +
+          ok +
+          "</span></div></div>"
         );
       })
       .join("");
@@ -754,13 +807,13 @@
     if (dom().divFinishResult) {
       dom().divFinishResult.textContent = t("expand.result." + outcome.resultKey);
     }
+    // 局末只展示错题回顾；勿再刷 recent 表，否则会切回 history 盖住回顾
     renderDivWrongReview();
     renderDivLevelSelect();
     syncDivLevelTexts();
     updateDivStatusStrip();
     deps.setGameOver(true);
     deps.updateGlobalBackButtonState();
-    void renderDivisibilityRecentRuns();
   }
 
   function abandonDivisibilityGame() {
@@ -789,10 +842,8 @@
     if (dom().divFinishTime) dom().divFinishTime.textContent = "-";
     if (dom().divFinishLevel) dom().divFinishLevel.textContent = levelLabel(divRunStartLevel);
     if (dom().divFinishResult) dom().divFinishResult.textContent = t("expand.go.abandoned");
-    divWrongItems = [];
     renderDivWrongReview();
     deps.updateGlobalBackButtonState();
-    void renderDivisibilityRecentRuns();
   }
 
   function hideDivisibilitySection() {

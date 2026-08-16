@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=116"></script>
+  <script src="shared/app-version.js?v=118"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3636,6 +3636,41 @@
       overscroll-behavior: contain;
     }
 
+    .training-run-wrong-list {
+      max-height: min(42vh, 320px);
+      margin-top: 0;
+    }
+
+    .training-run-wrong-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+
+    .training-run-wrong-item:last-child {
+      border-bottom: none;
+    }
+
+    .training-run-wrong-q {
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .training-run-wrong-meta {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .training-run-wrong-meta .wrong-ans {
+      color: var(--danger);
+    }
+
+    .training-run-wrong-meta .correct-ans {
+      color: var(--success);
+    }
+
     @media (max-width: 520px) {
       .prime-composite-page {
         --prime-card-idle-height: clamp(140px, 28vh, 180px);
@@ -4132,6 +4167,10 @@
           </table>
           <div id="recent-history-empty" class="recent-empty">当前还没有练习记录。</div>
         </div>
+        <div id="recent-wrong-review-wrap" style="display:none;">
+          <div id="recent-wrong-review-empty" class="recent-empty">本局没有错题。</div>
+          <div id="recent-wrong-review-list" class="prime-wrong-list training-run-wrong-list"></div>
+        </div>
       </div>
     </section>
     <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
@@ -4593,7 +4632,7 @@
           <span class="status-label" id="div-lbl-level">当前等级：</span>
           <span class="status-value" id="div-level-text">L1</span>
         </div>
-        <div class="status-item">
+        <div class="status-item" id="div-status-row-wrong">
           <span class="status-label" id="div-lbl-wrong">错题：</span>
           <span class="status-value" id="div-wrong-text">0</span>
         </div>
@@ -4650,8 +4689,6 @@
               <p class="game-over-line"><span id="div-lbl-finish-level">本局等级：</span><strong id="div-finish-level">L1</strong></p>
               <p class="game-over-line"><span id="div-lbl-finish-result">结算结果：</span><strong id="div-finish-result">—</strong></p>
             </div>
-            <p id="div-wrong-review-hint" class="panel-hint prime-wrong-review-hint" style="display:none;">错题回顾</p>
-            <div id="div-finish-wrong-list" class="prime-wrong-list"></div>
             <div class="game-over-buttons">
               <button type="button" class="btn-primary" id="div-again-btn">再来一局</button>
             </div>
@@ -4664,18 +4701,24 @@
           <span class="recent-title" id="div-recent-title">最近十次整除</span>
         </div>
         <div class="recent-body">
-          <table class="recent-table">
-            <thead>
-              <tr>
-                <th id="div-th-dt">日期时间</th>
-                <th id="div-th-time">用时</th>
-                <th id="div-th-wrong">错题</th>
-                <th id="div-th-level">等级</th>
-              </tr>
-            </thead>
-            <tbody id="div-history-body"></tbody>
-          </table>
-          <div id="div-history-empty" class="recent-empty">当前还没有练习记录。</div>
+          <div id="div-history-wrap">
+            <table class="recent-table">
+              <thead>
+                <tr>
+                  <th id="div-th-dt">日期时间</th>
+                  <th id="div-th-time">用时</th>
+                  <th id="div-th-wrong">错题</th>
+                  <th id="div-th-level">等级</th>
+                </tr>
+              </thead>
+              <tbody id="div-history-body"></tbody>
+            </table>
+            <div id="div-history-empty" class="recent-empty">当前还没有练习记录。</div>
+          </div>
+          <div id="div-wrong-review-wrap" style="display:none;">
+            <div id="div-wrong-review-empty" class="recent-empty">本局没有错题。</div>
+            <div id="div-wrong-review-list" class="prime-wrong-list training-run-wrong-list"></div>
+          </div>
         </div>
       </section>
       </div>
@@ -4900,7 +4943,7 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=50"></script>
-  <script src="divisibility-page.js?v=13"></script>
+  <script src="divisibility-page.js?v=14"></script>
   <script src="decimal-page.js?v=15"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -5239,6 +5282,10 @@
     let lastTrainingEntrySource = "fallback";
     /** 本局开局时选关快照（startTrainingGame 时写入） */
     let trainingRunStartMeta = null;
+    /** 本局训练错题回顾（局末展示；局中不即时揭晓） */
+    let trainingRunWrongItems = [];
+    /** 本局闯关错题回顾（局末展示；局中不即时揭晓） */
+    let levelRunWrongItems = [];
     /** 结算 finalize 后缓存的下一局选关（同日 prestart 不再异步跳关） */
     let trainingNextEntryCache = null;
     /** prestart 等待热图选关（禁用开始、难度格显示 Waiting） */
@@ -5299,6 +5346,9 @@
       dom.recentHistoryBody = document.getElementById("recent-history-body");
       dom.recentHistoryEmpty = document.getElementById("recent-history-empty");
       dom.recentHistoryWrap = document.getElementById("recent-history-wrap");
+      dom.recentWrongReviewWrap = document.getElementById("recent-wrong-review-wrap");
+      dom.recentWrongReviewList = document.getElementById("recent-wrong-review-list");
+      dom.recentWrongReviewEmpty = document.getElementById("recent-wrong-review-empty");
       dom.recentCard = document.querySelector("#game-section .recent-card");
       dom.softKbdCard = document.getElementById("soft-kbd-card");
       dom.gamePlayBody = document.getElementById("game-play-body");
@@ -5391,6 +5441,11 @@
       dom.divFinishResult = document.getElementById("div-finish-result");
       dom.divHistoryBody = document.getElementById("div-history-body");
       dom.divHistoryEmpty = document.getElementById("div-history-empty");
+      dom.divHistoryWrap = document.getElementById("div-history-wrap");
+      dom.divWrongReviewWrap = document.getElementById("div-wrong-review-wrap");
+      dom.divWrongReviewList = document.getElementById("div-wrong-review-list");
+      dom.divWrongReviewEmpty = document.getElementById("div-wrong-review-empty");
+      dom.divRecentTitle = document.getElementById("div-recent-title");
 
       dom.decTimerValue = document.getElementById("dec-timer-value");
       dom.decProgressText = document.getElementById("dec-progress-text");
@@ -7468,6 +7523,10 @@
         "div.headerHint": "請選擇能被整除的數",
         "div.questionNum": "{n}. {stem}",
         "div.recentTitle": "最近十次整除",
+        "div.wrongReviewTitle": "本局錯題回顧",
+        "div.wrongReviewEmpty": "本局沒有錯題。",
+        "div.yourAnswer": "你的答案：",
+        "div.correctAnswer": "正確：",
         "ranking.divisibilityPerfect": "整除達人",
         "ranking.hint.divisibilityPerfect.desc": "整除達人榜 · L5 綜合練習零錯通關，用時越短越好（展示前十名；未進前十會顯示你的名次）",
         "ranking.hint.divisibilityPerfect.descFull": "整除達人榜 · 測試員視圖 · L5 零錯通關（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
@@ -7618,6 +7677,12 @@
         "recent.title.survivalLast10": "最近十次生存挑戰",
         "recent.title.levelLast10": "最近十次闖關挑戰",
         "recent.title.trainingLast10": "最近十次訓練模式",
+        "recent.title.trainingWrongReview": "本局錯題回顧",
+        "recent.title.levelWrongReview": "本局錯題回顧",
+        "recent.trainingWrongEmpty": "本局沒有錯題。",
+        "recent.levelWrongEmpty": "本局沒有錯題。",
+        "recent.trainingYourAnswer": "你的答案：",
+        "recent.trainingCorrectAnswer": "正確：",
         "recent.th.datetime": "日期時間",
         "recent.th.time": "用時",
         "recent.th.score": "得分",
@@ -7867,6 +7932,10 @@
         "div.headerHint": "Pick the number that is divisible",
         "div.questionNum": "{n}. {stem}",
         "div.recentTitle": "Last 10 divisibility runs",
+        "div.wrongReviewTitle": "This run's mistakes",
+        "div.wrongReviewEmpty": "No mistakes this run.",
+        "div.yourAnswer": "Your answer:",
+        "div.correctAnswer": "Correct:",
         "ranking.divisibilityPerfect": "Divisibility Master",
         "ranking.hint.divisibilityPerfect.desc": "Divisibility Master · L5 mixed clear with 0 wrongs; faster is better (top 10; your rank shown if outside)",
         "ranking.hint.divisibilityPerfect.descFull": "Divisibility Master · tester view · L5 0-wrong clears ({total} people, showing {shown}; your rank if outside)",
@@ -8000,6 +8069,12 @@
         "recent.title.survivalLast10": "Last 10 Survival",
         "recent.title.levelLast10": "Last 10 Level",
         "recent.title.trainingLast10": "Last 10 Training",
+        "recent.title.trainingWrongReview": "This run's mistakes",
+        "recent.title.levelWrongReview": "This run's mistakes",
+        "recent.trainingWrongEmpty": "No mistakes this run.",
+        "recent.levelWrongEmpty": "No mistakes this run.",
+        "recent.trainingYourAnswer": "Your answer:",
+        "recent.trainingCorrectAnswer": "Correct:",
         "recent.th.datetime": "Date/Time",
         "recent.th.time": "Time",
         "recent.th.score": "Score",
@@ -9464,8 +9539,102 @@
       endSurvivalGame(false, true);
     }
 
+    function setMainGameWrongCountRowVisible(visible) {
+      const row5 = document.getElementById("status-row-5");
+      if (row5) row5.style.display = visible ? "" : "none";
+    }
+
+    /** 训练/闯关下方区：history = 最近记录；wrongReview = 本局错题 */
+    function setMainGameRecentPanelMode(mode) {
+      const history = mode !== "wrongReview";
+      if (dom.recentHistoryWrap) {
+        dom.recentHistoryWrap.style.display = history ? "" : "none";
+      }
+      if (dom.recentWrongReviewWrap) {
+        dom.recentWrongReviewWrap.style.display = history ? "none" : "";
+      }
+      const titleEl = document.getElementById("recent-title");
+      if (!titleEl) return;
+      if (gameMode === "training") {
+        titleEl.textContent = history
+          ? t("recent.title.trainingLast10")
+          : t("recent.title.trainingWrongReview");
+      } else if (gameMode === "level") {
+        titleEl.textContent = history
+          ? t("recent.title.levelLast10")
+          : t("recent.title.levelWrongReview");
+      }
+    }
+
+    function getMainGameRunWrongItems() {
+      if (gameMode === "level") {
+        return Array.isArray(levelRunWrongItems) ? levelRunWrongItems : [];
+      }
+      return Array.isArray(trainingRunWrongItems) ? trainingRunWrongItems : [];
+    }
+
+    function renderMainGameRunWrongReview() {
+      const listEl = dom.recentWrongReviewList;
+      const emptyEl = dom.recentWrongReviewEmpty;
+      if (!listEl || !emptyEl) return;
+      const items = getMainGameRunWrongItems();
+      setMainGameRecentPanelMode("wrongReview");
+      if (!items.length) {
+        listEl.innerHTML = "";
+        emptyEl.style.display = "block";
+        emptyEl.textContent =
+          gameMode === "level" ? t("recent.levelWrongEmpty") : t("recent.trainingWrongEmpty");
+        return;
+      }
+      emptyEl.style.display = "none";
+      listEl.innerHTML = items
+        .map(function (w) {
+          const q = escapeHtml(String((w && w.prompt) || ""));
+          const yours = escapeHtml(String((w && w.studentAnswer) != null ? w.studentAnswer : ""));
+          const ok = escapeHtml(String((w && w.correctAnswer) != null ? w.correctAnswer : ""));
+          return (
+            '<div class="training-run-wrong-item">' +
+            '<div class="training-run-wrong-q">' +
+            q +
+            "</div>" +
+            '<div class="training-run-wrong-meta">' +
+            escapeHtml(t("recent.trainingYourAnswer")) +
+            ' <span class="wrong-ans">' +
+            yours +
+            "</span> · " +
+            escapeHtml(t("recent.trainingCorrectAnswer")) +
+            ' <span class="correct-ans">' +
+            ok +
+            "</span></div></div>"
+          );
+        })
+        .join("");
+    }
+
+    function showMainGameRecentHistory() {
+      setMainGameRecentPanelMode("history");
+      void renderRecentRuns();
+    }
+
+    /** @deprecated 兼容旧名 */
+    function setTrainingRecentPanelMode(mode) {
+      setMainGameRecentPanelMode(mode);
+    }
+    function renderTrainingRunWrongReview() {
+      renderMainGameRunWrongReview();
+    }
+    function showTrainingRecentHistory() {
+      showMainGameRecentHistory();
+    }
+
     async function renderRecentRuns() {
       if (!dom.recentHistoryBody || !dom.recentHistoryEmpty) return;
+      if (gameMode === "training" || gameMode === "level") {
+        setMainGameRecentPanelMode("history");
+      } else if (dom.recentWrongReviewWrap) {
+        dom.recentWrongReviewWrap.style.display = "none";
+        if (dom.recentHistoryWrap) dom.recentHistoryWrap.style.display = "";
+      }
       if (isGuestMode) {
         const runs = gameMode === "level" ? getGuestSurvivalData().recentLevelRuns : gameMode === "training" ? [] : getGuestSurvivalData().recentSurvivalRuns;
         renderRecentRunsTable(runs);
@@ -9640,6 +9809,7 @@
     // ===== 生存模式：计时与 UI 更新 =====
     function updateSurvivalStatusUI() {
       setMainGameStatusIcons("survival");
+      setMainGameWrongCountRowVisible(true);
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -9671,6 +9841,8 @@
     /** 闯关模式：正向计时、无倒计时条变红 */
     function updateLevelStatusUI() {
       setMainGameStatusIcons("level");
+      // 闯关：局中与结算态隐藏状态栏错题数；选关预开始再显示
+      setMainGameWrongCountRowVisible(!isPlaying && !gameOver);
       const label2 = document.getElementById("status-label-2");
       const label3 = document.getElementById("status-label-3");
       const label4 = document.getElementById("status-label-4");
@@ -9851,6 +10023,7 @@
       runScore = 0;
       consecutiveCorrect = 0;
       runWrongCount = 0;
+      levelRunWrongItems = [];
       currentRunAttempts = [];
       gameStartTime = Date.now();
       gameOver = false;
@@ -9867,6 +10040,7 @@
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
+      setMainGameRecentPanelMode("history");
       updateLevelStatusUI();
       updateGlobalBackButtonState();
       initSoftKeyboardIfNeeded();
@@ -9895,6 +10069,8 @@
 
     function updateTrainingStatusUI() {
       setMainGameStatusIcons("training");
+      // 训练：局中与结算态隐藏状态栏错题数（结算卡有合计）；选关预开始再显示
+      setMainGameWrongCountRowVisible(!isPlaying && !gameOver);
       const pickWait = trainingEntryPickPending && !isPlaying && gameMode === "training";
       const elapsed = gameStartTime ? Math.round((Date.now() - gameStartTime) / 1000) : 0;
       const m = Math.floor(elapsed / 60);
@@ -9947,6 +10123,7 @@
       trainingCorrectCount = 0;
       runScore = 0;
       runWrongCount = 0;
+      trainingRunWrongItems = [];
       currentRunAttempts = [];
       gameStartTime = Date.now();
       gameOver = false;
@@ -9966,6 +10143,7 @@
       dom.answerInput.disabled = false;
       setBatchSummary("");
       setFeedback("", null);
+      setTrainingRecentPanelMode("history");
       updateTrainingStatusUI();
       updateGlobalBackButtonState();
       initSoftKeyboardIfNeeded();
@@ -9988,6 +10166,7 @@
       runScore = 0;
       runWrongCount = 0;
       consecutiveCorrect = 0;
+      levelRunWrongItems = [];
       currentRunAttempts = [];
       gameStartTime = 0;
       currentQuestion = null;
@@ -10027,7 +10206,8 @@
 
       if (gameMode === "level") updateLevelStatusUI();
       else updateSurvivalStatusUI();
-      renderRecentRuns();
+      if (gameMode === "level" || gameMode === "training") showMainGameRecentHistory();
+      else renderRecentRuns();
 
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
       setGameCardActionSlot("start");
@@ -10052,6 +10232,7 @@
       trainingCorrectCount = 0;
       runScore = 0;
       runWrongCount = 0;
+      trainingRunWrongItems = [];
       currentRunAttempts = [];
       gameStartTime = 0;
       currentQuestion = null;
@@ -10085,7 +10266,7 @@
       }
 
       updateTrainingStatusUI();
-      renderRecentRuns();
+      showTrainingRecentHistory();
 
       if (dom.gameSection) dom.gameSection.classList.add("training-prestart");
       setGameCardActionSlot("start");
@@ -10414,22 +10595,26 @@
       const correct = userAnswer === question.answer;
       currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
 
+      // 闯关局中不即时揭晓对错；结算后在下方展示本局错题
+      setFeedback("", null);
       if (correct) {
         const points = 5;
         runScore += points;
         consecutiveCorrect += 1;
-        setFeedback(tf("game.feedback.levelPlus", { pts: points }), "correct");
       } else {
         runWrongCount += 1;
         levelWrongInLevel += 1;
         consecutiveCorrect = 0;
+        levelRunWrongItems.push({
+          prompt: question.text,
+          correctAnswer: question.answer,
+          studentAnswer: userAnswer,
+        });
         recordWrongAnswer(question.text, question.answer, userAnswer);
-        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
         if (levelWrongInLevel >= 2) {
           if (dom.submitBtn) dom.submitBtn.disabled = true;
           updateLevelStatusUI();
-          showToast(t("game.feedback.levelTwoWrongsEnd"));
-          setTimeout(function () { endLevelGame(false); }, 600);
+          void endLevelGame(false);
           return;
         }
       }
@@ -10465,14 +10650,19 @@
       currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
       const isCorrect = correct;
 
+      // 训练局中不即时揭晓对错，避免做错后立刻放弃刷「完美局」；结算后再看错题回顾
+      setFeedback("", null);
       if (isCorrect) {
         runScore += 5;
         trainingCorrectCount += 1;
-        setFeedback(t("game.feedback.correctSurvival"), "correct");
       } else {
         runWrongCount += 1;
+        trainingRunWrongItems.push({
+          prompt: question.text,
+          correctAnswer: question.answer,
+          studentAnswer: userAnswer,
+        });
         recordWrongAnswer(question.text, question.answer, userAnswer);
-        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
       }
 
       if (trainingPhase === "main") {
@@ -10517,6 +10707,7 @@
       setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
+      updateTrainingStatusUI();
 
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
 
@@ -10555,7 +10746,7 @@
             runKind: abandonMode.runKind,
           }),
         });
-        renderRecentRuns();
+        renderTrainingRunWrongReview();
         return;
       }
 
@@ -10589,7 +10780,7 @@
         } finally {
           setTrainingRunFinalizeUi(false);
         }
-        renderRecentRuns();
+        renderTrainingRunWrongReview();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -10646,7 +10837,7 @@
       } finally {
         setTrainingRunFinalizeUi(false);
       }
-      renderRecentRuns();
+      renderTrainingRunWrongReview();
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -10685,6 +10876,7 @@
       setSoftKeyboardVisible(false);
       if (dom.submitBtn) dom.submitBtn.disabled = true;
       dom.answerInput.disabled = true;
+      updateLevelStatusUI();
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
       const persistIdx = Math.min(15, Math.max(0, Math.max(maxLevelThisRun, currentLevelIndex)));
       if (abandoned) {
@@ -10694,7 +10886,7 @@
         appendRun(survivalTimeSec, 0, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false, {
           abandoned: true,
         });
-        renderRecentRuns();
+        renderMainGameRunWrongReview();
         updateTrainingButtonLabel();
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
@@ -10720,7 +10912,6 @@
         }
         setGameCardActionSlot("hidden");
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        updateLevelStatusUI();
         return;
       }
       const endLevel = completed ? 15 : persistIdx;
@@ -10728,7 +10919,7 @@
       saveLevelChallengeBestLevel(endLevel);
       appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice(), completed === true);
       if (completed === true && cachedUser) cachedUser.hasClearedLevel = true;
-      renderRecentRuns();
+      renderMainGameRunWrongReview();
       updateLevelStatusUI();
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
