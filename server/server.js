@@ -62,6 +62,7 @@ function safeUser(u) {
 
 const WRONGBOOK_MAX_STORE = 100;
 const EXPAND_WRONG_MAX_STORE = 20;
+const DIVISIBILITY_WRONG_MAX_STORE = 20;
 
 const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare", "divisibility"]);
 const WRONG_ANSWER_LEVEL_MAX = {
@@ -141,11 +142,14 @@ function wrongAnswersPayload(user) {
   };
 }
 
-/** 学员端 API：不返回拆括号错题（仅管理端 report 使用）；VIP 标记仅管理端使用 */
+/** 学员端 API：不返回拆括号/整除错题（仅管理端 report 使用）；VIP 标记仅管理端使用 */
 function safeUserForStudent(u) {
   const out = safeUser(u);
   if (out && Object.prototype.hasOwnProperty.call(out, "expandBracketsWrongAnswers")) {
     delete out.expandBracketsWrongAnswers;
+  }
+  if (out && Object.prototype.hasOwnProperty.call(out, "divisibilityWrongAnswers")) {
+    delete out.divisibilityWrongAnswers;
   }
   if (out && Object.prototype.hasOwnProperty.call(out, "isVip")) {
     delete out.isVip;
@@ -1685,6 +1689,7 @@ app.post("/api/register", async (req, res) => {
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
+    divisibilityWrongAnswers: [],
     achievements: {},
     equippedBadges: [],
     survivalUnlocked: false,
@@ -1834,6 +1839,42 @@ app.post("/api/user/:username/expand-brackets-wrong-answers", requireStudentAuth
   res.json({ ok: true });
 });
 
+/** 整除错题：仅写入档案供管理端 report；学员 API 不返回该字段 */
+app.post("/api/user/:username/divisibility-wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const raw = req.body && req.body.entry != null ? req.body.entry : req.body;
+  if (!raw || typeof raw !== "object") {
+    return res.status(400).json({ ok: false, error: "无效错题" });
+  }
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const u = data.users[idx];
+  if (!Array.isArray(u.divisibilityWrongAnswers)) u.divisibilityWrongAnswers = [];
+  const levelIndex =
+    typeof raw.levelIndex === "number" && Number.isFinite(raw.levelIndex)
+      ? Math.max(0, Math.min(4, Math.floor(raw.levelIndex)))
+      : 0;
+  const entry = {
+    ts: typeof raw.ts === "number" ? raw.ts : Date.now(),
+    levelIndex,
+    prompt: String(raw.prompt || ""),
+    correctAnswer: String(raw.correctAnswer != null ? raw.correctAnswer : ""),
+    studentAnswer: String(raw.studentAnswer != null ? raw.studentAnswer : ""),
+  };
+  if (raw.divisor != null && Number.isFinite(Number(raw.divisor))) {
+    entry.divisor = Math.floor(Number(raw.divisor));
+  }
+  u.divisibilityWrongAnswers.unshift(entry);
+  if (u.divisibilityWrongAnswers.length > DIVISIBILITY_WRONG_MAX_STORE) {
+    u.divisibilityWrongAnswers = u.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE);
+  }
+  writeJson(USERS_FILE, data);
+  res.json({ ok: true });
+});
+
 // ========== 获取学员数据（用于换设备同步），需登录且只能访问自己 ==========
 app.get("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -1948,7 +1989,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -2864,6 +2905,7 @@ app.post("/api/admin/users", async (req, res) => {
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
+    divisibilityWrongAnswers: [],
     achievements: {},
     equippedBadges: [],
     survivalUnlocked: false,

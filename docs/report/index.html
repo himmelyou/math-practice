@@ -65,6 +65,7 @@
         <button type="button" class="jml-tab" data-tab="runs" role="tab">挑战记录</button>
         <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
         <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
+        <button type="button" class="jml-tab" data-tab="div-wrong" role="tab">整除错题本</button>
         <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
         <button type="button" class="jml-tab" data-tab="train-debug" role="tab">训练选关Debug</button>
       </div>
@@ -81,6 +82,9 @@
       <div id="panel-expand-wrong" class="jml-tab-panel hidden" data-panel="expand-wrong" role="tabpanel">
         <div id="jml-report-expand-wrong-body"></div>
       </div>
+      <div id="panel-div-wrong" class="jml-tab-panel hidden" data-panel="div-wrong" role="tabpanel">
+        <div id="jml-report-div-wrong-body"></div>
+      </div>
       <div id="panel-stats" class="jml-tab-panel hidden" data-panel="stats" role="tabpanel">
         <div id="jml-report-stats-body"></div>
       </div>
@@ -91,7 +95,7 @@
   </div>
 
   <script src="../config.js?v=21"></script>
-  <script src="../shared/app-version.js?v=118"></script>
+  <script src="../shared/app-version.js?v=119"></script>
   <script>
     (function () {
       if (!window.__JML_API_BASE__ && window.API_BASE_URL) {
@@ -104,7 +108,7 @@
   <script src="../stats-aggregate-browser.js?v=51"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=69"></script>
+  <script src="report-page.js?v=70"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

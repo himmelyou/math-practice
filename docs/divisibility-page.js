@@ -624,6 +624,15 @@
       studentAnswer: pickedVal,
       correctAnswer: q.correctValue,
     });
+    if (typeof deps.recordDivisibilityWrongAnswer === "function") {
+      deps.recordDivisibilityWrongAnswer(
+        q.promptStem || q.prompt || q.text,
+        q.correctValue,
+        pickedVal,
+        divLevel,
+        q.divisor
+      );
+    }
     updateDivStatusStrip();
     advanceAfterAnswer();
   }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=118"></script>
+  <script src="shared/app-version.js?v=119"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4926,6 +4926,18 @@
     </div>
   </div>
 
+  <div id="run-draft-modal-overlay" class="change-password-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="run-draft-modal-title">
+    <div class="change-password-modal">
+      <h3 id="run-draft-modal-title">未完成的练习</h3>
+      <p class="stats-subtitle" id="run-draft-modal-body">检测到上次未完成的练习。请继续完成，或放弃本局。</p>
+      <p class="modal-error" id="run-draft-modal-hint" style="display:none;"></p>
+      <div class="modal-actions">
+        <button type="button" class="login-btn btn-secondary" id="run-draft-abandon-btn">放弃本局</button>
+        <button type="button" class="login-btn" id="run-draft-continue-btn">继续练习</button>
+      </div>
+    </div>
+  </div>
+
   <script src="shared/simple-md.js?v=1"></script>
   <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
@@ -4943,7 +4955,7 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=50"></script>
-  <script src="divisibility-page.js?v=14"></script>
+  <script src="divisibility-page.js?v=15"></script>
   <script src="decimal-page.js?v=15"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -5567,6 +5579,7 @@
         appendRun: appendRun,
         buildSingleLevelSpeedMeta: buildSingleLevelSpeedMeta,
         recordWrongAnswer: recordWrongAnswer,
+        recordDivisibilityWrongAnswer: recordDivisibilityWrongAnswer,
         formatCompactRunTime: formatCompactRunTime,
         escapeHtml: escapeHtml,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
@@ -6432,6 +6445,399 @@
       const ok = confirm(t(heatmapModes ? "game.abandonConfirm" : "game.abandonConfirmScoreOnly"));
       if (ok) recordAbandonSuccess();
       return ok;
+    }
+
+    // ===== 局中草稿：刷新/关页后强制继续或放弃（冷却中仅可继续）=====
+    const RUN_DRAFT_STORAGE_KEY = "jml_run_draft_v1";
+    const RUN_DRAFT_MODES = { training: 1, level: 1, survival: 1 };
+    let liveRunDraftId = null;
+    let runDraftModalOpen = false;
+    let runDraftHintTimerId = null;
+
+    function runDraftScope() {
+      return abandonCooldownScope();
+    }
+
+    function readRunDraftMap() {
+      try {
+        const raw = localStorage.getItem(RUN_DRAFT_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function writeRunDraftMap(map) {
+      try {
+        localStorage.setItem(RUN_DRAFT_STORAGE_KEY, JSON.stringify(map || {}));
+      } catch (e) {}
+    }
+
+    function loadRunDraft() {
+      const map = readRunDraftMap();
+      const d = map[runDraftScope()];
+      if (!d || typeof d !== "object") return null;
+      const mode = String(d.mode || "");
+      if (!RUN_DRAFT_MODES[mode]) return null;
+      if (!d.currentQuestion || d.currentQuestion.answer == null) return null;
+      return d;
+    }
+
+    function saveRunDraftObject(draft) {
+      if (!draft || !RUN_DRAFT_MODES[String(draft.mode || "")]) return;
+      const map = readRunDraftMap();
+      map[runDraftScope()] = draft;
+      writeRunDraftMap(map);
+    }
+
+    function clearRunDraft() {
+      liveRunDraftId = null;
+      const map = readRunDraftMap();
+      const scope = runDraftScope();
+      if (map[scope]) {
+        delete map[scope];
+        writeRunDraftMap(map);
+      }
+    }
+
+    function newRunDraftId() {
+      return String(Date.now()) + "-" + Math.random().toString(36).slice(2, 9);
+    }
+
+    function runDraftModeLabel(mode) {
+      const m = String(mode || "");
+      const key = "game.runDraft.mode." + m;
+      const label = t(key);
+      return label && label !== key ? label : m;
+    }
+
+    function buildLiveRunDraftPayload() {
+      if (!isPlaying || gameOver) return null;
+      if (!RUN_DRAFT_MODES[gameMode]) return null;
+      if (!currentQuestion || currentQuestion.answer == null) return null;
+      const elapsedSec = gameStartTime
+        ? Math.max(0, Math.floor((Date.now() - gameStartTime) / 1000))
+        : 0;
+      if (!liveRunDraftId) liveRunDraftId = newRunDraftId();
+      const payload = {
+        v: 1,
+        id: liveRunDraftId,
+        mode: gameMode,
+        updatedAt: Date.now(),
+        elapsedSec: elapsedSec,
+        currentLevelIndex: currentLevelIndex,
+        maxLevelThisRun: maxLevelThisRun,
+        runScore: runScore,
+        runWrongCount: runWrongCount,
+        consecutiveCorrect: consecutiveCorrect,
+        survivalTimeLeft: survivalTimeLeft,
+        attempts: currentRunAttempts.slice(),
+        currentQuestion: {
+          text: String(currentQuestion.text || ""),
+          answer: currentQuestion.answer,
+        },
+        levelMainAnswered: levelMainAnswered,
+        levelExtensionAnswered: levelExtensionAnswered,
+        levelWrongInLevel: levelWrongInLevel,
+        levelPhase: levelPhase,
+        levelRunWrongItems: Array.isArray(levelRunWrongItems) ? levelRunWrongItems.slice() : [],
+        trainingMainAnswered: trainingMainAnswered,
+        trainingExtensionAnswered: trainingExtensionAnswered,
+        trainingPhase: trainingPhase,
+        trainingQuestionIndex: trainingQuestionIndex,
+        trainingCorrectCount: trainingCorrectCount,
+        trainingRunWrongItems: Array.isArray(trainingRunWrongItems) ? trainingRunWrongItems.slice() : [],
+        trainingRunBrushMode: !!trainingRunBrushMode,
+        trainingAutoPickLevelIndex: trainingAutoPickLevelIndex,
+        trainingRunStartMeta: trainingRunStartMeta,
+        lastTrainingPickResult: lastTrainingPickResult,
+      };
+      return payload;
+    }
+
+    function persistLiveRunDraft() {
+      const payload = buildLiveRunDraftPayload();
+      if (!payload) return;
+      saveRunDraftObject(payload);
+    }
+
+    function hideRunDraftResumeModal() {
+      runDraftModalOpen = false;
+      if (runDraftHintTimerId) {
+        clearTimeout(runDraftHintTimerId);
+        runDraftHintTimerId = null;
+      }
+      const overlay = document.getElementById("run-draft-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    function syncRunDraftModalAbandonUi() {
+      const abandonBtn = document.getElementById("run-draft-abandon-btn");
+      const hintEl = document.getElementById("run-draft-modal-hint");
+      const bodyEl = document.getElementById("run-draft-modal-body");
+      const draft = loadRunDraft();
+      const modeLabel = runDraftModeLabel(draft && draft.mode);
+      const gate = getAbandonGate();
+      if (bodyEl) {
+        bodyEl.textContent = gate.ok
+          ? tf("game.runDraft.body", { mode: modeLabel })
+          : tf("game.runDraft.bodyCooldown", { mode: modeLabel });
+      }
+      if (abandonBtn) {
+        abandonBtn.disabled = !gate.ok;
+        abandonBtn.textContent = t("game.runDraft.abandon");
+      }
+      if (hintEl) {
+        if (gate.ok) {
+          hintEl.style.display = "none";
+          hintEl.textContent = "";
+        } else if (gate.reason === "limit") {
+          hintEl.style.display = "";
+          hintEl.textContent = t("game.runDraft.limitHint");
+        } else {
+          hintEl.style.display = "";
+          hintEl.textContent = tf("game.runDraft.cooldownHint", {
+            wait: formatAbandonWaitText(gate.waitMs),
+          });
+        }
+      }
+      if (!gate.ok && gate.reason === "cooldown" && gate.waitMs > 0) {
+        if (runDraftHintTimerId) clearTimeout(runDraftHintTimerId);
+        runDraftHintTimerId = setTimeout(function () {
+          runDraftHintTimerId = null;
+          if (runDraftModalOpen) syncRunDraftModalAbandonUi();
+        }, Math.min(gate.waitMs + 50, 60000));
+      }
+    }
+
+    function showRunDraftResumeModal(draft) {
+      const d = draft || loadRunDraft();
+      if (!d) return;
+      runDraftModalOpen = true;
+      const overlay = document.getElementById("run-draft-modal-overlay");
+      const titleEl = document.getElementById("run-draft-modal-title");
+      const continueBtn = document.getElementById("run-draft-continue-btn");
+      if (titleEl) titleEl.textContent = t("game.runDraft.title");
+      if (continueBtn) continueBtn.textContent = t("game.runDraft.continue");
+      syncRunDraftModalAbandonUi();
+      if (overlay) overlay.classList.add("active");
+    }
+
+    /** @returns {boolean} true = 无草稿可继续开新局；false = 已弹出草稿弹窗 */
+    function gatePendingRunDraft() {
+      const d = loadRunDraft();
+      if (!d) return true;
+      showRunDraftResumeModal(d);
+      return false;
+    }
+
+    function promptPendingRunDraftIfAny() {
+      const d = loadRunDraft();
+      if (d) showRunDraftResumeModal(d);
+    }
+
+    function enterMainGameShellForResume(mode) {
+      setTopActionsVisible(false);
+      setGameOverLayout(false);
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) {
+        dom.gameSection.classList.add("visible");
+        dom.gameSection.classList.remove("training-prestart");
+        dom.gameSection.classList.remove("wrong-practice-active");
+      }
+      if (dom.expandSection) {
+        dom.expandSection.classList.remove("visible");
+        dom.expandSection.style.display = "none";
+      }
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      const achievementWallSection = document.getElementById("achievement-wall-section");
+      if (achievementWallSection) achievementWallSection.style.display = "none";
+      hidePerfectSquareSection();
+      hideDivisibilitySection();
+      hideDecimalSection();
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      if (dom.expandPanel) dom.expandPanel.style.display = "none";
+      if (dom.recentCard) dom.recentCard.style.display = "flex";
+      const statusGrid = document.getElementById("status-grid");
+      if (statusGrid) statusGrid.style.display = "";
+      if (dom.timerChip) {
+        dom.timerChip.style.display = "";
+        if (!document.getElementById("timer-value")) {
+          dom.timerChip.innerHTML = TIMER_CHIP_PREFIX_HTML + '<span id="timer-value">0:00</span>';
+          dom.timerChipPrefix = document.getElementById("timer-chip-prefix");
+          dom.timerValue = document.getElementById("timer-value");
+        }
+      }
+      writeGameSubtitleForMode(mode);
+      setFeedback("", null);
+      setBatchSummary("");
+      setTrainingSummaryLayout(false);
+      setGameCardActionSlot("input");
+      if (dom.submitBtn) {
+        dom.submitBtn.style.display = "";
+        dom.submitBtn.disabled = false;
+      }
+      if (dom.answerInput) {
+        dom.answerInput.disabled = false;
+        dom.answerInput.value = "";
+      }
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      const gameCard = document.getElementById("game-card");
+      if (gameCard) gameCard.classList.remove("training-brush-prestart");
+      if (dom.questionText) {
+        dom.questionText.classList.remove("training-brush-stat");
+        dom.questionText.classList.remove("rule-hint");
+      }
+      if (dom.questionSubtext) dom.questionSubtext.classList.remove("training-brush-stat");
+      setTrainingLevelSelectVisible(false);
+    }
+
+    function resumeRunFromDraft(draft) {
+      const d = draft || loadRunDraft();
+      if (!d || !RUN_DRAFT_MODES[d.mode]) return;
+      hideRunDraftResumeModal();
+      gameMode = d.mode;
+      liveRunDraftId = d.id || newRunDraftId();
+      currentLevelIndex = Math.max(0, Math.floor(Number(d.currentLevelIndex) || 0));
+      maxLevelThisRun = Math.max(0, Math.floor(Number(d.maxLevelThisRun) || 0));
+      runScore = Math.max(0, Math.floor(Number(d.runScore) || 0));
+      runWrongCount = Math.max(0, Math.floor(Number(d.runWrongCount) || 0));
+      consecutiveCorrect = Math.max(0, Math.floor(Number(d.consecutiveCorrect) || 0));
+      survivalTimeLeft = Math.max(0, Math.floor(Number(d.survivalTimeLeft) || 0));
+      currentRunAttempts = Array.isArray(d.attempts) ? d.attempts.slice() : [];
+      levelMainAnswered = Math.max(0, Math.floor(Number(d.levelMainAnswered) || 0));
+      levelExtensionAnswered = Math.max(0, Math.floor(Number(d.levelExtensionAnswered) || 0));
+      levelWrongInLevel = Math.max(0, Math.floor(Number(d.levelWrongInLevel) || 0));
+      levelPhase = d.levelPhase === "extension" ? "extension" : "main";
+      levelRunWrongItems = Array.isArray(d.levelRunWrongItems) ? d.levelRunWrongItems.slice() : [];
+      trainingMainAnswered = Math.max(0, Math.floor(Number(d.trainingMainAnswered) || 0));
+      trainingExtensionAnswered = Math.max(0, Math.floor(Number(d.trainingExtensionAnswered) || 0));
+      trainingPhase = d.trainingPhase === "extension" ? "extension" : "main";
+      trainingQuestionIndex = Math.max(0, Math.floor(Number(d.trainingQuestionIndex) || 0));
+      trainingCorrectCount = Math.max(0, Math.floor(Number(d.trainingCorrectCount) || 0));
+      trainingRunWrongItems = Array.isArray(d.trainingRunWrongItems) ? d.trainingRunWrongItems.slice() : [];
+      trainingRunBrushMode = !!d.trainingRunBrushMode;
+      trainingAutoPickLevelIndex = Math.max(
+        0,
+        Math.floor(Number(d.trainingAutoPickLevelIndex != null ? d.trainingAutoPickLevelIndex : currentLevelIndex) || 0)
+      );
+      trainingRunStartMeta = d.trainingRunStartMeta || null;
+      lastTrainingPickResult = d.lastTrainingPickResult || null;
+      const elapsedSec = Math.max(0, Math.floor(Number(d.elapsedSec) || 0));
+      gameStartTime = Date.now() - elapsedSec * 1000;
+      gameOver = false;
+      isPlaying = true;
+      currentQuestion = {
+        text: String(d.currentQuestion.text || ""),
+        answer: d.currentQuestion.answer,
+      };
+
+      if (survivalTimerId) {
+        clearInterval(survivalTimerId);
+        survivalTimerId = null;
+      }
+      enterMainGameShellForResume(gameMode);
+      if (window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === "function") {
+        window.JmlArithmetic.resetLevelDeck(currentLevelIndex, getDeckSegmentCountForMode());
+      }
+      initSoftKeyboardIfNeeded();
+      setSoftKeyboardVisible(true);
+      renderQuestion(currentQuestion);
+      if (gameMode === "training") {
+        if (dom.questionSubtext) {
+          dom.questionSubtext.style.display = "";
+          dom.questionSubtext.textContent = getTrainingQuestionProgressSubtext();
+        }
+        updateTrainingStatusUI();
+        survivalTimerId = setInterval(trainingTick, 1000);
+      } else if (gameMode === "level") {
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = "";
+          dom.questionSubtext.style.display = "none";
+        }
+        updateLevelStatusUI();
+        survivalTimerId = setInterval(levelTick, 1000);
+      } else {
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = "";
+          dom.questionSubtext.style.display = "none";
+        }
+        updateSurvivalStatusUI();
+        survivalTimerId = setInterval(survivalTick, 1000);
+      }
+      setMainGameRecentPanelMode("history");
+      updateGlobalBackButtonState();
+      persistLiveRunDraft();
+    }
+
+    function abandonPendingRunDraftFromModal() {
+      const draft = loadRunDraft();
+      if (!draft) {
+        hideRunDraftResumeModal();
+        return;
+      }
+      const gate = getAbandonGate();
+      if (!gate.ok) {
+        syncRunDraftModalAbandonUi();
+        showAbandonBlockedAlert(gate);
+        return;
+      }
+      if (!confirmAbandonRun(draft.mode)) {
+        syncRunDraftModalAbandonUi();
+        return;
+      }
+      const elapsed = Math.max(0, Math.floor(Number(draft.elapsedSec) || 0));
+      const attempts = Array.isArray(draft.attempts) ? draft.attempts.slice() : [];
+      const wrong = Math.max(0, Math.floor(Number(draft.runWrongCount) || 0));
+      const level = Math.max(0, Math.floor(Number(draft.currentLevelIndex) || 0));
+      const maxLevel = Math.max(level, Math.floor(Number(draft.maxLevelThisRun) || 0));
+
+      if (draft.mode === "training") {
+        currentLevelIndex = level;
+        trainingAutoPickLevelIndex = Math.max(
+          0,
+          Math.floor(
+            Number(
+              draft.trainingAutoPickLevelIndex != null ? draft.trainingAutoPickLevelIndex : level
+            ) || 0
+          )
+        );
+        lastTrainingPickResult = draft.lastTrainingPickResult || null;
+        trainingRunStartMeta = draft.trainingRunStartMeta || null;
+        const abandonMode = applyLocalTrainingDayModeAfterPlay(true);
+        void appendRun(elapsed, 0, level, wrong, "training", attempts, false, false, {
+          abandoned: true,
+          trainingMeta: buildTrainingRunMeta({
+            abandoned: true,
+            runBrushMode: abandonMode.st.dayMode === "heat",
+            runKind: abandonMode.runKind,
+          }),
+        });
+      } else if (draft.mode === "level") {
+        saveLevelChallengeLastLevel(maxLevel);
+        saveLevelChallengeBestLevel(maxLevel);
+        void appendRun(elapsed, 0, maxLevel, wrong, "level", attempts, false, false, {
+          abandoned: true,
+        });
+      } else if (draft.mode === "survival") {
+        void appendRun(elapsed, 0, maxLevel, wrong, "survival", attempts, false, true);
+      }
+      clearRunDraft();
+      hideRunDraftResumeModal();
+      showToast(t("game.over.abandonedTitle"));
+      updateTrainingButtonLabel();
+      updateGlobalBackButtonState();
     }
 
     function globalBackToHome() {
@@ -7643,6 +8049,16 @@
         "game.abandonWaitMinutes": "{n} 分鐘",
         "game.abandonWaitSeconds": "{n} 秒",
         "game.abandonWaitMinSec": "{m} 分 {s} 秒",
+        "game.runDraft.title": "未完成的練習",
+        "game.runDraft.body": "偵測到上次未完成的{mode}。請繼續完成，或放棄本局（放棄仍會計入熱圖）。",
+        "game.runDraft.bodyCooldown": "偵測到上次未完成的{mode}。放棄冷卻中，目前只能繼續完成本局。",
+        "game.runDraft.continue": "繼續練習",
+        "game.runDraft.abandon": "放棄本局",
+        "game.runDraft.mode.training": "訓練",
+        "game.runDraft.mode.level": "闖關",
+        "game.runDraft.mode.survival": "生存",
+        "game.runDraft.cooldownHint": "請等待 {wait} 後再放棄。",
+        "game.runDraft.limitHint": "今天已達放棄上限，只能繼續完成本局。",
         "game.btn.playAgain": "再玩一局",
         "game.over.survivalDuration": "本局存活：",
         "game.over.score": "本局得分：",
@@ -8052,6 +8468,16 @@
         "game.abandonWaitMinutes": "{n} min",
         "game.abandonWaitSeconds": "{n} sec",
         "game.abandonWaitMinSec": "{m} min {s} sec",
+        "game.runDraft.title": "Unfinished run",
+        "game.runDraft.body": "You have an unfinished {mode} run. Continue it, or abandon (mistakes still count on the heatmap).",
+        "game.runDraft.bodyCooldown": "You have an unfinished {mode} run. Abandon is on cooldown — you can only continue for now.",
+        "game.runDraft.continue": "Continue",
+        "game.runDraft.abandon": "Abandon",
+        "game.runDraft.mode.training": "Training",
+        "game.runDraft.mode.level": "Level",
+        "game.runDraft.mode.survival": "Survival",
+        "game.runDraft.cooldownHint": "Wait {wait} before you can abandon.",
+        "game.runDraft.limitHint": "Daily abandon limit reached — you can only continue this run.",
         "game.btn.playAgain": "Play Again",
         "game.over.survivalDuration": "Survived:",
         "game.over.score": "Score:",
@@ -8923,6 +9349,26 @@
       return !!(data && data.ok);
     }
 
+    async function apiPostDivisibilityWrongAnswer(username, entry) {
+      const base = getApiBase();
+      if (!base) return false;
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(username) + "/divisibility-wrong-answers",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({ entry }),
+          credentials: "include",
+        }
+      );
+      if (res.status === 401) {
+        handleAuthRequired();
+        return false;
+      }
+      const data = await res.json();
+      return !!(data && data.ok);
+    }
+
     async function apiChangePassword(username, currentPassword, newPassword) {
       const base = getApiBase();
       if (!base) return { ok: false, error: t("error.noServer") };
@@ -9369,6 +9815,33 @@
         await apiPostExpandBracketsWrongAnswer(username, entry);
       } catch (e) {
         console.warn("同步拆括号错题到服务器失败", e);
+      }
+    }
+
+    /** 整除错题：仅同步管理端 report，不进学员错题本 */
+    function recordDivisibilityWrongAnswer(prompt, correctAnswer, studentAnswer, levelIndex, divisor) {
+      if (isGuestMode) return;
+      const name = loadCurrentUsername();
+      if (!name) return;
+      const lv = Math.max(0, Math.min(4, Math.floor(Number(levelIndex) || 0)));
+      const entry = {
+        ts: Date.now(),
+        levelIndex: lv,
+        prompt: String(prompt || ""),
+        correctAnswer: String(correctAnswer != null ? correctAnswer : ""),
+        studentAnswer: String(studentAnswer != null ? studentAnswer : ""),
+      };
+      if (divisor != null && Number.isFinite(Number(divisor))) {
+        entry.divisor = Math.floor(Number(divisor));
+      }
+      apiAppendDivisibilityWrongAnswer(name, entry);
+    }
+
+    async function apiAppendDivisibilityWrongAnswer(username, entry) {
+      try {
+        await apiPostDivisibilityWrongAnswer(username, entry);
+      } catch (e) {
+        console.warn("同步整除错题到服务器失败", e);
       }
     }
 
@@ -10015,6 +10488,8 @@
       survivalTimerId = setInterval(survivalTick, 1000);
       resetDeckLevelsAtRunStart();
       showNextSurvivalQuestion();
+      liveRunDraftId = newRunDraftId();
+      persistLiveRunDraft();
     }
 
     function startLevelGame() {
@@ -10048,6 +10523,8 @@
       survivalTimerId = setInterval(levelTick, 1000);
       initLevelChallengeSegmentState();
       showNextSurvivalQuestion();
+      liveRunDraftId = newRunDraftId();
+      persistLiveRunDraft();
     }
 
     function survivalTick() {
@@ -10153,6 +10630,8 @@
       currentQuestion = generateBaseQuestionExcludingPrev();
       renderQuestion(currentQuestion);
       if (dom.questionSubtext) dom.questionSubtext.textContent = getTrainingQuestionProgressSubtext();
+      liveRunDraftId = newRunDraftId();
+      persistLiveRunDraft();
     }
 
     /** 生存 / 闯关：结算后回到开局前（规则 + 开始按钮），与首次进入一致 */
@@ -10293,6 +10772,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      clearRunDraft();
       setTrainingSummaryLayout(true);
       updateGlobalBackButtonState();
       setSoftKeyboardVisible(false);
@@ -10586,6 +11066,7 @@
       }
       updateSurvivalStatusUI();
       showNextSurvivalQuestion();
+      persistLiveRunDraft();
     }
 
     function evaluateAnswerLevel(userAnswer) {
@@ -10640,6 +11121,7 @@
       maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
       updateLevelStatusUI();
       showNextSurvivalQuestion();
+      persistLiveRunDraft();
     }
 
     function evaluateAnswerTraining(userAnswer) {
@@ -10693,6 +11175,7 @@
       renderQuestion(currentQuestion);
       if (dom.questionSubtext) dom.questionSubtext.textContent = getTrainingQuestionProgressSubtext();
       if (dom.submitBtn) dom.submitBtn.disabled = false;
+      persistLiveRunDraft();
     }
 
     async function endTrainingGame(abandoned) {
@@ -10702,6 +11185,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      clearRunDraft();
       setTrainingSummaryLayout(true);
       updateGlobalBackButtonState();
       setSoftKeyboardVisible(false);
@@ -10871,6 +11355,7 @@
       }
       isPlaying = false;
       gameOver = true;
+      clearRunDraft();
       updateGlobalBackButtonState();
       setTrainingSummaryLayout(true);
       setSoftKeyboardVisible(false);
@@ -13150,6 +13635,7 @@
     }
 
     async function unlockSurvivalAndEnter() {
+      if (!gatePendingRunDraft()) return;
       const name = loadCurrentUsername();
       if (!name) return;
       cachedUser = cachedUser || {};
@@ -13167,6 +13653,7 @@
     }
 
     function handleModeSurvival() {
+      if (!gatePendingRunDraft()) return;
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
         return;
@@ -14274,6 +14761,7 @@
     }
 
     function handleModeLevel() {
+      if (!gatePendingRunDraft()) return;
       gameMode = "level";
       writeGameSubtitleForMode("level");
       showGameSection();
@@ -14300,6 +14788,7 @@
     }
 
     async function handleModePractice() {
+      if (!gatePendingRunDraft()) return;
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
         return;
@@ -14322,6 +14811,7 @@
     }
 
     function handleModeExpandBrackets() {
+      if (!gatePendingRunDraft()) return;
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
         return;
@@ -14332,6 +14822,7 @@
     }
 
     function handleModeWrongbook() {
+      if (!gatePendingRunDraft()) return;
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
         return;
@@ -14441,6 +14932,7 @@
       loadState();
       showHome();
       updateSurvivalStatusUI();
+      promptPendingRunDraftIfAny();
     }
 
     function showChangePasswordModal() {
@@ -14578,6 +15070,7 @@
         });
       }
       if (dom.startGameBtn) dom.startGameBtn.addEventListener("click", function () {
+        if (!gatePendingRunDraft()) return;
         if (gameMode === "training" && trainingEntryPickPending) return;
         if (gameMode === "training") void startTrainingGame();
         else if (gameMode === "level") startLevelGame();
@@ -14624,17 +15117,23 @@
       });
 
       const modePrimeComposite = document.getElementById("mode-prime-composite");
-      if (modePrimeComposite) modePrimeComposite.addEventListener("click", showPrimeCompositePlaceholder);
+      if (modePrimeComposite) modePrimeComposite.addEventListener("click", function () {
+        if (!gatePendingRunDraft()) return;
+        showPrimeCompositePlaceholder();
+      });
       const modePerfectSquare = document.getElementById("mode-perfect-square");
       if (modePerfectSquare) modePerfectSquare.addEventListener("click", function () {
+        if (!gatePendingRunDraft()) return;
         if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.handleModePerfectSquare();
       });
       const modeDivisibility = document.getElementById("mode-divisibility");
       if (modeDivisibility) modeDivisibility.addEventListener("click", function () {
+        if (!gatePendingRunDraft()) return;
         if (window.JmlDivisibilityPage) JmlDivisibilityPage.handleModeDivisibility();
       });
       const modeDecimal = document.getElementById("mode-decimal");
       if (modeDecimal) modeDecimal.addEventListener("click", function () {
+        if (!gatePendingRunDraft()) return;
         if (window.JmlDecimalPage) JmlDecimalPage.handleModeDecimal();
       });
       const modeExpandBrackets = document.getElementById("mode-expand-brackets");
@@ -14808,6 +15307,26 @@
         if (e.target === gameGuideOverlay) hideGameGuideModal();
       });
 
+      const runDraftContinueBtn = document.getElementById("run-draft-continue-btn");
+      if (runDraftContinueBtn) {
+        runDraftContinueBtn.addEventListener("click", function () {
+          resumeRunFromDraft(loadRunDraft());
+        });
+      }
+      const runDraftAbandonBtn = document.getElementById("run-draft-abandon-btn");
+      if (runDraftAbandonBtn) {
+        runDraftAbandonBtn.addEventListener("click", function () {
+          abandonPendingRunDraftFromModal();
+        });
+      }
+      // 不可点遮罩关闭：必须继续或放弃
+      window.addEventListener("pagehide", function () {
+        persistLiveRunDraft();
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") persistLiveRunDraft();
+      });
+
       const logoutBtn = document.getElementById("logout-btn");
       if (logoutBtn) {
         logoutBtn.addEventListener("click", function () {
@@ -14890,6 +15409,7 @@
             applyTesterOnlyHomeModes();
             applyAchievementWallHomeMode();
             scheduleHomeTopBreathe();
+            promptPendingRunDraftIfAny();
             return;
         }
       } catch (e) {

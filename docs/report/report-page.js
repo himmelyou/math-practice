@@ -1207,6 +1207,7 @@
     renderRunsTable();
     renderWrongBook();
     renderExpandWrongBook();
+    renderDivisibilityWrongBook();
     renderStatsPanel();
     renderTrainDebugPlaceholder('请先选择学员');
   }
@@ -1503,6 +1504,7 @@
         renderRunsTable();
         renderWrongBook();
         renderExpandWrongBook();
+        renderDivisibilityWrongBook();
         state.loadedStudentUsername = u;
         state.serverTrainingPick = null;
         state.serverCategoryNext = null;
@@ -1858,6 +1860,64 @@
             escapeHtml(prompt || '（无题干）') +
             '</div>' +
             '<' + 'div' + '>学员选项：<span style="color:#c62828;font-weight:600;">' +
+            escapeHtml(studentAns || '（空）') +
+            '</span></div>' +
+            '<div>正确选项：<span style="color:#2e7d32;font-weight:600;">' +
+            escapeHtml(rightAns || '（空）') +
+            '</span></div>' +
+            '<div class="meta">' +
+            escapeHtml(meta) +
+            '</div>' +
+            '</li>'
+          );
+        })
+        .join('') +
+      '</ul>';
+  }
+
+  function renderDivisibilityWrongBook() {
+    var wrap = document.getElementById('jml-report-div-wrong-body');
+    if (!wrap) return;
+    if (!state.selectedUsername) {
+      wrap.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
+      return;
+    }
+    var user = state.userDetail || {};
+    var wrongs = Array.isArray(user.divisibilityWrongAnswers)
+      ? user.divisibilityWrongAnswers.slice()
+      : [];
+    if (!wrongs.length) {
+      wrap.innerHTML =
+        '<div class="jml-report-empty">暂无整除错题（仅记录部署后新错题；学员端不可见）</div>';
+      return;
+    }
+    wrongs.sort(function (a, b) {
+      return (b.ts || 0) - (a.ts || 0);
+    });
+    wrap.innerHTML =
+      '<div class="jml-report-summary">整除错题本共 ' +
+      escapeHtml(String(wrongs.length)) +
+      ' 条（每人最多保留 20 条，新错题顶替最旧；仅管理端可见）</div>' +
+      '<ul class="jml-wrong-list">' +
+      wrongs
+        .slice(0, 20)
+        .map(function (w) {
+          var prompt = w.prompt || w.question || w.text || '';
+          var studentAns = w.studentAnswer != null ? String(w.studentAnswer) : '';
+          var rightAns = w.correctAnswer != null ? String(w.correctAnswer) : '';
+          var meta = formatDateTime(w.ts);
+          if (w.levelIndex != null && Number.isFinite(Number(w.levelIndex))) {
+            meta += ' · Z' + (Number(w.levelIndex) + 1);
+          }
+          if (w.divisor != null && Number.isFinite(Number(w.divisor))) {
+            meta += ' · ÷' + Number(w.divisor);
+          }
+          return (
+            '<li class="jml-wrong-item">' +
+            '<div class="expr">' +
+            escapeHtml(prompt || '（无题干）') +
+            '</div>' +
+            '<div>学员选项：<span style="color:#c62828;font-weight:600;">' +
             escapeHtml(studentAns || '（空）') +
             '</span></div>' +
             '<div>正确选项：<span style="color:#2e7d32;font-weight:600;">' +
