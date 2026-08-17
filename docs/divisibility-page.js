@@ -296,8 +296,9 @@
       .join("");
   }
 
-  function startDivTimer() {
-    divStartTs = Date.now();
+  function startDivTimer(elapsedSec) {
+    const elapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    divStartTs = Date.now() - elapsed * 1000;
     if (divTimerId) clearInterval(divTimerId);
     divTimerId = setInterval(function () {
       if (dom().divElapsed) {
@@ -560,6 +561,7 @@
     if (btnA) btnA.textContent = String(optA);
     if (btnB) btnB.textContent = String(optB);
     updateDivStatusStrip();
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
   }
 
   function advanceAfterAnswer() {
@@ -725,6 +727,7 @@
 
   async function endDivisibilityGame() {
     if (deps.getGameMode() !== "divisibility") return;
+    if (typeof deps.clearRunDraft === "function") deps.clearRunDraft();
     deps.setIsPlaying(false);
     stopDivTimer();
     const durationSec = Math.floor((Date.now() - (divStartTs || Date.now())) / 1000);
@@ -827,6 +830,7 @@
 
   function abandonDivisibilityGame() {
     if (deps.getGameMode() !== "divisibility") return;
+    if (typeof deps.clearRunDraft === "function") deps.clearRunDraft();
     const durationSec = Math.floor((Date.now() - (divStartTs || Date.now())) / 1000);
     void deps.appendRun(
       durationSec,
@@ -921,6 +925,95 @@
     return deps.getGameMode() === "divisibility" && deps.getIsPlaying() && !deps.getGameOver();
   }
 
+  function cloneJson(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function captureRunDraft() {
+    if (!isDivisibilityPlayingNow()) return null;
+    const q = divCurrent || (Array.isArray(divRunDeck) ? divRunDeck[0] : null);
+    if (!q) return null;
+    if (!Array.isArray(divRunDeck) || !divRunDeck.length) return null;
+    const elapsedSec = divStartTs
+      ? Math.max(0, Math.floor((Date.now() - divStartTs) / 1000))
+      : 0;
+    return {
+      v: 1,
+      special: true,
+      mode: "divisibility",
+      updatedAt: Date.now(),
+      elapsedSec: elapsedSec,
+      level: divLevel,
+      runStartLevel: divRunStartLevel,
+      unlockedMaxBeforeRun: divUnlockedMaxBeforeRun,
+      score: divScore,
+      wrongCount: divWrongCount,
+      answered: divAnswered,
+      attempts: divAttempts.slice(),
+      wrongItems: Array.isArray(divWrongItems) ? cloneJson(divWrongItems) : [],
+      runDeck: cloneJson(divRunDeck),
+      current: cloneJson(q),
+    };
+  }
+
+  function showDivisibilitySectionShellOnly() {
+    hideOtherGameSections();
+    const sec = document.getElementById("divisibility-section");
+    if (sec) {
+      sec.style.display = "flex";
+      sec.classList.add("visible");
+    }
+    deps.updateTopTitleForCurrentView(false);
+  }
+
+  function resumeFromRunDraft(d) {
+    if (!d || d.mode !== "divisibility") return false;
+    const deck = Array.isArray(d.runDeck) ? cloneJson(d.runDeck) : null;
+    const current = d.current ? cloneJson(d.current) : null;
+    if (!deck || !deck.length || !current) return false;
+
+    deps.setGameMode("divisibility");
+    showDivisibilitySectionShellOnly();
+    divLevel = Math.max(0, Math.min(divMaxLevel(), Math.floor(Number(d.level) || 0)));
+    divRunStartLevel = Math.max(
+      0,
+      Math.min(divMaxLevel(), Math.floor(Number(d.runStartLevel != null ? d.runStartLevel : divLevel) || 0))
+    );
+    divUnlockedMaxBeforeRun = Math.max(0, Math.floor(Number(d.unlockedMaxBeforeRun) || 0));
+    divPrestartLevel = divLevel;
+    divScore = Math.floor(Number(d.score) || 0);
+    divWrongCount = Math.max(0, Math.floor(Number(d.wrongCount) || 0));
+    divAnswered = Math.max(0, Math.floor(Number(d.answered) || 0));
+    divAttempts = Array.isArray(d.attempts) ? d.attempts.slice() : [];
+    divWrongItems = Array.isArray(d.wrongItems) ? cloneJson(d.wrongItems) || [] : [];
+    divRunDeck = deck;
+    // 保证队首与 current 一致
+    divRunDeck[0] = current;
+    divCurrent = current;
+    divChoicesLocked = false;
+
+    deps.setIsPlaying(true);
+    deps.setGameOver(false);
+    if (dom().divLevelSelect) {
+      dom().divLevelSelect.value = String(divLevel);
+      dom().divLevelSelect.disabled = true;
+    }
+    setDivLevelPickerVisible(false);
+    syncDivLevelTexts();
+    setDivPanel("playing");
+    const recent = document.getElementById("div-recent-card");
+    if (recent) recent.style.display = "none";
+    startDivTimer(d.elapsedSec);
+    renderDivQuestion();
+    deps.updateGlobalBackButtonState();
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
+    return true;
+  }
+
   function bindEvents() {
     if (dom().divStartBtn) dom().divStartBtn.addEventListener("click", startDivisibilityGame);
     if (dom().divAgainBtn) {
@@ -962,5 +1055,7 @@
     abandonDivisibilityGame: abandonDivisibilityGame,
     renderDivisibilityRecentRuns: renderDivisibilityRecentRuns,
     showDivisibilityPrestart: showDivisibilityPrestart,
+    captureRunDraft: captureRunDraft,
+    resumeFromRunDraft: resumeFromRunDraft,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -259,8 +259,9 @@
     setDecSoftKeyboardVisible(false);
   }
 
-  function startDecTimer() {
-    decStartTs = Date.now();
+  function startDecTimer(elapsedSec) {
+    const elapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    decStartTs = Date.now() - elapsed * 1000;
     if (decTimerId) clearInterval(decTimerId);
     decTimerId = setInterval(function () {
       const sec = Math.floor((Date.now() - decStartTs) / 1000);
@@ -450,6 +451,7 @@
     }
     decInputLocked = false;
     setDecFeedback("", null);
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
   }
 
   function advanceDecAfterAnswer() {
@@ -555,6 +557,7 @@
     startDecTimer();
     deps.updateGlobalBackButtonState();
     nextDecQuestion();
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
   }
 
   async function fetchDecimalRunsForHeat() {
@@ -674,6 +677,7 @@
 
   async function endDecimalGame() {
     if (deps.getGameMode() !== "decimal") return;
+    if (typeof deps.clearRunDraft === "function") deps.clearRunDraft();
     deps.setIsPlaying(false);
     stopDecTimer();
     const durationSec = Math.floor((Date.now() - (decStartTs || Date.now())) / 1000);
@@ -759,6 +763,7 @@
 
   function abandonDecimalGame() {
     if (deps.getGameMode() !== "decimal") return;
+    if (typeof deps.clearRunDraft === "function") deps.clearRunDraft();
     const durationSec = Math.floor((Date.now() - (decStartTs || Date.now())) / 1000);
     void deps.appendRun(durationSec, 0, decRunStartLevel, decWrongCount, "decimal", decAttempts.slice(), false, true);
     deps.setIsPlaying(false);
@@ -852,6 +857,135 @@
     return deps.getGameMode() === "decimal" && deps.getIsPlaying() && !deps.getGameOver();
   }
 
+  function cloneJson(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function captureRunDraft() {
+    if (!isDecimalPlayingNow()) return null;
+    if (!decCurrent || decCurrent.answer == null) return null;
+    if (!Array.isArray(decRunDeck) || !decRunDeck.length) return null;
+    const elapsedSec = decStartTs
+      ? Math.max(0, Math.floor((Date.now() - decStartTs) / 1000))
+      : 0;
+    return {
+      v: 1,
+      special: true,
+      mode: "decimal",
+      updatedAt: Date.now(),
+      elapsedSec: elapsedSec,
+      level: decLevel,
+      runStartLevel: decRunStartLevel,
+      unlockedMaxBeforeRun: decUnlockedMaxBeforeRun,
+      score: decScore,
+      wrongCount: decWrongCount,
+      attempts: decAttempts.slice(),
+      questionIndex: decQuestionIndex,
+      runDeck: cloneJson(decRunDeck),
+      current: cloneJson(decCurrent),
+    };
+  }
+
+  function showDecimalSectionShellOnly() {
+    deps.setTopActionsVisible(false);
+    if (dom().homeSection) dom().homeSection.classList.add("hidden");
+    if (dom().gameSection) dom().gameSection.classList.remove("visible");
+    if (dom().expandSection) {
+      dom().expandSection.classList.remove("visible");
+      dom().expandSection.style.display = "none";
+    }
+    if (dom().wrongbookSection) dom().wrongbookSection.style.display = "none";
+    const statsSection = document.getElementById("stats-section");
+    if (statsSection) statsSection.classList.remove("visible");
+    const rankingSection = document.getElementById("ranking-section");
+    if (rankingSection) rankingSection.style.display = "none";
+    const achievementWallSection = document.getElementById("achievement-wall-section");
+    if (achievementWallSection) achievementWallSection.style.display = "none";
+    const primeSection = document.getElementById("prime-composite-section");
+    if (primeSection) {
+      primeSection.style.display = "none";
+      primeSection.classList.remove("visible");
+    }
+    if (deps.primeCompositeResetToIdle) deps.primeCompositeResetToIdle();
+    const avatarPickerSec = document.getElementById("avatar-picker-section");
+    if (avatarPickerSec) avatarPickerSec.style.display = "none";
+    const psSec = document.getElementById("perfect-square-section");
+    if (psSec) {
+      psSec.style.display = "none";
+      psSec.classList.remove("visible");
+    }
+    const divSec = document.getElementById("divisibility-section");
+    if (divSec) {
+      divSec.style.display = "none";
+      divSec.classList.remove("visible");
+    }
+    const sec = document.getElementById("decimal-section");
+    if (sec) {
+      sec.style.display = "flex";
+      sec.classList.add("visible");
+    }
+    deps.updateTopTitleForCurrentView(false);
+  }
+
+  function resumeFromRunDraft(d) {
+    if (!d || d.mode !== "decimal") return false;
+    const deck = Array.isArray(d.runDeck) ? cloneJson(d.runDeck) : null;
+    const current = d.current ? cloneJson(d.current) : null;
+    if (!deck || !deck.length || !current || current.answer == null) return false;
+
+    deps.setGameMode("decimal");
+    showDecimalSectionShellOnly();
+    decLevel = Math.max(0, Math.min(decMaxLevel(), Math.floor(Number(d.level) || 0)));
+    decRunStartLevel = Math.max(
+      0,
+      Math.min(decMaxLevel(), Math.floor(Number(d.runStartLevel != null ? d.runStartLevel : decLevel) || 0))
+    );
+    decUnlockedMaxBeforeRun = Math.max(0, Math.floor(Number(d.unlockedMaxBeforeRun) || 0));
+    decPrestartLevel = decLevel;
+    decScore = Math.max(0, Math.floor(Number(d.score) || 0));
+    decWrongCount = Math.max(0, Math.floor(Number(d.wrongCount) || 0));
+    decAttempts = Array.isArray(d.attempts) ? d.attempts.slice() : [];
+    decQuestionIndex = Math.max(0, Math.floor(Number(d.questionIndex) || 0));
+    decRunDeck = deck;
+    decCurrent = current;
+    decInputLocked = false;
+
+    setDecGameCardGameOver(false);
+    deps.setIsPlaying(true);
+    deps.setGameOver(false);
+    if (dom().decGameOverPanel) dom().decGameOverPanel.style.display = "none";
+    if (dom().decLevelSelect) {
+      dom().decLevelSelect.value = String(decLevel);
+      dom().decLevelSelect.disabled = true;
+    }
+    setDecLevelPickerVisible(false);
+    syncDecLevelTexts();
+    if (dom().decProgressText) {
+      dom().decProgressText.textContent = formatDecProgress(decQuestionIndex + 1);
+    }
+    if (dom().decScoreText) dom().decScoreText.textContent = String(decScore);
+    if (dom().decWrongText) dom().decWrongText.textContent = String(decWrongCount);
+    setDecHistoryVisible(false);
+    setDecCardActionSlot("playing");
+    startDecTimer(d.elapsedSec);
+    decQuestionShownAt = Date.now();
+    renderDecQuestionPrompt(decCurrent);
+    hideDecQuestionSubtext();
+    if (dom().decAnswerInput) {
+      dom().decAnswerInput.value = "";
+      dom().decAnswerInput.disabled = false;
+    }
+    setDecFeedback("", null);
+    initDecSoftKeyboardIfNeeded();
+    deps.updateGlobalBackButtonState();
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
+    return true;
+  }
+
   function initDecSoftKeyboardIfNeeded() {
     const card = dom().decSoftKbdCard;
     const input = dom().decAnswerInput;
@@ -914,5 +1048,7 @@
     abandonDecimalGame: abandonDecimalGame,
     renderDecimalRecentRuns: renderDecimalRecentRuns,
     showDecimalPrestart: showDecimalPrestart,
+    captureRunDraft: captureRunDraft,
+    resumeFromRunDraft: resumeFromRunDraft,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -277,8 +277,9 @@
     setPsSoftKeyboardVisible(false);
   }
 
-  function startPsTimer() {
-    psStartTs = Date.now();
+  function startPsTimer(elapsedSec) {
+    const elapsed = Math.max(0, Math.floor(Number(elapsedSec) || 0));
+    psStartTs = Date.now() - elapsed * 1000;
     if (psTimerId) clearInterval(psTimerId);
     psTimerId = setInterval(function () {
       const sec = Math.floor((Date.now() - psStartTs) / 1000);
@@ -551,6 +552,7 @@
     }
     psInputLocked = false;
     setPsFeedback("", null);
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
   }
 
   function evaluatePsAnswer(userAnswer) {
@@ -654,10 +656,12 @@
     startPsTimer();
     deps.updateGlobalBackButtonState();
     nextPsQuestion();
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
   }
 
   async function endPerfectSquareGame() {
     if (deps.getGameMode() !== "perfectSquare") return;
+    if (typeof deps.clearRunDraft === "function") deps.clearRunDraft();
     deps.setIsPlaying(false);
     stopPsTimer();
     const durationSec = Math.floor((Date.now() - (psStartTs || Date.now())) / 1000);
@@ -741,6 +745,7 @@
 
   function abandonPerfectSquareGame() {
     if (deps.getGameMode() !== "perfectSquare") return;
+    if (typeof deps.clearRunDraft === "function") deps.clearRunDraft();
     const durationSec = Math.floor((Date.now() - (psStartTs || Date.now())) / 1000);
     void deps.appendRun(durationSec, 0, psRunStartLevel, psWrongCount, "perfectSquare", psAttempts.slice(), false, true);
     deps.setIsPlaying(false);
@@ -833,6 +838,137 @@
     return deps.getGameMode() === "perfectSquare" && deps.getIsPlaying() && !deps.getGameOver();
   }
 
+  function cloneJson(value) {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function captureRunDraft() {
+    if (!isPerfectSquarePlayingNow()) return null;
+    if (!psCurrent || psCurrent.answer == null) return null;
+    if (!Array.isArray(psRunDeck) || !psRunDeck.length) return null;
+    const elapsedSec = psStartTs
+      ? Math.max(0, Math.floor((Date.now() - psStartTs) / 1000))
+      : 0;
+    return {
+      v: 1,
+      special: true,
+      mode: "perfectSquare",
+      updatedAt: Date.now(),
+      elapsedSec: elapsedSec,
+      level: psLevel,
+      runStartLevel: psRunStartLevel,
+      unlockedMaxBeforeRun: psUnlockedMaxBeforeRun,
+      score: psScore,
+      wrongCount: psWrongCount,
+      mastered: psMastered,
+      attempts: psAttempts.slice(),
+      runDeck: cloneJson(psRunDeck),
+      current: cloneJson(psCurrent),
+    };
+  }
+
+  function showPerfectSquareSectionShellOnly() {
+    deps.setTopActionsVisible(false);
+    if (dom().homeSection) dom().homeSection.classList.add("hidden");
+    if (dom().gameSection) dom().gameSection.classList.remove("visible");
+    if (dom().expandSection) {
+      dom().expandSection.classList.remove("visible");
+      dom().expandSection.style.display = "none";
+    }
+    if (dom().wrongbookSection) dom().wrongbookSection.style.display = "none";
+    const statsSection = document.getElementById("stats-section");
+    if (statsSection) statsSection.classList.remove("visible");
+    const rankingSection = document.getElementById("ranking-section");
+    if (rankingSection) rankingSection.style.display = "none";
+    const achievementWallSection = document.getElementById("achievement-wall-section");
+    if (achievementWallSection) achievementWallSection.style.display = "none";
+    const primeSection = document.getElementById("prime-composite-section");
+    if (primeSection) {
+      primeSection.style.display = "none";
+      primeSection.classList.remove("visible");
+    }
+    if (deps.primeCompositeResetToIdle) deps.primeCompositeResetToIdle();
+    const avatarPickerSec = document.getElementById("avatar-picker-section");
+    if (avatarPickerSec) avatarPickerSec.style.display = "none";
+    const decSec = document.getElementById("decimal-section");
+    if (decSec) {
+      decSec.style.display = "none";
+      decSec.classList.remove("visible");
+    }
+    const divSec = document.getElementById("divisibility-section");
+    if (divSec) {
+      divSec.style.display = "none";
+      divSec.classList.remove("visible");
+    }
+    const sec = document.getElementById("perfect-square-section");
+    if (sec) {
+      sec.style.display = "flex";
+      sec.classList.add("visible");
+    }
+    deps.updateTopTitleForCurrentView(false);
+  }
+
+  function resumeFromRunDraft(d) {
+    if (!d || d.mode !== "perfectSquare") return false;
+    const deck = Array.isArray(d.runDeck) ? cloneJson(d.runDeck) : null;
+    const current = d.current ? cloneJson(d.current) : null;
+    if (!deck || !deck.length || !current || current.answer == null) return false;
+
+    deps.setGameMode("perfectSquare");
+    showPerfectSquareSectionShellOnly();
+    psLevel = Math.max(0, Math.min(psMaxLevel(), Math.floor(Number(d.level) || 0)));
+    psRunStartLevel = Math.max(
+      0,
+      Math.min(psMaxLevel(), Math.floor(Number(d.runStartLevel != null ? d.runStartLevel : psLevel) || 0))
+    );
+    psUnlockedMaxBeforeRun = Math.max(0, Math.floor(Number(d.unlockedMaxBeforeRun) || 0));
+    psPrestartLevel = psLevel;
+    psScore = Math.max(0, Math.floor(Number(d.score) || 0));
+    psWrongCount = Math.max(0, Math.floor(Number(d.wrongCount) || 0));
+    psMastered = Math.max(0, Math.floor(Number(d.mastered) || 0));
+    psAttempts = Array.isArray(d.attempts) ? d.attempts.slice() : [];
+    psRunDeck = deck;
+    psCurrent = current;
+    psInputLocked = false;
+
+    setPsGameCardGameOver(false);
+    deps.setIsPlaying(true);
+    deps.setGameOver(false);
+    if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "none";
+    if (dom().psLevelSelect) {
+      dom().psLevelSelect.value = String(psLevel);
+      dom().psLevelSelect.disabled = true;
+    }
+    setPsLevelPickerVisible(false);
+    syncPsLevelTexts();
+    if (dom().psProgressText) dom().psProgressText.textContent = formatPsProgress();
+    if (dom().psScoreText) dom().psScoreText.textContent = String(psScore);
+    if (dom().psWrongText) dom().psWrongText.textContent = String(psWrongCount);
+    setPsHistoryVisible(false);
+    setPsCardActionSlot("playing");
+    startPsTimer(d.elapsedSec);
+    psQuestionShownAt = Date.now();
+    if (dom().psQuestionText) {
+      dom().psQuestionText.style.display = "";
+      dom().psQuestionText.textContent = psCurrent.prompt || psCurrent.text || "";
+      dom().psQuestionText.classList.remove("rule-hint");
+    }
+    hidePsQuestionSubtext();
+    if (dom().psAnswerInput) {
+      dom().psAnswerInput.value = "";
+      dom().psAnswerInput.disabled = false;
+    }
+    setPsFeedback("", null);
+    initPsSoftKeyboardIfNeeded();
+    deps.updateGlobalBackButtonState();
+    if (typeof deps.persistRunDraft === "function") deps.persistRunDraft();
+    return true;
+  }
+
   function initPsSoftKeyboardIfNeeded() {
     const card = dom().psSoftKbdCard;
     const input = dom().psAnswerInput;
@@ -895,5 +1031,7 @@
     abandonPerfectSquareGame: abandonPerfectSquareGame,
     renderPerfectSquareRecentRuns: renderPerfectSquareRecentRuns,
     showPerfectSquarePrestart: showPerfectSquarePrestart,
+    captureRunDraft: captureRunDraft,
+    resumeFromRunDraft: resumeFromRunDraft,
   };
 })(typeof window !== "undefined" ? window : globalThis);

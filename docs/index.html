@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=119"></script>
+  <script src="shared/app-version.js?v=120"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4954,9 +4954,9 @@
   <script src="shared/decimal-questions.js?v=49"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=50"></script>
-  <script src="divisibility-page.js?v=15"></script>
-  <script src="decimal-page.js?v=15"></script>
+  <script src="perfect-square-page.js?v=51"></script>
+  <script src="divisibility-page.js?v=16"></script>
+  <script src="decimal-page.js?v=16"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -5524,6 +5524,8 @@
         setIsPlaying: function (v) { isPlaying = v; },
         getGameOver: function () { return gameOver; },
         setGameOver: function (v) { gameOver = v; },
+        persistRunDraft: persistLiveRunDraft,
+        clearRunDraft: clearRunDraft,
         fetchUserRuns: async function () {
           return fetchRunsForTrainingHeatmap();
         },
@@ -5590,6 +5592,8 @@
         setIsPlaying: function (v) { isPlaying = v; },
         getGameOver: function () { return gameOver; },
         setGameOver: function (v) { gameOver = v; },
+        persistRunDraft: persistLiveRunDraft,
+        clearRunDraft: clearRunDraft,
         fetchUserRuns: async function () {
           return fetchRunsForTrainingHeatmap();
         },
@@ -5658,6 +5662,8 @@
         setIsPlaying: function (v) { isPlaying = v; },
         getGameOver: function () { return gameOver; },
         setGameOver: function (v) { gameOver = v; },
+        persistRunDraft: persistLiveRunDraft,
+        clearRunDraft: clearRunDraft,
         fetchUserRuns: async function () {
           return fetchRunsForTrainingHeatmap();
         },
@@ -6449,7 +6455,15 @@
 
     // ===== 局中草稿：刷新/关页后强制继续或放弃（冷却中仅可继续）=====
     const RUN_DRAFT_STORAGE_KEY = "jml_run_draft_v1";
-    const RUN_DRAFT_MODES = { training: 1, level: 1, survival: 1 };
+    const RUN_DRAFT_MODES = {
+      training: 1,
+      level: 1,
+      survival: 1,
+      decimal: 1,
+      divisibility: 1,
+      perfectSquare: 1,
+    };
+    const RUN_DRAFT_SPECIAL_MODES = { decimal: 1, divisibility: 1, perfectSquare: 1 };
     let liveRunDraftId = null;
     let runDraftModalOpen = false;
     let runDraftHintTimerId = null;
@@ -6481,6 +6495,11 @@
       if (!d || typeof d !== "object") return null;
       const mode = String(d.mode || "");
       if (!RUN_DRAFT_MODES[mode]) return null;
+      if (RUN_DRAFT_SPECIAL_MODES[mode] || d.special) {
+        if (!Array.isArray(d.runDeck) || !d.runDeck.length) return null;
+        if (!d.current) return null;
+        return d;
+      }
       if (!d.currentQuestion || d.currentQuestion.answer == null) return null;
       return d;
     }
@@ -6513,9 +6532,30 @@
       return label && label !== key ? label : m;
     }
 
+    function captureSpecialModeRunDraft(mode) {
+      if (mode === "decimal" && window.JmlDecimalPage && typeof JmlDecimalPage.captureRunDraft === "function") {
+        return JmlDecimalPage.captureRunDraft();
+      }
+      if (mode === "divisibility" && window.JmlDivisibilityPage && typeof JmlDivisibilityPage.captureRunDraft === "function") {
+        return JmlDivisibilityPage.captureRunDraft();
+      }
+      if (mode === "perfectSquare" && window.JmlPerfectSquarePage && typeof JmlPerfectSquarePage.captureRunDraft === "function") {
+        return JmlPerfectSquarePage.captureRunDraft();
+      }
+      return null;
+    }
+
     function buildLiveRunDraftPayload() {
       if (!isPlaying || gameOver) return null;
       if (!RUN_DRAFT_MODES[gameMode]) return null;
+      if (RUN_DRAFT_SPECIAL_MODES[gameMode]) {
+        const special = captureSpecialModeRunDraft(gameMode);
+        if (!special) return null;
+        if (!liveRunDraftId) liveRunDraftId = newRunDraftId();
+        special.id = liveRunDraftId;
+        special.updatedAt = Date.now();
+        return special;
+      }
       if (!currentQuestion || currentQuestion.answer == null) return null;
       const elapsedSec = gameStartTime
         ? Math.max(0, Math.floor((Date.now() - gameStartTime) / 1000))
@@ -6707,6 +6747,29 @@
       const d = draft || loadRunDraft();
       if (!d || !RUN_DRAFT_MODES[d.mode]) return;
       hideRunDraftResumeModal();
+      if (RUN_DRAFT_SPECIAL_MODES[d.mode] || d.special) {
+        liveRunDraftId = d.id || newRunDraftId();
+        let ok = false;
+        if (d.mode === "decimal" && window.JmlDecimalPage && typeof JmlDecimalPage.resumeFromRunDraft === "function") {
+          ok = !!JmlDecimalPage.resumeFromRunDraft(d);
+        } else if (
+          d.mode === "divisibility" &&
+          window.JmlDivisibilityPage &&
+          typeof JmlDivisibilityPage.resumeFromRunDraft === "function"
+        ) {
+          ok = !!JmlDivisibilityPage.resumeFromRunDraft(d);
+        } else if (
+          d.mode === "perfectSquare" &&
+          window.JmlPerfectSquarePage &&
+          typeof JmlPerfectSquarePage.resumeFromRunDraft === "function"
+        ) {
+          ok = !!JmlPerfectSquarePage.resumeFromRunDraft(d);
+        }
+        if (!ok) {
+          showToast(t("game.runDraft.resumeFail"));
+        }
+        return;
+      }
       gameMode = d.mode;
       liveRunDraftId = d.id || newRunDraftId();
       currentLevelIndex = Math.max(0, Math.floor(Number(d.currentLevelIndex) || 0));
@@ -6799,8 +6862,21 @@
       }
       const elapsed = Math.max(0, Math.floor(Number(draft.elapsedSec) || 0));
       const attempts = Array.isArray(draft.attempts) ? draft.attempts.slice() : [];
-      const wrong = Math.max(0, Math.floor(Number(draft.runWrongCount) || 0));
-      const level = Math.max(0, Math.floor(Number(draft.currentLevelIndex) || 0));
+      const wrongMain = Math.max(0, Math.floor(Number(draft.runWrongCount) || 0));
+      const wrongSpecial = Math.max(0, Math.floor(Number(draft.wrongCount) || 0));
+      const wrong = RUN_DRAFT_SPECIAL_MODES[draft.mode] ? wrongSpecial : wrongMain;
+      const level = Math.max(
+        0,
+        Math.floor(
+          Number(
+            RUN_DRAFT_SPECIAL_MODES[draft.mode]
+              ? draft.runStartLevel != null
+                ? draft.runStartLevel
+                : draft.level
+              : draft.currentLevelIndex
+          ) || 0
+        )
+      );
       const maxLevel = Math.max(level, Math.floor(Number(draft.maxLevelThisRun) || 0));
 
       if (draft.mode === "training") {
@@ -6832,6 +6908,9 @@
         });
       } else if (draft.mode === "survival") {
         void appendRun(elapsed, 0, maxLevel, wrong, "survival", attempts, false, true);
+      } else if (draft.mode === "decimal" || draft.mode === "divisibility" || draft.mode === "perfectSquare") {
+        // 与各页 abandon*Game 一致：comboOnly，不计分进历史热图窗口
+        void appendRun(elapsed, 0, level, wrong, draft.mode, attempts, false, true);
       }
       clearRunDraft();
       hideRunDraftResumeModal();
@@ -8057,8 +8136,12 @@
         "game.runDraft.mode.training": "訓練",
         "game.runDraft.mode.level": "闖關",
         "game.runDraft.mode.survival": "生存",
+        "game.runDraft.mode.decimal": "小數",
+        "game.runDraft.mode.divisibility": "整除",
+        "game.runDraft.mode.perfectSquare": "平方數",
         "game.runDraft.cooldownHint": "請等待 {wait} 後再放棄。",
         "game.runDraft.limitHint": "今天已達放棄上限，只能繼續完成本局。",
+        "game.runDraft.resumeFail": "無法恢復該局，請重新開始。",
         "game.btn.playAgain": "再玩一局",
         "game.over.survivalDuration": "本局存活：",
         "game.over.score": "本局得分：",
@@ -8476,8 +8559,12 @@
         "game.runDraft.mode.training": "Training",
         "game.runDraft.mode.level": "Level",
         "game.runDraft.mode.survival": "Survival",
+        "game.runDraft.mode.decimal": "Decimal",
+        "game.runDraft.mode.divisibility": "Divisibility",
+        "game.runDraft.mode.perfectSquare": "Perfect Square",
         "game.runDraft.cooldownHint": "Wait {wait} before you can abandon.",
         "game.runDraft.limitHint": "Daily abandon limit reached — you can only continue this run.",
+        "game.runDraft.resumeFail": "Could not resume that run. Please start again.",
         "game.btn.playAgain": "Play Again",
         "game.over.survivalDuration": "Survived:",
         "game.over.score": "Score:",
