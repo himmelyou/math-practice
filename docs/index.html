@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=120"></script>
+  <script src="shared/app-version.js?v=121"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3886,7 +3886,8 @@
         <div id="login-error" class="login-error"></div>
         <p class="login-hint">登录/注册需联网。可游客试玩（仅本地保存，无需联网）。</p>
       </div>
-      <p class="app-home-version" id="login-home-version">版本 v1.6.4</p><!-- 与 app-version.js、#app-home-version 保持一致 -->
+      <p class="app-home-version" id="login-home-version"></p>
+      <script>if (window.applyJmlAppVersionText) window.applyJmlAppVersionText();</script>
     </div>
   </div>
 
@@ -4071,7 +4072,8 @@
         </section>
       </div>
     </section>
-    <p class="app-home-version" id="app-home-version">版本 v1.6.4</p>
+    <p class="app-home-version" id="app-home-version"></p>
+    <script>if (window.applyJmlAppVersionText) window.applyJmlAppVersionText();</script>
 
     <div class="game-section" id="game-section">
       <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。</p>
@@ -9143,13 +9145,13 @@
           const m = String(
             (loginVersion && loginVersion.textContent) || ""
           ).match(/v[\d.]+/i);
-          return m ? m[0] : "v1.6.4";
+          return m ? m[0] : "";
         })();
-      if (loginVersion) {
+      if (loginVersion && appVer) {
         loginVersion.textContent = `${t("login.version")} ${appVer}`;
       }
       const appHomeVersion = document.getElementById("app-home-version");
-      if (appHomeVersion) {
+      if (appHomeVersion && appVer) {
         appHomeVersion.textContent = `${t("login.version")} ${appVer}`;
       }
       applyI18nGlobalChrome();
