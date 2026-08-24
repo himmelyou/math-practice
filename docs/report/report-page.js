@@ -27,6 +27,21 @@
     '第 3 级 · 乘或除以 10ⁿ',
     '第 4 级 · 单位分数与小数互化',
     '第 5 级 · 小数乘除一位整数',
+    '第 6 级 · 小数乘除小数',
+  ];
+
+  var PERFECT_SQUARE_LEVEL_NAMES = [
+    '第 1 级 · 2～11 的平方',
+    '第 2 级 · 2～20 的平方',
+    '第 3 级 · 2～30 的平方',
+    '第 4 级 · 2/3/5 质因数的幂',
+  ];
+
+  var DIVISIBILITY_LEVEL_NAMES = [
+    '第 1 级 · 2 与 5 的整除',
+    '第 2 级 · 3 与 9 的整除',
+    '第 3 级 · 4 与 8 的整除',
+    '第 4 级 · 6 与 12 的整除',
   ];
 
   var MODE_LABEL = {
@@ -2375,10 +2390,18 @@
     var HM = window.JmlStatsHeatmap;
     var cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(state.chartCategoryId) : null;
     var li = state.statsLevelIndex;
-    if (cat && cat.id === 'decimal') {
+    var catId = cat && cat.id ? cat.id : state.chartCategoryId;
+    var prefix = (cat && cat.levelPrefix) || 'L';
+    if (catId === 'decimal') {
       return DECIMAL_LEVEL_NAMES[li] || 'D' + (li + 1);
     }
-    return LEVEL_NAMES[li] || 'L' + (li + 1);
+    if (catId === 'perfectSquare') {
+      return PERFECT_SQUARE_LEVEL_NAMES[li] || prefix + (li + 1);
+    }
+    if (catId === 'divisibility') {
+      return DIVISIBILITY_LEVEL_NAMES[li] || 'Z' + (li + 1);
+    }
+    return LEVEL_NAMES[li] || prefix + (li + 1);
   }
 
   function updateStatsChartHeadings() {
