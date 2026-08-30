@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=121"></script>
+  <script src="shared/app-version.js?v=122"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -2724,6 +2724,49 @@
     .wrongbook-header { margin-bottom: 12px; }
     .wrongbook-title { margin: 0 0 4px; font-size: 1.2rem; color: #e65100; }
     .wrongbook-subtitle { margin: 0; font-size: 0.88rem; color: var(--muted); }
+    .wrongbook-tabs {
+      display: flex;
+      gap: 6px;
+      margin: 0 0 12px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .wrongbook-tabs::-webkit-scrollbar { display: none; }
+    .wrongbook-tab {
+      position: relative;
+      flex: 0 0 auto;
+      border: 1px solid #e0e0e0;
+      background: #fff;
+      color: var(--text-main);
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .wrongbook-tab.active {
+      background: #fff3e0;
+      border-color: #ffb74d;
+      color: #e65100;
+      font-weight: 600;
+    }
+    .wrongbook-tab-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.15rem;
+      height: 1.15rem;
+      margin-left: 6px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: #e65100;
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      line-height: 1;
+      vertical-align: middle;
+    }
     .wrongbook-list {
       background: #fff;
       border-radius: var(--border-radius);
@@ -4288,6 +4331,20 @@
         <h2 class="wrongbook-title">错题本</h2>
         <p class="wrongbook-subtitle">以下是最新错题，可自行复习。</p>
       </div>
+      <div class="wrongbook-tabs" id="wrongbook-tabs" role="tablist" aria-label="错题本分类">
+        <button type="button" class="wrongbook-tab active" id="wrongbook-tab-arithmetic" data-wrongbook-tab="arithmetic" role="tab" aria-selected="true">
+          <span id="wrongbook-tab-label-arithmetic">四则运算</span>
+          <span class="wrongbook-tab-badge" id="wrongbook-tab-badge-arithmetic" hidden>0</span>
+        </button>
+        <button type="button" class="wrongbook-tab" id="wrongbook-tab-divisibility" data-wrongbook-tab="divisibility" role="tab" aria-selected="false">
+          <span id="wrongbook-tab-label-divisibility">整除</span>
+          <span class="wrongbook-tab-badge" id="wrongbook-tab-badge-divisibility" hidden>0</span>
+        </button>
+        <button type="button" class="wrongbook-tab" id="wrongbook-tab-expand" data-wrongbook-tab="expand" role="tab" aria-selected="false">
+          <span id="wrongbook-tab-label-expand">拆括号</span>
+          <span class="wrongbook-tab-badge" id="wrongbook-tab-badge-expand" hidden>0</span>
+        </button>
+      </div>
       <div class="wrongbook-list" id="wrongbook-list"></div>
       <div id="wrongbook-empty" class="wrongbook-empty">暂无错题记录。</div>
       <div class="wrongbook-actions" id="wrongbook-actions">
@@ -5234,7 +5291,10 @@
     const WRONGBOOK_MAX_STORE = 100; // 与后端库存上限一致；新错题顶替最旧
     const WRONGBOOK_DISPLAY_MAX = 30; // 学员端列表/练习/角标可见上限
     const WRONGBOOK_BADGE_MIN = 10; // 主页角标：可见错题数 ≥ 此值才显示
-    const EXPAND_WRONG_MAX_STORE = 20; // 拆括号错题（仅管理端 report），超出则丢弃最旧
+    const EXPAND_WRONG_MAX_STORE = 20; // 拆括号错题库存上限
+    const DIVISIBILITY_WRONG_MAX_STORE = 20; // 整除错题库存上限
+    /** 错题本当前 tab：arithmetic | divisibility | expand */
+    let wrongbookActiveTab = "arithmetic";
 
     function showWrongbookViewFast() {
       setTopActionsVisible(false);
@@ -5248,6 +5308,7 @@
       hidePerfectSquareSection();
       hideDivisibilitySection();
       hideDecimalSection();
+      syncWrongbookTabUi();
       renderWrongbookList();
     }
 
@@ -7990,6 +8051,11 @@
         "wrongbook.studentAnswer": "學員答案：",
         "wrongbook.correctAnswer": "正確答案：",
         "wrongbook.badgeAria": "錯題 {n} 道",
+        "wrongbook.tab.arithmetic": "四則運算",
+        "wrongbook.tab.divisibility": "整除",
+        "wrongbook.tab.expand": "拆括號",
+        "wrongbook.emptyDiv": "暫無整除錯題。",
+        "wrongbook.emptyExpand": "暫無拆括號錯題。",
         "home.soon.expandBrackets": "拆括號：功能即將上線",
         "home.soon.divisibility": "整除：功能即將上線",
         "home.soon.factorsMultiples": "因數倍數：功能即將上線",
@@ -8413,6 +8479,11 @@
         "wrongbook.studentAnswer": "Your answer:",
         "wrongbook.correctAnswer": "Correct:",
         "wrongbook.badgeAria": "{n} wrong questions",
+        "wrongbook.tab.arithmetic": "Arithmetic",
+        "wrongbook.tab.divisibility": "Divisibility",
+        "wrongbook.tab.expand": "Brackets",
+        "wrongbook.emptyDiv": "No divisibility mistakes yet.",
+        "wrongbook.emptyExpand": "No expand-brackets mistakes yet.",
         "home.soon.expandBrackets": "Expand Brackets: coming soon",
         "home.soon.divisibility": "Divisibility: coming soon",
         "home.soon.factorsMultiples": "Factors & Multiples: coming soon",
@@ -9197,6 +9268,9 @@
       setTextById("stats-subtitle-hint", "stats.subtitle");
 
       setTextById("wrongbook-practice-btn", "wrongbook.practice");
+      setTextById("wrongbook-tab-label-arithmetic", "wrongbook.tab.arithmetic");
+      setTextById("wrongbook-tab-label-divisibility", "wrongbook.tab.divisibility");
+      setTextById("wrongbook-tab-label-expand", "wrongbook.tab.expand");
       const wbTitle = document.querySelector(".wrongbook-title");
       if (wbTitle) wbTitle.textContent = t("wrongbook.title");
       const wbSub = document.querySelector(".wrongbook-subtitle");
@@ -9377,6 +9451,12 @@
       return {
         wrongAnswers: data.wrongAnswers,
         wrongAnswersClearedBeforeTs: Number(data.wrongAnswersClearedBeforeTs) || 0,
+        expandBracketsWrongAnswers: Array.isArray(data.expandBracketsWrongAnswers)
+          ? data.expandBracketsWrongAnswers
+          : [],
+        divisibilityWrongAnswers: Array.isArray(data.divisibilityWrongAnswers)
+          ? data.divisibilityWrongAnswers
+          : [],
       };
     }
 
@@ -9423,7 +9503,7 @@
 
     async function apiPostExpandBracketsWrongAnswer(username, entry) {
       const base = getApiBase();
-      if (!base) return false;
+      if (!base) return null;
       const res = await fetch(
         base + "/api/user/" + encodeURIComponent(username) + "/expand-brackets-wrong-answers",
         {
@@ -9433,14 +9513,19 @@
           credentials: "include",
         }
       );
-      if (res.status === 401) { handleAuthRequired(); return false; }
+      if (res.status === 401) { handleAuthRequired(); return null; }
       const data = await res.json();
-      return !!(data && data.ok);
+      if (!data || !data.ok) return null;
+      return {
+        expandBracketsWrongAnswers: Array.isArray(data.expandBracketsWrongAnswers)
+          ? data.expandBracketsWrongAnswers
+          : null,
+      };
     }
 
     async function apiPostDivisibilityWrongAnswer(username, entry) {
       const base = getApiBase();
-      if (!base) return false;
+      if (!base) return null;
       const res = await fetch(
         base + "/api/user/" + encodeURIComponent(username) + "/divisibility-wrong-answers",
         {
@@ -9452,10 +9537,15 @@
       );
       if (res.status === 401) {
         handleAuthRequired();
-        return false;
+        return null;
       }
       const data = await res.json();
-      return !!(data && data.ok);
+      if (!data || !data.ok) return null;
+      return {
+        divisibilityWrongAnswers: Array.isArray(data.divisibilityWrongAnswers)
+          ? data.divisibilityWrongAnswers
+          : null,
+      };
     }
 
     async function apiChangePassword(username, currentPassword, newPassword) {
@@ -9744,6 +9834,8 @@
       if (typeof user.trainingL16Cleared !== "boolean") user.trainingL16Cleared = false;
       if (typeof user.heatmapL16Passed !== "boolean") user.heatmapL16Passed = false;
       if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
+      if (!Array.isArray(user.expandBracketsWrongAnswers)) user.expandBracketsWrongAnswers = [];
+      if (!Array.isArray(user.divisibilityWrongAnswers)) user.divisibilityWrongAnswers = [];
       if (
         typeof user.wrongAnswersClearedBeforeTs !== "number"
         || !Number.isFinite(user.wrongAnswersClearedBeforeTs)
@@ -9901,13 +9993,33 @@
 
     async function apiAppendExpandBracketsWrongAnswer(username, entry) {
       try {
-        await apiPostExpandBracketsWrongAnswer(username, entry);
+        const result = await apiPostExpandBracketsWrongAnswer(username, entry);
+        if (!cachedUser) cachedUser = { username: username };
+        ensureUserProgressDefault(cachedUser);
+        if (result && Array.isArray(result.expandBracketsWrongAnswers)) {
+          cachedUser.expandBracketsWrongAnswers = result.expandBracketsWrongAnswers;
+        } else {
+          if (!Array.isArray(cachedUser.expandBracketsWrongAnswers)) {
+            cachedUser.expandBracketsWrongAnswers = [];
+          }
+          cachedUser.expandBracketsWrongAnswers.unshift(entry);
+          if (cachedUser.expandBracketsWrongAnswers.length > EXPAND_WRONG_MAX_STORE) {
+            cachedUser.expandBracketsWrongAnswers = cachedUser.expandBracketsWrongAnswers.slice(
+              0,
+              EXPAND_WRONG_MAX_STORE
+            );
+          }
+        }
+        if (dom.wrongbookSection && dom.wrongbookSection.style.display !== "none") {
+          updateWrongbookTabBadges();
+          if (wrongbookActiveTab === "expand") renderWrongbookList();
+        }
       } catch (e) {
         console.warn("同步拆括号错题到服务器失败", e);
       }
     }
 
-    /** 整除错题：仅同步管理端 report，不进学员错题本 */
+    /** 整除错题：写入专用错题本（错题本「整除」tab） */
     function recordDivisibilityWrongAnswer(prompt, correctAnswer, studentAnswer, levelIndex, divisor) {
       if (isGuestMode) return;
       const name = loadCurrentUsername();
@@ -9928,7 +10040,27 @@
 
     async function apiAppendDivisibilityWrongAnswer(username, entry) {
       try {
-        await apiPostDivisibilityWrongAnswer(username, entry);
+        const result = await apiPostDivisibilityWrongAnswer(username, entry);
+        if (!cachedUser) cachedUser = { username: username };
+        ensureUserProgressDefault(cachedUser);
+        if (result && Array.isArray(result.divisibilityWrongAnswers)) {
+          cachedUser.divisibilityWrongAnswers = result.divisibilityWrongAnswers;
+        } else {
+          if (!Array.isArray(cachedUser.divisibilityWrongAnswers)) {
+            cachedUser.divisibilityWrongAnswers = [];
+          }
+          cachedUser.divisibilityWrongAnswers.unshift(entry);
+          if (cachedUser.divisibilityWrongAnswers.length > DIVISIBILITY_WRONG_MAX_STORE) {
+            cachedUser.divisibilityWrongAnswers = cachedUser.divisibilityWrongAnswers.slice(
+              0,
+              DIVISIBILITY_WRONG_MAX_STORE
+            );
+          }
+        }
+        if (dom.wrongbookSection && dom.wrongbookSection.style.display !== "none") {
+          updateWrongbookTabBadges();
+          if (wrongbookActiveTab === "divisibility") renderWrongbookList();
+        }
       } catch (e) {
         console.warn("同步整除错题到服务器失败", e);
       }
@@ -13599,7 +13731,7 @@
       return WRONGBOOK_EXCLUDED_MODES.has(String(mode || "").trim());
     }
 
-    /** 学员端可见错题：游标之后，最多 WRONGBOOK_DISPLAY_MAX 条（新→旧）；整除等排除模式不进列表/练习 */
+    /** 学员端可见四则错题：游标之后，最多 WRONGBOOK_DISPLAY_MAX 条（新→旧）；整除等排除模式不进列表/练习 */
     function getWrongAnswers() {
       const user = getCurrentUser();
       if (!user || isGuestMode) return [];
@@ -13613,6 +13745,77 @@
       return visible.slice(0, WRONGBOOK_DISPLAY_MAX);
     }
 
+    function getExpandWrongAnswers() {
+      const user = getCurrentUser();
+      if (!user || isGuestMode) return [];
+      ensureUserProgressDefault(user);
+      const all = Array.isArray(user.expandBracketsWrongAnswers)
+        ? user.expandBracketsWrongAnswers.slice()
+        : [];
+      all.sort(function (a, b) {
+        return (Number(b && b.ts) || 0) - (Number(a && a.ts) || 0);
+      });
+      return all.slice(0, EXPAND_WRONG_MAX_STORE);
+    }
+
+    function getDivisibilityWrongAnswers() {
+      const user = getCurrentUser();
+      if (!user || isGuestMode) return [];
+      ensureUserProgressDefault(user);
+      const all = Array.isArray(user.divisibilityWrongAnswers)
+        ? user.divisibilityWrongAnswers.slice()
+        : [];
+      all.sort(function (a, b) {
+        return (Number(b && b.ts) || 0) - (Number(a && a.ts) || 0);
+      });
+      return all.slice(0, DIVISIBILITY_WRONG_MAX_STORE);
+    }
+
+    function setWrongbookTabBadge(el, count) {
+      if (!el) return;
+      const n = Math.max(0, Math.floor(Number(count) || 0));
+      if (n <= 0) {
+        el.hidden = true;
+        el.textContent = "0";
+        return;
+      }
+      el.hidden = false;
+      el.textContent = n > 99 ? "99+" : String(n);
+    }
+
+    function updateWrongbookTabBadges() {
+      setWrongbookTabBadge(
+        document.getElementById("wrongbook-tab-badge-arithmetic"),
+        getWrongAnswers().length
+      );
+      setWrongbookTabBadge(
+        document.getElementById("wrongbook-tab-badge-divisibility"),
+        getDivisibilityWrongAnswers().length
+      );
+      setWrongbookTabBadge(
+        document.getElementById("wrongbook-tab-badge-expand"),
+        getExpandWrongAnswers().length
+      );
+    }
+
+    function syncWrongbookTabUi() {
+      const tabs = document.querySelectorAll(".wrongbook-tab[data-wrongbook-tab]");
+      tabs.forEach(function (btn) {
+        const id = btn.getAttribute("data-wrongbook-tab");
+        const on = id === wrongbookActiveTab;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+
+    function setWrongbookActiveTab(tab) {
+      const next =
+        tab === "divisibility" || tab === "expand" || tab === "arithmetic" ? tab : "arithmetic";
+      wrongbookActiveTab = next;
+      syncWrongbookTabUi();
+      renderWrongbookList();
+    }
+
     function updateWrongbookBadge() {
       const badge = dom.wrongbookBadge;
       if (!badge) return;
@@ -13622,6 +13825,7 @@
         badge.removeAttribute("aria-label");
         return;
       }
+      // 首页角标只数四则可见错题
       const n = getWrongAnswers().length;
       if (n < WRONGBOOK_BADGE_MIN) {
         badge.hidden = true;
@@ -13648,6 +13852,7 @@
       hidePerfectSquareSection();
       hideDivisibilitySection();
       hideDecimalSection();
+      syncWrongbookTabUi();
       renderWrongbookList();
       const name = loadCurrentUsername();
       if (!name || !getApiBase()) return;
@@ -13659,6 +13864,8 @@
           cachedUser.wrongAnswers = payload.wrongAnswers;
           cachedUser.wrongAnswersClearedBeforeTs =
             Number(payload.wrongAnswersClearedBeforeTs) || 0;
+          cachedUser.expandBracketsWrongAnswers = payload.expandBracketsWrongAnswers || [];
+          cachedUser.divisibilityWrongAnswers = payload.divisibilityWrongAnswers || [];
           renderWrongbookList();
         }
       } catch (e) {
@@ -13671,10 +13878,27 @@
       const empty = dom.wrongbookEmpty;
       const practiceBtn = dom.wrongbookPracticeBtn;
       if (!list || !empty) return;
-      const wrongs = getWrongAnswers();
+      syncWrongbookTabUi();
+      updateWrongbookTabBadges();
+
+      const tab = wrongbookActiveTab;
+      let wrongs = [];
+      let emptyKey = "wrongbook.empty";
+      if (tab === "divisibility") {
+        wrongs = getDivisibilityWrongAnswers();
+        emptyKey = "wrongbook.emptyDiv";
+      } else if (tab === "expand") {
+        wrongs = getExpandWrongAnswers();
+        emptyKey = "wrongbook.emptyExpand";
+      } else {
+        wrongs = getWrongAnswers();
+        emptyKey = "wrongbook.empty";
+      }
+
       if (wrongs.length === 0) {
         list.innerHTML = "";
         empty.style.display = "block";
+        empty.textContent = t(emptyKey);
         if (practiceBtn) practiceBtn.style.display = "none";
         updateWrongbookBadge();
         return;
@@ -13682,21 +13906,104 @@
       empty.style.display = "none";
       const lblWrong = t("wrongbook.studentAnswer");
       const lblCorrect = t("wrongbook.correctAnswer");
-      list.innerHTML = wrongs.map(w => {
-        const levelMeta = w.levelLabel
-          || (w.levelIndex != null ? formatWrongAnswerLevelLabel(w.mode || "level", w.levelIndex) : "");
-        const levelLine = levelMeta
-          ? `<div class="wrongbook-meta">${escapeHtml(levelMeta)}</div>`
-          : "";
-        return `
-        <div class="wrongbook-item">
-          <div class="q">${escapeHtml(w.text || "")}</div>
-          <div>${escapeHtml(lblWrong)}<span class="wrong-ans">${escapeHtml(String(w.studentAnswer ?? ""))}</span> · ${escapeHtml(lblCorrect)}<span class="correct-ans">${escapeHtml(String(w.answer ?? ""))}</span></div>
-          ${levelLine}
-        </div>
-      `;
-      }).join("");
-      if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
+
+      if (tab === "arithmetic") {
+        list.innerHTML = wrongs
+          .map(function (w) {
+            const levelMeta =
+              w.levelLabel ||
+              (w.levelIndex != null
+                ? formatWrongAnswerLevelLabel(w.mode || "level", w.levelIndex)
+                : "");
+            const levelLine = levelMeta
+              ? '<div class="wrongbook-meta">' + escapeHtml(levelMeta) + "</div>"
+              : "";
+            return (
+              '<div class="wrongbook-item">' +
+              '<div class="q">' +
+              escapeHtml(w.text || "") +
+              "</div>" +
+              "<div>" +
+              escapeHtml(lblWrong) +
+              '<span class="wrong-ans">' +
+              escapeHtml(String(w.studentAnswer ?? "")) +
+              "</span> · " +
+              escapeHtml(lblCorrect) +
+              '<span class="correct-ans">' +
+              escapeHtml(String(w.answer ?? "")) +
+              "</span></div>" +
+              levelLine +
+              "</div>"
+            );
+          })
+          .join("");
+        if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
+      } else if (tab === "divisibility") {
+        list.innerHTML = wrongs
+          .map(function (w) {
+            const prompt = w.prompt || w.question || w.text || "";
+            let meta = "";
+            if (w.levelIndex != null && Number.isFinite(Number(w.levelIndex))) {
+              meta = "Z" + (Number(w.levelIndex) + 1);
+            }
+            if (w.divisor != null && Number.isFinite(Number(w.divisor))) {
+              meta = (meta ? meta + " · " : "") + "÷" + Number(w.divisor);
+            }
+            const metaLine = meta
+              ? '<div class="wrongbook-meta">' + escapeHtml(meta) + "</div>"
+              : "";
+            return (
+              '<div class="wrongbook-item">' +
+              '<div class="q">' +
+              escapeHtml(prompt || "—") +
+              "</div>" +
+              "<div>" +
+              escapeHtml(lblWrong) +
+              '<span class="wrong-ans">' +
+              escapeHtml(String(w.studentAnswer != null ? w.studentAnswer : "")) +
+              "</span> · " +
+              escapeHtml(lblCorrect) +
+              '<span class="correct-ans">' +
+              escapeHtml(String(w.correctAnswer != null ? w.correctAnswer : "")) +
+              "</span></div>" +
+              metaLine +
+              "</div>"
+            );
+          })
+          .join("");
+        if (practiceBtn) practiceBtn.style.display = "none";
+      } else {
+        list.innerHTML = wrongs
+          .map(function (w) {
+            const prompt = w.prompt || w.question || w.text || "";
+            const meta =
+              w.levelIndex != null && Number.isFinite(Number(w.levelIndex))
+                ? "L" + (Number(w.levelIndex) + 1)
+                : "";
+            const metaLine = meta
+              ? '<div class="wrongbook-meta">' + escapeHtml(meta) + "</div>"
+              : "";
+            return (
+              '<div class="wrongbook-item">' +
+              '<div class="q">' +
+              escapeHtml(prompt || "—") +
+              "</div>" +
+              "<div>" +
+              escapeHtml(lblWrong) +
+              '<span class="wrong-ans">' +
+              escapeHtml(String(w.studentAnswer != null ? w.studentAnswer : "")) +
+              "</span> · " +
+              escapeHtml(lblCorrect) +
+              '<span class="correct-ans">' +
+              escapeHtml(String(w.correctAnswer != null ? w.correctAnswer : "")) +
+              "</span></div>" +
+              metaLine +
+              "</div>"
+            );
+          })
+          .join("");
+        if (practiceBtn) practiceBtn.style.display = "none";
+      }
       updateWrongbookBadge();
     }
 
@@ -15256,6 +15563,16 @@
       });
 
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
+      const wrongbookTabs = document.getElementById("wrongbook-tabs");
+      if (wrongbookTabs) {
+        wrongbookTabs.addEventListener("click", function (e) {
+          const btn = e.target && e.target.closest ? e.target.closest("[data-wrongbook-tab]") : null;
+          if (!btn || !wrongbookTabs.contains(btn)) return;
+          const tab = btn.getAttribute("data-wrongbook-tab");
+          if (!tab) return;
+          setWrongbookActiveTab(tab);
+        });
+      }
 
       if (dom.expandChoices) {
         dom.expandChoices.addEventListener("click", function (e) {

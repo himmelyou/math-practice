@@ -133,12 +133,20 @@ function markWrongAnswersCleared(user) {
   return maxTs;
 }
 
-/** 学员端 API：wrongAnswers 仅为游标后可见集；库存仍在 user.wrongAnswers */
+/** 学员端 API：wrongAnswers 仅为游标后可见集；库存仍在 user.wrongAnswers；附带拆括号/整除错题供错题本 tab */
 function wrongAnswersPayload(user) {
+  const expand = Array.isArray(user.expandBracketsWrongAnswers)
+    ? user.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE)
+    : [];
+  const div = Array.isArray(user.divisibilityWrongAnswers)
+    ? user.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE)
+    : [];
   return {
     wrongAnswers: visibleWrongAnswers(user),
     wrongAnswersClearedBeforeTs: getWrongAnswersClearedBeforeTs(user),
     wrongAnswersStoredCount: Array.isArray(user.wrongAnswers) ? user.wrongAnswers.length : 0,
+    expandBracketsWrongAnswers: expand,
+    divisibilityWrongAnswers: div,
   };
 }
 
@@ -1836,10 +1844,15 @@ app.post("/api/user/:username/expand-brackets-wrong-answers", requireStudentAuth
     u.expandBracketsWrongAnswers = u.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE);
   }
   writeJson(USERS_FILE, data);
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    expandBracketsWrongAnswers: Array.isArray(u.expandBracketsWrongAnswers)
+      ? u.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE)
+      : [],
+  });
 });
 
-/** 整除错题：仅写入档案供管理端 report；学员 API 不返回该字段 */
+/** 整除错题：写入档案；学员错题本 tab 可通过 GET /wrong-answers 读取 */
 app.post("/api/user/:username/divisibility-wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const raw = req.body && req.body.entry != null ? req.body.entry : req.body;
@@ -1872,7 +1885,12 @@ app.post("/api/user/:username/divisibility-wrong-answers", requireStudentAuth, e
     u.divisibilityWrongAnswers = u.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE);
   }
   writeJson(USERS_FILE, data);
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    divisibilityWrongAnswers: Array.isArray(u.divisibilityWrongAnswers)
+      ? u.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE)
+      : [],
+  });
 });
 
 // ========== 获取学员数据（用于换设备同步），需登录且只能访问自己 ==========

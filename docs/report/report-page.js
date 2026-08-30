@@ -1903,7 +1903,7 @@
       : [];
     if (!wrongs.length) {
       wrap.innerHTML =
-        '<div class="jml-report-empty">暂无整除错题（仅记录部署后新错题；学员端不可见）</div>';
+      '<div class="jml-report-empty">暂无整除错题（仅记录部署后新错题）</div>';
       return;
     }
     wrongs.sort(function (a, b) {
@@ -1912,7 +1912,7 @@
     wrap.innerHTML =
       '<div class="jml-report-summary">整除错题本共 ' +
       escapeHtml(String(wrongs.length)) +
-      ' 条（每人最多保留 20 条，新错题顶替最旧；仅管理端可见）</div>' +
+      ' 条（每人最多保留 20 条，新错题顶替最旧）</div>' +
       '<ul class="jml-wrong-list">' +
       wrongs
         .slice(0, 20)
