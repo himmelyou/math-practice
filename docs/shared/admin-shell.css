@@ -61,3 +61,34 @@
   color: #1d4ed8;
 }
 
+/* 窄屏：壳层与工具栏；Tab 横滑（admin / report 共用类名时由各页 CSS 再补强） */
+@media (max-width: 768px) {
+  .jml-shell {
+    padding: 0 10px 28px;
+  }
+
+  .jml-shell-inner {
+    padding-top: 10px;
+  }
+
+  .jml-shell h1 {
+    font-size: 1.18rem;
+  }
+
+  .jml-shell .muted {
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+  }
+
+  .jml-shell-inner .jml-app-bar,
+  .jml-shell-inner .jml-admin-toolbar {
+    justify-content: flex-start;
+    gap: 8px;
+    padding-top: 4px;
+  }
+
+  .jml-toolbar-link {
+    font-size: 0.86rem;
+  }
+}
+

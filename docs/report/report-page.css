@@ -855,3 +855,114 @@
   margin-bottom: 12px;
 }
 
+/* —— 手机：桌面规则不变，仅窄屏增强 —— */
+@media (max-width: 768px) {
+  .jml-admin-toolbar {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .jml-admin-toolbar .jml-btn {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+
+  .jml-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    gap: 0;
+    margin-left: -4px;
+    margin-right: -4px;
+    padding: 0 4px;
+  }
+
+  .jml-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 10px 14px;
+    font-size: 0.86rem;
+  }
+
+  .jml-report-user-row {
+    gap: 8px 10px;
+  }
+
+  .jml-report-user-filter {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .jml-report-user-select {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .jml-report-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .jml-report-overview-table {
+    font-size: 11px;
+  }
+
+  .jml-report-runs-table {
+    font-size: 12px;
+  }
+
+  .jml-wrong-list {
+    padding-left: 0;
+  }
+
+  .jml-wrong-item {
+    padding: 10px 0;
+  }
+
+  .jml-heatmap-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .jml-heatmap-cell-label {
+    font-size: 11px;
+  }
+
+  .jml-heatmap-cell-metric {
+    font-size: 10px;
+  }
+
+  .jml-stats-chart-wrap,
+  .jml-cohort-chart-wrap {
+    min-height: 200px;
+  }
+
+  .jml-stats-chart-wrap canvas,
+  .jml-cohort-chart-wrap canvas {
+    max-height: 240px;
+  }
+
+  .jml-heat-cat-toggle {
+    padding: 10px 12px;
+    font-size: 0.88rem;
+  }
+
+  .jml-report-h3 {
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .jml-heatmap-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .jml-report-scope-btn {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+}
+

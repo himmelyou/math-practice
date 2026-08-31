@@ -357,3 +357,42 @@
     display: none !important;
   }
 }
+
+@media (max-width: 768px) {
+  .jml-worksheet-controls {
+    padding: 12px;
+    gap: 10px 12px;
+  }
+
+  .jml-worksheet-field {
+    flex: 1 1 calc(50% - 12px);
+    min-width: 120px;
+  }
+
+  .jml-worksheet-field select,
+  .jml-worksheet-field input[type="text"] {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .jml-worksheet-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .jml-worksheet-preview-wrap {
+    margin-left: -4px;
+    margin-right: -4px;
+    border-radius: 8px;
+  }
+
+  .jml-ws-page {
+    transform-origin: top left;
+  }
+}
+
+@media (max-width: 480px) {
+  .jml-worksheet-field {
+    flex: 1 1 100%;
+  }
+}

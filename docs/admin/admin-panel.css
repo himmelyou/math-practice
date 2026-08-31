@@ -1506,3 +1506,129 @@
   text-decoration: underline;
 }
 
+/* —— 手机：桌面规则不变，仅窄屏增强 —— */
+@media (max-width: 768px) {
+  .jml-admin-version-bar {
+    padding: 6px 10px 0;
+    font-size: 0.74rem;
+    text-align: left;
+  }
+
+  .jml-admin-toolbar {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .jml-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    margin-left: -4px;
+    margin-right: -4px;
+    padding: 0 4px;
+  }
+
+  .jml-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 10px 14px;
+    font-size: 0.86rem;
+  }
+
+  .jml-panel-head {
+    gap: 8px;
+  }
+
+  .jml-panel-head .jml-btn {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+
+  .jml-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .jml-user-table,
+  .jml-level-table,
+  .jml-avatar-table,
+  .jml-feedback-table {
+    font-size: 0.8rem;
+  }
+
+  .jml-user-table th,
+  .jml-user-table td,
+  .jml-level-table th,
+  .jml-level-table td,
+  .jml-avatar-table th,
+  .jml-avatar-table td {
+    padding: 8px 6px;
+  }
+
+  .jml-modal {
+    padding: 16px 14px;
+    max-height: min(90vh, 640px);
+    overflow-y: auto;
+  }
+
+  .jml-modal-wide .jml-modal {
+    max-width: 100%;
+    max-height: 92vh;
+  }
+
+  .jml-traffic-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .jml-traffic-kpi {
+    padding: 10px 12px;
+  }
+
+  .jml-traffic-kpi-value {
+    font-size: 1.25rem;
+  }
+
+  .jml-traffic-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jml-traffic-filter {
+    width: 100%;
+  }
+
+  .jml-traffic-filter select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .jml-traffic-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .jml-i18n-textarea,
+  .jml-game-guide-body {
+    min-height: 220px;
+    font-size: 0.86rem;
+  }
+
+  .jml-ach-tree-toolbar {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .jml-traffic-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .jml-btn {
+    padding: 8px 12px;
+    font-size: 0.84rem;
+  }
+}
+

@@ -5,7 +5,7 @@
   g.JML_APP_VERSION = "v1.7.48";
   g.JML_BUILD_ID = "20260830a";
   g.JML_CACHE_TAG = "122";
-  g.JML_ADMIN_STATIC_REV = "46";
+  g.JML_ADMIN_STATIC_REV = "47";
 
   /** 尽早写入登录/首页版本，避免 HTML 占位旧号闪一下 */
   g.applyJmlAppVersionText = function (prefix) {
