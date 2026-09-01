@@ -119,6 +119,13 @@
   margin-bottom: 14px;
 }
 
+.jml-grade-bulk-hint {
+  font-size: 0.82rem;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
 .jml-feedback-filter {
   display: inline-flex;
   align-items: center;

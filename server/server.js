@@ -179,6 +179,56 @@ function normalizeAdminGrade(value) {
   return { value: n };
 }
 
+/** 学年 ID（中国时区）：每年 9/1 起至次年 8/31，取学年起始年 */
+function chinaSchoolYearId(ts) {
+  const key = toChinaDateKey(ts != null ? ts : Date.now());
+  if (!key || key.length < 7) return null;
+  const y = Number(key.slice(0, 4));
+  const m = Number(key.slice(5, 7));
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return null;
+  return m >= 9 ? y : y - 1;
+}
+
+function readAdminMeta() {
+  const data = readJson(ADMIN_META_FILE, {});
+  return data && typeof data === "object" ? data : {};
+}
+
+function writeAdminMeta(meta) {
+  writeJson(ADMIN_META_FILE, meta && typeof meta === "object" ? meta : {});
+}
+
+function nextGradeBulkUnlockDate(lastAt) {
+  const sy = chinaSchoolYearId(lastAt);
+  if (sy == null) return null;
+  return String(sy + 1) + "-09-01";
+}
+
+function getGradeBulkUpgradeStatus(nowTs) {
+  const meta = readAdminMeta();
+  const lastAt = Number(meta.lastGradeBulkUpgradeAt) || 0;
+  const now = nowTs != null ? Number(nowTs) : Date.now();
+  const nowSy = chinaSchoolYearId(now);
+  const lastSy = lastAt ? chinaSchoolYearId(lastAt) : null;
+  const canUpgrade = !lastAt || (nowSy != null && lastSy != null && nowSy > lastSy);
+  return {
+    lastAt: lastAt || null,
+    lastAtDate: lastAt ? toChinaDateKey(lastAt) : null,
+    canUpgrade: !!canUpgrade,
+    nextUnlockDate: canUpgrade ? null : nextGradeBulkUnlockDate(lastAt),
+    schoolYearId: nowSy,
+  };
+}
+
+/** 一键升级：0→1…11→12，12→清空；未设置不动 */
+function bumpAdminGradeOneYear(grade) {
+  if (grade === null || grade === undefined || grade === "") return { skip: "unset" };
+  const n = Number(grade);
+  if (!Number.isInteger(n) || n < 0 || n > 12) return { skip: "invalid" };
+  if (n === 12) return { value: null, cleared: true };
+  return { value: n + 1 };
+}
+
 /** 管理端备注：trim 后最多 20 字 */
 function normalizeAdminNote(value) {
   if (value === null || value === undefined) return { value: "" };
@@ -251,6 +301,7 @@ const PRIME_PERFECT_RANKING_FILE = path.join(DATA_DIR, "prime-perfect-ranking.js
 const DIVISIBILITY_PERFECT_RANKING_FILE = path.join(DATA_DIR, "divisibility-perfect-ranking.json");
 const DIVISIBILITY_RANKING_LEVEL_INDEX = 4; // L5 / Z5
 const ADMIN_PIN_FILE = path.join(DATA_DIR, "admin-pin.json");
+const ADMIN_META_FILE = path.join(DATA_DIR, "admin-meta.json");
 const AVATARS_FILE = path.join(DATA_DIR, "avatars.json");
 const AVATAR_ASSET_DIR = path.join(DATA_DIR, "avatar-assets");
 const ACHIEVEMENT_ASSET_DIR = path.join(DATA_DIR, "achievement-assets");
@@ -2782,7 +2833,67 @@ app.get("/api/admin/users", (req, res) => {
     out.lastGameTs = latestRunTsFromRuns(userRuns);
     return safeUser(out);
   });
-  res.json({ ok: true, users });
+  res.json({ ok: true, users, gradeBulkUpgrade: getGradeBulkUpgradeStatus() });
+});
+
+/**
+ * 一键升级年级：已选年级 +1；12 清空为未设置；学年内（9/1–次年8/31）最多一次。
+ */
+app.post("/api/admin/users/bulk-upgrade-grade", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const status = getGradeBulkUpgradeStatus(now);
+  if (!status.canUpgrade) {
+    return res.status(409).json({
+      ok: false,
+      error:
+        "本学年已升级过（" +
+        (status.lastAtDate || "—") +
+        "），下次解禁：" +
+        (status.nextUnlockDate || "—"),
+      gradeBulkUpgrade: status,
+    });
+  }
+
+  const data = readJson(USERS_FILE, { users: [] });
+  if (!Array.isArray(data.users)) data.users = [];
+  let upgraded = 0;
+  let clearedFrom12 = 0;
+  let skippedUnset = 0;
+  let skippedInvalid = 0;
+
+  data.users.forEach((u) => {
+    if (!u) return;
+    const bumped = bumpAdminGradeOneYear(u.grade);
+    if (bumped.skip === "unset") {
+      skippedUnset += 1;
+      return;
+    }
+    if (bumped.skip === "invalid") {
+      skippedInvalid += 1;
+      return;
+    }
+    u.grade = bumped.value;
+    upgraded += 1;
+    if (bumped.cleared) clearedFrom12 += 1;
+  });
+
+  writeJson(USERS_FILE, data);
+  const meta = readAdminMeta();
+  meta.lastGradeBulkUpgradeAt = now;
+  writeAdminMeta(meta);
+
+  const nextStatus = getGradeBulkUpgradeStatus(now);
+  return res.json({
+    ok: true,
+    upgraded,
+    clearedFrom12,
+    skippedUnset,
+    skippedInvalid,
+    gradeBulkUpgrade: nextStatus,
+  });
 });
 
 // ========== 管理员：学员概览表（各模式进度、未上线天数） ==========
@@ -4303,6 +4414,7 @@ app.get("/api/admin/backup", (req, res) => {
   const primePerfectRanking = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
   const divisibilityPerfectRanking = readJson(DIVISIBILITY_PERFECT_RANKING_FILE, { list: [] });
   const avatars = readJson(AVATARS_FILE, { avatars: [] });
+  const adminMeta = readAdminMeta();
   const avatarAssets = packImageAssetDir(AVATAR_ASSET_DIR);
   const achievementAssets = packImageAssetDir(ACHIEVEMENT_ASSET_DIR);
   const backup = {
@@ -4321,6 +4433,7 @@ app.get("/api/admin/backup", (req, res) => {
     primePerfectRanking,
     divisibilityPerfectRanking,
     avatars,
+    adminMeta,
     avatarAssets,
     achievementAssets,
   };
@@ -4371,6 +4484,10 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
       const s = body.settings;
       writeJson(SETTINGS_FILE, s.levels && Array.isArray(s.levels) ? s : { levels: Array.isArray(s) ? s : [] });
       restored.push("settings");
+    }
+    if (body.adminMeta && typeof body.adminMeta === "object") {
+      writeAdminMeta(body.adminMeta);
+      restored.push("adminMeta");
     }
     if (body.i18n && typeof body.i18n === "object") {
       writeJson(I18N_FILE, normalizeI18nPayload(body.i18n));

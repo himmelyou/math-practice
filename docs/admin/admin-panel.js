@@ -62,6 +62,7 @@
     i18n: null,
     feedback: [],
     feedbackUnreadOnly: false,
+    gradeBulkUpgrade: null,
   };
 
   var FEEDBACK_CATEGORY_LABELS = {
@@ -114,7 +115,10 @@
       data = { ok: false, error: '响应不是 JSON' };
     }
     if (!res.ok) {
-      throw new Error((data && data.error) || ('请求失败：' + res.status));
+      var err = new Error((data && data.error) || ('请求失败：' + res.status));
+      err.data = data;
+      err.status = res.status;
+      throw err;
     }
     if (data && data.ok === false) {
       throw new Error(data.error || '操作失败');
@@ -442,10 +446,114 @@
     try {
       var data = await apiFetch('/api/admin/users', { method: 'GET' });
       state.users = Array.isArray(data.users) ? data.users : [];
+      state.gradeBulkUpgrade = data.gradeBulkUpgrade || null;
+      syncGradeBulkUpgradeUi();
       setStatus('已加载 ' + state.users.length + ' 个账户', 'ok');
       renderUsersTable();
     } catch (e) {
       setStatus(e.message || '加载失败', 'err');
+    }
+  }
+
+  function syncGradeBulkUpgradeUi() {
+    var btn = document.getElementById('jml-btn-bulk-upgrade-grade');
+    var hint = document.getElementById('jml-grade-bulk-hint');
+    var st = state.gradeBulkUpgrade;
+    if (btn) {
+      btn.disabled = !!(st && st.canUpgrade === false);
+    }
+    if (!hint) return;
+    if (!st) {
+      hint.textContent = '';
+      return;
+    }
+    if (st.canUpgrade) {
+      hint.textContent = st.lastAtDate
+        ? '上次升级：' + st.lastAtDate + '（本学年可再升）'
+        : '本学年尚未升级';
+    } else {
+      hint.textContent =
+        '上次升级：' +
+        (st.lastAtDate || '—') +
+        ' · 下次解禁：' +
+        (st.nextUnlockDate || '—');
+    }
+  }
+
+  function countGradedUsersForBulk() {
+    var upgraded = 0;
+    var cleared = 0;
+    (state.users || []).forEach(function (u) {
+      if (!u) return;
+      var g = u.grade;
+      if (g === null || g === undefined || g === '') return;
+      var n = Number(g);
+      if (!Number.isInteger(n) || n < 0 || n > 12) return;
+      if (n === 12) cleared += 1;
+      else upgraded += 1;
+    });
+    return { willBump: upgraded, willClear12: cleared };
+  }
+
+  async function bulkUpgradeGrades() {
+    var st = state.gradeBulkUpgrade;
+    if (st && st.canUpgrade === false) {
+      window.alert(
+        '本学年已升级过（' +
+          (st.lastAtDate || '—') +
+          '）。\n下次解禁：' +
+          (st.nextUnlockDate || '—')
+      );
+      return;
+    }
+    var counts = countGradedUsersForBulk();
+    var total = counts.willBump + counts.willClear12;
+    if (total <= 0) {
+      window.alert('没有已选年级的学员，无需升级。');
+      return;
+    }
+    var msg =
+      '将把所有已选年级的学员升一级：\n' +
+      '· 升一级：约 ' +
+      counts.willBump +
+      ' 人\n' +
+      '· 12 年级清空为「—」：约 ' +
+      counts.willClear12 +
+      ' 人\n' +
+      '· 未选年级的不变\n\n' +
+      '每个学年（9/1–次年8/31）只能成功一次。\n确认执行？';
+    if (!window.confirm(msg)) return;
+    setStatus('一键升级年级中…', '');
+    var btn = document.getElementById('jml-btn-bulk-upgrade-grade');
+    if (btn) btn.disabled = true;
+    try {
+      var data = await apiFetch('/api/admin/users/bulk-upgrade-grade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (data && data.gradeBulkUpgrade) state.gradeBulkUpgrade = data.gradeBulkUpgrade;
+      syncGradeBulkUpgradeUi();
+      await loadUsers();
+      setStatus(
+        '升级完成：升一级 ' +
+          ((data.upgraded || 0) - (data.clearedFrom12 || 0)) +
+          ' 人，12→清空 ' +
+          (data.clearedFrom12 || 0) +
+          ' 人，未选跳过 ' +
+          (data.skippedUnset || 0),
+        'ok'
+      );
+    } catch (e) {
+      var payload = e && e.data ? e.data : null;
+      if (payload && payload.gradeBulkUpgrade) {
+        state.gradeBulkUpgrade = payload.gradeBulkUpgrade;
+        syncGradeBulkUpgradeUi();
+      }
+      setStatus(e.message || '一键升级失败', 'err');
+      if (btn && !(state.gradeBulkUpgrade && state.gradeBulkUpgrade.canUpgrade === false)) {
+        btn.disabled = false;
+      }
     }
   }
 
@@ -1775,6 +1883,8 @@
     if (createBtn) createBtn.addEventListener('click', openCreateUserModal);
     var refreshBtn = document.getElementById('jml-btn-refresh-users');
     if (refreshBtn) refreshBtn.addEventListener('click', loadUsers);
+    var bulkGradeBtn = document.getElementById('jml-btn-bulk-upgrade-grade');
+    if (bulkGradeBtn) bulkGradeBtn.addEventListener('click', bulkUpgradeGrades);
     var refreshFeedbackBtn = document.getElementById('jml-btn-refresh-feedback');
     if (refreshFeedbackBtn) refreshFeedbackBtn.addEventListener('click', loadFeedback);
     var feedbackUnreadOnly = document.getElementById('jml-feedback-unread-only');

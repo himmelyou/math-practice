@@ -15,15 +15,15 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <!-- JML-ADMIN-STATIC-REV: 47 · 管理端/学员数据手机适配 -->
-  <meta name="jml-admin-static-rev" content="47" />
+  <!-- JML-ADMIN-STATIC-REV: 48 · 一键升级年级 -->
+  <meta name="jml-admin-static-rev" content="48" />
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css?v=2" />
-  <link rel="stylesheet" href="admin-panel.css?v=45" />
+  <link rel="stylesheet" href="admin-panel.css?v=46" />
   <link rel="stylesheet" href="admin-worksheet.css?v=25" />
 </head>
 <body>
-  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-47</p>
+  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-48</p>
   <div id="admin-gate-root"></div>
 
   <div id="admin-app" class="jml-shell" hidden>
@@ -63,6 +63,15 @@
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-create-user" class="jml-btn jml-btn-primary">创建账户</button>
           <button type="button" id="jml-btn-refresh-users" class="jml-btn">刷新列表</button>
+          <button
+            type="button"
+            id="jml-btn-bulk-upgrade-grade"
+            class="jml-btn"
+            title="已选年级全体升一级；12 年级清空为「—」。每学年（9/1–次年8/31）最多一次"
+          >
+            一键升级
+          </button>
+          <span id="jml-grade-bulk-hint" class="jml-grade-bulk-hint muted" aria-live="polite"></span>
           <button type="button" id="jml-btn-dedupe-usernames" class="jml-btn jml-btn-danger" title="临时：删除重名里的空壳账户（大小写不敏感）">清理重名空户</button>
         </div>
         <div class="jml-table-wrap">
@@ -312,7 +321,7 @@
             <li>生存 / 闯关 / 质数达人 / 整除达人榜</li>
             <li>头像 catalog + 头像/成就图片资源（base64）</li>
           </ul>
-          <p class="muted" style="margin:0 0 8px;">不含管理口令、不含常模快照（恢复 runs 后会清常模，请在报表刷新全体常模）。含游戏说明自定义稿（若有）。旧版备份仍可导入；缺榜文件时会尝试从 runs 回填闯关/质数/整除榜。</p>
+          <p class="muted" style="margin:0 0 8px;">不含管理口令、不含常模快照（恢复 runs 后会清常模，请在报表刷新全体常模）。含游戏说明自定义稿（若有）、年级一键升级记录（adminMeta）。旧版备份仍可导入；缺榜文件时会尝试从 runs 回填闯关/质数/整除榜。</p>
           <p>在执行维护操作前请先备份。恢复会覆盖对应线上数据，导入时会二次确认。</p>
         </div>
       </div>
@@ -401,7 +410,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "47";
+    window.JML_ADMIN_STATIC_REV = "48";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -425,7 +434,7 @@
   <script src="../shared/decimal-questions.js?v=49"></script>
   <script src="../shared/divisibility-questions.js?v=5"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=46"></script>
+    <script src="admin-panel.js?v=47"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=24"></script>
   <script src="admin-achievements.js?v=9"></script>
