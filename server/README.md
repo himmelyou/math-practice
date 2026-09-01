@@ -35,6 +35,17 @@ npm run sync-heatmap
 
 再提交 `server/` + `docs/stats-heatmap-browser.js`，Render 与 Pages 才会一致。
 
+### 练习建议案例快照（本机拉 Render 学员数据）
+
+仓库根目录 `.env` 填写 `JML_ADMIN_PIN`（与管理端 / report 门禁相同；`.env` 已 gitignore）。
+
+```bash
+node server/scripts/coach-snapshot.js --check
+node server/scripts/coach-snapshot.js 用户名
+```
+
+摘要打在终端，完整 JSON 写入 `coach-snapshots/`（同样勿提交）。
+
 ## 数据存储
 
 数据保存在 `DATA_DIR`（默认 `~/.jarvis-math-lab/data/`）下的 JSON 文件中，例如：

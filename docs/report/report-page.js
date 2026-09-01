@@ -2325,6 +2325,126 @@
     return !!(state.agg && state.agg.hasAny);
   }
 
+  function formatAdviceSystemPickLine(sp) {
+    if (!sp || (sp.ok === false && sp.levelIndex == null && sp.pickedL == null)) {
+      return '旧训练选关：暂无';
+    }
+    var lv =
+      sp.pickedL != null && Number.isFinite(Number(sp.pickedL))
+        ? 'L' + Number(sp.pickedL)
+        : sp.levelIndex != null && Number.isFinite(Number(sp.levelIndex))
+          ? 'L' + (Number(sp.levelIndex) + 1)
+          : '—';
+    var day = sp.dayMode === 'heat' ? '热图日' : sp.dayMode === 'frontier' ? '前沿日' : sp.dayMode || '—';
+    var why = sp.pickReason || sp.reason || '';
+    return '旧训练选关：' + day + ' ' + lv + (why ? '（' + why + '）' : '');
+  }
+
+  function buildPracticeAdviceBannerHtml() {
+    var Advice = window.JmlPracticeAdvice;
+    if (!Advice || typeof Advice.computePracticeAdvice !== 'function') {
+      return (
+        '<section class="jml-advice-banner jml-advice-banner--muted">' +
+        '<p>练习建议脚本未加载。</p></section>'
+      );
+    }
+    var heat =
+      (state.heatByCategory && state.heatByCategory.arithmetic) ||
+      (state.chartCategoryId === 'arithmetic' ? state.heat : null);
+    var cells = heat && Array.isArray(heat.cells) ? heat.cells : [];
+    if (!cells.length) {
+      return (
+        '<section class="jml-advice-banner jml-advice-banner--muted">' +
+        '<h3 class="jml-advice-title">助手练习建议</h3>' +
+        '<p>等待四则热图…</p></section>'
+      );
+    }
+    var user = state.userDetail || {};
+    var sp = state.serverTrainingPick;
+    var advice = Advice.computePracticeAdvice({
+      grade: user.grade != null ? user.grade : null,
+      cells: cells,
+      systemPick: sp
+        ? {
+            levelIndex: sp.levelIndex,
+            pickedL: sp.pickedL,
+            dayMode: sp.dayMode,
+            pickReason: sp.pickReason || sp.reason,
+            ok: sp.ok,
+          }
+        : null,
+    });
+    var p = advice.primary || {};
+    var diverge = advice.divergesFromSystemPick
+      ? '<span class="jml-advice-badge jml-advice-badge--diff">与旧选关不一致</span>'
+      : '<span class="jml-advice-badge">与旧选关一致</span>';
+    var reasons = (advice.reasons || [])
+      .map(function (r) {
+        return (
+          '<li><code>' +
+          escapeHtml(r.ruleId || '') +
+          '</code> ' +
+          escapeHtml(r.evidence || '') +
+          (r.note ? '<span class="jml-advice-note"> · ' + escapeHtml(r.note) + '</span>' : '') +
+          '</li>'
+        );
+      })
+      .join('');
+    var alts = (advice.alternatives || [])
+      .map(function (a) {
+        return '<li>' + escapeHtml((a.title || a.levelLabel || '') + (a.detail ? ' — ' + a.detail : '')) + '</li>';
+      })
+      .join('');
+    var dont =
+      advice.dontOpenLabel
+        ? '<p class="jml-advice-dont">不要开：' + escapeHtml(advice.dontOpenLabel) + '</p>'
+        : advice.dontOpen && advice.dontOpen.length
+          ? '<p class="jml-advice-dont">不要开：' + escapeHtml(advice.dontOpen.join('、')) + '</p>'
+          : '';
+    var unresolved = (advice.unresolved || [])
+      .map(function (u) {
+        return '<li>' + escapeHtml(u) + '</li>';
+      })
+      .join('');
+    var gradeText =
+      user.grade === 0 ? '学前' : user.grade != null && user.grade !== '' ? user.grade + '年级' : '未填';
+
+    return (
+      '<section class="jml-advice-banner' +
+      (advice.divergesFromSystemPick ? ' jml-advice-banner--diff' : '') +
+      '">' +
+      '<div class="jml-advice-head">' +
+      '<h3 class="jml-advice-title">助手练习建议</h3>' +
+      diverge +
+      '<span class="jml-advice-ver">' +
+      escapeHtml(advice.ruleVersion || '') +
+      ' · 年级 ' +
+      escapeHtml(gradeText) +
+      '</span>' +
+      '</div>' +
+      '<p class="jml-advice-primary">' +
+      escapeHtml(p.title || '') +
+      '</p>' +
+      '<p class="jml-advice-copy">' +
+      escapeHtml(p.parentCopy || '') +
+      '</p>' +
+      dont +
+      '<p class="jml-advice-system">' +
+      escapeHtml(formatAdviceSystemPickLine(sp)) +
+      '</p>' +
+      '<details class="jml-advice-details"><summary>详细原因（对照用）</summary>' +
+      '<ul class="jml-advice-reasons">' +
+      reasons +
+      '</ul>' +
+      (alts ? '<p class="jml-advice-subh">备选</p><ul>' + alts + '</ul>' : '') +
+      '<p class="jml-advice-subh">暂定、待主管判断矛盾再调</p><ul>' +
+      unresolved +
+      '</ul>' +
+      '</details>' +
+      '</section>'
+    );
+  }
+
   function renderStatsPanel() {
     var wrap = document.getElementById('jml-report-stats-body');
     if (!wrap) return;
@@ -2345,8 +2465,10 @@
 
     var heatmapBlock = buildHeatmapSectionHtml();
     var helpBlock = buildStatsHelpDetailsHtml();
+    var adviceBlock = buildPracticeAdviceBannerHtml();
 
     wrap.innerHTML =
+      adviceBlock +
       helpBlock +
       '<div class="jml-stats-layout">' +
       '<div class="jml-stats-col-heat">' +

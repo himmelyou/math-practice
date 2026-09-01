@@ -1,0 +1,14 @@
+---
+description: 练习建议案例：用户给出学员名时，用本机脚本拉 Render 只读快照，不要把口令或 .env 提交进 git。
+alwaysApply: true
+---
+
+# 练习建议拉数
+
+标定 `练习建议规则说明.md` 或用户提到某个学员时：
+
+1. 在仓库根目录运行：`node server/scripts/coach-snapshot.js <用户名>`
+2. 用终端摘要（年级、断练、系统选关、热图短板、近局）对照用户的判断，再写入该说明文档的案例与可执行规则。
+3. 先 `--check` 若口令失败：不要猜测口令、不要把 PIN 写进对话或 git。请用户把 **report 门禁同一串** 发来，只写入根目录 `.env` 的 `JML_ADMIN_PIN`（该文件已 gitignore）。
+4. 不要提交 `.env`、`.env.*`（除 `.env.example`）、`coach-snapshots/`。
+5. 不要为拉数在 Render 上新增管理接口；只用现有 `/api/admin/*` 只读 GET。

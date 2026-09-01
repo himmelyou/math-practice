@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "sync-heatmap": "node scripts/sync-stats-heatmap.js"
+    "sync-heatmap": "node scripts/sync-stats-heatmap.js",
+    "coach-snapshot": "node scripts/coach-snapshot.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
