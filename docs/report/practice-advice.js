@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.7：年级先验 × 热图阶段 × 分型 × 混合任务单。
- * 绿档补格含 Q12 地基加权。只读推荐，不改训练开局。规则见《练习建议规则说明》§十。
+ * 练习建议 v0.7.1：年级先验 × 热图阶段 × 分型 × 混合任务单。
+ * 绿档补格含 Q12 地基加权；准度已 ≥97% 走速度小步。只读推荐，不改训练开局。
  */
 (function (root) {
-  var RULE_VERSION = "0.7-provisional";
+  var RULE_VERSION = "0.7.1-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -520,10 +520,21 @@
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : null;
     if (row.tooSlow && p != null && p >= HEAT_P_ORANGE) return "speed_step";
     if (p != null && p < HEAT_P_YELLOW) return "acc_step";
+    if (p != null && p + 1e-9 >= HEAT_P_STABLE) return "speed_step";
     var accFrag = p != null ? Math.max(0, HEAT_P_STABLE - p) * 1000 : 0;
     var spd = timePctVal(row);
     if (spd >= FAST_TIME_PCT && spd >= accFrag) return "speed_step";
     return "acc_step";
+  }
+
+  function applySpeedTargets(row) {
+    return {
+      targetTimePct:
+        row.timePct != null && Number.isFinite(Number(row.timePct))
+          ? Math.max(0, Number(row.timePct) - SPEED_TIME_PCT_STEP)
+          : null,
+      targetAvgSec: row.avgSec != null ? row.avgSec * SPEED_RATIO : null,
+    };
   }
 
   function emptyPlanWindow() {
@@ -541,16 +552,19 @@
     var targetP = null;
     var targetTimePct = null;
     var targetAvgSec = null;
-    if (kind === "speed_step") {
-      targetTimePct =
-        row.timePct != null && Number.isFinite(Number(row.timePct))
-          ? Math.max(0, Number(row.timePct) - SPEED_TIME_PCT_STEP)
-          : null;
-      targetAvgSec = row.avgSec != null ? row.avgSec * SPEED_RATIO : null;
-    } else {
+    if (kind !== "speed_step") {
       var baseP = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
       var accCap = baseP >= HEAT_P_YELLOW ? HEAT_P_STABLE : HEAT_P_YELLOW;
-      targetP = Math.min(accCap, baseP + ACC_STEP);
+      if (baseP + 1e-9 >= accCap) {
+        kind = "speed_step";
+      } else {
+        targetP = Math.min(accCap, baseP + ACC_STEP);
+      }
+    }
+    if (kind === "speed_step") {
+      var spdT = applySpeedTargets(row);
+      targetTimePct = spdT.targetTimePct;
+      targetAvgSec = spdT.targetAvgSec;
     }
     var title = "训练 " + row.levelLabel;
     var detail =
@@ -1371,6 +1385,7 @@
     heatBand: heatBand,
     foundationRemaining: foundationRemaining,
     fillerScore: fillerScore,
+    successKindForRow: successKindForRow,
     computePracticeAdvice: computePracticeAdvice,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,
