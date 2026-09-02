@@ -2361,9 +2361,26 @@
     }
     var user = state.userDetail || {};
     var sp = state.serverTrainingPick;
+    var levelBestFromRuns = null;
+    (state.runs || []).forEach(function (r) {
+      if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'level') return;
+      var ml = Number(r.maxLevel);
+      if (Number.isFinite(ml) && (levelBestFromRuns == null || ml > levelBestFromRuns)) {
+        levelBestFromRuns = Math.floor(ml);
+      }
+    });
+    var hasClearedLevel =
+      user.hasClearedLevel === true ||
+      (state.runs || []).some(function (r) {
+        return String(r && r.mode ? r.mode : '').toLowerCase() === 'level' && r.cleared === true;
+      });
     var advice = Advice.computePracticeAdvice({
       grade: user.grade != null ? user.grade : null,
       cells: cells,
+      hasClearedLevel: hasClearedLevel,
+      levelChallengeBestLevel:
+        user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
+      levelBestFromRuns: levelBestFromRuns,
       systemPick: sp
         ? {
             levelIndex: sp.levelIndex,
@@ -2390,11 +2407,26 @@
         );
       })
       .join('');
-    var alts = (advice.alternatives || [])
-      .map(function (a) {
-        return '<li>' + escapeHtml((a.title || a.levelLabel || '') + (a.detail ? ' — ' + a.detail : '')) + '</li>';
+    var queueHtml = (advice.queue || [])
+      .map(function (step, i) {
+        return (
+          '<li>' +
+          '<strong>' +
+          escapeHtml(String(i + 1) + '. ' + (step.title || step.levelLabel || '')) +
+          '</strong>' +
+          (step.until ? '<span> — ' + escapeHtml(step.until) + '</span>' : '') +
+          (step.detail ? '<div class="jml-advice-note">' + escapeHtml(step.detail) + '</div>' : '') +
+          '</li>'
+        );
       })
       .join('');
+    var profileLine = advice.profile
+      ? '<p class="jml-advice-profile">' +
+        escapeHtml(advice.profile.label || '') +
+        ' · 底板 ' +
+        escapeHtml(advice.profile.floorLabel || '') +
+        '</p>'
+      : '';
     var dont =
       advice.dontOpenLabel
         ? '<p class="jml-advice-dont">不要开：' + escapeHtml(advice.dontOpenLabel) + '</p>'
@@ -2425,6 +2457,8 @@
       '<p class="jml-advice-primary">' +
       escapeHtml(p.title || '') +
       '</p>' +
+      profileLine +
+      (queueHtml ? '<ol class="jml-advice-queue">' + queueHtml + '</ol>' : '') +
       '<p class="jml-advice-copy">' +
       escapeHtml(p.parentCopy || '') +
       '</p>' +
@@ -2436,7 +2470,6 @@
       '<ul class="jml-advice-reasons">' +
       reasons +
       '</ul>' +
-      (alts ? '<p class="jml-advice-subh">备选</p><ul>' + alts + '</ul>' : '') +
       '<p class="jml-advice-subh">暂定、待主管判断矛盾再调</p><ul>' +
       unresolved +
       '</ul>' +

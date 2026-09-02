@@ -619,6 +619,20 @@
   font-size: 1.15rem;
   font-weight: 700;
 }
+.jml-advice-profile {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #455a64;
+}
+.jml-advice-queue {
+  margin: 0 0 10px;
+  padding-left: 1.3em;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.jml-advice-queue li {
+  margin-bottom: 6px;
+}
 .jml-advice-copy,
 .jml-advice-dont,
 .jml-advice-system {
