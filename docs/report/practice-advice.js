@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0：年级先验 × 热图阶段 × 分型 × 混合任务单。
- * 只读推荐，不改训练开局。规则见《练习建议规则说明》§十。
+ * 练习建议 v0.7：年级先验 × 热图阶段 × 分型 × 混合任务单。
+ * 绿档补格含 Q12 地基加权。只读推荐，不改训练开局。规则见《练习建议规则说明》§十。
  */
 (function (root) {
-  var RULE_VERSION = "0.6-provisional";
+  var RULE_VERSION = "0.7-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -14,6 +14,10 @@
   var FLOOR_MIN = 4;
   /** timePct 低于此视为「人群中不算慢」（越小越快） */
   var FAST_TIME_PCT = 50;
+  /** Q12：绿档补格低于此分位关掉低级加权（已较快） */
+  var FOUNDATION_FAST_PCT = 40;
+  /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
+  var FOUNDATION_RATIO = 1.15;
   /** 热图低段：L1–L9 */
   var LOW_BAND_MAX_INDEX = 8;
   /** Q6：准度小步（百分点） */
@@ -153,6 +157,42 @@
     return row && row.timePct != null && Number.isFinite(Number(row.timePct)) ? Number(row.timePct) : 0;
   }
 
+  /**
+   * 加减 / 乘除两条进度线，在 L15–L16 汇合。
+   * L5 与 L6、L7 与 L8 同深（不强制先加后减）。
+   * remaining = 本线后面还有几档 + 混合 2 档（地基越前权重越大）。
+   */
+  var ADD_TRACK_GROUPS = [[1], [2], [3], [4], [5, 6], [7, 8], [9], [12]];
+  var MUL_TRACK_GROUPS = [[10], [11], [13], [14]];
+  var MIX_TRACK_GROUPS = [[15], [16]];
+
+  function remainingInGroups(groups, L, extra) {
+    var i;
+    for (i = 0; i < groups.length; i += 1) {
+      if (groups[i].indexOf(L) !== -1) return groups.length - 1 - i + extra;
+    }
+    return null;
+  }
+
+  function foundationRemaining(levelIndexOrL) {
+    var n = Math.floor(Number(levelIndexOrL) || 0);
+    var L = n >= 1 && n <= LEVEL_COUNT ? n : n + 1;
+    var add = remainingInGroups(ADD_TRACK_GROUPS, L, MIX_TRACK_GROUPS.length);
+    if (add != null) return add;
+    var mul = remainingInGroups(MUL_TRACK_GROUPS, L, MIX_TRACK_GROUPS.length);
+    if (mul != null) return mul;
+    var mix = remainingInGroups(MIX_TRACK_GROUPS, L, 0);
+    if (mix != null) return mix;
+    return 0;
+  }
+
+  /** 慢区：timePct × 1.15^剩余步；已快（<40）关掉低级优势，只比分位。 */
+  function speedFoundationTerm(row) {
+    var tp = timePctVal(row);
+    if (tp < FOUNDATION_FAST_PCT) return tp;
+    return tp * Math.pow(FOUNDATION_RATIO, foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0)));
+  }
+
   function holeScore(row) {
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
     var spd = timePctVal(row);
@@ -161,13 +201,13 @@
     return 0;
   }
 
-  /** 已学流畅档：准度离 97% 的距离 + 速度分位 + 样本偏薄。越大越该补进未完成。 */
+  /** 已学流畅档：准度离 97% + 地基加权速度项 + 样本偏薄。越大越该补进未完成。 */
   function fillerScore(row) {
     if (!row || !inSchoolPrior(row.prior)) return -1;
     if (row.stage === "no_data" || row.stage === "weak" || row.stage === "shaky") return -1;
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 1;
     var accFrag = Math.max(0, HEAT_P_STABLE - p) * 1000;
-    var spd = timePctVal(row);
+    var spd = speedFoundationTerm(row);
     var thin = row.n > 0 && row.n < 80 ? (80 - row.n) * 0.4 : 0;
     var s = accFrag + spd + thin;
     return s > 0 ? s : -1;
@@ -1148,8 +1188,13 @@
       "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "）",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
-      "Q10 未完成最多 " + INCOMPLETE_SIZE + " 条且不重复；黄橙优先，再按准度×速度分位补已学流畅",
+      "Q10 未完成最多 " + INCOMPLETE_SIZE + " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
       "Q11 已完成最多 " + COMPLETED_MAX + " 条；满则挤最早；满 " + COMPLETED_EXPIRE_DAYS + " 个日历日移出",
+      "Q12 绿档速度补格：timePct<" +
+        FOUNDATION_FAST_PCT +
+        " 只比分位；否则 ×" +
+        FOUNDATION_RATIO +
+        "^本线剩余步（加减/乘除汇合 L15–L16）",
     ];
     reasons.push(
       reason(
@@ -1197,7 +1242,7 @@
         "hybrid_task_list",
         "混合任务单：未完成最多 " +
           INCOMPLETE_SIZE +
-          " 条且不重复（黄橙优先，准度×速度分位补格）；已完成最多 " +
+          " 条且不重复（黄橙优先，准度×地基加权速度补格）；已完成最多 " +
           COMPLETED_MAX +
           " 条，量挤掉或日历 " +
           COMPLETED_EXPIRE_DAYS +
@@ -1299,6 +1344,8 @@
         Q10_incompleteSize: INCOMPLETE_SIZE,
         Q11_completedMax: COMPLETED_MAX,
         Q11_completedExpireDays: COMPLETED_EXPIRE_DAYS,
+        Q12_foundationFastPct: FOUNDATION_FAST_PCT,
+        Q12_foundationRatio: FOUNDATION_RATIO,
       },
       unresolved: unresolved,
     };
@@ -1316,10 +1363,14 @@
     INCOMPLETE_SIZE: INCOMPLETE_SIZE,
     COMPLETED_MAX: COMPLETED_MAX,
     COMPLETED_EXPIRE_DAYS: COMPLETED_EXPIRE_DAYS,
+    FOUNDATION_FAST_PCT: FOUNDATION_FAST_PCT,
+    FOUNDATION_RATIO: FOUNDATION_RATIO,
     curriculumPrior: curriculumPrior,
     classifyStage: classifyStage,
     classifyProfile: classifyProfile,
     heatBand: heatBand,
+    foundationRemaining: foundationRemaining,
+    fillerScore: fillerScore,
     computePracticeAdvice: computePracticeAdvice,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,
