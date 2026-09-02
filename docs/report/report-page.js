@@ -140,7 +140,7 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
-  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v07:';
+  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v08:';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',

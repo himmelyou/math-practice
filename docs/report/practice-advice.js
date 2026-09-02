@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.7.1：年级先验 × 热图阶段 × 分型 × 混合任务单。
+ * 练习建议 v0.8：黄橙与热图二维上色对齐（准度 × 速度分位）。
  * 绿档补格含 Q12 地基加权；准度已 ≥97% 走速度小步。只读推荐，不改训练开局。
  */
 (function (root) {
-  var RULE_VERSION = "0.7.1-provisional";
+  var RULE_VERSION = "0.8-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -12,8 +12,10 @@
   var AHEAD_MASTERED_N = 80;
   /** Q3：绿快底板连续档数 */
   var FLOOR_MIN = 4;
-  /** timePct 低于此视为「人群中不算慢」（越小越快） */
+  /** 热图速分门槛：≥此为黄族（中位）；与 heatmap HEAT_PCT_MEAN 相同 */
   var FAST_TIME_PCT = 50;
+  /** 热图橙：分位 ≥ mean+1σ；与 heatmap HEAT_PCT_PLUS1 相同 */
+  var HEAT_PCT_PLUS1 = 84;
   /** Q12：绿档补格低于此分位关掉低级加权（已较快） */
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
@@ -102,8 +104,13 @@
     if (!cell || !cell.active) return "inactive";
     var p = cell.p != null && Number.isFinite(Number(cell.p)) ? Number(cell.p) : null;
     if (p == null) return "unknown";
-    if (p < HEAT_P_ORANGE || cell.tooSlow === true) return "orange";
-    if (p < HEAT_P_YELLOW) return "yellow";
+    var pct =
+      cell.timePct != null && Number.isFinite(Number(cell.timePct))
+        ? Number(cell.timePct)
+        : null;
+    var tooSlow = cell.tooSlow === true || (pct != null && pct >= HEAT_PCT_PLUS1);
+    if (p < HEAT_P_ORANGE || tooSlow) return "orange";
+    if (p < HEAT_P_YELLOW || (pct != null && pct >= FAST_TIME_PCT)) return "yellow";
     return "fluent";
   }
 
@@ -119,10 +126,13 @@
   }
 
   function stageLabelOf(row) {
-    if (row.stage === "weak" && row.tooSlow && row.p != null && row.p >= HEAT_P_ORANGE) {
+    if (row.stage === "weak" && row.p != null && row.p >= HEAT_P_ORANGE) {
       return "会但过慢";
     }
     if (row.stage === "weak") return "不会/很生";
+    if (row.stage === "shaky" && row.p != null && row.p >= HEAT_P_YELLOW) {
+      return "会但偏慢";
+    }
     if (row.stage === "shaky") return "不熟";
     if (row.stage === "thin") return "样本薄";
     if (row.stage === "mastered") return "会了";
@@ -519,6 +529,7 @@
     if (!row) return "acc_step";
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : null;
     if (row.tooSlow && p != null && p >= HEAT_P_ORANGE) return "speed_step";
+    if (p != null && p >= HEAT_P_ORANGE && timePctVal(row) >= HEAT_PCT_PLUS1) return "speed_step";
     if (p != null && p < HEAT_P_YELLOW) return "acc_step";
     if (p != null && p + 1e-9 >= HEAT_P_STABLE) return "speed_step";
     var accFrag = p != null ? Math.max(0, HEAT_P_STABLE - p) * 1000 : 0;
@@ -1209,6 +1220,10 @@
         " 只比分位；否则 ×" +
         FOUNDATION_RATIO +
         "^本线剩余步（加减/乘除汇合 L15–L16）",
+      "Q13 黄橙与热图二维上色对齐：橙=准<90%或timePct≥" +
+        HEAT_PCT_PLUS1 +
+        "；黄=准<95%或timePct≥" +
+        FAST_TIME_PCT,
     ];
     reasons.push(
       reason(
@@ -1360,6 +1375,7 @@
         Q11_completedExpireDays: COMPLETED_EXPIRE_DAYS,
         Q12_foundationFastPct: FOUNDATION_FAST_PCT,
         Q12_foundationRatio: FOUNDATION_RATIO,
+        Q13_heatPctPlus1: HEAT_PCT_PLUS1,
       },
       unresolved: unresolved,
     };
@@ -1370,6 +1386,7 @@
     AHEAD_MASTERED_N: AHEAD_MASTERED_N,
     FLOOR_MIN: FLOOR_MIN,
     FAST_TIME_PCT: FAST_TIME_PCT,
+    HEAT_PCT_PLUS1: HEAT_PCT_PLUS1,
     ACC_STEP: ACC_STEP,
     SPEED_RATIO: SPEED_RATIO,
     FAIL_GAMES_PER_DAY: FAIL_GAMES_PER_DAY,
