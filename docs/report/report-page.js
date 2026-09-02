@@ -140,7 +140,7 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
-  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v05:';
+  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v06:';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
@@ -2534,7 +2534,7 @@
       '</p>' +
       profileLine +
       (queueHtml
-        ? '<p class="jml-advice-subh">未完成（常驻 5 条）</p><ol class="jml-advice-queue">' +
+        ? '<p class="jml-advice-subh">未完成（最多 5 条，不重复）</p><ol class="jml-advice-queue">' +
           queueHtml +
           '</ol>'
         : '') +

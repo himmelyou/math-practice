@@ -3,10 +3,12 @@
  * 只读推荐，不改训练开局。规则见《练习建议规则说明》§十。
  */
 (function (root) {
-  var RULE_VERSION = "0.5-provisional";
+  var RULE_VERSION = "0.6-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
+  /** 绿档小步准度封顶 */
+  var HEAT_P_STABLE = 0.97;
   var AHEAD_MASTERED_N = 80;
   /** Q3：绿快底板连续档数 */
   var FLOOR_MIN = 4;
@@ -147,11 +149,28 @@
     return list[k] || { levelIndex: k, active: false, n: 0, p: null, tooSlow: false, fluent: false };
   }
 
+  function timePctVal(row) {
+    return row && row.timePct != null && Number.isFinite(Number(row.timePct)) ? Number(row.timePct) : 0;
+  }
+
   function holeScore(row) {
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
-    if (row.stage === "weak") return 2000 + (1 - p) * 1000 + (row.tooSlow ? 80 : 0);
-    if (row.stage === "shaky") return 1000 + (1 - p) * 1000;
+    var spd = timePctVal(row);
+    if (row.stage === "weak") return 2000 + (1 - p) * 1000 + (row.tooSlow ? 80 : 0) + spd;
+    if (row.stage === "shaky") return 1000 + (1 - p) * 1000 + spd;
     return 0;
+  }
+
+  /** 已学流畅档：准度离 97% 的距离 + 速度分位 + 样本偏薄。越大越该补进未完成。 */
+  function fillerScore(row) {
+    if (!row || !inSchoolPrior(row.prior)) return -1;
+    if (row.stage === "no_data" || row.stage === "weak" || row.stage === "shaky") return -1;
+    var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 1;
+    var accFrag = Math.max(0, HEAT_P_STABLE - p) * 1000;
+    var spd = timePctVal(row);
+    var thin = row.n > 0 && row.n < 80 ? (80 - row.n) * 0.4 : 0;
+    var s = accFrag + spd + thin;
+    return s > 0 ? s : -1;
   }
 
   function pickWorstHole(rows) {
@@ -457,7 +476,13 @@
   }
 
   function successKindForRow(row) {
-    if (row && row.tooSlow && row.p != null && row.p >= HEAT_P_ORANGE) return "speed_step";
+    if (!row) return "acc_step";
+    var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : null;
+    if (row.tooSlow && p != null && p >= HEAT_P_ORANGE) return "speed_step";
+    if (p != null && p < HEAT_P_YELLOW) return "acc_step";
+    var accFrag = p != null ? Math.max(0, HEAT_P_STABLE - p) * 1000 : 0;
+    var spd = timePctVal(row);
+    if (spd >= FAST_TIME_PCT && spd >= accFrag) return "speed_step";
     return "acc_step";
   }
 
@@ -484,7 +509,8 @@
       targetAvgSec = row.avgSec != null ? row.avgSec * SPEED_RATIO : null;
     } else {
       var baseP = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
-      targetP = Math.min(HEAT_P_YELLOW, baseP + ACC_STEP);
+      var accCap = baseP >= HEAT_P_YELLOW ? HEAT_P_STABLE : HEAT_P_YELLOW;
+      targetP = Math.min(accCap, baseP + ACC_STEP);
     }
     var title = "训练 " + row.levelLabel;
     var detail =
@@ -566,6 +592,13 @@
 
   function uniqueSeeds(ctx) {
     var seeds = [];
+    var used = {};
+    function tryAdd(seed) {
+      var k = seedKey(seed);
+      if (used[k]) return;
+      used[k] = true;
+      seeds.push(seed);
+    }
     var holes = sortHolesWorstFirst(ctx.schoolHoles);
     var primary = ctx.primaryRow;
     if (ctx.profile.id === "skill_gaps") {
@@ -573,17 +606,31 @@
         holes = [primary];
       }
       holes.forEach(function (r) {
-        seeds.push({ kind: "training", row: r });
+        tryAdd({ kind: "training", row: r });
       });
-      if (!ctx.hasClearedLevel) seeds.push({ kind: "scan", scan: ctx.scan });
-      return seeds;
+      if (!ctx.hasClearedLevel) tryAdd({ kind: "scan", scan: ctx.scan });
+    } else {
+      if (primary && (primary.stage === "weak" || primary.stage === "shaky")) {
+        tryAdd({ kind: "training", row: primary });
+      }
+      tryAdd({ kind: "scan", scan: ctx.scan });
+      holes.forEach(function (r) {
+        tryAdd({ kind: "training", row: r });
+      });
     }
-    if (primary) seeds.push({ kind: "training", row: primary });
-    seeds.push({ kind: "scan", scan: ctx.scan });
-    holes.forEach(function (r) {
-      if (primary && r.levelIndex === primary.levelIndex) return;
-      seeds.push({ kind: "training", row: r });
-    });
+    if (seeds.length < INCOMPLETE_SIZE) {
+      var fillers = (ctx.rows || [])
+        .filter(function (r) {
+          return fillerScore(r) > 0;
+        })
+        .slice()
+        .sort(function (a, b) {
+          return fillerScore(b) - fillerScore(a);
+        });
+      fillers.forEach(function (r) {
+        tryAdd({ kind: "training", row: r });
+      });
+    }
     return seeds;
   }
 
@@ -593,7 +640,9 @@
       return true;
     }
     var row = seed.row;
-    return !!(row && (row.stage === "weak" || row.stage === "shaky"));
+    if (!row) return false;
+    if (row.stage === "weak" || row.stage === "shaky") return true;
+    return fillerScore(row) > 0;
   }
 
   function chinaDayDiff(fromTs, toTs) {
@@ -648,20 +697,14 @@
     var needed = uniqueSeeds(ctx).filter(function (s) {
       return seedIsNeeded(s, ctx);
     });
-    var trainNeeded = needed.filter(function (s) {
-      return s.kind === "training";
-    });
     function pickPool(allowCompleted) {
-      return {
-        all: filterSeedsNotCompleted(needed, plan, allowCompleted),
-        train: filterSeedsNotCompleted(trainNeeded, plan, allowCompleted),
-      };
+      return filterSeedsNotCompleted(needed, plan, allowCompleted);
     }
     var pool = pickPool(false);
-    if (next.length < INCOMPLETE_SIZE && !pool.all.length && !pool.train.length) {
+    if (next.length < INCOMPLETE_SIZE && !pool.length) {
       pool = pickPool(true);
     }
-    pool.all.forEach(function (seed) {
+    pool.forEach(function (seed) {
       if (next.length >= INCOMPLETE_SIZE) return;
       var k = seedKey(seed);
       if (
@@ -673,14 +716,6 @@
       }
       next.push(seedToTask(plan, seed));
     });
-    var trainPool = pool.train.length ? pool.train : [];
-    var ri = 0;
-    var guard = 0;
-    while (next.length < INCOMPLETE_SIZE && trainPool.length && guard < 20) {
-      next.push(seedToTask(plan, trainPool[ri % trainPool.length]));
-      ri += 1;
-      guard += 1;
-    }
     plan.tasks = next;
     activateFirst(plan.tasks);
   }
@@ -1113,7 +1148,7 @@
       "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "）",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
-      "Q10 未完成常驻 " + INCOMPLETE_SIZE + " 条，允许重复",
+      "Q10 未完成最多 " + INCOMPLETE_SIZE + " 条且不重复；黄橙优先，再按准度×速度分位补已学流畅",
       "Q11 已完成最多 " + COMPLETED_MAX + " 条；满则挤最早；满 " + COMPLETED_EXPIRE_DAYS + " 个日历日移出",
     ];
     reasons.push(
@@ -1160,9 +1195,9 @@
       reason(
         "R-plan",
         "hybrid_task_list",
-        "混合任务单：未完成常驻 " +
+        "混合任务单：未完成最多 " +
           INCOMPLETE_SIZE +
-          " 条（允许重复）；已完成最多 " +
+          " 条且不重复（黄橙优先，准度×速度分位补格）；已完成最多 " +
           COMPLETED_MAX +
           " 条，量挤掉或日历 " +
           COMPLETED_EXPIRE_DAYS +
