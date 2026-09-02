@@ -140,6 +140,7 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
+  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v04:';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
@@ -2325,6 +2326,36 @@
     return !!(state.agg && state.agg.hasAny);
   }
 
+  function practicePlanStorageKey(username) {
+    return PRACTICE_PLAN_KEY_PREFIX + String(username || '');
+  }
+
+  function loadSavedPracticePlan(username) {
+    if (!username) return null;
+    try {
+      var raw = localStorage.getItem(practicePlanStorageKey(username));
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function savePracticePlan(username, plan) {
+    if (!username || !plan) return;
+    try {
+      localStorage.setItem(practicePlanStorageKey(username), JSON.stringify(plan));
+    } catch (e) {}
+  }
+
+  function clearSavedPracticePlan(username) {
+    if (!username) return;
+    try {
+      localStorage.removeItem(practicePlanStorageKey(username));
+    } catch (e) {}
+  }
+
   function formatAdviceSystemPickLine(sp) {
     if (!sp || (sp.ok === false && sp.levelIndex == null && sp.pickedL == null)) {
       return '旧训练选关：暂无';
@@ -2375,12 +2406,16 @@
         return String(r && r.mode ? r.mode : '').toLowerCase() === 'level' && r.cleared === true;
       });
     var advice = Advice.computePracticeAdvice({
+      username: state.selectedUsername,
       grade: user.grade != null ? user.grade : null,
       cells: cells,
       hasClearedLevel: hasClearedLevel,
       levelChallengeBestLevel:
         user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
       levelBestFromRuns: levelBestFromRuns,
+      runs: state.runs || [],
+      savedPlan: loadSavedPracticePlan(state.selectedUsername),
+      nowTs: Date.now(),
       systemPick: sp
         ? {
             levelIndex: sp.levelIndex,
@@ -2391,6 +2426,7 @@
           }
         : null,
     });
+    if (advice.plan) savePracticePlan(state.selectedUsername, advice.plan);
     var p = advice.primary || {};
     var diverge = advice.divergesFromSystemPick
       ? '<span class="jml-advice-badge jml-advice-badge--diff">与旧选关不一致</span>'
@@ -2409,12 +2445,20 @@
       .join('');
     var queueHtml = (advice.queue || [])
       .map(function (step, i) {
+        var st = step.status || (i === 0 ? 'active' : 'pending');
         return (
-          '<li>' +
+          '<li class="jml-advice-task jml-advice-task--' +
+          escapeHtml(st) +
+          '">' +
           '<strong>' +
-          escapeHtml(String(i + 1) + '. ' + (step.title || step.levelLabel || '')) +
+          escapeHtml((step.statusLabel || '') + ' ' + String(i + 1) + '. ' + (step.title || step.levelLabel || '')) +
           '</strong>' +
-          (step.until ? '<span> — ' + escapeHtml(step.until) + '</span>' : '') +
+          (step.until ? '<div class="jml-advice-exit">' + escapeHtml(step.until) + '</div>' : '') +
+          (step.successCopy ? '<div class="jml-advice-exit">' + escapeHtml(step.successCopy) + '</div>' : '') +
+          (step.failCopy ? '<div class="jml-advice-exit">' + escapeHtml(step.failCopy) + '</div>' : '') +
+          (step.progressCopy
+            ? '<div class="jml-advice-progress">' + escapeHtml(step.progressCopy) + '</div>'
+            : '') +
           (step.detail ? '<div class="jml-advice-note">' + escapeHtml(step.detail) + '</div>' : '') +
           '</li>'
         );
@@ -2425,6 +2469,9 @@
         escapeHtml(advice.profile.label || '') +
         ' · 底板 ' +
         escapeHtml(advice.profile.floorLabel || '') +
+        (advice.plan && advice.plan.issuedAt
+          ? ' · 开单 ' + escapeHtml(formatDateTime(advice.plan.issuedAt))
+          : '') +
         '</p>'
       : '';
     var dont =
@@ -2436,6 +2483,22 @@
     var unresolved = (advice.unresolved || [])
       .map(function (u) {
         return '<li>' + escapeHtml(u) + '</li>';
+      })
+      .join('');
+    var events = (advice.planEvents || [])
+      .slice()
+      .reverse()
+      .slice(0, 12)
+      .map(function (ev) {
+        return (
+          '<li>' +
+          escapeHtml(formatDateTime(ev.ts)) +
+          ' · ' +
+          escapeHtml(ev.type || '') +
+          ' · ' +
+          escapeHtml(ev.text || '') +
+          '</li>'
+        );
       })
       .join('');
     var gradeText =
@@ -2452,7 +2515,8 @@
       escapeHtml(advice.ruleVersion || '') +
       ' · 年级 ' +
       escapeHtml(gradeText) +
-      '</span>' +
+      ' · 测试期跑偏整单重算</span>' +
+      '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset">重新开单</button>' +
       '</div>' +
       '<p class="jml-advice-primary">' +
       escapeHtml(p.title || '') +
@@ -2470,6 +2534,7 @@
       '<ul class="jml-advice-reasons">' +
       reasons +
       '</ul>' +
+      (events ? '<p class="jml-advice-subh">任务单事件</p><ul>' + events + '</ul>' : '') +
       '<p class="jml-advice-subh">暂定、待主管判断矛盾再调</p><ul>' +
       unresolved +
       '</ul>' +
@@ -2846,6 +2911,13 @@
     if (statsBody) {
       statsBody.addEventListener('click', function (ev) {
         var toggle = ev.target.closest('.jml-heat-cat-toggle');
+        var resetAdvice = ev.target.closest('#jml-advice-reset');
+        if (resetAdvice && statsBody.contains(resetAdvice)) {
+          ev.preventDefault();
+          clearSavedPracticePlan(state.selectedUsername);
+          renderStatsPanel();
+          return;
+        }
         if (toggle && statsBody.contains(toggle)) {
           var cid = toggle.getAttribute('data-category-id');
           if (!cid) return;

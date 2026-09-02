@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css?v=2" />
-  <link rel="stylesheet" href="report-page.css?v=44" />
+  <link rel="stylesheet" href="report-page.css?v=45" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -56,7 +56,7 @@
         </select>
         <button type="button" class="jml-btn" id="jml-report-refresh-student-btn" title="重新拉取当前学员最新记录" disabled>刷新</button>
       </div>
-      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析顶部为助手练习建议（对照用，不改训练开局）；热图「推荐下一练」仍是旧 F/H 选关。排查选关用「训练选关Debug」Tab。</p>
+      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析顶部为助手任务单（对照用，不改训练开局；测试期跑偏会整单重算）。热图「推荐下一练」仍是旧 F/H 选关。排查选关用「训练选关Debug」Tab。</p>
 
       <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
 
@@ -108,8 +108,8 @@
   <script src="../stats-aggregate-browser.js?v=51"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="practice-advice.js?v=3"></script>
-  <script src="report-page.js?v=75"></script>
+  <script src="practice-advice.js?v=4"></script>
+  <script src="report-page.js?v=76"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

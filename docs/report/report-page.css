@@ -590,7 +590,7 @@
 .jml-advice-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 8px 12px;
   margin-bottom: 6px;
 }
@@ -631,7 +631,27 @@
   line-height: 1.45;
 }
 .jml-advice-queue li {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+}
+.jml-advice-task--active {
+  background: #e8f5e9;
+  margin-left: -8px;
+  padding: 8px 8px 8px 8px;
+  border-radius: 8px;
+}
+.jml-advice-exit,
+.jml-advice-progress {
+  font-size: 13px;
+  color: #37474f;
+  margin-top: 2px;
+}
+.jml-advice-progress {
+  color: #1565c0;
+}
+.jml-advice-reset {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 2px 8px;
 }
 .jml-advice-copy,
 .jml-advice-dont,
