@@ -140,7 +140,7 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
-  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v04:';
+  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v05:';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
@@ -2464,6 +2464,17 @@
         );
       })
       .join('');
+    var completedHtml = (advice.completed || [])
+      .map(function (c, i) {
+        var when = c.chinaDay || (c.completedAt ? formatDateTime(c.completedAt) : '');
+        return (
+          '<li>' +
+          escapeHtml(String(i + 1) + '. ' + (c.title || c.levelLabel || '')) +
+          (when ? '<span class="jml-advice-note"> · ' + escapeHtml(when) + '</span>' : '') +
+          '</li>'
+        );
+      })
+      .join('');
     var profileLine = advice.profile
       ? '<p class="jml-advice-profile">' +
         escapeHtml(advice.profile.label || '') +
@@ -2522,7 +2533,16 @@
       escapeHtml(p.title || '') +
       '</p>' +
       profileLine +
-      (queueHtml ? '<ol class="jml-advice-queue">' + queueHtml + '</ol>' : '') +
+      (queueHtml
+        ? '<p class="jml-advice-subh">未完成（常驻 5 条）</p><ol class="jml-advice-queue">' +
+          queueHtml +
+          '</ol>'
+        : '') +
+      (completedHtml
+        ? '<p class="jml-advice-subh">已完成（最多 5 条；满则挤最早 / 满 5 个日历日移出）</p><ol class="jml-advice-completed">' +
+          completedHtml +
+          '</ol>'
+        : '<p class="jml-advice-note">已完成：暂无</p>') +
       '<p class="jml-advice-copy">' +
       escapeHtml(p.parentCopy || '') +
       '</p>' +

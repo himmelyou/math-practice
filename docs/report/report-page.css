@@ -653,6 +653,18 @@
   font-size: 12px;
   padding: 2px 8px;
 }
+.jml-advice-completed {
+  margin: 0 0 10px;
+  padding-left: 1.3em;
+  font-size: 13px;
+  color: #546e7a;
+}
+.jml-advice-subh {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #455a64;
+}
 .jml-advice-copy,
 .jml-advice-dont,
 .jml-advice-system {
@@ -688,10 +700,6 @@
 }
 .jml-advice-note {
   color: #78909c;
-}
-.jml-advice-subh {
-  margin: 10px 0 4px;
-  font-weight: 600;
 }
 
 .jml-heatmap-legend {

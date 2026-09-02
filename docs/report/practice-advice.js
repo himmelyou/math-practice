@@ -3,7 +3,7 @@
  * 只读推荐，不改训练开局。规则见《练习建议规则说明》§十。
  */
 (function (root) {
-  var RULE_VERSION = "0.4-provisional";
+  var RULE_VERSION = "0.5-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -26,7 +26,10 @@
   var FAIL_GAMES_PER_DAY = 3;
   /** Q9：跨日停滞（有练日） */
   var FAIL_PRACTICE_DAYS = 3;
-  var MAX_TRAIN_TASKS = 4;
+  /** 未完成队列常驻格数；已完成最多条数；日历日过期 */
+  var INCOMPLETE_SIZE = 5;
+  var COMPLETED_MAX = 5;
+  var COMPLETED_EXPIRE_DAYS = 5;
   var MAX_EVENTS = 40;
   var PLAY_MODES = {
     training: true,
@@ -561,28 +564,125 @@
     };
   }
 
-  function buildTaskSeeds(ctx) {
+  function uniqueSeeds(ctx) {
     var seeds = [];
     var holes = sortHolesWorstFirst(ctx.schoolHoles);
     var primary = ctx.primaryRow;
     if (ctx.profile.id === "skill_gaps") {
-      if (!holes.length && primary && primary.action !== "insufficient_data") {
-        if (primary.stage === "weak" || primary.stage === "shaky") holes = [primary];
+      if (!holes.length && primary && (primary.stage === "weak" || primary.stage === "shaky")) {
+        holes = [primary];
       }
-      holes.slice(0, MAX_TRAIN_TASKS).forEach(function (r) {
+      holes.forEach(function (r) {
         seeds.push({ kind: "training", row: r });
       });
       if (!ctx.hasClearedLevel) seeds.push({ kind: "scan", scan: ctx.scan });
       return seeds;
     }
     if (primary) seeds.push({ kind: "training", row: primary });
-    if (primary) seeds.push({ kind: "scan", scan: ctx.scan });
+    seeds.push({ kind: "scan", scan: ctx.scan });
     holes.forEach(function (r) {
       if (primary && r.levelIndex === primary.levelIndex) return;
-      if (seeds.filter(function (s) { return s.kind === "training"; }).length >= MAX_TRAIN_TASKS) return;
       seeds.push({ kind: "training", row: r });
     });
     return seeds;
+  }
+
+  function seedIsNeeded(seed, ctx) {
+    if (seed.kind === "scan") {
+      if (ctx.profile.id === "skill_gaps" && ctx.hasClearedLevel) return false;
+      return true;
+    }
+    var row = seed.row;
+    return !!(row && (row.stage === "weak" || row.stage === "shaky"));
+  }
+
+  function chinaDayDiff(fromTs, toTs) {
+    var a = chinaDateKeyFromTs(fromTs);
+    var b = chinaDateKeyFromTs(toTs);
+    if (!a || !b) return 0;
+    var am = Date.parse(a + "T00:00:00+08:00");
+    var bm = Date.parse(b + "T00:00:00+08:00");
+    if (!Number.isFinite(am) || !Number.isFinite(bm)) return 0;
+    return Math.round((bm - am) / 86400000);
+  }
+
+  function expireCompleted(plan, nowTs) {
+    if (!plan.completed) plan.completed = [];
+    plan.completed = plan.completed.filter(function (c) {
+      var ts = c && c.completedAt != null ? Number(c.completedAt) : 0;
+      return chinaDayDiff(ts, nowTs) < COMPLETED_EXPIRE_DAYS;
+    });
+  }
+
+  function completedHasKey(plan, key) {
+    return (plan.completed || []).some(function (c) {
+      return c && c.key === key;
+    });
+  }
+
+  function pushCompleted(plan, task, ts) {
+    if (!plan.completed) plan.completed = [];
+    expireCompleted(plan, ts);
+    plan.completed.push({
+      key: task.key,
+      action: task.action,
+      levelIndex: task.levelIndex,
+      levelLabel: task.levelLabel,
+      title: task.title,
+      completedAt: ts,
+      chinaDay: chinaDateKeyFromTs(ts),
+    });
+    while (plan.completed.length > COMPLETED_MAX) plan.completed.shift();
+  }
+
+  function filterSeedsNotCompleted(seeds, plan, allowCompleted) {
+    if (allowCompleted) return seeds.slice();
+    return seeds.filter(function (s) {
+      return !completedHasKey(plan, seedKey(s));
+    });
+  }
+
+  function fillIncomplete(plan, ctx, ts) {
+    expireCompleted(plan, ts);
+    var next = openTasks(plan);
+    var needed = uniqueSeeds(ctx).filter(function (s) {
+      return seedIsNeeded(s, ctx);
+    });
+    var trainNeeded = needed.filter(function (s) {
+      return s.kind === "training";
+    });
+    function pickPool(allowCompleted) {
+      return {
+        all: filterSeedsNotCompleted(needed, plan, allowCompleted),
+        train: filterSeedsNotCompleted(trainNeeded, plan, allowCompleted),
+      };
+    }
+    var pool = pickPool(false);
+    if (next.length < INCOMPLETE_SIZE && !pool.all.length && !pool.train.length) {
+      pool = pickPool(true);
+    }
+    pool.all.forEach(function (seed) {
+      if (next.length >= INCOMPLETE_SIZE) return;
+      var k = seedKey(seed);
+      if (
+        next.some(function (t) {
+          return t.key === k;
+        })
+      ) {
+        return;
+      }
+      next.push(seedToTask(plan, seed));
+    });
+    var trainPool = pool.train.length ? pool.train : [];
+    var ri = 0;
+    var guard = 0;
+    while (next.length < INCOMPLETE_SIZE && trainPool.length && guard < 20) {
+      next.push(seedToTask(plan, trainPool[ri % trainPool.length]));
+      ri += 1;
+      guard += 1;
+    }
+    plan.tasks = next;
+    activateFirst(plan.tasks);
   }
 
   function seedKey(seed) {
@@ -637,12 +737,10 @@
       dontOpen: dont.labels,
       dontOpenLabel: dont.copy,
       tasks: [],
+      completed: [],
       events: [],
     };
-    buildTaskSeeds(ctx).forEach(function (seed) {
-      plan.tasks.push(seedToTask(plan, seed));
-    });
-    activateFirst(plan.tasks);
+    fillIncomplete(plan, ctx, issuedAt);
     var head = getActiveTask(plan);
     pushEvent(
       plan,
@@ -749,80 +847,40 @@
   }
 
   function holeStillNeeded(seed, ctx, closedTask, reason) {
-    if (seed.kind === "scan") {
-      if (ctx.profile.id === "skill_gaps" && ctx.hasClearedLevel) return false;
-      if (reason === "success" && closedTask && closedTask.action === "level") return false;
-      return true;
-    }
-    var row = seed.row;
-    return row && (row.stage === "weak" || row.stage === "shaky");
-  }
-
-  function rotateIfHeadIs(tasks, avoidKey) {
-    if (!avoidKey || !tasks.length) return;
-    if (tasks[0].key !== avoidKey) return;
-    if (tasks.length < 2) return;
-    var first = tasks.shift();
-    tasks.splice(1, 0, first);
+    return seedIsNeeded(seed, ctx);
   }
 
   function replan(plan, ctx, closedTask, reason, ts) {
-    var seeds = buildTaskSeeds(ctx).filter(function (s) {
-      return holeStillNeeded(s, ctx, closedTask, reason);
+    expireCompleted(plan, ts);
+    var next = openTasks(plan).filter(function (t) {
+      return !closedTask || t.id !== closedTask.id;
     });
-    var keepMap = {};
-    openTasks(plan).forEach(function (t) {
-      keepMap[t.key] = t;
-    });
-    var next = [];
-    var used = {};
-    seeds.forEach(function (seed) {
-      var k = seedKey(seed);
-      if (reason === "fail" && closedTask && k === closedTask.key) return;
-      used[k] = true;
-      if (keepMap[k]) next.push(keepMap[k]);
-      else next.push(seedToTask(plan, seed));
-    });
-    if (reason === "fail" && closedTask) {
-      var stillHole = seeds.some(function (s) {
-        return seedKey(s) === closedTask.key;
+    if (reason === "success" && closedTask) {
+      next = next.filter(function (t) {
+        return t.key !== closedTask.key;
       });
-      if (stillHole) {
-        closedTask.status = "pending";
-        closedTask.window = emptyPlanWindow();
-        closedTask.closedAt = null;
-        closedTask.closeReason = "";
-        if (next.length) next.push(closedTask);
-        else next.push(closedTask);
-        used[closedTask.key] = true;
-      }
+      pushCompleted(plan, closedTask, ts);
+    } else if (reason === "fail" && closedTask) {
+      closedTask.status = "pending";
+      closedTask.window = emptyPlanWindow();
+      closedTask.closedAt = null;
+      closedTask.closeReason = "";
+      if (next.length >= 1) next.splice(1, 0, closedTask);
+      else next.push(closedTask);
     }
-    Object.keys(keepMap).forEach(function (k) {
-      if (used[k]) return;
-      keepMap[k].status = "cancelled";
-      keepMap[k].closedAt = ts;
-      keepMap[k].closeReason = "no_longer_needed";
-    });
-    if (closedTask && (reason === "success" || reason === "fail")) {
-      rotateIfHeadIs(next, closedTask.key);
-    }
-    var nextIds = {};
-    next.forEach(function (t) {
-      nextIds[t.id] = true;
-    });
-    var history = (plan.tasks || []).filter(function (t) {
-      if (nextIds[t.id]) return false;
-      return t.status === "success" || t.status === "parked" || t.status === "cancelled";
-    });
-    plan.tasks = history.concat(next);
-    activateFirst(plan.tasks);
+    plan.tasks = next;
+    fillIncomplete(plan, ctx, ts);
     var head = getActiveTask(plan);
     pushEvent(
       plan,
       "replan",
-      (reason === "success" ? "成功后重排" : reason === "fail" ? "失败后重排" : "重排") +
+      (reason === "success" ? "成功后补未完成" : reason === "fail" ? "失败后插回未完成" : "重排") +
         "：当前 " +
-        (head ? head.title || head.levelLabel : "无任务"),
+        (head ? head.title || head.levelLabel : "无任务") +
+        "；已完成 " +
+        (plan.completed || []).length +
+        "/" +
+        COMPLETED_MAX,
       ts
     );
   }
@@ -852,6 +910,10 @@
       return { plan: plan, rebuilt: rebuilt };
     }
     plan = cloneJson(saved);
+    if (!Array.isArray(plan.completed)) plan.completed = [];
+    expireCompleted(plan, nowTs);
+    if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
+    activateFirst(plan.tasks);
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
     var incoming = (runs || [])
       .filter(isPlayRun)
@@ -864,6 +926,7 @@
       });
     incoming.forEach(function (run) {
       var ts = runTs(run);
+      expireCompleted(plan, ts);
       var active = getActiveTask(plan);
       if (!active) {
         plan = issuePlan(ctx, ts, username);
@@ -899,6 +962,9 @@
       }
       plan.lastProcessedTs = ts;
     });
+    expireCompleted(plan, nowTs);
+    if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
+    activateFirst(plan.tasks);
     return { plan: plan, rebuilt: rebuilt };
   }
 
@@ -1047,6 +1113,8 @@
       "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "）",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
+      "Q10 未完成常驻 " + INCOMPLETE_SIZE + " 条，允许重复",
+      "Q11 已完成最多 " + COMPLETED_MAX + " 条；满则挤最早；满 " + COMPLETED_EXPIRE_DAYS + " 个日历日移出",
     ];
     reasons.push(
       reason(
@@ -1092,12 +1160,14 @@
       reason(
         "R-plan",
         "hybrid_task_list",
-        "混合任务单：小步成功 / 当日" +
-          FAIL_GAMES_PER_DAY +
-          "局或" +
-          FAIL_PRACTICE_DAYS +
-          "个有练日失败；测试期跑偏整单重算",
-        "只在成功、失败或跑偏时改单"
+        "混合任务单：未完成常驻 " +
+          INCOMPLETE_SIZE +
+          " 条（允许重复）；已完成最多 " +
+          COMPLETED_MAX +
+          " 条，量挤掉或日历 " +
+          COMPLETED_EXPIRE_DAYS +
+          " 天移出后才可再进；测试期跑偏整单重算",
+        "成功进已完成；失败不进、未完成后插"
       )
     );
 
@@ -1147,6 +1217,7 @@
       profile: ctx.profile,
       scanTarget: ctx.scan,
       queue: queue,
+      completed: plan.completed || [],
       plan: plan,
       planEvents: plan.events || [],
       primary: active
@@ -1190,6 +1261,9 @@
         Q7_speedRatio: SPEED_RATIO,
         Q8_failGamesPerDay: FAIL_GAMES_PER_DAY,
         Q9_failPracticeDays: FAIL_PRACTICE_DAYS,
+        Q10_incompleteSize: INCOMPLETE_SIZE,
+        Q11_completedMax: COMPLETED_MAX,
+        Q11_completedExpireDays: COMPLETED_EXPIRE_DAYS,
       },
       unresolved: unresolved,
     };
@@ -1204,6 +1278,9 @@
     SPEED_RATIO: SPEED_RATIO,
     FAIL_GAMES_PER_DAY: FAIL_GAMES_PER_DAY,
     FAIL_PRACTICE_DAYS: FAIL_PRACTICE_DAYS,
+    INCOMPLETE_SIZE: INCOMPLETE_SIZE,
+    COMPLETED_MAX: COMPLETED_MAX,
+    COMPLETED_EXPIRE_DAYS: COMPLETED_EXPIRE_DAYS,
     curriculumPrior: curriculumPrior,
     classifyStage: classifyStage,
     classifyProfile: classifyProfile,
