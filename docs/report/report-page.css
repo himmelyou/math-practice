@@ -624,20 +624,61 @@
   font-size: 13px;
   color: #455a64;
 }
+.jml-advice-profile + .jml-advice-subh {
+  margin-top: 2px;
+}
+.jml-advice-tile-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.jml-advice-tile {
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  padding: 6px 4px;
+  min-height: 52px;
+  text-align: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+.jml-advice-tile--active {
+  border-color: #2e7d32;
+  background: #e8f5e9;
+}
+.jml-advice-tile--pending {
+  background: #fafafa;
+}
+.jml-advice-tile--success {
+  border-color: #90a4ae;
+  background: #eceff1;
+  color: #546e7a;
+}
+.jml-advice-tile--empty {
+  border-style: dashed;
+  background: transparent;
+  min-height: 52px;
+}
+.jml-advice-tile-lab {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.jml-advice-tile-sub {
+  display: block;
+  font-size: 11px;
+  color: #607d8b;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .jml-advice-queue {
   margin: 0 0 10px;
   padding-left: 1.3em;
   font-size: 14px;
   line-height: 1.45;
-}
-.jml-advice-queue li {
-  margin-bottom: 8px;
-}
-.jml-advice-task--active {
-  background: #e8f5e9;
-  margin-left: -8px;
-  padding: 8px 8px 8px 8px;
-  border-radius: 8px;
 }
 .jml-advice-exit,
 .jml-advice-progress {

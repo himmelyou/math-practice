@@ -1,9 +1,8 @@
 /**
- * 练习建议 v0.8：黄橙与热图二维上色对齐（准度 × 速度分位）。
- * 绿档补格含 Q12 地基加权；准度已 ≥97% 走速度小步。只读推荐，不改训练开局。
+ * 练习建议 v0.13：未完成五条是真任务；碰巧达标算完成，否则热图变了重算未完成（保留已完成）。
  */
 (function (root) {
-  var RULE_VERSION = "0.8-provisional";
+  var RULE_VERSION = "0.13-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -20,8 +19,6 @@
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
   var FOUNDATION_RATIO = 1.15;
-  /** 热图低段：L1–L9 */
-  var LOW_BAND_MAX_INDEX = 8;
   /** Q6：准度小步（百分点） */
   var ACC_STEP = 0.015;
   /** Q7：速度小步：任务窗均速 ≤ 基线 × 此系数；对照 timePct −10 */
@@ -30,14 +27,21 @@
   /** 成功验收最少样本 */
   var MIN_SUCCESS_GAMES = 2;
   var MIN_SUCCESS_ITEMS = 20;
+  /** Q14：开新关激活门槛（1 局或 20 题） */
+  var MIN_OPEN_GAMES = 1;
   /** Q8：当日封顶局数 */
   var FAIL_GAMES_PER_DAY = 3;
   /** Q9：跨日停滞（有练日） */
   var FAIL_PRACTICE_DAYS = 3;
-  /** 未完成队列常驻格数；已完成最多条数；日历日过期 */
+  /** 未完成常驻格数；已完成在同一条队列里最多保留条数 */
   var INCOMPLETE_SIZE = 5;
   var COMPLETED_MAX = 5;
-  var COMPLETED_EXPIRE_DAYS = 5;
+  /** 同一 key 两次出现之间至少隔这么多条；可练池空时破例 */
+  var SAME_TASK_GAP = 5;
+  /** 冲榜闯关：每关按 10 题均速加总，再乘开销；预估须 ≤ 纪录 × 此系数 */
+  var SCAN_CLEAR_ITEMS = 10;
+  var SCAN_CLEAR_OVERHEAD = 1.2;
+  var SCAN_CLEAR_IMPROVE = 0.85;
   var MAX_EVENTS = 40;
   var PLAY_MODES = {
     training: true,
@@ -304,15 +308,20 @@
     };
   }
 
-  function lowBandFluentTopIndex(rows) {
+  function accConsecutiveTopIndex(rows) {
     var top = -1;
-    for (var i = 0; i <= LOW_BAND_MAX_INDEX && i < rows.length; i += 1) {
-      if (rows[i].band === "fluent") top = i;
+    var list = rows || [];
+    for (var i = 0; i < list.length; i += 1) {
+      var p = list[i] && list[i].p != null && Number.isFinite(Number(list[i].p)) ? Number(list[i].p) : null;
+      if (p == null || p < HEAT_P_YELLOW) break;
+      top = i;
     }
     return top;
   }
 
+  /** 合格线 Ln = 须通过 Ln。只看从 L1 起连续准≥95%，再和历史最高取 min。L1 不够 95% 时目标仍是 L1。 */
   function resolveScanTarget(rows, opts) {
+    opts = opts || {};
     var hist = null;
     if (opts.levelChallengeBestLevel != null && Number.isFinite(Number(opts.levelChallengeBestLevel))) {
       hist = Math.floor(Number(opts.levelChallengeBestLevel));
@@ -321,14 +330,90 @@
       var fromRuns = Math.floor(Number(opts.levelBestFromRuns));
       if (hist == null || fromRuns > hist) hist = fromRuns;
     }
-    var low = lowBandFluentTopIndex(rows);
+    var accTop = accConsecutiveTopIndex(rows);
     var idx;
-    if (hist != null && hist >= 2 && low >= 0) idx = Math.min(hist, low);
-    else if (hist != null && hist >= 2) idx = hist;
-    else if (low >= 2) idx = low;
-    else idx = 5;
+    if (accTop < 0) idx = 0;
+    else if (hist != null && hist >= 0) idx = Math.min(hist, accTop);
+    else idx = accTop;
     idx = clampLevel(idx);
     return { levelIndex: idx, levelLabel: levelLabel(idx) };
+  }
+
+  function runDurationSec(run) {
+    if (!run) return null;
+    if (run.survivalTimeSec != null && Number.isFinite(Number(run.survivalTimeSec))) {
+      var a = Number(run.survivalTimeSec);
+      if (a > 0) return a;
+    }
+    if (run.durationSec != null && Number.isFinite(Number(run.durationSec))) {
+      var b = Number(run.durationSec);
+      if (b > 0) return b;
+    }
+    return null;
+  }
+
+  function bestClearedLevelSec(runs) {
+    var best = null;
+    (runs || []).forEach(function (r) {
+      if (normalizeRunMode(r && r.mode) !== "level" || r.cleared !== true) return;
+      var sec = runDurationSec(r);
+      if (sec == null) return;
+      if (best == null || sec < best) best = sec;
+    });
+    return best;
+  }
+
+  function estimateClearSec(rows) {
+    var sum = 0;
+    var list = rows || [];
+    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+      var row = list[i];
+      var sec = row && row.avgSec != null && Number.isFinite(Number(row.avgSec)) ? Number(row.avgSec) : null;
+      if (sec == null || sec <= 0) return null;
+      sum += sec;
+    }
+    return sum * SCAN_CLEAR_ITEMS * SCAN_CLEAR_OVERHEAD;
+  }
+
+  function retryClearInfo(rows, runs) {
+    var recordSec = bestClearedLevelSec(runs);
+    var estimateSec = estimateClearSec(rows);
+    if (recordSec == null || estimateSec == null) return null;
+    return {
+      estimateSec: estimateSec,
+      recordSec: recordSec,
+      improve: estimateSec <= recordSec * SCAN_CLEAR_IMPROVE,
+    };
+  }
+
+  function isRetryClearScan(ctx) {
+    return !!(ctx && ctx.scan && ctx.scan.kind === "retry_clear");
+  }
+
+  function scanIsNeeded(ctx) {
+    if (!ctx) return false;
+    if (ctx.profile && ctx.profile.id === "skill_gaps" && ctx.hasClearedLevel) {
+      return isRetryClearScan(ctx);
+    }
+    return true;
+  }
+
+  function formatAdviceClock(sec) {
+    if (sec == null || !Number.isFinite(Number(sec)) || Number(sec) <= 0) return "—";
+    var s = Math.round(Number(sec));
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    if (m <= 0) return r + "秒";
+    return m + "分" + (r < 10 ? "0" : "") + r + "秒";
+  }
+
+  /** 过 Ln：须打完该关。L16 看 cleared；其余看 maxLevel 是否到达下一关。 */
+  function passedScanTarget(run, scanLevelIndex) {
+    if (scanLevelIndex == null || !Number.isFinite(Number(scanLevelIndex))) return false;
+    var idx = clampLevel(scanLevelIndex);
+    if (idx >= LEVEL_COUNT - 1) return !!(run && run.cleared === true);
+    var reached = summarizeRun(run, null).maxLevel;
+    return reached != null && reached >= idx + 1;
   }
 
   function reason(ruleId, code, evidence, note) {
@@ -520,6 +605,36 @@
     };
   }
 
+  /** 已学/同步里已激活的关全部热图绿（无黄橙）。无已激活时视为可开第一档。 */
+  function schoolActivatedReady(rows) {
+    var list = rows || [];
+    var activated = 0;
+    for (var i = 0; i < list.length; i += 1) {
+      var r = list[i];
+      if (!inSchoolPrior(r.prior)) continue;
+      if (r.stage === "no_data") continue;
+      activated += 1;
+      if (r.stage === "weak" || r.stage === "shaky") return false;
+    }
+    return true;
+  }
+
+  /** 已学/同步里关号最小的无数据档。超前不开。闯关留下 n>0 后不再是候选。 */
+  function nextOpenableRow(rows) {
+    var list = rows || [];
+    var best = null;
+    for (var i = 0; i < list.length; i += 1) {
+      var r = list[i];
+      if (!inSchoolPrior(r.prior) || r.stage !== "no_data") continue;
+      if (!best || r.levelIndex < best.levelIndex) best = r;
+    }
+    return best;
+  }
+
+  function canScheduleOpenNew(rows) {
+    return schoolActivatedReady(rows) && !!nextOpenableRow(rows);
+  }
+
   function rowByLevel(rows, levelIndex) {
     if (levelIndex == null) return null;
     return rows[clampLevel(levelIndex)] || null;
@@ -621,14 +736,76 @@
     };
   }
 
-  function makeScanTask(plan, scan) {
+  function makeOpenTask(plan, row) {
     return {
+      id: nextTaskId(plan),
+      key: taskKey("training", row.levelIndex),
+      action: "training",
+      mode: "training",
+      levelIndex: row.levelIndex,
+      levelLabel: row.levelLabel,
+      status: "pending",
+      successKind: "open_activate",
+      baseline: {
+        p: row.p,
+        timePct: row.timePct,
+        n: row.n,
+        tooSlow: false,
+        avgSec: row.avgSec,
+        stageLabel: row.stageLabel,
+        priorLabel: row.priorLabel,
+      },
+      targetP: null,
+      targetTimePct: null,
+      targetAvgSec: null,
+      scanLevelIndex: null,
+      scanLevelLabel: "",
+      failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
+      failMaxPracticeDays: FAIL_PRACTICE_DAYS,
+      window: emptyPlanWindow(),
+      closedAt: null,
+      closeReason: "",
+      title: "训练 " + row.levelLabel + "（开新关）",
+      detail:
+        (row.priorLabel || "") +
+        " · 未激活；已学/同步空档，前面已激活的校内关都是热图绿。打满 " +
+        MIN_OPEN_GAMES +
+        " 局或 " +
+        MIN_SUCCESS_ITEMS +
+        " 题即激活，不要求一次练熟",
+    };
+  }
+
+  function applyScanFields(task, scan) {
+    if (!task || !scan) return task;
+    task.levelIndex = scan.levelIndex;
+    task.levelLabel = "闯关→" + scan.levelLabel;
+    task.scanLevelIndex = scan.levelIndex;
+    task.scanLevelLabel = scan.levelLabel;
+    task.scanKind = scan.kind || "";
+    if (scan.kind === "retry_clear") {
+      task.title = "冲榜闯关，须通关 " + scan.levelLabel;
+      task.detail =
+        "热图预估 " +
+        formatAdviceClock(scan.estimateSec) +
+        "，纪录 " +
+        formatAdviceClock(scan.recordSec) +
+        "（≤" +
+        Math.round(SCAN_CLEAR_IMPROVE * 100) +
+        "% 才排）。从 L1 开须全通，不要求本局破纪录";
+    } else {
+      task.title = "闯关扫描，须过 " + scan.levelLabel;
+      task.detail = "从 L1 开，须通过 " + scan.levelLabel + "（打完该关，不是摸到）；更早出局不算成功";
+    }
+    return task;
+  }
+
+  function makeScanTask(plan, scan) {
+    var task = {
       id: nextTaskId(plan),
       key: "level",
       action: "level",
       mode: "level",
-      levelIndex: scan.levelIndex,
-      levelLabel: "闯关→" + scan.levelLabel,
       status: "pending",
       successKind: "level_reach",
       baseline: {
@@ -643,16 +820,13 @@
       targetP: null,
       targetTimePct: null,
       targetAvgSec: null,
-      scanLevelIndex: scan.levelIndex,
-      scanLevelLabel: scan.levelLabel,
       failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
       failMaxPracticeDays: FAIL_PRACTICE_DAYS,
       window: emptyPlanWindow(),
       closedAt: null,
       closeReason: "",
-      title: "闯关扫描，合格线 " + scan.levelLabel,
-      detail: "从 L1 开，须到达 " + scan.levelLabel + "；更早出局不算成功",
     };
+    return applyScanFields(task, scan);
   }
 
   function uniqueSeeds(ctx) {
@@ -670,39 +844,55 @@
       if (!holes.length && primary && (primary.stage === "weak" || primary.stage === "shaky")) {
         holes = [primary];
       }
-      holes.forEach(function (r) {
-        tryAdd({ kind: "training", row: r });
-      });
-      if (!ctx.hasClearedLevel) tryAdd({ kind: "scan", scan: ctx.scan });
-    } else {
-      if (primary && (primary.stage === "weak" || primary.stage === "shaky")) {
-        tryAdd({ kind: "training", row: primary });
+    }
+    var needScan = scanIsNeeded(ctx);
+    var n = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : 0;
+    if (needScan && isRetryClearScan(ctx)) {
+      if (holes.length) {
+        tryAdd({ kind: "training", row: holes[0] });
+        tryAdd({ kind: "scan", scan: ctx.scan });
+        holes.slice(1).forEach(function (r) {
+          tryAdd({ kind: "training", row: r });
+        });
+      } else {
+        tryAdd({ kind: "scan", scan: ctx.scan });
       }
+    } else if (needScan) {
+      holes.forEach(function (r) {
+        if (r.levelIndex <= n) tryAdd({ kind: "training", row: r });
+      });
       tryAdd({ kind: "scan", scan: ctx.scan });
       holes.forEach(function (r) {
+        if (r.levelIndex > n) tryAdd({ kind: "training", row: r });
+      });
+    } else {
+      holes.forEach(function (r) {
         tryAdd({ kind: "training", row: r });
       });
     }
-    if (seeds.length < INCOMPLETE_SIZE) {
-      var fillers = (ctx.rows || [])
-        .filter(function (r) {
-          return fillerScore(r) > 0;
-        })
-        .slice()
-        .sort(function (a, b) {
-          return fillerScore(b) - fillerScore(a);
-        });
-      fillers.forEach(function (r) {
-        tryAdd({ kind: "training", row: r });
-      });
+    if (canScheduleOpenNew(ctx.rows || [])) {
+      tryAdd({ kind: "open", row: nextOpenableRow(ctx.rows) });
     }
+    var fillers = (ctx.rows || [])
+      .filter(function (r) {
+        return fillerScore(r) > 0;
+      })
+      .slice()
+      .sort(function (a, b) {
+        return fillerScore(b) - fillerScore(a);
+      });
+    fillers.forEach(function (r) {
+      tryAdd({ kind: "training", row: r });
+    });
     return seeds;
   }
 
   function seedIsNeeded(seed, ctx) {
-    if (seed.kind === "scan") {
-      if (ctx.profile.id === "skill_gaps" && ctx.hasClearedLevel) return false;
-      return true;
+    if (seed.kind === "scan") return scanIsNeeded(ctx);
+    if (seed.kind === "open") {
+      var openRow = seed.row;
+      if (!openRow || openRow.stage !== "no_data") return false;
+      return canScheduleOpenNew(ctx.rows || []);
     }
     var row = seed.row;
     if (!row) return false;
@@ -710,78 +900,130 @@
     return fillerScore(row) > 0;
   }
 
-  function chinaDayDiff(fromTs, toTs) {
-    var a = chinaDateKeyFromTs(fromTs);
-    var b = chinaDateKeyFromTs(toTs);
-    if (!a || !b) return 0;
-    var am = Date.parse(a + "T00:00:00+08:00");
-    var bm = Date.parse(b + "T00:00:00+08:00");
-    if (!Number.isFinite(am) || !Number.isFinite(bm)) return 0;
-    return Math.round((bm - am) / 86400000);
-  }
-
-  function expireCompleted(plan, nowTs) {
-    if (!plan.completed) plan.completed = [];
-    plan.completed = plan.completed.filter(function (c) {
-      var ts = c && c.completedAt != null ? Number(c.completedAt) : 0;
-      return chinaDayDiff(ts, nowTs) < COMPLETED_EXPIRE_DAYS;
+  function doneTasks(plan) {
+    return (plan.tasks || []).filter(function (t) {
+      return t && t.status === "success";
     });
   }
 
-  function completedHasKey(plan, key) {
-    return (plan.completed || []).some(function (c) {
-      return c && c.key === key;
+  function trimDone(done) {
+    var list = (done || []).slice();
+    while (list.length > COMPLETED_MAX) list.shift();
+    return list;
+  }
+
+  /** 上一次出现之后若还不到 SAME_TASK_GAP 条，则太密。 */
+  function keyTooSoon(key, seq) {
+    var last = -1;
+    for (var i = 0; i < seq.length; i += 1) {
+      if (seq[i] && seq[i].key === key) last = i;
+    }
+    if (last < 0) return false;
+    return seq.length - last - 1 < SAME_TASK_GAP;
+  }
+
+  function isScanTask(t) {
+    return !!(t && (t.key === "level" || t.action === "level"));
+  }
+
+  function doneHasTrainingLevel(done, levelIndex) {
+    var k = taskKey("training", levelIndex);
+    return (done || []).some(function (t) {
+      return t && t.key === k;
     });
   }
 
-  function pushCompleted(plan, task, ts) {
-    if (!plan.completed) plan.completed = [];
-    expireCompleted(plan, ts);
-    plan.completed.push({
-      key: task.key,
-      action: task.action,
-      levelIndex: task.levelIndex,
-      levelLabel: task.levelLabel,
-      title: task.title,
-      completedAt: ts,
-      chinaDay: chinaDateKeyFromTs(ts),
+  /** 未完成里关号≤n 且不在已完成窗口的训练，必须排在闯关前面。冲榜闯关不走这条。 */
+  function placeScanAfterPrereqs(next, done, scanLevelIndex) {
+    var list = (next || []).slice();
+    var scanIdx = -1;
+    for (var i = 0; i < list.length; i += 1) {
+      if (isScanTask(list[i])) {
+        scanIdx = i;
+        break;
+      }
+    }
+    if (scanIdx < 0 || scanLevelIndex == null) return list;
+    var prereq = [];
+    var kept = [];
+    list.forEach(function (t, idx) {
+      if (idx === scanIdx) {
+        kept.push(t);
+        return;
+      }
+      var low =
+        t.action === "training" && t.levelIndex != null && t.levelIndex <= scanLevelIndex;
+      if (low && !doneHasTrainingLevel(done, t.levelIndex)) prereq.push(t);
+      else kept.push(t);
     });
-    while (plan.completed.length > COMPLETED_MAX) plan.completed.shift();
+    var newScanIdx = -1;
+    for (var j = 0; j < kept.length; j += 1) {
+      if (isScanTask(kept[j])) {
+        newScanIdx = j;
+        break;
+      }
+    }
+    if (newScanIdx < 0) return list;
+    return kept.slice(0, newScanIdx).concat(prereq, kept.slice(newScanIdx));
   }
 
-  function filterSeedsNotCompleted(seeds, plan, allowCompleted) {
-    if (allowCompleted) return seeds.slice();
-    return seeds.filter(function (s) {
-      return !completedHasKey(plan, seedKey(s));
-    });
+  /** 冲榜闯关：有黄橙洞则第二格，全绿则队头。 */
+  function placeRetryScanSecond(next, ctx) {
+    var list = (next || []).slice();
+    var si = -1;
+    for (var i = 0; i < list.length; i += 1) {
+      if (isScanTask(list[i])) {
+        si = i;
+        break;
+      }
+    }
+    if (si < 0) return list;
+    var scan = list.splice(si, 1)[0];
+    var hasHole = !!(ctx && ctx.schoolHoles && ctx.schoolHoles.length);
+    if (!hasHole) return [scan].concat(list);
+    var at = Math.min(1, list.length);
+    list.splice(at, 0, scan);
+    return list;
   }
 
   function fillIncomplete(plan, ctx, ts) {
-    expireCompleted(plan, ts);
-    var next = openTasks(plan);
+    var done = trimDone(doneTasks(plan));
+    var next = openTasks(plan).filter(function (t) {
+      if (isScanTask(t) && !scanIsNeeded(ctx)) return false;
+      if (t.successKind !== "open_activate") return true;
+      var row = rowByLevel(ctx.rows || [], t.levelIndex);
+      if (!row || row.stage !== "no_data") return false;
+      return canScheduleOpenNew(ctx.rows || []);
+    });
+    if (ctx.scan) {
+      next.forEach(function (t) {
+        if (isScanTask(t)) applyScanFields(t, ctx.scan);
+      });
+    }
     var needed = uniqueSeeds(ctx).filter(function (s) {
       return seedIsNeeded(s, ctx);
     });
-    function pickPool(allowCompleted) {
-      return filterSeedsNotCompleted(needed, plan, allowCompleted);
+    function appendFromNeeded(allowCloseRepeat) {
+      needed.forEach(function (seed) {
+        if (next.length >= INCOMPLETE_SIZE) return;
+        var k = seedKey(seed);
+        if (
+          next.some(function (t) {
+            return t.key === k;
+          })
+        ) {
+          return;
+        }
+        if (!allowCloseRepeat && keyTooSoon(k, done.concat(next))) return;
+        next.push(seedToTask(plan, seed));
+      });
     }
-    var pool = pickPool(false);
-    if (next.length < INCOMPLETE_SIZE && !pool.length) {
-      pool = pickPool(true);
-    }
-    pool.forEach(function (seed) {
-      if (next.length >= INCOMPLETE_SIZE) return;
-      var k = seedKey(seed);
-      if (
-        next.some(function (t) {
-          return t.key === k;
-        })
-      ) {
-        return;
-      }
-      next.push(seedToTask(plan, seed));
-    });
-    plan.tasks = next;
+    appendFromNeeded(false);
+    if (!next.length) appendFromNeeded(true);
+    var scanN = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : null;
+    if (isRetryClearScan(ctx)) next = placeRetryScanSecond(next, ctx);
+    else next = placeScanAfterPrereqs(next, done, scanN);
+    plan.tasks = done.concat(next);
     activateFirst(plan.tasks);
   }
 
@@ -790,12 +1032,15 @@
   }
 
   function seedToTask(plan, seed) {
-    return seed.kind === "scan" ? makeScanTask(plan, seed.scan) : makeTrainingTask(plan, seed.row);
+    if (seed.kind === "scan") return makeScanTask(plan, seed.scan);
+    if (seed.kind === "open") return makeOpenTask(plan, seed.row);
+    return makeTrainingTask(plan, seed.row);
   }
 
   function activateFirst(tasks) {
     var found = false;
-    tasks.forEach(function (t) {
+    (tasks || []).forEach(function (t) {
+      if (!t || t.status === "success") return;
       if (t.status === "pending" || t.status === "active") {
         if (!found) {
           t.status = "active";
@@ -837,7 +1082,6 @@
       dontOpen: dont.labels,
       dontOpenLabel: dont.copy,
       tasks: [],
-      completed: [],
       events: [],
     };
     fillIncomplete(plan, ctx, issuedAt);
@@ -849,6 +1093,37 @@
       issuedAt
     );
     return plan;
+  }
+
+  function findMatchingOpenTask(plan, run) {
+    var open = openTasks(plan);
+    for (var i = 0; i < open.length; i += 1) {
+      if (runMatchesTask(run, open[i])) return open[i];
+    }
+    return null;
+  }
+
+  /** 只用这一局当任务窗，看是否已达成功线（不把失败写回原任务）。 */
+  function probeRunSuccess(task, run) {
+    if (!task || !run) return null;
+    var probe = cloneJson(task);
+    probe.window = emptyPlanWindow();
+    if (applyFollow(probe, run) !== "success") return null;
+    return probe;
+  }
+
+  function reissueIncomplete(plan, ctx, ts, text) {
+    var done = trimDone(doneTasks(plan));
+    plan.tasks = done;
+    if (ctx && ctx.profile) plan.profile = ctx.profile;
+    if (ctx) {
+      plan.pickNote = ctx.pickNote;
+      var dont = dontOpenFrom(ctx.aheadNoData || []);
+      plan.dontOpen = dont.labels;
+      plan.dontOpenLabel = dont.copy;
+    }
+    fillIncomplete(plan, ctx, ts);
+    pushEvent(plan, "rebuild", text || "热图更新，重算未完成（已完成保留）", ts);
   }
 
   function getActiveTask(plan) {
@@ -880,6 +1155,9 @@
   function sampleOk(task) {
     var w = task.window || emptyPlanWindow();
     if (task.successKind === "level_reach") return w.games >= 1;
+    if (task.successKind === "open_activate") {
+      return w.games >= MIN_OPEN_GAMES || w.items >= MIN_SUCCESS_ITEMS;
+    }
     return w.items >= MIN_SUCCESS_ITEMS || w.games >= MIN_SUCCESS_GAMES;
   }
 
@@ -903,9 +1181,9 @@
   function evaluateSuccess(task, run) {
     if (!sampleOk(task)) return false;
     if (task.successKind === "level_reach") {
-      var reached = summarizeRun(run, null).maxLevel;
-      return reached != null && task.scanLevelIndex != null && reached >= task.scanLevelIndex;
+      return passedScanTarget(run, task.scanLevelIndex);
     }
+    if (task.successKind === "open_activate") return true;
     if (task.successKind === "speed_step") {
       if (task.targetAvgSec == null || task.window.avgSec == null) return false;
       return Number(task.window.avgSec) <= Number(task.targetAvgSec) + 1e-9;
@@ -951,7 +1229,12 @@
   }
 
   function replan(plan, ctx, closedTask, reason, ts) {
-    expireCompleted(plan, ts);
+    var done = doneTasks(plan);
+    if (closedTask && closedTask.status === "parked") {
+      done = done.filter(function (t) {
+        return t.id !== closedTask.id;
+      });
+    }
     var next = openTasks(plan).filter(function (t) {
       return !closedTask || t.id !== closedTask.id;
     });
@@ -959,7 +1242,19 @@
       next = next.filter(function (t) {
         return t.key !== closedTask.key;
       });
-      pushCompleted(plan, closedTask, ts);
+      closedTask.status = "success";
+      if (closedTask.completedAt == null) {
+        closedTask.completedAt = ts;
+        closedTask.chinaDay = chinaDateKeyFromTs(ts);
+      }
+      if (
+        !done.some(function (t) {
+          return t.id === closedTask.id;
+        })
+      ) {
+        done.push(closedTask);
+      }
+      done = trimDone(done);
     } else if (reason === "fail" && closedTask) {
       closedTask.status = "pending";
       closedTask.window = emptyPlanWindow();
@@ -968,17 +1263,23 @@
       if (next.length >= 1) next.splice(1, 0, closedTask);
       else next.push(closedTask);
     }
-    plan.tasks = next;
+    plan.tasks = done.concat(next);
     fillIncomplete(plan, ctx, ts);
     var head = getActiveTask(plan);
+    var openN = openTasks(plan).length;
+    var doneN = doneTasks(plan).length;
     pushEvent(
       plan,
       "replan",
-      (reason === "success" ? "成功后补未完成" : reason === "fail" ? "失败后插回未完成" : "重排") +
+      (reason === "success" ? "成功后重排队列" : reason === "fail" ? "失败后插回队列" : "重排") +
         "：当前 " +
         (head ? head.title || head.levelLabel : "无任务") +
-        "；已完成 " +
-        (plan.completed || []).length +
+        "；排队 " +
+        openN +
+        "/" +
+        INCOMPLETE_SIZE +
+        "；已完成窗口 " +
+        doneN +
         "/" +
         COMPLETED_MAX,
       ts
@@ -989,6 +1290,10 @@
     task.status = status;
     task.closedAt = ts;
     task.closeReason = reason;
+    if (status === "success") {
+      task.completedAt = ts;
+      task.chinaDay = chinaDateKeyFromTs(ts);
+    }
     pushEvent(
       plan,
       status === "success" ? "success" : "fail",
@@ -1010,8 +1315,7 @@
       return { plan: plan, rebuilt: rebuilt };
     }
     plan = cloneJson(saved);
-    if (!Array.isArray(plan.completed)) plan.completed = [];
-    expireCompleted(plan, nowTs);
+    if (!Array.isArray(plan.tasks)) plan.tasks = [];
     if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
     activateFirst(plan.tasks);
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
@@ -1026,43 +1330,33 @@
       });
     incoming.forEach(function (run) {
       var ts = runTs(run);
-      expireCompleted(plan, ts);
-      var active = getActiveTask(plan);
-      if (!active) {
-        plan = issuePlan(ctx, ts, username);
-        plan.lastProcessedTs = ts;
-        rebuilt = true;
-        return;
-      }
-      if (runMatchesTask(run, active)) {
-        var outcome = applyFollow(active, run);
+      var matched = findMatchingOpenTask(plan, run);
+      var probe = matched ? probeRunSuccess(matched, run) : null;
+      if (matched && probe) {
+        matched.window = probe.window;
+        if (probe.baseline) matched.baseline = probe.baseline;
+        if (probe.targetAvgSec != null) matched.targetAvgSec = probe.targetAvgSec;
         pushEvent(
           plan,
           "follow",
-          "跟任务：" +
-            (active.title || active.levelLabel) +
-            " · 今日 " +
-            (active.window.gamesByDay[chinaDateKeyFromTs(ts)] || 0) +
-            "/" +
-            FAIL_GAMES_PER_DAY +
-            " 局",
+          "碰巧完成：" + (matched.title || matched.levelLabel),
           ts
         );
-        if (outcome === "success") {
-          closeTask(plan, active, "success", "success", ts);
-          replan(plan, ctx, active, "success", ts);
-        } else if (outcome) {
-          closeTask(plan, active, "parked", outcome, ts);
-          replan(plan, ctx, active, "fail", ts);
-        }
+        closeTask(plan, matched, "success", "success", ts);
+        replan(plan, ctx, matched, "success", ts);
       } else {
-        plan = issuePlan(ctx, ts, username);
-        pushEvent(plan, "off_path_rebuild", "未按当前任务走，测试期整单重算", ts);
+        reissueIncomplete(
+          plan,
+          ctx,
+          ts,
+          matched
+            ? "打了未完成任务但未达标，不记失败；按热图重算未完成"
+            : "本局不是未完成任务，按热图重算未完成"
+        );
         rebuilt = true;
       }
       plan.lastProcessedTs = ts;
     });
-    expireCompleted(plan, nowTs);
     if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
     activateFirst(plan.tasks);
     return { plan: plan, rebuilt: rebuilt };
@@ -1071,7 +1365,20 @@
   function successCopy(task) {
     if (!task) return "";
     if (task.successKind === "level_reach") {
-      return "成功：本局从 L1 到达 " + (task.scanLevelLabel || levelLabel(task.scanLevelIndex));
+      var lab = task.scanLevelLabel || levelLabel(task.scanLevelIndex);
+      if (task.scanLevelIndex >= LEVEL_COUNT - 1) {
+        return "成功：本局闯关通关（通过 L16）";
+      }
+      return "成功：本局通过 " + lab + "（须打完该关，不是摸到）";
+    }
+    if (task.successKind === "open_activate") {
+      return (
+        "成功：打满 " +
+        MIN_OPEN_GAMES +
+        " 局或 " +
+        MIN_SUCCESS_ITEMS +
+        " 题即激活（不要求一次练熟）"
+      );
     }
     if (task.successKind === "speed_step") {
       var sec = roundSec(task.targetAvgSec);
@@ -1125,7 +1432,11 @@
 
   function untilCopy(task) {
     if (task.successKind === "level_reach") {
-      return "到达 " + (task.scanLevelLabel || "") + " 即成功；未达则算一次尝试";
+      if (task.scanKind === "retry_clear") return "通关 L16 即成功";
+      return "通过 " + (task.scanLevelLabel || "") + " 即成功；在该关出局不算";
+    }
+    if (task.successKind === "open_activate") {
+      return "开新关：打满 " + MIN_OPEN_GAMES + " 局或 " + MIN_SUCCESS_ITEMS + " 题即激活";
     }
     if (task.successKind === "speed_step") {
       var sec = roundSec(task.targetAvgSec);
@@ -1143,26 +1454,53 @@
     return st || "";
   }
 
+  function tileLabel(t) {
+    if (!t) return "";
+    if (t.action === "level") {
+      if (t.scanKind === "retry_clear") return "冲榜";
+      return t.scanLevelLabel ? "过" + t.scanLevelLabel : "闯关";
+    }
+    if (t.successKind === "open_activate") return "开" + (t.levelLabel || "");
+    return t.levelLabel || t.title || "";
+  }
+
+  function tileHint(t) {
+    if (!t) return "";
+    if (t.status === "success") return t.chinaDay || "";
+    if (t.successKind === "level_reach") {
+      return t.scanKind === "retry_clear" ? "须通关" : "须过" + (t.scanLevelLabel || "");
+    }
+    if (t.successKind === "open_activate") return "激活";
+    if (t.successKind === "speed_step") return "加速";
+    return "准度";
+  }
+
   function tasksToQueue(plan) {
-    return openTasks(plan).map(function (t) {
+    return (plan.tasks || []).map(function (t) {
+      var isOpen = t.status === "active" || t.status === "pending";
       return {
         action: t.action,
         mode: t.mode,
         levelIndex: t.levelIndex,
         levelLabel: t.levelLabel,
         games: null,
-        until: untilCopy(t),
+        until: isOpen ? untilCopy(t) : "",
         title: t.title,
-        detail: t.detail,
+        detail: isOpen ? t.detail : "",
         status: t.status,
         statusLabel: statusLabel(t.status),
-        successCopy: successCopy(t),
-        failCopy: failCopy(t),
+        successCopy: isOpen ? successCopy(t) : "",
+        failCopy: isOpen ? failCopy(t) : "",
         progressCopy: t.status === "active" ? progressCopy(t) : "",
         successKind: t.successKind,
         targetP: t.targetP,
         targetAvgSec: t.targetAvgSec,
         scanLevelLabel: t.scanLevelLabel,
+        scanKind: t.scanKind || "",
+        tileLabel: tileLabel(t),
+        tileHint: tileHint(t),
+        completedAt: t.completedAt || null,
+        chinaDay: t.chinaDay || "",
       };
     });
   }
@@ -1171,7 +1509,17 @@
     opts = opts || {};
     var rows = buildRows(opts.grade, opts.cells);
     var profile = classifyProfile(rows);
+    var retry = retryClearInfo(rows, opts.runs);
     var scan = resolveScanTarget(rows, opts);
+    if (profile.id === "skill_gaps" && opts.hasClearedLevel === true && retry && retry.improve) {
+      scan = {
+        levelIndex: LEVEL_COUNT - 1,
+        levelLabel: levelLabel(LEVEL_COUNT - 1),
+        kind: "retry_clear",
+        estimateSec: retry.estimateSec,
+        recordSec: retry.recordSec,
+      };
+    }
     var groups = splitGroups(rows);
     var picked = pickPrimaryRow(
       rows,
@@ -1194,6 +1542,7 @@
       primaryRow: picked.primaryRow,
       pickNote: picked.pickNote,
       alternatives: picked.alternatives,
+      retryClear: retry,
     };
   }
 
@@ -1208,13 +1557,19 @@
       "Q1 超前「会了」暂定 n≥" + AHEAD_MASTERED_N,
       "Q2 已学/同步黄橙暂定永远压过超前",
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
-      "Q5 闯关合格线暂定 min(历史闯关最高, 热图 L1–L9 流畅顶)",
+      "Q5 闯关合格线：从 L1 起连续准≥95%（不计分位），再和历史最高取 min；目标 Ln 须通过 Ln。L1 不够 95% 时仍排闯关且目标为 L1",
       "Q6 准度小步暂定 +" + Math.round(ACC_STEP * 1000) / 10 + "pp，封顶 95%",
       "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "）",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
-      "Q10 未完成最多 " + INCOMPLETE_SIZE + " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
-      "Q11 已完成最多 " + COMPLETED_MAX + " 条；满则挤最早；满 " + COMPLETED_EXPIRE_DAYS + " 个日历日移出",
+      "Q10 一条队列：未完成最多 " +
+        INCOMPLETE_SIZE +
+        " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
+      "Q11 同 key 默认隔 " +
+        SAME_TASK_GAP +
+        " 条才可再出现；已完成留在同一条队列（最多 " +
+        COMPLETED_MAX +
+        " 条）。只有可练池空才允许更密",
       "Q12 绿档速度补格：timePct<" +
         FOUNDATION_FAST_PCT +
         " 只比分位；否则 ×" +
@@ -1224,6 +1579,13 @@
         HEAT_PCT_PLUS1 +
         "；黄=准<95%或timePct≥" +
         FAST_TIME_PCT,
+      "Q14 已激活校内全绿才开一档已学/同步空关；闯关留下数据即当老关；超前无数据不开",
+      "Q15 底板型已通关：热图预估全通≤纪录×" +
+        SCAN_CLEAR_IMPROVE +
+        " 才再排冲榜闯关（每关10题均速×" +
+        SCAN_CLEAR_OVERHEAD +
+        "）；不走≤n前置，有洞时占第二格",
+      "Q16 未完成五条都可碰巧完成（不限队头）；未达标不记失败。未做成任务但热图变了则重算未完成、保留已完成",
     ];
     reasons.push(
       reason(
@@ -1233,6 +1595,32 @@
         "Q3 暂定"
       )
     );
+    if (scanIsNeeded(ctx) && ctx.scan) {
+      if (isRetryClearScan(ctx)) {
+        reasons.push(
+          reason(
+            "R-scan",
+            "retry_clear",
+            "冲榜闯关须通关 L16；预估 " +
+              formatAdviceClock(ctx.scan.estimateSec) +
+              " / 纪录 " +
+              formatAdviceClock(ctx.scan.recordSec),
+            "Q15：不把全部训练排在闯关前；有洞时第二格"
+          )
+        );
+      } else {
+        reasons.push(
+          reason(
+            "R-scan",
+            "acc_pass_target",
+            "闯关须过 " +
+              ctx.scan.levelLabel +
+              "（连续准度顶，不计分位；与历史最高取 min）",
+            "Q5：未完成里关号≤目标且刚练过的除外，排在闯关前"
+          )
+        );
+      }
+    }
     if (ctx.primaryRow && ctx.pickNote === "in_school_hole") {
       reasons.push(
         reason(
@@ -1265,25 +1653,39 @@
         reason("R-ahead-nodata", "ahead_no_data_block", r.levelLabel + " 超前且无数据，先别开", "不拿开局去试超纲")
       );
     });
+    if (canScheduleOpenNew(ctx.rows || [])) {
+      var openRow = nextOpenableRow(ctx.rows);
+      reasons.push(
+        reason(
+          "R-open-new",
+          "school_all_green_open",
+          "校内已激活全绿，安排开新关 " + (openRow ? openRow.levelLabel : ""),
+          "Q14：超前无数据仍不开；闯关留下数据即当老关"
+        )
+      );
+    }
     reasons.push(
       reason(
         "R-plan",
         "hybrid_task_list",
-        "混合任务单：未完成最多 " +
+        "一条队列：未完成最多 " +
           INCOMPLETE_SIZE +
-          " 条且不重复（黄橙优先，准度×地基加权速度补格）；已完成最多 " +
+          " 条且不重复（黄橙优先；有闯关时关号≤目标的训练先占格）。同 key 默认隔 " +
+          SAME_TASK_GAP +
+          " 条；已完成留在队里最多 " +
           COMPLETED_MAX +
-          " 条，量挤掉或日历 " +
-          COMPLETED_EXPIRE_DAYS +
-          " 天移出后才可再进；测试期跑偏整单重算",
-        "成功进已完成；失败不进、未完成后插"
+          " 条。可练池空才允许提前重复。碰巧达标算完成；否则热图变了重算未完成、已完成保留。不记失败",
+        "Q16：任意未完成碰巧达标即完成；暂不记失败"
       )
     );
 
     var queue = tasksToQueue(plan);
+    var openQueue = queue.filter(function (step) {
+      return step.status === "active" || step.status === "pending";
+    });
     var active = getActiveTask(plan);
     var firstTrain = null;
-    queue.forEach(function (step) {
+    openQueue.forEach(function (step) {
       if (!firstTrain && step.action === "training") firstTrain = step;
     });
 
@@ -1299,23 +1701,21 @@
     var title = "";
     var parentCopy = "";
     var detail = "";
-    if (!active && !queue.length) {
+    if (!active && !openQueue.length) {
       title = "暂无主建议";
       parentCopy = "热图或年级信号不足，无法按当前规则给出任务单。";
       detail = parentCopy;
     } else {
+      var doneN = doneTasks(plan).length;
       title =
         (ctx.profile.id === "skill_gaps" ? "弱项任务单" : "平台任务单") +
-        (active ? " · 当前 " + (active.levelLabel || "") : "");
-      parentCopy = ctx.profile.label + "。";
-      queue.forEach(function (step, i) {
-        parentCopy +=
-          (i + 1) +
-          ". " +
-          (step.title || step.levelLabel) +
-          (step.until ? "（" + step.until + "）" : "") +
-          (i < queue.length - 1 ? " → " : "");
-      });
+        " · 未完成 " +
+        openQueue.length +
+        " / 已完成 " +
+        doneN;
+      parentCopy =
+        ctx.profile.label +
+        "。做成任意一条未完成即进已完成；没做成则按最新热图重算未完成、已完成保留。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
@@ -1326,7 +1726,7 @@
       profile: ctx.profile,
       scanTarget: ctx.scan,
       queue: queue,
-      completed: plan.completed || [],
+      completed: doneTasks(plan),
       plan: plan,
       planEvents: plan.events || [],
       primary: active
@@ -1366,16 +1766,21 @@
         Q2_schoolHolesBeatAhead: true,
         Q3_floorMin: FLOOR_MIN,
         Q3_fastTimePct: FAST_TIME_PCT,
+        Q5_scanPassNotReach: true,
         Q6_accStep: ACC_STEP,
         Q7_speedRatio: SPEED_RATIO,
         Q8_failGamesPerDay: FAIL_GAMES_PER_DAY,
         Q9_failPracticeDays: FAIL_PRACTICE_DAYS,
         Q10_incompleteSize: INCOMPLETE_SIZE,
+        Q11_sameTaskGap: SAME_TASK_GAP,
         Q11_completedMax: COMPLETED_MAX,
-        Q11_completedExpireDays: COMPLETED_EXPIRE_DAYS,
         Q12_foundationFastPct: FOUNDATION_FAST_PCT,
         Q12_foundationRatio: FOUNDATION_RATIO,
         Q13_heatPctPlus1: HEAT_PCT_PLUS1,
+        Q14_openWhenSchoolGreen: true,
+        Q15_retryClearImprove: SCAN_CLEAR_IMPROVE,
+        Q15_retryClearItems: SCAN_CLEAR_ITEMS,
+        Q15_retryClearOverhead: SCAN_CLEAR_OVERHEAD,
       },
       unresolved: unresolved,
     };
@@ -1393,7 +1798,8 @@
     FAIL_PRACTICE_DAYS: FAIL_PRACTICE_DAYS,
     INCOMPLETE_SIZE: INCOMPLETE_SIZE,
     COMPLETED_MAX: COMPLETED_MAX,
-    COMPLETED_EXPIRE_DAYS: COMPLETED_EXPIRE_DAYS,
+    SAME_TASK_GAP: SAME_TASK_GAP,
+    SCAN_CLEAR_IMPROVE: SCAN_CLEAR_IMPROVE,
     FOUNDATION_FAST_PCT: FOUNDATION_FAST_PCT,
     FOUNDATION_RATIO: FOUNDATION_RATIO,
     curriculumPrior: curriculumPrior,
@@ -1403,6 +1809,13 @@
     foundationRemaining: foundationRemaining,
     fillerScore: fillerScore,
     successKindForRow: successKindForRow,
+    schoolActivatedReady: schoolActivatedReady,
+    nextOpenableRow: nextOpenableRow,
+    canScheduleOpenNew: canScheduleOpenNew,
+    resolveScanTarget: resolveScanTarget,
+    passedScanTarget: passedScanTarget,
+    estimateClearSec: estimateClearSec,
+    bestClearedLevelSec: bestClearedLevelSec,
     computePracticeAdvice: computePracticeAdvice,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,

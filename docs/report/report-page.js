@@ -140,7 +140,7 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
-  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v08:';
+  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v09:';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
@@ -2443,38 +2443,48 @@
         );
       })
       .join('');
-    var queueHtml = (advice.queue || [])
-      .map(function (step, i) {
-        var st = step.status || (i === 0 ? 'active' : 'pending');
-        return (
-          '<li class="jml-advice-task jml-advice-task--' +
-          escapeHtml(st) +
-          '">' +
-          '<strong>' +
-          escapeHtml((step.statusLabel || '') + ' ' + String(i + 1) + '. ' + (step.title || step.levelLabel || '')) +
-          '</strong>' +
-          (step.until ? '<div class="jml-advice-exit">' + escapeHtml(step.until) + '</div>' : '') +
-          (step.successCopy ? '<div class="jml-advice-exit">' + escapeHtml(step.successCopy) + '</div>' : '') +
-          (step.failCopy ? '<div class="jml-advice-exit">' + escapeHtml(step.failCopy) + '</div>' : '') +
-          (step.progressCopy
-            ? '<div class="jml-advice-progress">' + escapeHtml(step.progressCopy) + '</div>'
-            : '') +
-          (step.detail ? '<div class="jml-advice-note">' + escapeHtml(step.detail) + '</div>' : '') +
-          '</li>'
-        );
-      })
-      .join('');
-    var completedHtml = (advice.completed || [])
-      .map(function (c, i) {
-        var when = c.chinaDay || (c.completedAt ? formatDateTime(c.completedAt) : '');
-        return (
-          '<li>' +
-          escapeHtml(String(i + 1) + '. ' + (c.title || c.levelLabel || '')) +
-          (when ? '<span class="jml-advice-note"> · ' + escapeHtml(when) + '</span>' : '') +
-          '</li>'
-        );
-      })
-      .join('');
+    var openSteps = (advice.queue || []).filter(function (s) {
+      return s.status !== 'success';
+    });
+    var doneSteps = (advice.queue || []).filter(function (s) {
+      return s.status === 'success';
+    }).reverse();
+    function adviceTileHtml(step, empty) {
+      if (empty) {
+        return '<div class="jml-advice-tile jml-advice-tile--empty"></div>';
+      }
+      var st = step.status || 'pending';
+      var lab = step.tileLabel || step.levelLabel || '';
+      var hint = step.tileHint || '';
+      var tip = [step.title, step.until || step.successCopy, step.detail]
+        .filter(Boolean)
+        .join(' · ');
+      return (
+        '<div class="jml-advice-tile jml-advice-tile--' +
+        escapeHtml(st) +
+        '"' +
+        (tip ? ' title="' + escapeHtml(tip) + '"' : '') +
+        '>' +
+        '<span class="jml-advice-tile-lab">' +
+        escapeHtml(lab) +
+        '</span>' +
+        (hint ? '<span class="jml-advice-tile-sub">' + escapeHtml(hint) + '</span>' : '') +
+        '</div>'
+      );
+    }
+    function adviceTileRow(items) {
+      var html = '';
+      var i;
+      for (i = 0; i < 5; i += 1) {
+        html += items[i] ? adviceTileHtml(items[i], false) : adviceTileHtml(null, true);
+      }
+      return '<div class="jml-advice-tile-row">' + html + '</div>';
+    }
+    var queueHtml =
+      '<p class="jml-advice-subh">未完成</p>' +
+      adviceTileRow(openSteps) +
+      '<p class="jml-advice-subh">已完成</p>' +
+      adviceTileRow(doneSteps);
     var profileLine = advice.profile
       ? '<p class="jml-advice-profile">' +
         escapeHtml(advice.profile.label || '') +
@@ -2526,23 +2536,14 @@
       escapeHtml(advice.ruleVersion || '') +
       ' · 年级 ' +
       escapeHtml(gradeText) +
-      ' · 测试期跑偏整单重算</span>' +
+      ' · 碰巧达标算完成 · 否则重算未完成</span>' +
       '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset">重新开单</button>' +
       '</div>' +
       '<p class="jml-advice-primary">' +
       escapeHtml(p.title || '') +
       '</p>' +
       profileLine +
-      (queueHtml
-        ? '<p class="jml-advice-subh">未完成（最多 5 条，不重复）</p><ol class="jml-advice-queue">' +
-          queueHtml +
-          '</ol>'
-        : '') +
-      (completedHtml
-        ? '<p class="jml-advice-subh">已完成（最多 5 条；满则挤最早 / 满 5 个日历日移出）</p><ol class="jml-advice-completed">' +
-          completedHtml +
-          '</ol>'
-        : '<p class="jml-advice-note">已完成：暂无</p>') +
+      queueHtml +
       '<p class="jml-advice-copy">' +
       escapeHtml(p.parentCopy || '') +
       '</p>' +
