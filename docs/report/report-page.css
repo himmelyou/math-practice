@@ -636,8 +636,8 @@
 .jml-advice-tile {
   border: 1px solid #cfd8dc;
   border-radius: 8px;
-  padding: 6px 4px;
-  min-height: 52px;
+  padding: 6px 4px 7px;
+  min-height: 76px;
   text-align: center;
   background: #fff;
   box-sizing: border-box;
@@ -657,7 +657,7 @@
 .jml-advice-tile--empty {
   border-style: dashed;
   background: transparent;
-  min-height: 52px;
+  min-height: 76px;
 }
 .jml-advice-tile-lab {
   display: block;
@@ -665,14 +665,19 @@
   font-weight: 700;
   line-height: 1.25;
 }
-.jml-advice-tile-sub {
+.jml-advice-tile-goal,
+.jml-advice-tile-prog {
   display: block;
   font-size: 11px;
-  color: #607d8b;
+  line-height: 1.3;
   margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+}
+.jml-advice-tile-goal {
+  color: #37474f;
+}
+.jml-advice-tile-prog {
+  color: #607d8b;
 }
 .jml-advice-queue {
   margin: 0 0 10px;

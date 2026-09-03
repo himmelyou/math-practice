@@ -2455,20 +2455,20 @@
       }
       var st = step.status || 'pending';
       var lab = step.tileLabel || step.levelLabel || '';
-      var hint = step.tileHint || '';
-      var tip = [step.title, step.until || step.successCopy, step.detail]
-        .filter(Boolean)
-        .join(' · ');
+      var goal = step.tileGoal || '';
+      var prog = step.tileProgress || '';
+      var why = step.tileWhy || step.detail || '';
       return (
         '<div class="jml-advice-tile jml-advice-tile--' +
         escapeHtml(st) +
         '"' +
-        (tip ? ' title="' + escapeHtml(tip) + '"' : '') +
+        (why ? ' title="' + escapeHtml(why) + '"' : '') +
         '>' +
         '<span class="jml-advice-tile-lab">' +
         escapeHtml(lab) +
         '</span>' +
-        (hint ? '<span class="jml-advice-tile-sub">' + escapeHtml(hint) + '</span>' : '') +
+        (goal ? '<span class="jml-advice-tile-goal">' + escapeHtml(goal) + '</span>' : '') +
+        (prog ? '<span class="jml-advice-tile-prog">' + escapeHtml(prog) + '</span>' : '') +
         '</div>'
       );
     }
@@ -2536,7 +2536,7 @@
       escapeHtml(advice.ruleVersion || '') +
       ' · 年级 ' +
       escapeHtml(gradeText) +
-      ' · 碰巧达标算完成 · 否则重算未完成</span>' +
+      ' · 队头计失败 · 2～5 可碰巧完成</span>' +
       '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset">重新开单</button>' +
       '</div>' +
       '<p class="jml-advice-primary">' +

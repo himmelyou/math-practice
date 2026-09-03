@@ -1,8 +1,8 @@
 /**
- * 练习建议 v0.13：未完成五条是真任务；碰巧达标算完成，否则热图变了重算未完成（保留已完成）。
+ * 练习建议 v0.14：队头走成功/失败；2～5 只认碰巧成功；跑偏重算未完成并保留同关进度。
  */
 (function (root) {
-  var RULE_VERSION = "0.13-provisional";
+  var RULE_VERSION = "0.14-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -1114,6 +1114,11 @@
 
   function reissueIncomplete(plan, ctx, ts, text) {
     var done = trimDone(doneTasks(plan));
+    var kept = {};
+    openTasks(plan).forEach(function (t) {
+      if (!t || !t.key) return;
+      kept[t.key] = cloneJson(t.window || emptyPlanWindow());
+    });
     plan.tasks = done;
     if (ctx && ctx.profile) plan.profile = ctx.profile;
     if (ctx) {
@@ -1123,7 +1128,11 @@
       plan.dontOpenLabel = dont.copy;
     }
     fillIncomplete(plan, ctx, ts);
-    pushEvent(plan, "rebuild", text || "热图更新，重算未完成（已完成保留）", ts);
+    openTasks(plan).forEach(function (t) {
+      if (kept[t.key]) t.window = kept[t.key];
+    });
+    activateFirst(plan.tasks);
+    pushEvent(plan, "rebuild", text || "跑偏：按热图重算未完成（已完成与同关进度保留）", ts);
   }
 
   function getActiveTask(plan) {
@@ -1265,6 +1274,19 @@
     }
     plan.tasks = done.concat(next);
     fillIncomplete(plan, ctx, ts);
+    if (reason === "fail" && closedTask) {
+      var openNow = openTasks(plan);
+      if (openNow.length >= 2 && openNow[0].key === closedTask.key) {
+        var i0 = plan.tasks.indexOf(openNow[0]);
+        var i1 = plan.tasks.indexOf(openNow[1]);
+        if (i0 >= 0 && i1 >= 0) {
+          var swap = plan.tasks[i0];
+          plan.tasks[i0] = plan.tasks[i1];
+          plan.tasks[i1] = swap;
+        }
+        activateFirst(plan.tasks);
+      }
+    }
     var head = getActiveTask(plan);
     var openN = openTasks(plan).length;
     var doneN = doneTasks(plan).length;
@@ -1330,29 +1352,36 @@
       });
     incoming.forEach(function (run) {
       var ts = runTs(run);
+      var head = getActiveTask(plan);
       var matched = findMatchingOpenTask(plan, run);
-      var probe = matched ? probeRunSuccess(matched, run) : null;
-      if (matched && probe) {
-        matched.window = probe.window;
-        if (probe.baseline) matched.baseline = probe.baseline;
-        if (probe.targetAvgSec != null) matched.targetAvgSec = probe.targetAvgSec;
+      if (matched && head && matched.id === head.id) {
+        var outcome = applyFollow(matched, run);
         pushEvent(
           plan,
           "follow",
-          "碰巧完成：" + (matched.title || matched.levelLabel),
+          (matched.title || matched.levelLabel) +
+            (outcome === "success" ? " 成功" : outcome ? " 失败（" + outcome + "）" : " 未达"),
           ts
         );
-        closeTask(plan, matched, "success", "success", ts);
-        replan(plan, ctx, matched, "success", ts);
+        if (outcome === "success") {
+          closeTask(plan, matched, "success", "success", ts);
+          replan(plan, ctx, matched, "success", ts);
+        } else if (outcome) {
+          closeTask(plan, matched, "fail", outcome, ts);
+          replan(plan, ctx, matched, "fail", ts);
+        }
+      } else if (matched) {
+        var probe = probeRunSuccess(matched, run);
+        if (probe) {
+          matched.window = probe.window;
+          if (probe.baseline) matched.baseline = probe.baseline;
+          if (probe.targetAvgSec != null) matched.targetAvgSec = probe.targetAvgSec;
+          pushEvent(plan, "follow", "碰巧完成：" + (matched.title || matched.levelLabel), ts);
+          closeTask(plan, matched, "success", "success", ts);
+          replan(plan, ctx, matched, "success", ts);
+        }
       } else {
-        reissueIncomplete(
-          plan,
-          ctx,
-          ts,
-          matched
-            ? "打了未完成任务但未达标，不记失败；按热图重算未完成"
-            : "本局不是未完成任务，按热图重算未完成"
-        );
+        reissueIncomplete(plan, ctx, ts, "跑偏：按热图重算未完成（已完成与同关进度保留）");
         rebuilt = true;
       }
       plan.lastProcessedTs = ts;
@@ -1456,23 +1485,57 @@
 
   function tileLabel(t) {
     if (!t) return "";
-    if (t.action === "level") {
-      if (t.scanKind === "retry_clear") return "冲榜";
-      return t.scanLevelLabel ? "过" + t.scanLevelLabel : "闯关";
-    }
+    if (t.action === "level") return t.scanKind === "retry_clear" ? "冲榜" : "闯关";
     if (t.successKind === "open_activate") return "开" + (t.levelLabel || "");
     return t.levelLabel || t.title || "";
   }
 
-  function tileHint(t) {
+  function tileGoal(t) {
     if (!t) return "";
-    if (t.status === "success") return t.chinaDay || "";
     if (t.successKind === "level_reach") {
-      return t.scanKind === "retry_clear" ? "须通关" : "须过" + (t.scanLevelLabel || "");
+      if (t.scanKind === "retry_clear") return "通关L16";
+      return t.scanLevelLabel ? "过" + t.scanLevelLabel : "过关";
     }
-    if (t.successKind === "open_activate") return "激活";
-    if (t.successKind === "speed_step") return "加速";
-    return "准度";
+    if (t.successKind === "open_activate") return "1局或20题";
+    if (t.successKind === "speed_step") {
+      var sec = roundSec(t.targetAvgSec);
+      return sec != null ? "均速≤" + sec + "s" : "均速↓";
+    }
+    return t.targetP != null ? "准≥" + pctText(t.targetP) : "准度↑";
+  }
+
+  function tileProgress(t) {
+    if (!t) return "";
+    var w = t.window || emptyPlanWindow();
+    var bits = [];
+    if (t.status === "success") {
+      if (t.chinaDay) bits.push(t.chinaDay);
+      else bits.push("完成");
+    } else if (!w.games) {
+      bits.push("未练");
+    } else {
+      bits.push("已试" + w.games + "局");
+    }
+    if (w.games) {
+      var p = windowP(t);
+      if (p != null) bits.push("准" + pctText(p));
+      if (w.avgSec != null) bits.push(roundSec(w.avgSec) + "s");
+    }
+    return bits.join(" ");
+  }
+
+  function tileWhy(t) {
+    if (!t) return "";
+    if (t.detail) return t.detail;
+    var b = t.baseline || {};
+    var bits = [];
+    if (b.priorLabel) bits.push(b.priorLabel);
+    if (b.stageLabel) bits.push(b.stageLabel);
+    if (b.p != null) bits.push("热图准" + pctText(b.p));
+    if (b.tooSlow) bits.push("过慢");
+    else if (b.timePct != null) bits.push("速度分位" + Math.round(b.timePct));
+    if (b.n != null) bits.push("n=" + b.n);
+    return bits.join(" · ");
   }
 
   function tasksToQueue(plan) {
@@ -1483,22 +1546,24 @@
         mode: t.mode,
         levelIndex: t.levelIndex,
         levelLabel: t.levelLabel,
-        games: null,
+        games: (t.window && t.window.games) || 0,
         until: isOpen ? untilCopy(t) : "",
         title: t.title,
-        detail: isOpen ? t.detail : "",
+        detail: t.detail || "",
         status: t.status,
         statusLabel: statusLabel(t.status),
         successCopy: isOpen ? successCopy(t) : "",
         failCopy: isOpen ? failCopy(t) : "",
-        progressCopy: t.status === "active" ? progressCopy(t) : "",
+        progressCopy: isOpen ? progressCopy(t) : "",
         successKind: t.successKind,
         targetP: t.targetP,
         targetAvgSec: t.targetAvgSec,
         scanLevelLabel: t.scanLevelLabel,
         scanKind: t.scanKind || "",
         tileLabel: tileLabel(t),
-        tileHint: tileHint(t),
+        tileGoal: tileGoal(t),
+        tileProgress: tileProgress(t),
+        tileWhy: tileWhy(t),
         completedAt: t.completedAt || null,
         chinaDay: t.chinaDay || "",
       };
@@ -1585,7 +1650,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 未完成五条都可碰巧完成（不限队头）；未达标不记失败。未做成任务但热图变了则重算未完成、保留已完成",
+      "Q16 队头按成功/失败退出；2～5 碰巧这一局达标才提前完成，未达标不记失败、不后插。跑偏才重算未完成（已完成与同关进度保留）",
     ];
     reasons.push(
       reason(
@@ -1674,8 +1739,8 @@
           SAME_TASK_GAP +
           " 条；已完成留在队里最多 " +
           COMPLETED_MAX +
-          " 条。可练池空才允许提前重复。碰巧达标算完成；否则热图变了重算未完成、已完成保留。不记失败",
-        "Q16：任意未完成碰巧达标即完成；暂不记失败"
+          " 条。可练池空才允许提前重复。队头失败才后插；2～5 只认碰巧成功；跑偏重算未完成并保留同关进度",
+        "Q8/Q9 队头失败；Q16 排队项碰巧成功",
       )
     );
 
@@ -1715,7 +1780,7 @@
         doneN;
       parentCopy =
         ctx.profile.label +
-        "。做成任意一条未完成即进已完成；没做成则按最新热图重算未完成、已完成保留。";
+        "。队头按成功/失败退出；排队项碰巧达标可提前完成；跑偏才重算未完成。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
