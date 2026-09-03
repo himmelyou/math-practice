@@ -2495,6 +2495,10 @@
           : '') +
         '</p>'
       : '';
+    var clearLine =
+      advice.clearEstimate && advice.clearEstimate.copy
+        ? '<p class="jml-advice-clear">' + escapeHtml(advice.clearEstimate.copy) + '</p>'
+        : '';
     var dont =
       advice.dontOpenLabel
         ? '<p class="jml-advice-dont">不要开：' + escapeHtml(advice.dontOpenLabel) + '</p>'
@@ -2543,6 +2547,7 @@
       escapeHtml(p.title || '') +
       '</p>' +
       profileLine +
+      clearLine +
       queueHtml +
       '<p class="jml-advice-copy">' +
       escapeHtml(p.parentCopy || '') +

@@ -386,6 +386,32 @@
     };
   }
 
+  function clearEstimateInfo(rows, runs) {
+    var estimateSec = estimateClearSec(rows);
+    var recordSec = bestClearedLevelSec(runs);
+    if (estimateSec == null) return null;
+    var ratio = recordSec != null && recordSec > 0 ? estimateSec / recordSec : null;
+    return {
+      estimateSec: estimateSec,
+      recordSec: recordSec,
+      ratio: ratio,
+      improve: ratio != null ? estimateSec <= recordSec * SCAN_CLEAR_IMPROVE : null,
+      copy:
+        "预估全通 " +
+        formatAdviceClock(estimateSec) +
+        "（每关10题×1.2）" +
+        (recordSec != null
+          ? " · 纪录 " +
+            formatAdviceClock(recordSec) +
+            "（预估 " +
+            Math.round(ratio * 100) +
+            "% 纪录" +
+            (estimateSec <= recordSec * SCAN_CLEAR_IMPROVE ? "，可排冲榜" : "，未到85%") +
+            "）"
+          : " · 无通关纪录"),
+    };
+  }
+
   function isRetryClearScan(ctx) {
     return !!(ctx && ctx.scan && ctx.scan.kind === "retry_clear");
   }
@@ -1575,6 +1601,7 @@
     var rows = buildRows(opts.grade, opts.cells);
     var profile = classifyProfile(rows);
     var retry = retryClearInfo(rows, opts.runs);
+    var clearEstimate = clearEstimateInfo(rows, opts.runs);
     var scan = resolveScanTarget(rows, opts);
     if (profile.id === "skill_gaps" && opts.hasClearedLevel === true && retry && retry.improve) {
       scan = {
@@ -1608,6 +1635,7 @@
       pickNote: picked.pickNote,
       alternatives: picked.alternatives,
       retryClear: retry,
+      clearEstimate: clearEstimate,
     };
   }
 
@@ -1822,6 +1850,7 @@
       alternatives: ctx.alternatives,
       dontOpen: plan.dontOpen || [],
       dontOpenLabel: plan.dontOpenLabel || "",
+      clearEstimate: ctx.clearEstimate || null,
       reasons: reasons,
       rows: ctx.rows,
       systemPick: opts.systemPick || null,
@@ -1881,6 +1910,7 @@
     passedScanTarget: passedScanTarget,
     estimateClearSec: estimateClearSec,
     bestClearedLevelSec: bestClearedLevelSec,
+    formatAdviceClock: formatAdviceClock,
     computePracticeAdvice: computePracticeAdvice,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,

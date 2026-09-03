@@ -627,6 +627,11 @@
 .jml-advice-profile + .jml-advice-subh {
   margin-top: 2px;
 }
+.jml-advice-clear {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #1565c0;
+}
 .jml-advice-tile-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
