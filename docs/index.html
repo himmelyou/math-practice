@@ -2887,7 +2887,7 @@
     .daily-task-card {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 8px;
       padding: 12px 14px;
       border-radius: 14px;
       background: #fff;
@@ -2902,19 +2902,36 @@
       background: #f7fafc;
       box-shadow: none;
     }
+    .daily-task-card-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .daily-task-card-main {
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
     .daily-task-card-title {
       font-size: 0.98rem;
       font-weight: 700;
       color: #1a3f8f;
     }
-    .daily-task-card-goal,
-    .daily-task-card-prog {
+    .daily-task-card-goal {
       font-size: 0.86rem;
       color: #455a64;
       line-height: 1.35;
     }
     .daily-task-card-prog {
+      flex-shrink: 0;
+      max-width: 42%;
+      text-align: right;
+      font-size: 0.82rem;
       color: #78909c;
+      line-height: 1.35;
     }
     .daily-task-start {
       margin-top: 8px;
@@ -6306,11 +6323,15 @@
         (isHead ? " daily-task-card--head" : "") +
         (step.status === "success" ? " daily-task-card--done" : "") +
         '">' +
+        '<div class="daily-task-card-row">' +
+        '<div class="daily-task-card-main">' +
         '<div class="daily-task-card-title">' +
         escapeHtml(title) +
         "</div>" +
         (goal ? '<div class="daily-task-card-goal">' + escapeHtml(goal) + "</div>" : "") +
+        "</div>" +
         (prog ? '<div class="daily-task-card-prog">' + escapeHtml(prog) + "</div>" : "") +
+        "</div>" +
         startBtn +
         "</article>"
       );
@@ -6340,9 +6361,6 @@
         doneHtml += dailyTaskCardHtml(step, i, { history: true });
       });
       body.innerHTML =
-        '<p class="daily-task-subh">' +
-        escapeHtml(t("dailyTasks.openHeading")) +
-        "</p>" +
         '<div class="daily-task-list">' +
         openHtml +
         "</div>" +
