@@ -2842,6 +2842,120 @@
       display: none;
     }
 
+    .daily-task-section {
+      flex: 1;
+      min-height: 0;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    .daily-task-header {
+      flex-shrink: 0;
+      padding: 0 4px 8px;
+    }
+    .daily-task-title {
+      margin: 0;
+      font-size: 1.1rem;
+      color: #263238;
+    }
+    .daily-task-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding: 0 2px 16px;
+    }
+    .daily-task-status {
+      margin: 18px 4px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+    .daily-task-subh {
+      margin: 4px 4px 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #546e7a;
+    }
+    .daily-task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .daily-task-card {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 4px 14px rgba(30, 64, 120, 0.06);
+    }
+    .daily-task-card--head {
+      border: 2px solid #4e83f8;
+      box-shadow: 0 6px 16px rgba(78, 131, 248, 0.16);
+    }
+    .daily-task-card--done {
+      background: #f7fafc;
+      box-shadow: none;
+    }
+    .daily-task-card-title {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #1a3f8f;
+    }
+    .daily-task-card-goal,
+    .daily-task-card-prog {
+      font-size: 0.86rem;
+      color: #455a64;
+      line-height: 1.35;
+    }
+    .daily-task-card-prog {
+      color: #78909c;
+    }
+    .daily-task-start {
+      margin-top: 8px;
+      width: 100%;
+      min-height: 40px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+    .daily-task-history {
+      margin-top: 16px;
+      border-radius: 14px;
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      padding: 4px 10px 10px;
+    }
+    .daily-task-history > summary {
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #455a64;
+      padding: 8px 4px;
+      list-style: none;
+    }
+    .daily-task-history > summary::-webkit-details-marker {
+      display: none;
+    }
+    .daily-task-history > summary::after {
+      content: "▸";
+      float: right;
+      color: #90a4ae;
+    }
+    .daily-task-history[open] > summary::after {
+      content: "▾";
+    }
+    .daily-task-history-empty {
+      margin: 4px 4px 0;
+      font-size: 0.86rem;
+      color: #90a4ae;
+    }
+
     .game-over-buttons {
       display: flex;
       flex-direction: column;
@@ -4140,6 +4254,16 @@
     <p class="app-home-version" id="app-home-version"></p>
     <script>if (window.applyJmlAppVersionText) window.applyJmlAppVersionText();</script>
 
+    <section class="daily-task-section" id="daily-task-section" style="display:none;" hidden>
+      <div class="daily-task-header">
+        <h2 class="daily-task-title" id="daily-task-title">每日任务</h2>
+      </div>
+      <div class="daily-task-scroll" id="daily-task-scroll">
+        <p class="daily-task-status" id="daily-task-status">载入中…</p>
+        <div id="daily-task-body" hidden></div>
+      </div>
+    </section>
+
     <div class="game-section" id="game-section">
       <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。</p>
 
@@ -5038,6 +5162,7 @@
   <script src="perfect-square-page.js?v=51"></script>
   <script src="divisibility-page.js?v=16"></script>
   <script src="decimal-page.js?v=16"></script>
+  <script src="report/practice-advice.js?v=18"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -6117,6 +6242,240 @@
       }
     }
 
+    const PRACTICE_PLAN_KEY_PREFIX = "jml-practice-plan-v09:";
+    let lastDailyTaskAdvice = null;
+    let dailyTaskRenderSeq = 0;
+
+    function hideDailyTaskSection() {
+      const sec = document.getElementById("daily-task-section");
+      if (sec) {
+        sec.style.display = "none";
+        sec.hidden = true;
+      }
+    }
+
+    function practicePlanStorageKey(username) {
+      return PRACTICE_PLAN_KEY_PREFIX + String(username || "");
+    }
+
+    function loadSavedPracticePlan(username) {
+      if (!username) return null;
+      try {
+        const raw = localStorage.getItem(practicePlanStorageKey(username));
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function savePracticePlan(username, plan) {
+      if (!username || !plan) return;
+      try {
+        localStorage.setItem(practicePlanStorageKey(username), JSON.stringify(plan));
+      } catch (e) { /* ignore */ }
+    }
+
+    function dailyTaskKindLabel(step) {
+      if (!step) return "";
+      if (step.action === "level") {
+        return step.scanKind === "retry_clear" ? t("dailyTasks.label.retryClear") : t("dailyTasks.label.level");
+      }
+      if (step.successKind === "open_activate") {
+        return tf("dailyTasks.label.open", { level: step.levelLabel || "" });
+      }
+      return tf("dailyTasks.label.training", { level: step.levelLabel || "" });
+    }
+
+    function dailyTaskCardHtml(step, index, opts) {
+      opts = opts || {};
+      const isHead = !!opts.isHead;
+      const title = opts.history
+        ? dailyTaskKindLabel(step)
+        : tf("dailyTasks.taskTitle", { n: index + 1, label: dailyTaskKindLabel(step) });
+      const goal = step.tileGoal || step.until || "";
+      const prog = step.tileProgress || "";
+      const startBtn = isHead
+        ? '<button type="button" class="home-pill-btn home-pill-btn--primary daily-task-start" data-daily-task-start="1">' +
+          escapeHtml(t("game.btn.startChallenge")) +
+          "</button>"
+        : "";
+      return (
+        '<article class="daily-task-card' +
+        (isHead ? " daily-task-card--head" : "") +
+        (step.status === "success" ? " daily-task-card--done" : "") +
+        '">' +
+        '<div class="daily-task-card-title">' +
+        escapeHtml(title) +
+        "</div>" +
+        (goal ? '<div class="daily-task-card-goal">' + escapeHtml(goal) + "</div>" : "") +
+        (prog ? '<div class="daily-task-card-prog">' + escapeHtml(prog) + "</div>" : "") +
+        startBtn +
+        "</article>"
+      );
+    }
+
+    function renderDailyTaskAdvice(advice) {
+      const body = document.getElementById("daily-task-body");
+      const status = document.getElementById("daily-task-status");
+      if (!body || !status) return;
+      lastDailyTaskAdvice = advice || null;
+      const queue = (advice && advice.queue) || [];
+      const openSteps = queue.filter(function (s) {
+        return s.status === "active" || s.status === "pending";
+      });
+      const doneSteps = queue
+        .filter(function (s) {
+          return s.status === "success";
+        })
+        .slice()
+        .reverse();
+      let openHtml = "";
+      openSteps.forEach(function (step, i) {
+        openHtml += dailyTaskCardHtml(step, i, { isHead: i === 0 });
+      });
+      let doneHtml = "";
+      doneSteps.forEach(function (step, i) {
+        doneHtml += dailyTaskCardHtml(step, i, { history: true });
+      });
+      body.innerHTML =
+        '<p class="daily-task-subh">' +
+        escapeHtml(t("dailyTasks.openHeading")) +
+        "</p>" +
+        '<div class="daily-task-list">' +
+        openHtml +
+        "</div>" +
+        '<details class="daily-task-history">' +
+        "<summary>" +
+        escapeHtml(tf("dailyTasks.historyHeading", { n: doneSteps.length })) +
+        "</summary>" +
+        (doneHtml
+          ? '<div class="daily-task-list">' + doneHtml + "</div>"
+          : '<p class="daily-task-history-empty">' + escapeHtml(t("dailyTasks.historyEmpty")) + "</p>") +
+        "</details>";
+      body.hidden = false;
+      status.hidden = true;
+    }
+
+    function applyDailyTaskPageI18n() {
+      const title = document.getElementById("daily-task-title");
+      if (title) title.textContent = t("dailyTasks.title");
+      const status = document.getElementById("daily-task-status");
+      if (status && !status.hidden) status.textContent = t("dailyTasks.loading");
+      if (lastDailyTaskAdvice) renderDailyTaskAdvice(lastDailyTaskAdvice);
+    }
+
+    async function loadDailyTaskAdvice() {
+      const Advice = window.JmlPracticeAdvice;
+      const username = loadCurrentUsername();
+      if (!Advice || typeof Advice.computePracticeAdvice !== "function" || !username) {
+        return null;
+      }
+      const heatPack = await buildTrainingHeatmapAsync();
+      const cells =
+        heatPack && heatPack.heat && Array.isArray(heatPack.heat.cells) ? heatPack.heat.cells : [];
+      const runs = (heatPack && heatPack.runs) || [];
+      let levelBestFromRuns = null;
+      runs.forEach(function (r) {
+        if (String(r && r.mode ? r.mode : "").toLowerCase() !== "level") return;
+        const ml = Number(r.maxLevel);
+        if (Number.isFinite(ml) && (levelBestFromRuns == null || ml > levelBestFromRuns)) {
+          levelBestFromRuns = Math.floor(ml);
+        }
+      });
+      const user = cachedUser || {};
+      const hasClearedLevel =
+        userHasClearedLevel(user) ||
+        runs.some(function (r) {
+          return String(r && r.mode ? r.mode : "").toLowerCase() === "level" && r.cleared === true;
+        });
+      const advice = Advice.computePracticeAdvice({
+        username: username,
+        grade: user.grade != null ? user.grade : null,
+        cells: cells,
+        hasClearedLevel: hasClearedLevel,
+        levelChallengeBestLevel:
+          user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
+        levelBestFromRuns: levelBestFromRuns,
+        runs: runs,
+        savedPlan: loadSavedPracticePlan(username),
+        nowTs: Date.now(),
+      });
+      if (advice && advice.plan) savePracticePlan(username, advice.plan);
+      return advice;
+    }
+
+    async function showDailyTaskView() {
+      if (isGuestMode) return;
+      if (!isTesterUser()) {
+        showToast(t("home.soon.dailyTasks"));
+        return;
+      }
+      const seq = (dailyTaskRenderSeq += 1);
+      setTopActionsVisible(false);
+      if (dom.homeSection) dom.homeSection.classList.add("hidden");
+      if (dom.gameSection) dom.gameSection.classList.remove("visible");
+      if (dom.expandSection) {
+        dom.expandSection.classList.remove("visible");
+        dom.expandSection.style.display = "none";
+      }
+      if (dom.wrongbookSection) dom.wrongbookSection.style.display = "none";
+      const statsSection = document.getElementById("stats-section");
+      if (statsSection) statsSection.classList.remove("visible");
+      const rankingSection = document.getElementById("ranking-section");
+      if (rankingSection) rankingSection.style.display = "none";
+      const achievementWallSection = document.getElementById("achievement-wall-section");
+      if (achievementWallSection) achievementWallSection.style.display = "none";
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
+      hidePerfectSquareSection();
+      hideDivisibilitySection();
+      hideDecimalSection();
+      const avatarPickerSec = document.getElementById("avatar-picker-section");
+      if (avatarPickerSec) avatarPickerSec.style.display = "none";
+      const sec = document.getElementById("daily-task-section");
+      const status = document.getElementById("daily-task-status");
+      const body = document.getElementById("daily-task-body");
+      if (sec) {
+        sec.hidden = false;
+        sec.style.display = "flex";
+      }
+      applyDailyTaskPageI18n();
+      if (status) {
+        status.hidden = false;
+        status.textContent = t("dailyTasks.loading");
+      }
+      if (body) {
+        body.hidden = true;
+        body.innerHTML = "";
+      }
+      try {
+        const advice = await loadDailyTaskAdvice();
+        if (seq !== dailyTaskRenderSeq) return;
+        if (!advice) {
+          if (status) status.textContent = t("dailyTasks.loadFail");
+          return;
+        }
+        renderDailyTaskAdvice(advice);
+      } catch (e) {
+        if (seq !== dailyTaskRenderSeq) return;
+        if (status) status.textContent = t("dailyTasks.loadFail");
+      }
+    }
+
+    function handleDailyTaskEntryClick() {
+      if (isGuestMode) return;
+      if (!isTesterUser()) {
+        showToast(t("home.soon.dailyTasks"));
+        return;
+      }
+      void showDailyTaskView();
+    }
+
     function handleGuestExitToRegister() {
       closeHomeSettingsMenu();
       if (survivalTimerId) {
@@ -6362,6 +6721,7 @@
     }
 
     function setTopActionsVisible(visible) {
+      hideDailyTaskSection();
       const settingsWrap = document.getElementById("home-settings-wrap");
       const globalBackBtn = document.getElementById("global-back-home-btn");
       closeHomeSettingsMenu();
@@ -8098,6 +8458,7 @@
         "home.soon.factorsMultiples": "因數倍數：功能即將上線",
         "home.soon.achievementWall": "成就牆：功能即將上線",
         "home.soon.unitConversion": "單位換算：功能即將上線",
+        "home.soon.dailyTasks": "開發中",
         "toast.perfectSquareNeedLogin": "請登入或註冊後再使用此功能。",
         "toast.decimalNeedLogin": "請登入或註冊後再使用此功能。",
         "mode.running.perfectSquare": "平方數",
@@ -8175,6 +8536,17 @@
         "home.btn.backHome": "返回首頁",
         "home.btn.settings": "設置",
         "home.btn.dailyTasks": "每日任務",
+        "dailyTasks.title": "每日任務",
+        "dailyTasks.openHeading": "未完成",
+        "dailyTasks.historyHeading": "全部歷史（{n}）",
+        "dailyTasks.historyEmpty": "暫無",
+        "dailyTasks.loading": "載入中…",
+        "dailyTasks.loadFail": "任務暫不可用，請稍後重試。",
+        "dailyTasks.taskTitle": "任務 {n} · {label}",
+        "dailyTasks.label.level": "闖關",
+        "dailyTasks.label.retryClear": "衝榜",
+        "dailyTasks.label.training": "四則訓練 {level}",
+        "dailyTasks.label.open": "開 {level}",
         "home.menu.switchLang": "切換語言",
         "home.menu.gameGuide": "遊戲說明",
         "home.menu.contactUs": "聯繫我們",
@@ -8527,6 +8899,7 @@
         "home.soon.factorsMultiples": "Factors & Multiples: coming soon",
         "home.soon.achievementWall": "Achievement Wall: coming soon",
         "home.soon.unitConversion": "Unit Conversion: coming soon",
+        "home.soon.dailyTasks": "Coming soon",
         "toast.perfectSquareNeedLogin": "Please sign in or register to use this feature.",
         "toast.decimalNeedLogin": "Please sign in or register to use this feature.",
         "mode.running.perfectSquare": "Squares",
@@ -8604,6 +8977,17 @@
         "home.btn.backHome": "Home",
         "home.btn.settings": "Settings",
         "home.btn.dailyTasks": "Daily tasks",
+        "dailyTasks.title": "Daily tasks",
+        "dailyTasks.openHeading": "In progress",
+        "dailyTasks.historyHeading": "All history ({n})",
+        "dailyTasks.historyEmpty": "None yet",
+        "dailyTasks.loading": "Loading…",
+        "dailyTasks.loadFail": "Tasks are unavailable. Please try again later.",
+        "dailyTasks.taskTitle": "Task {n} · {label}",
+        "dailyTasks.label.level": "Challenge",
+        "dailyTasks.label.retryClear": "Retry clear",
+        "dailyTasks.label.training": "Arithmetic {level}",
+        "dailyTasks.label.open": "Open {level}",
         "home.menu.switchLang": "Language",
         "home.menu.gameGuide": "How to play",
         "home.menu.contactUs": "Contact us",
@@ -9195,6 +9579,7 @@
       setT("global-back-home-btn", "home.btn.backHome");
       updateHomeSettingsMenuI18n();
       syncDailyTaskEntryVisibility();
+      applyDailyTaskPageI18n();
       updateGlobalBackButtonState();
       refreshVisibleRuleHintTexts();
       scheduleSyncAllRuleHints();
@@ -15534,6 +15919,8 @@
       }
       const globalBackHomeBtn = document.getElementById("global-back-home-btn");
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
+      const homeDailyTaskBtn = document.getElementById("home-daily-task-btn");
+      if (homeDailyTaskBtn) homeDailyTaskBtn.addEventListener("click", handleDailyTaskEntryClick);
 
       const modeSurvival = document.getElementById("mode-survival");
       const modeLevel = document.getElementById("mode-level");

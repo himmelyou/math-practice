@@ -1,8 +1,9 @@
 /**
- * 练习建议 v0.14：队头走成功/失败；2～5 只认碰巧成功；跑偏重算未完成并保留同关进度。
+ * 练习建议 v0.15：队头走成功/失败；2～5 只认碰巧成功；跑偏重算未完成并保留同关进度。
+ * 热图全空（无已激活格）只排闯关，不开新关。
  */
 (function (root) {
-  var RULE_VERSION = "0.14-provisional";
+  var RULE_VERSION = "0.15-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -657,7 +658,15 @@
     return best;
   }
 
+  /** 四则热图尚无任何已激活格（全是无数据）。 */
+  function heatmapIsEmpty(rows) {
+    return !(rows || []).some(function (r) {
+      return r && r.stage && r.stage !== "no_data";
+    });
+  }
+
   function canScheduleOpenNew(rows) {
+    if (heatmapIsEmpty(rows)) return false;
     return schoolActivatedReady(rows) && !!nextOpenableRow(rows);
   }
 
@@ -873,6 +882,10 @@
     }
     var needScan = scanIsNeeded(ctx);
     var n = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : 0;
+    if (heatmapIsEmpty(ctx.rows)) {
+      if (needScan) tryAdd({ kind: "scan", scan: ctx.scan });
+      return seeds;
+    }
     if (needScan && isRetryClearScan(ctx)) {
       if (holes.length) {
         tryAdd({ kind: "training", row: holes[0] });
@@ -1672,7 +1685,7 @@
         HEAT_PCT_PLUS1 +
         "；黄=准<95%或timePct≥" +
         FAST_TIME_PCT,
-      "Q14 已激活校内全绿才开一档已学/同步空关；闯关留下数据即当老关；超前无数据不开",
+      "Q14 已激活校内全绿才开一档已学/同步空关；热图全空只排闯关、不开新关；闯关留下数据即当老关；超前无数据不开",
       "Q15 底板型已通关：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +
@@ -1905,6 +1918,7 @@
     successKindForRow: successKindForRow,
     schoolActivatedReady: schoolActivatedReady,
     nextOpenableRow: nextOpenableRow,
+    heatmapIsEmpty: heatmapIsEmpty,
     canScheduleOpenNew: canScheduleOpenNew,
     resolveScanTarget: resolveScanTarget,
     passedScanTarget: passedScanTarget,
