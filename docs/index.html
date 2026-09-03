@@ -377,11 +377,28 @@
       gap: 8px;
       flex-shrink: 0;
     }
+    .home-top-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .home-top-stack .home-settings-wrap,
+    .home-top-stack .home-pill-btn {
+      width: 100%;
+    }
+    .home-top-stack .home-settings-trigger {
+      width: 100%;
+    }
     .home-settings-wrap {
       position: relative;
       display: flex;
       align-items: center;
       flex-shrink: 0;
+    }
+    #home-daily-task-btn[hidden] {
+      display: none !important;
     }
     .home-settings-trigger {
       color: #1a3f8f;
@@ -3960,34 +3977,39 @@
           </div>
         </div>
         <div class="home-user-actions">
-          <div class="home-settings-wrap" id="home-settings-wrap">
-            <button
-              type="button"
-              id="home-settings-btn"
-              class="home-settings-trigger home-pill-btn"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              aria-controls="home-settings-menu"
-            >
-              <span id="home-settings-btn-label">设置</span>
-            </button>
-            <div id="home-settings-menu" class="home-settings-menu" role="menu" hidden>
-              <button type="button" id="home-settings-lang-btn" class="home-settings-menu-item" role="menuitem">
-                <span id="home-settings-lang-label">English</span>
+          <div class="home-top-stack" id="home-top-stack">
+            <div class="home-settings-wrap" id="home-settings-wrap">
+              <button
+                type="button"
+                id="home-settings-btn"
+                class="home-settings-trigger home-pill-btn"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="home-settings-menu"
+              >
+                <span id="home-settings-btn-label">设置</span>
               </button>
-              <button type="button" id="change-password-btn" class="home-settings-menu-item" role="menuitem">
-                <span id="change-password-btn-label">修改密码</span>
-              </button>
-              <button type="button" id="home-settings-guide-btn" class="home-settings-menu-item" role="menuitem">
-                <span id="home-settings-guide-label">游戏说明</span>
-              </button>
-              <button type="button" id="home-settings-contact-btn" class="home-settings-menu-item" role="menuitem">
-                <span id="home-settings-contact-label">联系我们</span>
-              </button>
-              <button type="button" id="logout-btn" class="home-settings-menu-item home-settings-menu-item--danger" role="menuitem">
-                <span id="logout-btn-label">登出</span>
-              </button>
+              <div id="home-settings-menu" class="home-settings-menu" role="menu" hidden>
+                <button type="button" id="home-settings-lang-btn" class="home-settings-menu-item" role="menuitem">
+                  <span id="home-settings-lang-label">English</span>
+                </button>
+                <button type="button" id="change-password-btn" class="home-settings-menu-item" role="menuitem">
+                  <span id="change-password-btn-label">修改密码</span>
+                </button>
+                <button type="button" id="home-settings-guide-btn" class="home-settings-menu-item" role="menuitem">
+                  <span id="home-settings-guide-label">游戏说明</span>
+                </button>
+                <button type="button" id="home-settings-contact-btn" class="home-settings-menu-item" role="menuitem">
+                  <span id="home-settings-contact-label">联系我们</span>
+                </button>
+                <button type="button" id="logout-btn" class="home-settings-menu-item home-settings-menu-item--danger" role="menuitem">
+                  <span id="logout-btn-label">登出</span>
+                </button>
+              </div>
             </div>
+            <button type="button" id="home-daily-task-btn" class="home-pill-btn home-pill-btn--primary" hidden>
+              <span id="home-daily-task-btn-label">每日任务</span>
+            </button>
           </div>
           <button type="button" id="global-back-home-btn" class="home-pill-btn home-pill-btn--primary" style="display:none;">返回首页</button>
         </div>
@@ -6072,6 +6094,7 @@
         settingsBtn.removeAttribute("aria-controls");
         settingsBtn.setAttribute("aria-expanded", "false");
         if (menu) menu.hidden = true;
+        syncDailyTaskEntryVisibility();
         return;
       }
       setTextById("home-settings-btn-label", "home.btn.settings");
@@ -6079,6 +6102,19 @@
       settingsBtn.setAttribute("aria-haspopup", "menu");
       settingsBtn.setAttribute("aria-controls", "home-settings-menu");
       settingsBtn.setAttribute("aria-expanded", "false");
+      syncDailyTaskEntryVisibility();
+    }
+
+    function syncDailyTaskEntryVisibility() {
+      const btn = document.getElementById("home-daily-task-btn");
+      const settingsWrap = document.getElementById("home-settings-wrap");
+      if (!btn) return;
+      const settingsOnHome = !!(settingsWrap && settingsWrap.style.display !== "none");
+      btn.hidden = !!isGuestMode || !settingsOnHome;
+      if (!btn.hidden) {
+        setTextById("home-daily-task-btn-label", "home.btn.dailyTasks");
+        btn.setAttribute("aria-label", t("home.btn.dailyTasks"));
+      }
     }
 
     function handleGuestExitToRegister() {
@@ -6339,6 +6375,7 @@
       }
       if (globalBackBtn) globalBackBtn.style.display = "";
       if (settingsWrap) settingsWrap.style.display = "none";
+      syncDailyTaskEntryVisibility();
       updateGlobalBackButtonState();
     }
 
@@ -8137,6 +8174,7 @@
         "home.playerLevel.barAria": "本級經驗 {current}/{need}",
         "home.btn.backHome": "返回首頁",
         "home.btn.settings": "設置",
+        "home.btn.dailyTasks": "每日任務",
         "home.menu.switchLang": "切換語言",
         "home.menu.gameGuide": "遊戲說明",
         "home.menu.contactUs": "聯繫我們",
@@ -8565,6 +8603,7 @@
         "home.playerLevel.barAria": "Level XP {current}/{need}",
         "home.btn.backHome": "Home",
         "home.btn.settings": "Settings",
+        "home.btn.dailyTasks": "Daily tasks",
         "home.menu.switchLang": "Language",
         "home.menu.gameGuide": "How to play",
         "home.menu.contactUs": "Contact us",
@@ -9155,6 +9194,7 @@
       if (nickBtn) nickBtn.setAttribute("title", t("modal.nickname.title"));
       setT("global-back-home-btn", "home.btn.backHome");
       updateHomeSettingsMenuI18n();
+      syncDailyTaskEntryVisibility();
       updateGlobalBackButtonState();
       refreshVisibleRuleHintTexts();
       scheduleSyncAllRuleHints();
