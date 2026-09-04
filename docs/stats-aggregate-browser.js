@@ -2,7 +2,7 @@
  * 与小程序端 stats 聚合一致（浏览器版）；canonical 位于 docs/，report 与主站共用。
  * 支持按模式分类：四则（L1–L16）/ 小数（D1–D6）等。
  *
- * 速度口径：对+错均计入；几何均（exp(mean(ln(ms)))）；timeSpentMs > cap（默认 60s）剔除。
+ * 速度口径：仅答对计入；几何均（exp(mean(ln(ms)))）；timeSpentMs > cap（默认 60s）剔除。
  */
 (function (global) {
   var LEVEL_COUNT = 16;
@@ -46,7 +46,7 @@
   }
 
   /**
-   * 对+错、几何均、>cap 剔除。
+   * 仅答对、几何均、>cap 剔除。
    * @param {Array} attempts
    * @param {{ maxTimeSpentMs?: number, levelIndex?: number, levelCount?: number }} [opts]
    * @returns {{ meanLn: number|null, avgSec: number|null, n: number }}
@@ -67,7 +67,7 @@
     var list = Array.isArray(attempts) ? attempts : [];
     for (var i = 0; i < list.length; i++) {
       var a = list[i];
-      if (!a) continue;
+      if (!a || a.correct !== true) continue;
       if (filterLevel) {
         var aLv = Math.max(0, Math.min(levelCount - 1, Math.floor(Number(a.levelIndex) || 0)));
         if (aLv !== lv) continue;
@@ -164,7 +164,7 @@
         dayAgg.total += 1;
         if (a.correct) dayAgg.correct += 1;
         dayAgg.totalTimeMs += ms;
-        if (ms > 0 && ms <= maxTimeMs && Number.isFinite(ms)) {
+        if (a.correct && ms > 0 && ms <= maxTimeMs && Number.isFinite(ms)) {
           var ln = Math.log(ms);
           byLevel[idx].sumLnMs += ln;
           byLevel[idx].nSpeed += 1;

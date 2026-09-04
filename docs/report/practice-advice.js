@@ -1,9 +1,8 @@
 /**
- * 练习建议 v0.15：队头走成功/失败；2～5 只认碰巧成功；跑偏重算未完成并保留同关进度。
- * 热图全空（无已激活格）只排闯关，不开新关。
+ * 练习建议 v0.18：速度任务须任务窗准度 ≥95%。放弃局不算。均速只算对题。
  */
 (function (root) {
-  var RULE_VERSION = "0.15-provisional";
+  var RULE_VERSION = "0.18-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -482,8 +481,16 @@
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
+  function isAbandonedRun(run) {
+    if (!run) return false;
+    if (run.abandoned === true) return true;
+    var m = run.trainingMeta;
+    return !!(m && typeof m === "object" && m.abandoned === true);
+  }
+
   function isPlayRun(run) {
     if (!run || run.comboOnly === true) return false;
+    if (isAbandonedRun(run)) return false;
     if (!runTs(run)) return false;
     return !!PLAY_MODES[normalizeRunMode(run.mode)];
   }
@@ -505,7 +512,7 @@
   }
 
   function emptyWindow() {
-    return { games: 0, items: 0, correct: 0, avgSec: null, gamesByDay: {} };
+    return { games: 0, items: 0, correct: 0, avgSec: null, speedN: 0, gamesByDay: {} };
   }
 
   function summarizeRun(run, levelIndex) {
@@ -541,8 +548,11 @@
       }
     }
     var avgSec = lnN > 0 ? Math.exp(lnSum / lnN) / 1000 : null;
+    var speedN = lnN;
     if (avgSec == null && run && run.trainingMeta && Number.isFinite(Number(run.trainingMeta.runAvgSec))) {
       avgSec = Number(run.trainingMeta.runAvgSec);
+      if (speedN <= 0 && correct > 0) speedN = correct;
+      else if (speedN <= 0) speedN = 1;
     }
     var maxLv = run && run.maxLevel != null && Number.isFinite(Number(run.maxLevel)) ? Math.floor(Number(run.maxLevel)) : null;
     return {
@@ -550,6 +560,7 @@
       correct: correct,
       p: n > 0 ? correct / n : null,
       avgSec: avgSec,
+      speedN: speedN,
       maxLevel: maxLv,
     };
   }
@@ -1151,13 +1162,15 @@
     return probe;
   }
 
-  function reissueIncomplete(plan, ctx, ts, text) {
+  function reissueIncomplete(plan, ctx, ts, text, keepOpenWindows) {
     var done = trimDone(doneTasks(plan));
     var kept = {};
-    openTasks(plan).forEach(function (t) {
-      if (!t || !t.key) return;
-      kept[t.key] = cloneJson(t.window || emptyPlanWindow());
-    });
+    if (keepOpenWindows !== false) {
+      openTasks(plan).forEach(function (t) {
+        if (!t || !t.key) return;
+        kept[t.key] = cloneJson(t.window || emptyPlanWindow());
+      });
+    }
     plan.tasks = done;
     if (ctx && ctx.profile) plan.profile = ctx.profile;
     if (ctx) {
@@ -1234,6 +1247,8 @@
     if (task.successKind === "open_activate") return true;
     if (task.successKind === "speed_step") {
       if (task.targetAvgSec == null || task.window.avgSec == null) return false;
+      var speedP = windowP(task);
+      if (speedP == null || speedP + 1e-9 < HEAT_P_YELLOW) return false;
       return Number(task.window.avgSec) <= Number(task.targetAvgSec) + 1e-9;
     }
     var p = windowP(task);
@@ -1261,11 +1276,15 @@
     if (task.successKind === "speed_step") captureBaselineAvgSec(task, run);
     if (!task.window) task.window = emptyPlanWindow();
     var w = task.window;
-    var prevItems = w.items;
+    var prevSpeedN =
+      w.speedN > 0 ? w.speedN : w.avgSec != null && w.correct > 0 ? w.correct : 0;
     w.games += 1;
     w.items += stats.n;
     w.correct += stats.correct;
-    w.avgSec = mergeAvgSec(w.avgSec, prevItems, stats.avgSec, stats.n);
+    w.avgSec = mergeAvgSec(w.avgSec, prevSpeedN, stats.avgSec, stats.speedN);
+    if (stats.avgSec != null && stats.speedN > 0) {
+      w.speedN = prevSpeedN + stats.speedN;
+    }
     if (day) w.gamesByDay[day] = (w.gamesByDay[day] || 0) + 1;
     if (evaluateSuccess(task, run)) return "success";
     var fail = evaluateFail(task);
@@ -1363,20 +1382,32 @@
     );
   }
 
-  function syncPlan(saved, ctx, runs, nowTs, username) {
+  function syncPlan(saved, ctx, runs, nowTs, username, flags) {
+    flags = flags || {};
     var plan;
     var rebuilt = false;
-    if (
-      !saved ||
-      saved.ruleVersion !== RULE_VERSION ||
-      (username && saved.username && saved.username !== username)
-    ) {
+    if (!saved || (username && saved.username && saved.username !== username)) {
       plan = issuePlan(ctx, nowTs, username);
       rebuilt = true;
       return { plan: plan, rebuilt: rebuilt };
     }
     plan = cloneJson(saved);
     if (!Array.isArray(plan.tasks)) plan.tasks = [];
+    var versionBump = plan.ruleVersion !== RULE_VERSION;
+    if (versionBump || flags.resetIncomplete) {
+      plan.ruleVersion = RULE_VERSION;
+      if (username) plan.username = username;
+      reissueIncomplete(
+        plan,
+        ctx,
+        nowTs,
+        flags.resetIncomplete
+          ? "重新开单：重算未完成（已完成窗口保留）"
+          : "规则升级：重算未完成（已完成窗口保留）",
+        flags.resetIncomplete ? false : true
+      );
+      rebuilt = true;
+    }
     if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
     activateFirst(plan.tasks);
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
@@ -1454,6 +1485,8 @@
       return (
         "成功：本任务新打均速 ≤ " +
         (sec != null ? sec + "s" : "开单均速的 92%") +
+        "，且准度 ≥ " +
+        pctText(HEAT_P_YELLOW) +
         "（至少 " +
         MIN_SUCCESS_GAMES +
         " 局或 " +
@@ -1508,7 +1541,7 @@
     }
     if (task.successKind === "speed_step") {
       var sec = roundSec(task.targetAvgSec);
-      return "均速迈一小步" + (sec != null ? "（≤" + sec + "s）" : "");
+      return "均速迈一小步" + (sec != null ? "（≤" + sec + "s）" : "") + "，且准≥" + pctText(HEAT_P_YELLOW);
     }
     return "准度迈一小步（→" + pctText(task.targetP) + "）";
   }
@@ -1538,7 +1571,9 @@
     if (t.successKind === "open_activate") return "1局或20题";
     if (t.successKind === "speed_step") {
       var sec = roundSec(t.targetAvgSec);
-      return sec != null ? "均速≤" + sec + "s" : "均速↓";
+      return sec != null
+        ? "均速≤" + sec + "s 且准≥" + pctText(HEAT_P_YELLOW)
+        : "均速↓ 且准≥" + pctText(HEAT_P_YELLOW);
     }
     return t.targetP != null ? "准≥" + pctText(t.targetP) : "准度↑";
   }
@@ -1656,7 +1691,9 @@
     opts = opts || {};
     var ctx = buildAdviceContext(opts);
     var nowTs = opts.nowTs != null && Number.isFinite(Number(opts.nowTs)) ? Number(opts.nowTs) : Date.now();
-    var sync = syncPlan(opts.savedPlan || null, ctx, opts.runs || [], nowTs, opts.username || "");
+    var sync = syncPlan(opts.savedPlan || null, ctx, opts.runs || [], nowTs, opts.username || "", {
+      resetIncomplete: opts.resetIncomplete === true,
+    });
     var plan = sync.plan;
     var reasons = [];
     var unresolved = [
@@ -1665,7 +1702,7 @@
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：从 L1 起连续准≥95%（不计分位），再和历史最高取 min；目标 Ln 须通过 Ln。L1 不够 95% 时仍排闯关且目标为 L1",
       "Q6 准度小步暂定 +" + Math.round(ACC_STEP * 1000) / 10 + "pp，封顶 95%",
-      "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "）",
+      "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且窗内准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
       "Q10 一条队列：未完成最多 " +
@@ -1673,9 +1710,9 @@
         " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
       "Q11 同 key 默认隔 " +
         SAME_TASK_GAP +
-        " 条才可再出现；已完成留在同一条队列（最多 " +
+        " 条才可再出现；已完成冷却窗最多 " +
         COMPLETED_MAX +
-        " 条）。只有可练池空才允许更密",
+        " 条，满则挤最早。规则升级/重新开单/跑偏/热图变都不清冷却。只有可练池空才允许更密",
       "Q12 绿档速度补格：timePct<" +
         FOUNDATION_FAST_PCT +
         " 只比分位；否则 ×" +
@@ -1691,7 +1728,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 队头按成功/失败退出；2～5 碰巧这一局达标才提前完成，未达标不记失败、不后插。跑偏才重算未完成（已完成与同关进度保留）",
+      "Q16 队头按成功/失败退出；2～5 碰巧这一局达标才提前完成，未达标不记失败、不后插。放弃局整局不算。跑偏/规则升级/重新开单只重算未完成（已完成窗口保留）"
     ];
     reasons.push(
       reason(
@@ -1821,7 +1858,7 @@
         doneN;
       parentCopy =
         ctx.profile.label +
-        "。队头按成功/失败退出；排队项碰巧达标可提前完成；跑偏才重算未完成。";
+        "。队头按成功/失败退出；排队项碰巧达标可提前完成；放弃局整局不算；跑偏才重算未完成。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }

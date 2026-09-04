@@ -27,7 +27,7 @@
       <div class="jml-admin-toolbar">
         <a class="jml-toolbar-link" href="../admin/index.html">后台管理</a>
         <button type="button" class="jml-btn" id="jml-cohort-rebuild-btn" title="全量重扫 runs 并写入四则+小数+平方数+整除常模快照（与定时过期逻辑相同）">刷新全体常模</button>
-        <button type="button" class="jml-btn jml-btn-warn" id="jml-backfill-run-speed-btn" title="临时：按 attempts 重算并写回 runAvgSec（训练+小数+平方+整除Z1–4；不含开局加权速；用后删除）">回填本局均速</button>
+        <button type="button" class="jml-btn jml-btn-warn" id="jml-backfill-run-speed-btn" title="临时：按 attempts 重算并写回 runAvgSec（仅答对；训练+小数+平方+整除Z1–4；不含开局加权速；用后删除）">回填本局均速</button>
         <button type="button" class="jml-btn" id="jml-report-lang-btn" aria-label="Switch language">English</button>
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
@@ -105,11 +105,11 @@
   </script>
   <script src="../shared/admin-auth.js?v=21"></script>
   <script src="../shared/stats-i18n-pack.js?v=77"></script>
-  <script src="../stats-aggregate-browser.js?v=51"></script>
+  <script src="../stats-aggregate-browser.js?v=52"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="practice-advice.js?v=18"></script>
-  <script src="report-page.js?v=86"></script>
+  <script src="practice-advice.js?v=21"></script>
+  <script src="report-page.js?v=88"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

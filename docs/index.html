@@ -5165,7 +5165,7 @@
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=72"></script>
   <script src="stats-heatmap-browser.js?v=75"></script>
-  <script src="stats-aggregate-browser.js?v=51"></script>
+  <script src="stats-aggregate-browser.js?v=52"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=43"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
@@ -5179,7 +5179,7 @@
   <script src="perfect-square-page.js?v=51"></script>
   <script src="divisibility-page.js?v=16"></script>
   <script src="decimal-page.js?v=16"></script>
-  <script src="report/practice-advice.js?v=18"></script>
+  <script src="report/practice-advice.js?v=21"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -15330,8 +15330,8 @@
         trainingHeatSnapshot && Number(trainingHeatSnapshot.maxTimeSpentMs) > 0
           ? Number(trainingHeatSnapshot.maxTimeSpentMs)
           : 60 * 1000;
-      // 本局均速：对+错、几何均、>cap 剔除（与折线日均速口径一致）
-      const meanLn = meanLnFromTrainingAttempts(attempts, levelIndex, cap, false);
+      // 本局均速：仅答对、几何均、>cap 剔除（与热图 / 折线口径一致）
+      const meanLn = meanLnFromTrainingAttempts(attempts, levelIndex, cap, true);
       return {
         runMeanLn: meanLn,
         runAvgSec: secFromMeanLn(meanLn),
@@ -15417,11 +15417,11 @@
     }
 
     /**
-     * @param {boolean} correctOnly true=仅答对（刷热图提示对比热图 cell）；false=对+错（本局均速）
+     * 仅答对几何均。correctOnly 保留兼容，现已始终只算对题。
      */
     function meanLnFromTrainingAttempts(attempts, levelIndex, maxTimeMs, correctOnly) {
       const Agg = window.JmlStatsAggregate;
-      if (Agg && typeof Agg.geoMeanSecFromAttempts === "function" && !correctOnly) {
+      if (Agg && typeof Agg.geoMeanSecFromAttempts === "function") {
         const g = Agg.geoMeanSecFromAttempts(attempts, {
           levelIndex: levelIndex,
           maxTimeSpentMs: maxTimeMs,
@@ -15436,8 +15436,7 @@
       const list = Array.isArray(attempts) ? attempts : [];
       for (let i = 0; i < list.length; i++) {
         const a = list[i];
-        if (!a) continue;
-        if (correctOnly && a.correct !== true) continue;
+        if (!a || a.correct !== true) continue;
         const aLv = Math.min(15, Math.max(0, Math.floor(Number(a.levelIndex) || 0)));
         if (aLv !== lv) continue;
         const ms = Number(a.timeSpentMs);

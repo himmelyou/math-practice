@@ -1,7 +1,7 @@
 /**
  * 临时：按报表与本局均速统一口径回填 trainingMeta.runMeanLn / runAvgSec。
  * 覆盖：training / decimal / perfectSquare / divisibility Z1–Z4。
- * 对+错、几何均、timeSpentMs > cap 剔除。用完后可删本文件与对应 admin 路由。
+ * 仅答对、几何均、timeSpentMs > cap 剔除。用完后可删本文件与对应 admin 路由。
  */
 const DEFAULT_CAP_MS = 60 * 1000;
 const ARITH_LEVEL_COUNT = 16;
@@ -34,7 +34,7 @@ function meanLnGeoFromAttempts(attempts, levelIndex, capMs, levelCount) {
   const list = Array.isArray(attempts) ? attempts : [];
   for (let i = 0; i < list.length; i += 1) {
     const a = list[i];
-    if (!a) continue;
+    if (!a || a.correct !== true) continue;
     if (filterLevel) {
       const aLv = Math.max(0, Math.min(lc - 1, Math.floor(Number(a.levelIndex) || 0)));
       if (aLv !== lv) continue;

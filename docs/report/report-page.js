@@ -122,6 +122,7 @@
     heat: null,
     heatByCategory: {},
     heatmapFromServer: false,
+    practiceResetIncomplete: false,
     overviewRows: [],
     /** true = 已拉过全员概览；false = 仅有零散单人行（深链/切换补齐） */
     overviewComplete: false,
@@ -1755,7 +1756,7 @@
           '<td class="num jml-runs-col-heat-spd" title="开局时该关热图加权均时">' +
           formatTrainingRunHeatSpeedCell(r) +
           '</td>' +
-          '<td class="num jml-runs-col-run-spd" title="本局几何均时（对+错，≤60s）">' +
+          '<td class="num jml-runs-col-run-spd" title="本局几何均时（仅答对，≤60s）">' +
           formatTrainingRunAvgSpeedCell(r) +
           '</td>' +
           '<td class="jml-runs-col-pick">' +
@@ -1768,7 +1769,7 @@
 
     wrap.innerHTML =
       '<div class="jml-report-table-wrap"><table class="jml-report-table jml-report-runs-table">' +
-      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num" title="对+错几何均，剔除&gt;60s">本局均速</th><th>选关诊断</th></tr></thead>' +
+      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num" title="仅答对几何均，剔除&gt;60s">本局均速</th><th>选关诊断</th></tr></thead>' +
       '<tbody>' +
       rows +
       '</tbody></table></div>';
@@ -2415,6 +2416,7 @@
       levelBestFromRuns: levelBestFromRuns,
       runs: state.runs || [],
       savedPlan: loadSavedPracticePlan(state.selectedUsername),
+      resetIncomplete: state.practiceResetIncomplete === true,
       nowTs: Date.now(),
       systemPick: sp
         ? {
@@ -2427,6 +2429,7 @@
         : null,
     });
     if (advice.plan) savePracticePlan(state.selectedUsername, advice.plan);
+    state.practiceResetIncomplete = false;
     var p = advice.primary || {};
     var diverge = advice.divergesFromSystemPick
       ? '<span class="jml-advice-badge jml-advice-badge--diff">与旧选关不一致</span>'
@@ -2541,7 +2544,7 @@
       ' · 年级 ' +
       escapeHtml(gradeText) +
       ' · 队头计失败 · 2～5 可碰巧完成</span>' +
-      '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset">重新开单</button>' +
+      '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset" title="只重算未完成，已完成窗口保留">重新开单</button>' +
       '</div>' +
       '<p class="jml-advice-primary">' +
       escapeHtml(p.title || '') +
@@ -2940,7 +2943,7 @@
         var resetAdvice = ev.target.closest('#jml-advice-reset');
         if (resetAdvice && statsBody.contains(resetAdvice)) {
           ev.preventDefault();
-          clearSavedPracticePlan(state.selectedUsername);
+          state.practiceResetIncomplete = true;
           renderStatsPanel();
           return;
         }
@@ -3037,7 +3040,7 @@
         if (backfillRunSpeed.disabled) return;
         if (
           !window.confirm(
-            '临时维护：全库扫描训练 / 小数 / 平方数 / 整除 Z1–Z4 局，按 attempts 写回 runAvgSec（不含开局加权速）。\n\n确认执行？（Render 需已部署对应 API）'
+            '临时维护：全库扫描训练 / 小数 / 平方数 / 整除 Z1–Z4 局，按 attempts 写回 runAvgSec（仅答对几何均，不含开局加权速）。\n\n确认执行？（Render 需已部署对应 API）'
           )
         ) {
           return;
