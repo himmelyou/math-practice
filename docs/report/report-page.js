@@ -122,7 +122,9 @@
     heat: null,
     heatByCategory: {},
     heatmapFromServer: false,
-    practiceResetIncomplete: false,
+    practiceAdvice: null,
+    practiceAdviceError: '',
+    practiceAdviceLoading: false,
     overviewRows: [],
     /** true = 已拉过全员概览；false = 仅有零散单人行（深链/切换补齐） */
     overviewComplete: false,
@@ -141,7 +143,6 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
-  var PRACTICE_PLAN_KEY_PREFIX = 'jml-practice-plan-v09:';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
@@ -1528,6 +1529,10 @@
         state.trainDebugPayload = null;
         state.heatmapFromServer = false;
         state.heatByCategory = {};
+        state.practiceAdvice = null;
+        state.practiceAdviceError = '';
+        state.practiceAdviceLoading = true;
+        void fetchPracticeAdviceForSelectedUser();
         // 后台拉服务器热图格子（权威）
         void fetchServerHeatmapForSelectedUser()
           .then(function (ok) {
@@ -2327,34 +2332,39 @@
     return !!(state.agg && state.agg.hasAny);
   }
 
-  function practicePlanStorageKey(username) {
-    return PRACTICE_PLAN_KEY_PREFIX + String(username || '');
-  }
-
-  function loadSavedPracticePlan(username) {
-    if (!username) return null;
-    try {
-      var raw = localStorage.getItem(practicePlanStorageKey(username));
-      if (!raw) return null;
-      var parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  function savePracticePlan(username, plan) {
-    if (!username || !plan) return;
-    try {
-      localStorage.setItem(practicePlanStorageKey(username), JSON.stringify(plan));
-    } catch (e) {}
-  }
-
-  function clearSavedPracticePlan(username) {
-    if (!username) return;
-    try {
-      localStorage.removeItem(practicePlanStorageKey(username));
-    } catch (e) {}
+  function fetchPracticeAdviceForSelectedUser(resetIncomplete) {
+    var u = state.selectedUsername;
+    if (!u) return Promise.resolve();
+    state.practiceAdviceLoading = true;
+    state.practiceAdviceError = '';
+    var path = '/api/admin/user/' + encodeURIComponent(u) + '/practice-plan';
+    var req = resetIncomplete
+      ? apiFetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resetIncomplete: true }),
+        })
+      : apiFetch(path);
+    return req
+      .then(function (data) {
+        if (state.selectedUsername !== u) return;
+        state.practiceAdviceLoading = false;
+        if (data && data.ok) {
+          state.practiceAdvice = data;
+          state.practiceAdviceError = '';
+        } else {
+          state.practiceAdvice = null;
+          state.practiceAdviceError = (data && data.error) || '任务单加载失败';
+        }
+        if (activeTabId() === 'stats') renderStatsPanel();
+      })
+      .catch(function (e) {
+        if (state.selectedUsername !== u) return;
+        state.practiceAdviceLoading = false;
+        state.practiceAdvice = null;
+        state.practiceAdviceError = (e && e.message) || '任务单加载失败';
+        if (activeTabId() === 'stats') renderStatsPanel();
+      });
   }
 
   function formatAdviceSystemPickLine(sp) {
@@ -2373,63 +2383,30 @@
   }
 
   function buildPracticeAdviceBannerHtml() {
-    var Advice = window.JmlPracticeAdvice;
-    if (!Advice || typeof Advice.computePracticeAdvice !== 'function') {
-      return (
-        '<section class="jml-advice-banner jml-advice-banner--muted">' +
-        '<p>练习建议脚本未加载。</p></section>'
-      );
-    }
-    var heat =
-      (state.heatByCategory && state.heatByCategory.arithmetic) ||
-      (state.chartCategoryId === 'arithmetic' ? state.heat : null);
-    var cells = heat && Array.isArray(heat.cells) ? heat.cells : [];
-    if (!cells.length) {
+    if (state.practiceAdviceLoading && !state.practiceAdvice) {
       return (
         '<section class="jml-advice-banner jml-advice-banner--muted">' +
         '<h3 class="jml-advice-title">助手练习建议</h3>' +
-        '<p>等待四则热图…</p></section>'
+        '<p>任务单加载中…</p></section>'
       );
     }
-    var user = state.userDetail || {};
-    var sp = state.serverTrainingPick;
-    var levelBestFromRuns = null;
-    (state.runs || []).forEach(function (r) {
-      if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'level') return;
-      var ml = Number(r.maxLevel);
-      if (Number.isFinite(ml) && (levelBestFromRuns == null || ml > levelBestFromRuns)) {
-        levelBestFromRuns = Math.floor(ml);
-      }
-    });
-    var hasClearedLevel =
-      user.hasClearedLevel === true ||
-      (state.runs || []).some(function (r) {
-        return String(r && r.mode ? r.mode : '').toLowerCase() === 'level' && r.cleared === true;
-      });
-    var advice = Advice.computePracticeAdvice({
-      username: state.selectedUsername,
-      grade: user.grade != null ? user.grade : null,
-      cells: cells,
-      hasClearedLevel: hasClearedLevel,
-      levelChallengeBestLevel:
-        user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
-      levelBestFromRuns: levelBestFromRuns,
-      runs: state.runs || [],
-      savedPlan: loadSavedPracticePlan(state.selectedUsername),
-      resetIncomplete: state.practiceResetIncomplete === true,
-      nowTs: Date.now(),
-      systemPick: sp
-        ? {
-            levelIndex: sp.levelIndex,
-            pickedL: sp.pickedL,
-            dayMode: sp.dayMode,
-            pickReason: sp.pickReason || sp.reason,
-            ok: sp.ok,
-          }
-        : null,
-    });
-    if (advice.plan) savePracticePlan(state.selectedUsername, advice.plan);
-    state.practiceResetIncomplete = false;
+    if (state.practiceAdviceError && !state.practiceAdvice) {
+      return (
+        '<section class="jml-advice-banner jml-advice-banner--muted">' +
+        '<h3 class="jml-advice-title">助手练习建议</h3>' +
+        '<p>' +
+        escapeHtml(state.practiceAdviceError) +
+        '</p></section>'
+      );
+    }
+    var advice = state.practiceAdvice;
+    if (!advice) {
+      return (
+        '<section class="jml-advice-banner jml-advice-banner--muted">' +
+        '<h3 class="jml-advice-title">助手练习建议</h3>' +
+        '<p>等待任务单…</p></section>'
+      );
+    }
     var p = advice.primary || {};
     var diverge = advice.divergesFromSystemPick
       ? '<span class="jml-advice-badge jml-advice-badge--diff">与旧选关不一致</span>'
@@ -2529,8 +2506,10 @@
         );
       })
       .join('');
+    var gradeVal = advice.grade;
     var gradeText =
-      user.grade === 0 ? '学前' : user.grade != null && user.grade !== '' ? user.grade + '年级' : '未填';
+      gradeVal === 0 ? '学前' : gradeVal != null && gradeVal !== '' ? gradeVal + '年级' : '未填';
+    var sp = advice.systemPick || state.serverTrainingPick;
 
     return (
       '<section class="jml-advice-banner' +
@@ -2943,8 +2922,7 @@
         var resetAdvice = ev.target.closest('#jml-advice-reset');
         if (resetAdvice && statsBody.contains(resetAdvice)) {
           ev.preventDefault();
-          state.practiceResetIncomplete = true;
-          renderStatsPanel();
+          void fetchPracticeAdviceForSelectedUser(true);
           return;
         }
         if (toggle && statsBody.contains(toggle)) {

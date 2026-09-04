@@ -29,6 +29,8 @@ const {
   computeSpecialCategoryNextLevels,
 } = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
+const { createPracticePlanStore } = require("./practice-plan-store");
+const practicePlanService = require("./practice-plan-service");
 const {
   DIVISIBILITY_HEATMAP_LEVEL_COUNT,
   heatLevelIndexFromAttempt,
@@ -359,6 +361,11 @@ const runsStore = createRunsStore({
   readJson,
   writeJson,
   clearJsonCacheFor,
+});
+const practicePlanStore = createPracticePlanStore({
+  dataDir: DATA_DIR,
+  readJson,
+  writeJson,
 });
 try {
   const syncResult = runsStore.syncFromLegacy({ force: false });
@@ -704,6 +711,55 @@ function buildHeatmapPayloadForUsername(username) {
     categories: built.categories || [],
     byCategory: built.byCategory || {},
   };
+}
+
+function computePracticePlanForUsername(username, opts) {
+  opts = opts || {};
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = usersData.users.find((u) => u.username === username);
+  if (!user) return { ok: false, status: 404, error: "用户不存在" };
+  const runs = runsStore.getUserRuns(username).map((r) => ({
+    ...r,
+    mode: normalizeRunMode(r.mode),
+  }));
+  if (ensureUserClearedFlagsFromRuns(user, runs)) {
+    writeJson(USERS_FILE, usersData);
+  }
+  const heatPayload = buildHeatmapPayloadForUsername(username);
+  const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
+  let systemPick = null;
+  if (opts.includeSystemPick) {
+    try {
+      const cohort = readCohortResultForHeatmap();
+      const capMs =
+        cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+      const pick = computeTrainingNextLevelForUser({
+        runs,
+        cohort,
+        storedDayMode: user.trainingDayMode || null,
+        capMs,
+      });
+      systemPick = practicePlanService.systemPickFromTraining(pick);
+    } catch (e) {
+      systemPick = null;
+    }
+  }
+  try {
+    const advice = practicePlanService.computePracticePlanForUser({
+      username,
+      user,
+      runs,
+      cells,
+      store: practicePlanStore,
+      resetIncomplete: opts.resetIncomplete === true,
+      includeSystemPick: false,
+      systemPick,
+    });
+    return { ok: true, advice };
+  } catch (e) {
+    console.warn("[practice-plan]", e && e.message ? e.message : e);
+    return { ok: false, status: 500, error: "任务单计算失败" };
+  }
 }
 
 function computeHeatmapL16PassedFromRuns(runs) {
@@ -2242,6 +2298,96 @@ app.get("/api/user/:username/heatmap", requireStudentAuth, ensureOwnData, (req, 
     console.warn("[user/heatmap]", e && e.message ? e.message : e);
     return res.status(500).json({ ok: false, error: "热图计算失败" });
   }
+});
+
+/** 学员：练习任务单（服务器算、服务器存；引擎不在 H5） */
+app.get("/api/user/:username/practice-plan", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const out = computePracticePlanForUsername(username, { includeSystemPick: false });
+  if (!out.ok) {
+    return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
+  }
+  return res.json(practicePlanService.studentPayload(out.advice));
+});
+
+app.post("/api/user/:username/practice-plan", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const resetIncomplete = !!(req.body && req.body.resetIncomplete);
+  const out = computePracticePlanForUsername(username, {
+    includeSystemPick: false,
+    resetIncomplete,
+  });
+  if (!out.ok) {
+    return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
+  }
+  return res.json(practicePlanService.studentPayload(out.advice));
+});
+
+/** 管理员：练习任务单对照（与学员同一份存盘） */
+app.get("/api/admin/user/:username/practice-plan", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const out = computePracticePlanForUsername(username, { includeSystemPick: true });
+  if (!out.ok) {
+    return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
+  }
+  const advice = out.advice;
+  return res.json({
+    ok: true,
+    ruleVersion: advice.ruleVersion,
+    grade: advice.grade,
+    profile: advice.profile,
+    scanTarget: advice.scanTarget,
+    queue: advice.queue,
+    history: practicePlanService.Advice.historyToClientList(advice.plan),
+    plan: advice.plan,
+    planEvents: advice.planEvents,
+    primary: advice.primary,
+    dontOpen: advice.dontOpen,
+    dontOpenLabel: advice.dontOpenLabel,
+    clearEstimate: advice.clearEstimate,
+    reasons: advice.reasons,
+    unresolved: advice.unresolved,
+    systemPick: advice.systemPick,
+    divergesFromSystemPick: advice.divergesFromSystemPick,
+  });
+});
+
+app.post("/api/admin/user/:username/practice-plan", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const resetIncomplete = !!(req.body && req.body.resetIncomplete);
+  const out = computePracticePlanForUsername(username, {
+    includeSystemPick: true,
+    resetIncomplete,
+  });
+  if (!out.ok) {
+    return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
+  }
+  const advice = out.advice;
+  return res.json({
+    ok: true,
+    ruleVersion: advice.ruleVersion,
+    grade: advice.grade,
+    profile: advice.profile,
+    scanTarget: advice.scanTarget,
+    queue: advice.queue,
+    history: practicePlanService.Advice.historyToClientList(advice.plan),
+    plan: advice.plan,
+    planEvents: advice.planEvents,
+    primary: advice.primary,
+    dontOpen: advice.dontOpen,
+    dontOpenLabel: advice.dontOpenLabel,
+    clearEstimate: advice.clearEstimate,
+    reasons: advice.reasons,
+    unresolved: advice.unresolved,
+    systemPick: advice.systemPick,
+    divergesFromSystemPick: advice.divergesFromSystemPick,
+  });
 });
 
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */

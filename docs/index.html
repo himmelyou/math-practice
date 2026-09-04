@@ -5179,7 +5179,6 @@
   <script src="perfect-square-page.js?v=51"></script>
   <script src="divisibility-page.js?v=16"></script>
   <script src="decimal-page.js?v=16"></script>
-  <script src="report/practice-advice.js?v=21"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -6259,7 +6258,6 @@
       }
     }
 
-    const PRACTICE_PLAN_KEY_PREFIX = "jml-practice-plan-v09:";
     let lastDailyTaskAdvice = null;
     let dailyTaskRenderSeq = 0;
 
@@ -6269,29 +6267,6 @@
         sec.style.display = "none";
         sec.hidden = true;
       }
-    }
-
-    function practicePlanStorageKey(username) {
-      return PRACTICE_PLAN_KEY_PREFIX + String(username || "");
-    }
-
-    function loadSavedPracticePlan(username) {
-      if (!username) return null;
-      try {
-        const raw = localStorage.getItem(practicePlanStorageKey(username));
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === "object" ? parsed : null;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    function savePracticePlan(username, plan) {
-      if (!username || !plan) return;
-      try {
-        localStorage.setItem(practicePlanStorageKey(username), JSON.stringify(plan));
-      } catch (e) { /* ignore */ }
     }
 
     function dailyTaskKindLabel(step) {
@@ -6346,12 +6321,7 @@
       const openSteps = queue.filter(function (s) {
         return s.status === "active" || s.status === "pending";
       });
-      const doneSteps = queue
-        .filter(function (s) {
-          return s.status === "success";
-        })
-        .slice()
-        .reverse();
+      const doneSteps = Array.isArray(advice && advice.history) ? advice.history : [];
       let openHtml = "";
       openSteps.forEach(function (step, i) {
         openHtml += dailyTaskCardHtml(step, i, { isHead: i === 0 });
@@ -6384,44 +6354,28 @@
       if (lastDailyTaskAdvice) renderDailyTaskAdvice(lastDailyTaskAdvice);
     }
 
-    async function loadDailyTaskAdvice() {
-      const Advice = window.JmlPracticeAdvice;
-      const username = loadCurrentUsername();
-      if (!Advice || typeof Advice.computePracticeAdvice !== "function" || !username) {
+    async function apiGetPracticePlan(username) {
+      const base = getApiBase();
+      if (!base || !username) return null;
+      const res = await fetch(base + "/api/user/" + encodeURIComponent(username) + "/practice-plan", {
+        credentials: "include",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(function () {
+        return null;
+      });
+      if (res.status === 401) {
+        handleAuthRequired();
         return null;
       }
-      const heatPack = await buildTrainingHeatmapAsync();
-      const cells =
-        heatPack && heatPack.heat && Array.isArray(heatPack.heat.cells) ? heatPack.heat.cells : [];
-      const runs = (heatPack && heatPack.runs) || [];
-      let levelBestFromRuns = null;
-      runs.forEach(function (r) {
-        if (String(r && r.mode ? r.mode : "").toLowerCase() !== "level") return;
-        const ml = Number(r.maxLevel);
-        if (Number.isFinite(ml) && (levelBestFromRuns == null || ml > levelBestFromRuns)) {
-          levelBestFromRuns = Math.floor(ml);
-        }
-      });
-      const user = cachedUser || {};
-      const hasClearedLevel =
-        userHasClearedLevel(user) ||
-        runs.some(function (r) {
-          return String(r && r.mode ? r.mode : "").toLowerCase() === "level" && r.cleared === true;
-        });
-      const advice = Advice.computePracticeAdvice({
-        username: username,
-        grade: user.grade != null ? user.grade : null,
-        cells: cells,
-        hasClearedLevel: hasClearedLevel,
-        levelChallengeBestLevel:
-          user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
-        levelBestFromRuns: levelBestFromRuns,
-        runs: runs,
-        savedPlan: loadSavedPracticePlan(username),
-        nowTs: Date.now(),
-      });
-      if (advice && advice.plan) savePracticePlan(username, advice.plan);
-      return advice;
+      if (!res.ok || !data || data.ok === false) return null;
+      return data;
+    }
+
+    async function loadDailyTaskAdvice() {
+      const username = loadCurrentUsername();
+      if (!username) return null;
+      return apiGetPracticePlan(username);
     }
 
     async function showDailyTaskView() {

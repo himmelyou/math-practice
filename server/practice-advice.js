@@ -38,6 +38,8 @@
   var COMPLETED_MAX = 5;
   /** 同一 key 两次出现之间至少隔这么多条；可练池空时破例 */
   var SAME_TASK_GAP = 5;
+  /** 测试期不落全量成功历史；上线后改 true。冷却窗仍走 plan.tasks 里 status=success（最多 5）。 */
+  var STORE_FULL_HISTORY = false;
   /** 冲榜闯关：每关按 10 题均速加总，再乘开销；预估须 ≤ 纪录 × 此系数 */
   var SCAN_CLEAR_ITEMS = 10;
   var SCAN_CLEAR_OVERHEAD = 1.2;
@@ -1133,6 +1135,7 @@
       dontOpenLabel: dont.copy,
       tasks: [],
       events: [],
+      history: [],
     };
     fillIncomplete(plan, ctx, issuedAt);
     var head = getActiveTask(plan);
@@ -1295,6 +1298,65 @@
     return seedIsNeeded(seed, ctx);
   }
 
+  function slimHistoryEntry(task) {
+    if (!task) return null;
+    return {
+      id: task.id,
+      key: task.key,
+      action: task.action,
+      mode: task.mode,
+      levelIndex: task.levelIndex,
+      levelLabel: task.levelLabel,
+      successKind: task.successKind,
+      scanKind: task.scanKind || "",
+      scanLevelLabel: task.scanLevelLabel || "",
+      title: task.title || "",
+      tileGoal: tileGoal(task),
+      completedAt: task.completedAt || null,
+      chinaDay: task.chinaDay || "",
+      status: "success",
+    };
+  }
+
+  function rememberSuccess(plan, task) {
+    if (!STORE_FULL_HISTORY) return;
+    if (!plan || !task || task.status !== "success" || !task.id) return;
+    if (!Array.isArray(plan.history)) plan.history = [];
+    var i;
+    for (i = 0; i < plan.history.length; i += 1) {
+      if (plan.history[i] && plan.history[i].id === task.id) return;
+    }
+    var row = slimHistoryEntry(task);
+    if (row) plan.history.push(row);
+  }
+
+  function historyToClientList(plan) {
+    if (!STORE_FULL_HISTORY) return [];
+    var list = (plan && Array.isArray(plan.history) ? plan.history : []).slice();
+    var out = [];
+    var i;
+    for (i = list.length - 1; i >= 0; i -= 1) {
+      var h = list[i];
+      if (!h) continue;
+      out.push({
+        id: h.id,
+        key: h.key,
+        action: h.action,
+        mode: h.mode,
+        levelIndex: h.levelIndex,
+        levelLabel: h.levelLabel,
+        successKind: h.successKind,
+        scanKind: h.scanKind || "",
+        tileGoal: h.tileGoal || "",
+        tileProgress: h.chinaDay || "",
+        status: "success",
+        completedAt: h.completedAt || null,
+        chinaDay: h.chinaDay || "",
+      });
+    }
+    return out;
+  }
+
   function replan(plan, ctx, closedTask, reason, ts) {
     var done = doneTasks(plan);
     if (closedTask && closedTask.status === "parked") {
@@ -1321,6 +1383,7 @@
       ) {
         done.push(closedTask);
       }
+      rememberSuccess(plan, closedTask);
       done = trimDone(done);
     } else if (reason === "fail" && closedTask) {
       closedTask.status = "pending";
@@ -1393,6 +1456,8 @@
     }
     plan = cloneJson(saved);
     if (!Array.isArray(plan.tasks)) plan.tasks = [];
+    if (!STORE_FULL_HISTORY) plan.history = [];
+    else if (!Array.isArray(plan.history)) plan.history = [];
     var versionBump = plan.ruleVersion !== RULE_VERSION;
     if (versionBump || flags.resetIncomplete) {
       plan.ruleVersion = RULE_VERSION;
@@ -1932,6 +1997,7 @@
 
   var api = {
     RULE_VERSION: RULE_VERSION,
+    STORE_FULL_HISTORY: STORE_FULL_HISTORY,
     AHEAD_MASTERED_N: AHEAD_MASTERED_N,
     FLOOR_MIN: FLOOR_MIN,
     FAST_TIME_PCT: FAST_TIME_PCT,
@@ -1963,6 +2029,7 @@
     bestClearedLevelSec: bestClearedLevelSec,
     formatAdviceClock: formatAdviceClock,
     computePracticeAdvice: computePracticeAdvice,
+    historyToClientList: historyToClientList,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,
   };
