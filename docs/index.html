@@ -1079,15 +1079,19 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
-    .ranking-table-v2.ranking-mode-score .r-col-user {
+    .ranking-table-v2.ranking-mode-score .r-col-user,
+    .ranking-table-v2.ranking-mode-taskMaster .r-col-user {
       width: auto;
       text-align: left;
     }
-    .ranking-table-v2.ranking-mode-score td.r-col-user {
+    .ranking-table-v2.ranking-mode-score td.r-col-user,
+    .ranking-table-v2.ranking-mode-taskMaster td.r-col-user {
       padding-left: 6px;
     }
     .ranking-table-v2.ranking-mode-score .r-col-score,
-    .ranking-table-v2.ranking-mode-score td.r-col-score {
+    .ranking-table-v2.ranking-mode-score td.r-col-score,
+    .ranking-table-v2.ranking-mode-taskMaster .r-col-score,
+    .ranking-table-v2.ranking-mode-taskMaster td.r-col-score {
       text-align: center;
     }
     .ranking-table-v2.ranking-mode-streak .r-col-user,
@@ -4602,13 +4606,19 @@
               aria-label="选择榜单"
             >
               <span class="ranking-mode-row">
-                <span id="ranking-mode-trigger-label" class="ranking-mode-text">等级榜</span>
+                <span id="ranking-mode-trigger-label" class="ranking-mode-text">任务达人</span>
                 <span class="ranking-mode-slot" aria-hidden="true">
                   <span class="ranking-mode-trigger-caret"></span>
                 </span>
               </span>
             </button>
             <div id="ranking-mode-menu" class="home-settings-menu ranking-mode-menu" role="menu" hidden>
+              <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="taskMaster">
+                <span class="ranking-mode-row">
+                  <span id="ranking-mode-label-taskMaster" class="ranking-mode-text">任务达人</span>
+                  <span class="ranking-mode-slot" aria-hidden="true"><span class="ranking-mode-check">✓</span></span>
+                </span>
+              </button>
               <button type="button" class="home-settings-menu-item ranking-mode-menu-item" role="menuitem" data-ranking-tab="score">
                 <span class="ranking-mode-row">
                   <span id="ranking-mode-label-score" class="ranking-mode-text">等级榜</span>
@@ -4657,7 +4667,7 @@
       </div>
       <div class="ranking-main-row">
         <div class="ranking-panel" id="ranking-panel">
-          <div class="panel-hint" id="ranking-panel-hint">等级榜 · 加载中…</div>
+          <div class="panel-hint" id="ranking-panel-hint">任务达人 · 加载中…</div>
 
           <div class="gate-card" id="ranking-survival-gate" style="display:none;">
             <p class="gate-title" id="ranking-gate-title">生存榜</p>
@@ -6172,6 +6182,7 @@
     }
 
     const RANKING_TAB_I18N = {
+      taskMaster: "ranking.taskMaster",
       score: "ranking.score",
       survival: "ranking.survival",
       levelClear: "ranking.levelClear",
@@ -6182,7 +6193,7 @@
     };
 
     function getRankingTabLabel(tab) {
-      const key = RANKING_TAB_I18N[tab] || RANKING_TAB_I18N.score;
+      const key = RANKING_TAB_I18N[tab] || RANKING_TAB_I18N.taskMaster;
       return t(key);
     }
 
@@ -6258,6 +6269,7 @@
     function updateRankingModeDropdownI18n() {
       const trigger = document.getElementById("ranking-mode-trigger");
       if (trigger) trigger.setAttribute("aria-label", t("ranking.selectAria"));
+      setTextById("ranking-mode-label-taskMaster", "ranking.taskMaster");
       setTextById("ranking-mode-label-score", "ranking.score");
       setTextById("ranking-mode-label-survival", "ranking.survival");
       setTextById("ranking-mode-label-levelClear", "ranking.levelClear");
@@ -8667,6 +8679,7 @@
         "home.mode.ranking": "排行榜",
         "home.mode.achievementWall": "成就牆",
         "ranking.title": "排行榜",
+        "ranking.taskMaster": "任務達人",
         "ranking.score": "等級榜",
         "ranking.survival": "生存榜",
         "ranking.levelClear": "闖關達人",
@@ -8717,7 +8730,7 @@
         "div.yourAnswer": "你的答案：",
         "div.correctAnswer": "正確：",
         "ranking.divisibilityPerfect": "整除達人",
-        "ranking.hint.divisibilityPerfect.desc": "整除達人榜 · L5 綜合練習零錯通關，用時越短越好（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.divisibilityPerfect.desc": "整除達人榜 · L5 綜合練習零錯通關，用時越短越好（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.divisibilityPerfect.descFull": "整除達人榜 · 測試員視圖 · L5 零錯通關（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.divisibility.loading": "整除達人榜 · 載入中…",
         "ranking.hint.divisibility.needNet": "整除達人榜 · 需要連接伺服器",
@@ -8934,36 +8947,42 @@
         "wrongbook.empty": "暫無錯題記錄。",
         "ranking.selectAria": "選擇榜單",
         "ranking.tablistAria": "排行榜 Tab",
+        "ranking.hint.taskMaster.loading": "任務達人 · 載入中…",
+        "ranking.hint.taskMaster.needNet": "任務達人 · 需要連接伺服器",
+        "ranking.hint.taskMaster.desc": "任務達人 · 按已完成每日任務數排名，數量相同則名次相同（展示前二十名；未進前二十會顯示你的名次）",
+        "ranking.hint.taskMaster.descFull": "任務達人 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
+        "ranking.hint.taskMaster.fail": "任務達人 · 載入失敗，請稍後重試",
         "ranking.hint.score.loading": "等級榜 · 載入中…",
         "ranking.hint.score.needNet": "等級榜 · 需要連接伺服器",
-        "ranking.hint.score.desc": "等級榜 · 按總經驗從高到低（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.score.desc": "等級榜 · 按總經驗從高到低（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.score.descFull": "等級榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.score.fail": "等級榜 · 載入失敗，請稍後重試",
         "ranking.hint.survival.loading": "生存榜 · 載入中…",
         "ranking.hint.survival.needNet": "生存榜 · 需要連接伺服器",
-        "ranking.hint.survival.desc": "生存榜 · 通關用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.survival.desc": "生存榜 · 通關用時越短越好，同用時錯題更少優先（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.survival.descFull": "生存榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.survival.fail": "生存榜 · 載入失敗，請稍後重試",
         "ranking.hint.levelClear.loading": "闖關達人 · 載入中…",
         "ranking.hint.levelClear.needNet": "闖關達人 · 需要連接伺服器",
-        "ranking.hint.levelClear.desc": "闖關達人 · 全通用時越短越好，同用時錯題更少優先，再同則更早通關者優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.levelClear.desc": "闖關達人 · 全通用時越短越好，同用時錯題更少優先，再同則更早通關者優先（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.levelClear.descFull": "闖關達人 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.levelClear.fail": "闖關達人 · 載入失敗，請稍後重試",
         "ranking.hint.prime.loading": "質數達人榜 · 載入中…",
         "ranking.hint.prime.needNet": "質數達人榜 · 需要連接伺服器",
-        "ranking.hint.prime.desc": "質數達人榜 · 掌握 50 題且錯題 ≤5，用時越短越好，同用時錯題更少優先（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.prime.desc": "質數達人榜 · 掌握 50 題且錯題 ≤5，用時越短越好，同用時錯題更少優先（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.prime.descFull": "質數達人榜 · 測試員視圖 · 掌握 50 題且錯題 ≤5（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.prime.fail": "質數達人榜 · 載入失敗，請稍後重試",
         "ranking.hint.streak.loading": "耐力榜 · 載入中…",
         "ranking.hint.streak.needNet": "耐力榜 · 需要連接伺服器",
-        "ranking.hint.streak.desc": "耐力榜 · 最長與當前連續挑戰天數（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.streak.desc": "耐力榜 · 最長與當前連續挑戰天數（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.streak.descFull": "耐力榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.streak.fail": "耐力榜 · 載入失敗，請稍後重試",
         "ranking.hint.combo.loading": "連擊榜 · 載入中…",
         "ranking.hint.combo.needNet": "連擊榜 · 需要連接伺服器",
-        "ranking.hint.combo.desc": "連擊榜 · 最高與當前連對（展示前十名；未進前十會顯示你的名次）",
+        "ranking.hint.combo.desc": "連擊榜 · 最高與當前連對（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.combo.descFull": "連擊榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.combo.fail": "連擊榜 · 載入失敗，請稍後重試",
+        "ranking.hint.tabLoading.taskMaster": "任務達人 · 載入中…",
         "ranking.hint.tabLoading.score": "等級榜 · 載入中…",
         "ranking.hint.tabLoading.survival": "生存榜 · 載入中…",
         "ranking.hint.tabLoading.levelClear": "闖關達人 · 載入中…",
@@ -8984,6 +9003,7 @@
         "ranking.th.challenger": "挑戰者",
         "ranking.th.totalScore": "總積分",
         "ranking.th.playerLevel": "等級",
+        "ranking.th.taskCount": "完成數",
         "ranking.th.time": "用時",
         "ranking.th.wrong": "錯題",
         "ranking.th.date": "日期",
@@ -9128,6 +9148,7 @@
         "home.mode.ranking": "Ranks",
         "home.mode.achievementWall": "Achievements",
         "ranking.title": "Leaderboard",
+        "ranking.taskMaster": "Task Master",
         "ranking.score": "Level Rank",
         "ranking.survival": "Survival",
         "ranking.levelClear": "Level Master",
@@ -9178,7 +9199,7 @@
         "div.yourAnswer": "Your answer:",
         "div.correctAnswer": "Correct:",
         "ranking.divisibilityPerfect": "Divisibility Master",
-        "ranking.hint.divisibilityPerfect.desc": "Divisibility Master · L5 mixed clear with 0 wrongs; faster is better (top 10; your rank shown if outside)",
+        "ranking.hint.divisibilityPerfect.desc": "Divisibility Master · L5 mixed clear with 0 wrongs; faster is better (top 20; your rank shown if outside)",
         "ranking.hint.divisibilityPerfect.descFull": "Divisibility Master · tester view · L5 0-wrong clears ({total} people, showing {shown}; your rank if outside)",
         "ranking.hint.divisibility.loading": "Divisibility Master · Loading…",
         "ranking.hint.divisibility.needNet": "Divisibility Master · Server required",
@@ -9378,36 +9399,42 @@
         "wrongbook.empty": "No wrong questions yet.",
         "ranking.selectAria": "Select leaderboard",
         "ranking.tablistAria": "Leaderboard tabs",
+        "ranking.hint.taskMaster.loading": "Task master · Loading…",
+        "ranking.hint.taskMaster.needNet": "Task master · Server required",
+        "ranking.hint.taskMaster.desc": "Task master · Ranked by completed daily tasks; same count shares rank (top 20; your row if outside)",
+        "ranking.hint.taskMaster.descFull": "Task master · Tester view · Full list ({shown} of {total}; your row if outside the list)",
+        "ranking.hint.taskMaster.fail": "Task master · Load failed, try again",
         "ranking.hint.score.loading": "Level rank · Loading…",
         "ranking.hint.score.needNet": "Level rank · Server required",
-        "ranking.hint.score.desc": "Level rank · Top 10 by total XP; your row shown if outside the top 10",
+        "ranking.hint.score.desc": "Level rank · Top 20 by total XP; your row shown if outside the top 20",
         "ranking.hint.score.descFull": "Level rank · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.score.fail": "Level rank · Load failed, try again",
         "ranking.hint.survival.loading": "Survival · Loading…",
         "ranking.hint.survival.needNet": "Survival · Server required",
-        "ranking.hint.survival.desc": "Survival · Faster clear wins; fewer wrongs tie-break (top 10; your row if outside)",
+        "ranking.hint.survival.desc": "Survival · Faster clear wins; fewer wrongs tie-break (top 20; your row if outside)",
         "ranking.hint.survival.descFull": "Survival · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.survival.fail": "Survival · Load failed, try again",
         "ranking.hint.levelClear.loading": "Level master · Loading…",
         "ranking.hint.levelClear.needNet": "Level master · Server required",
-        "ranking.hint.levelClear.desc": "Level master · Faster full clear wins; fewer wrongs, then earlier clear (top 10; your row if outside)",
+        "ranking.hint.levelClear.desc": "Level master · Faster full clear wins; fewer wrongs, then earlier clear (top 20; your row if outside)",
         "ranking.hint.levelClear.descFull": "Level master · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.levelClear.fail": "Level master · Load failed, try again",
         "ranking.hint.prime.loading": "Prime master · Loading…",
         "ranking.hint.prime.needNet": "Prime master · Server required",
-        "ranking.hint.prime.desc": "Prime master · Master 50 with ≤5 wrongs; faster wins, fewer wrongs tie-break (top 10; your row if outside)",
+        "ranking.hint.prime.desc": "Prime master · Master 50 with ≤5 wrongs; faster wins, fewer wrongs tie-break (top 20; your row if outside)",
         "ranking.hint.prime.descFull": "Prime master · Tester view · Master 50 with ≤5 wrongs ({shown} of {total}; your row if outside the list)",
         "ranking.hint.prime.fail": "Prime master · Load failed, try again",
         "ranking.hint.streak.loading": "Streak · Loading…",
         "ranking.hint.streak.needNet": "Streak · Server required",
-        "ranking.hint.streak.desc": "Streak · Longest and current daily streak (top 10; your row if outside)",
+        "ranking.hint.streak.desc": "Streak · Longest and current daily streak (top 20; your row if outside)",
         "ranking.hint.streak.descFull": "Streak · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.streak.fail": "Streak · Load failed, try again",
         "ranking.hint.combo.loading": "Combo · Loading…",
         "ranking.hint.combo.needNet": "Combo · Server required",
-        "ranking.hint.combo.desc": "Combo · Best and current combo (top 10; your row if outside)",
+        "ranking.hint.combo.desc": "Combo · Best and current combo (top 20; your row if outside)",
         "ranking.hint.combo.descFull": "Combo · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.combo.fail": "Combo · Load failed, try again",
+        "ranking.hint.tabLoading.taskMaster": "Task master · Loading…",
         "ranking.hint.tabLoading.score": "Level rank · Loading…",
         "ranking.hint.tabLoading.survival": "Survival · Loading…",
         "ranking.hint.tabLoading.levelClear": "Level master · Loading…",
@@ -9428,6 +9455,7 @@
         "ranking.th.challenger": "Player",
         "ranking.th.totalScore": "Points",
         "ranking.th.playerLevel": "Level",
+        "ranking.th.taskCount": "Completed",
         "ranking.th.time": "Time",
         "ranking.th.wrong": "Wrong",
         "ranking.th.date": "Date",
@@ -9758,6 +9786,7 @@
       setT("div-header-hint", "div.headerHint");
       setT("div-recent-title", "div.recentTitle");
       setT("ranking-mode-label-divisibilityPerfect", "ranking.divisibilityPerfect");
+      setT("ranking-mode-label-taskMaster", "ranking.taskMaster");
       const divLevelSelect = byId("div-level-select");
       if (divLevelSelect) divLevelSelect.setAttribute("aria-label", t("div.levelSelectAria"));
       setT("ps-lbl-progress", "game.status.progress");
@@ -12635,7 +12664,7 @@
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
-      setRankingActiveTab("score");
+      setRankingActiveTab("taskMaster");
       updateRankingModeDropdownI18n();
     }
 
@@ -13050,7 +13079,7 @@
     }
 
     let rankingUiInited = false;
-    let lastRankingTab = "score";
+    let lastRankingTab = "taskMaster";
     function initRankingUiSkeletonIfNeeded() {
       if (rankingUiInited) return;
       rankingUiInited = true;
@@ -13065,7 +13094,7 @@
       if (menu) {
         menu.querySelectorAll("[data-ranking-tab]").forEach((btn) => {
           btn.addEventListener("click", function () {
-            const tab = btn.getAttribute("data-ranking-tab") || "score";
+            const tab = btn.getAttribute("data-ranking-tab") || "taskMaster";
             closeRankingModeMenu();
             setRankingActiveTab(tab);
           });
@@ -13088,6 +13117,9 @@
     }
 
     function buildRankingTheadHtml(tab) {
+      if (tab === "taskMaster") {
+        return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.taskCount")) + "</th></tr>";
+      }
       if (tab === "score") {
         return "<tr><th class=\"r-col r-col-rank\">" + escapeHtml(t("ranking.th.rank")) + "</th><th class=\"r-col r-col-spacer\" aria-hidden=\"true\"></th><th class=\"r-col r-col-user\">" + escapeHtml(t("ranking.th.challenger")) + "</th><th class=\"r-col r-col-score\">" + escapeHtml(t("ranking.th.playerLevel")) + "</th></tr>";
       }
@@ -13136,6 +13168,22 @@
       return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + levelStr + "</td></tr>";
     }
 
+    function buildRankingTaskMasterRowHtml(entry, isMe) {
+      const name = entry.displayName || t("display.rookie");
+      const letter = getAvatarPlaceholderLetter(name);
+      const rankStr = escapeHtml(String(entry.rank != null ? entry.rank : ""));
+      const countStr = escapeHtml(String(entry.taskCount != null ? entry.taskCount : 0));
+      let avatarInner;
+      if (entry.avatarUrl) {
+        const safeUrl = String(entry.avatarUrl).replace(/"/g, "%22");
+        avatarInner = "<span class=\"avatar sm has-img\" style=\"background-image:url(&quot;" + safeUrl + "&quot;)\"></span>";
+      } else {
+        avatarInner = "<span class=\"avatar sm avatar-placeholder\">" + escapeHtml(letter) + "</span>";
+      }
+      const userCell = "<span class=\"user-cell\">" + avatarInner + "<span class=\"user-meta\"><span class=\"name\">" + escapeHtml(name) + "</span>" + buildRankingBadgesInline(entry) + "</span></span>";
+      return "<tr" + (isMe ? " class=\"ranking-row-me\"" : "") + "><td class=\"r-col r-col-rank\">" + rankStr + "</td><td class=\"r-col r-col-spacer\"></td><td class=\"r-col r-col-user\">" + userCell + "</td><td class=\"r-col r-col-score\">" + countStr + "</td></tr>";
+    }
+
     function buildRankingStreakRowHtml(entry, isMe) {
       const name = entry.displayName || t("display.rookie");
       const letter = getAvatarPlaceholderLetter(name);
@@ -13180,6 +13228,52 @@
         return;
       }
       hintEl.textContent = t("ranking.hint." + tabKey + ".desc");
+    }
+
+    async function loadTaskMasterRankingIntoTable() {
+      const tbody = document.getElementById("ranking-tbody-v2");
+      const empty = document.getElementById("ranking-empty-v2");
+      const hint = document.getElementById("ranking-panel-hint");
+      if (!tbody || !empty) return;
+      if (hint) hint.textContent = t("ranking.hint.taskMaster.loading");
+      const base = getApiBase();
+      if (!base) {
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = t("ranking.hint.taskMaster.needNet");
+        return;
+      }
+      const me = loadCurrentUsername();
+      const q = me ? ("?username=" + encodeURIComponent(me)) : "";
+      try {
+        const res = await fetch(base + "/api/task-master-ranking" + q, { credentials: "include" });
+        const data = await res.json();
+        if (!data || data.ok !== true || !Array.isArray(data.list)) {
+          throw new Error((data && data.error) || t("error.loadFailed"));
+        }
+        const list = data.list;
+        const rows = [];
+        const meName = me ? String(me) : "";
+        list.forEach((e) => {
+          if (!e || !e.username) return;
+          rows.push(buildRankingTaskMasterRowHtml(e, !!(meName && e.username === meName)));
+        });
+        const myRank = data.myRank != null ? Number(data.myRank) : 0;
+        const myEntry = data.myEntry;
+        if (myEntry && myEntry.username && myRank > 0 && !list.some((e) => e && e.username === myEntry.username)) {
+          rows.push("<tr class=\"ranking-gap\"><td colspan=\"4\" style=\"text-align:center;color:var(--muted);padding:8px;\">…</td></tr>");
+          rows.push(buildRankingTaskMasterRowHtml(myEntry, true));
+        }
+        tbody.innerHTML = rows.join("");
+        const hasAny = list.length > 0 || (myEntry && myRank > 0);
+        empty.style.display = hasAny ? "none" : "block";
+        if (hint) setRankingPanelHint(hint, "taskMaster", data);
+      } catch (e) {
+        console.warn("加载任务达人榜失败", e);
+        tbody.innerHTML = "";
+        empty.style.display = "block";
+        if (hint) hint.textContent = t("ranking.hint.taskMaster.fail");
+      }
     }
 
     async function loadScoreRankingIntoTable() {
@@ -13541,7 +13635,7 @@
     }
 
     function setRankingActiveTab(tab) {
-      const next = (tab === "score" || tab === "survival" || tab === "levelClear" || tab === "primePerfect" || tab === "divisibilityPerfect" || tab === "streak" || tab === "combo") ? tab : "score";
+      const next = (tab === "taskMaster" || tab === "score" || tab === "survival" || tab === "levelClear" || tab === "primePerfect" || tab === "divisibilityPerfect" || tab === "streak" || tab === "combo") ? tab : "taskMaster";
       lastRankingTab = next;
       const labelEl = document.getElementById("ranking-mode-trigger-label");
       if (labelEl) labelEl.textContent = getRankingTabLabel(next);
@@ -13570,13 +13664,19 @@
 
       if (hint) {
         hint.textContent =
-          next === "score" ? t("ranking.hint.tabLoading.score")
+          next === "taskMaster" ? t("ranking.hint.tabLoading.taskMaster")
+          : next === "score" ? t("ranking.hint.tabLoading.score")
           : next === "survival" ? t("ranking.hint.tabLoading.survival")
           : next === "levelClear" ? t("ranking.hint.tabLoading.levelClear")
           : next === "primePerfect" ? t("ranking.hint.tabLoading.prime")
           : next === "divisibilityPerfect" ? t("ranking.hint.divisibility.loading")
           : next === "streak" ? t("ranking.hint.tabLoading.streak")
           : t("ranking.hint.tabLoading.combo");
+      }
+
+      if (next === "taskMaster") {
+        void loadTaskMasterRankingIntoTable();
+        return;
       }
 
       if (next === "score") {

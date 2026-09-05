@@ -319,7 +319,7 @@ const FEEDBACK_RATE_WINDOW_MS = 60 * 60 * 1000;
 const FEEDBACK_RATE_MAX_PER_HOUR = 10;
 const feedbackSubmitTimestamps = new Map();
 /** 学员端排行榜 API 对外可见条数（全榜仍用于 myRank；list 仅返回前 N） */
-const RANKING_PUBLIC_MAX = 10;
+const RANKING_PUBLIC_MAX = 20;
 const RANKING_TESTER_MAX = 500;
 
 // 读取 JSON（按 mtime 缓存）。须在任何 readJson/writeJson 调用之前定义（含启动时 migrate）。
@@ -381,6 +381,20 @@ try {
   console.warn("[runs-store] sync failed", e && e.message ? e.message : e);
 }
 
+function readTaskCountsByUser() {
+  const out = {};
+  try {
+    const names = practicePlanStore.listUsernames();
+    names.forEach(function (name) {
+      const n = practicePlanStore.historyCount(name);
+      if (n > 0) out[name] = n;
+    });
+  } catch (e) {
+    console.warn("[task-master-ranking] read counts failed", e && e.message ? e.message : e);
+  }
+  return out;
+}
+
 function readRankingEvalData() {
   const usersData = readJson(USERS_FILE, { users: [] });
   const survivalData = readJson(SURVIVAL_RANKING_FILE, { list: [] });
@@ -393,6 +407,7 @@ function readRankingEvalData() {
     levelList: Array.isArray(levelData.list) ? levelData.list : [],
     primeList: Array.isArray(primeData.list) ? primeData.list : [],
     divisibilityList: Array.isArray(divisibilityData.list) ? divisibilityData.list : [],
+    taskCountsByUser: readTaskCountsByUser(),
   };
 }
 
@@ -1092,6 +1107,7 @@ function legacyDefaultI18nPayload() {
       "home.mode.ranking": "排行榜",
       "home.mode.achievementWall": "成就牆",
       "ranking.title": "排行榜",
+      "ranking.taskMaster": "任務達人",
       "ranking.score": "等級榜",
       "ranking.survival": "生存榜",
       "ranking.levelClear": "闖關達人",
@@ -1182,6 +1198,7 @@ function legacyDefaultI18nPayload() {
       "home.mode.ranking": "Ranks",
       "home.mode.achievementWall": "Achievements",
       "ranking.title": "Leaderboard",
+      "ranking.taskMaster": "Task Master",
       "ranking.score": "Level Rank",
       "ranking.survival": "Survival",
       "ranking.levelClear": "Level Master",
@@ -1335,11 +1352,47 @@ function migrateI18nScoreRankingLabels() {
   }
 }
 
+function rewriteRankingHintTopN(s) {
+  let out = String(s || "");
+  if (!out) return out;
+  out = out.replace(/前十名/g, "前二十名");
+  out = out.replace(/未進前十/g, "未進前二十");
+  out = out.replace(/未进前十/g, "未进前二十");
+  out = out.replace(/Top 10/g, "Top 20");
+  out = out.replace(/top 10/g, "top 20");
+  return out;
+}
+
+/** 线上 i18n.json 若仍写「前十」，部署后改成前二十，避免覆盖 H5 新文案。 */
+function migrateI18nRankingPublicTop20() {
+  if (!fs.existsSync(I18N_FILE)) return;
+  const raw = readJson(I18N_FILE, {});
+  let changed = false;
+  ["zhHant", "en"].forEach((lang) => {
+    const src = raw[lang];
+    if (!src || typeof src !== "object") return;
+    Object.keys(src).forEach((key) => {
+      if (!/^ranking\.hint\.[^.]+\.desc$/.test(key)) return;
+      const cur = src[key];
+      if (typeof cur !== "string") return;
+      const next = rewriteRankingHintTopN(cur);
+      if (next === cur) return;
+      src[key] = next;
+      changed = true;
+    });
+  });
+  if (changed) {
+    writeJson(I18N_FILE, normalizeI18nPayload(raw));
+    console.log("[i18n] migrated ranking hints (前十 → 前二十)");
+  }
+}
+
 // 确保 data 目录存在
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 migrateI18nScoreRankingLabels();
+migrateI18nRankingPublicTop20();
 if (!fs.existsSync(AVATAR_ASSET_DIR)) {
   fs.mkdirSync(AVATAR_ASSET_DIR, { recursive: true });
 }
@@ -2716,11 +2769,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
  * 学员端排行榜 JSON：list 仅含全榜前 RANKING_PUBLIC_MAX；myRank/myEntry 按全榜排序计算。
  * @param {Array} sortedRows 已排序的全榜行（原始数据）
  * @param {string} usernameQuery req.query.username
- * @param {{ getUsername?: (row: unknown) => string, toEntry: (row: unknown, rank: number) => object|null }} options
+ * @param {{ getUsername?: (row: unknown) => string, getRank?: (row: unknown, index: number) => number, toEntry: (row: unknown, rank: number) => object|null }} options
  */
 function buildPublicRankingJson(sortedRows, usernameQuery, options) {
   const getUsername = options.getUsername || ((row) => (row && row.username) || "");
   const toEntry = options.toEntry;
+  const getRank = typeof options.getRank === "function" ? options.getRank : (_row, i) => i + 1;
   const listLimit =
     options.listLimit != null && Number.isFinite(Number(options.listLimit))
       ? Math.max(1, Math.floor(Number(options.listLimit)))
@@ -2728,7 +2782,7 @@ function buildPublicRankingJson(sortedRows, usernameQuery, options) {
   const list = [];
   const limit = Math.min(listLimit, sortedRows.length);
   for (let i = 0; i < limit; i += 1) {
-    const entry = toEntry(sortedRows[i], i + 1);
+    const entry = toEntry(sortedRows[i], getRank(sortedRows[i], i));
     if (entry) list.push(entry);
   }
   const uname = String(usernameQuery || "").trim();
@@ -2737,7 +2791,7 @@ function buildPublicRankingJson(sortedRows, usernameQuery, options) {
   if (uname) {
     const idx = sortedRows.findIndex((row) => getUsername(row) === uname);
     if (idx >= 0) {
-      myRank = idx + 1;
+      myRank = getRank(sortedRows[idx], idx);
       myEntry = toEntry(sortedRows[idx], myRank);
     }
   }
@@ -2768,7 +2822,32 @@ function formatPrimePerfectRankingEntry(ctx, e, rank) {
   return formatSurvivalRankingEntry(ctx, e, rank);
 }
 
-// ========== 等级榜：按 totalScore 降序；返回前十名 + 当前用户全榜名次（?username=） ==========
+// ========== 任务达人：按全量成功历史条数；并列同名次，同档展示顺序每次随机 ==========
+app.get("/api/task-master-ranking", (req, res) => {
+  const ctx = createRankingLookupContext(req);
+  const rows = achievementRankings.buildTaskMasterRankingRows(ctx.users, readTaskCountsByUser(), {
+    shuffleTies: true,
+  });
+  res.json(
+    buildPublicRankingJson(rows, req.query.username, {
+      listLimit: ctx.rankingListLimit,
+      fullList: ctx.rankingFullList,
+      getRank: (row) => (row && Number(row.rank) > 0 ? Number(row.rank) : 0),
+      toEntry: (row, rank) => {
+        if (!row || !row.username) return null;
+        return ctx.withEquippedBadges({
+          rank,
+          username: row.username,
+          displayName: ctx.nicknameFor(row.username),
+          taskCount: Number(row.taskCount) || 0,
+          avatarUrl: ctx.avatarUrlForUsername(row.username),
+        });
+      },
+    })
+  );
+});
+
+// ========== 等级榜：按 totalScore 降序；返回前二十名 + 当前用户全榜名次（?username=） ==========
 app.get("/api/score-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   const users = ctx.users.slice();
@@ -2790,7 +2869,7 @@ app.get("/api/score-ranking", (req, res) => {
   );
 });
 
-// ========== 生存通关排行榜：每人只保留一条最佳，全量排名；前十名 + 当前用户 ==========
+// ========== 生存通关排行榜：每人只保留一条最佳，全量排名；前二十名 + 当前用户 ==========
 function dedupeBestPerUser(list) {
   const byUser = {};
   list.forEach((e) => {
@@ -2821,7 +2900,7 @@ app.get("/api/survival-ranking", (req, res) => {
   );
 });
 
-// ========== 闯关达人榜：L1–L16 全通最短用时；前十名 + 当前用户 ==========
+// ========== 闯关达人榜：L1–L16 全通最短用时；前二十名 + 当前用户 ==========
 app.get("/api/level-ranking", (req, res) => {
   const data = readJson(LEVEL_RANKING_FILE, { list: [] });
   let list = Array.isArray(data.list) ? data.list : [];
@@ -2837,7 +2916,7 @@ app.get("/api/level-ranking", (req, res) => {
   );
 });
 
-// ========== 质数达人榜：掌握 50 题、错题 ≤5、最短用时；前十名 + 当前用户 ==========
+// ========== 质数达人榜：掌握 50 题、错题 ≤5、最短用时；前二十名 + 当前用户 ==========
 function dedupeBestPrimePerfect(list) {
   const byUser = {};
   filterPrimePerfectRankingList(list).forEach((e) => {
@@ -2862,7 +2941,7 @@ app.get("/api/prime-perfect-ranking", (req, res) => {
   );
 });
 
-// ========== 整除达人榜：L5 零错通关最短用时；前十名 + 当前用户 ==========
+// ========== 整除达人榜：L5 零错通关最短用时；前二十名 + 当前用户 ==========
 function dedupeBestDivisibilityPerfect(list) {
   const byUser = {};
   (list || []).forEach((e) => {
@@ -2888,7 +2967,7 @@ app.get("/api/divisibility-perfect-ranking", (req, res) => {
   );
 });
 
-// ========== 耐力榜：按最长连续挑战天数；前十名 + 当前用户 ==========
+// ========== 耐力榜：按最长连续挑战天数；前二十名 + 当前用户 ==========
 app.get("/api/streak-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   const users = ctx.users;
@@ -2921,7 +3000,7 @@ app.get("/api/streak-ranking", (req, res) => {
   );
 });
 
-// ========== 连击榜：按最高连对；前十名 + 当前用户 ==========
+// ========== 连击榜：按最高连对；前二十名 + 当前用户 ==========
 app.get("/api/combo-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
   const users = ctx.users;

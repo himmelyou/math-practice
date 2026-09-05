@@ -47,6 +47,12 @@ function createPracticePlanStore(opts) {
     });
   }
 
+  function historyCount(username) {
+    const data = get(username);
+    const hist = data && data.plan && Array.isArray(data.plan.history) ? data.plan.history : [];
+    return hist.length;
+  }
+
   function listUsernames() {
     ensureDir();
     if (!fs.existsSync(byUserDir)) return [];
@@ -93,7 +99,7 @@ function createPracticePlanStore(opts) {
     });
   }
 
-  return { get, set, userFile, byUserDir, exportAll, replaceAll };
+  return { get, set, userFile, byUserDir, exportAll, replaceAll, listUsernames, historyCount };
 }
 
 module.exports = { createPracticePlanStore };
