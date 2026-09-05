@@ -43,6 +43,7 @@ function studentPayload(advice) {
     ruleVersion: advice.ruleVersion,
     queue: queue,
     history: Advice.historyToClientList(advice.plan),
+    lastFollow: advice.lastFollow || { kind: "none" },
   };
 }
 

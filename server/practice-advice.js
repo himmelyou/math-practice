@@ -1449,10 +1449,11 @@
     flags = flags || {};
     var plan;
     var rebuilt = false;
+    var lastFollow = { kind: "none" };
     if (!saved || (username && saved.username && saved.username !== username)) {
       plan = issuePlan(ctx, nowTs, username);
       rebuilt = true;
-      return { plan: plan, rebuilt: rebuilt };
+      return { plan: plan, rebuilt: rebuilt, lastFollow: lastFollow };
     }
     plan = cloneJson(saved);
     if (!Array.isArray(plan.tasks)) plan.tasks = [];
@@ -1499,11 +1500,15 @@
           ts
         );
         if (outcome === "success") {
+          lastFollow = { kind: "success", taskId: matched.id || "" };
           closeTask(plan, matched, "success", "success", ts);
           replan(plan, ctx, matched, "success", ts);
         } else if (outcome) {
+          lastFollow = { kind: "fail", taskId: matched.id || "", reason: outcome };
           closeTask(plan, matched, "fail", outcome, ts);
           replan(plan, ctx, matched, "fail", ts);
+        } else {
+          lastFollow = { kind: "pending", taskId: matched.id || "" };
         }
       } else if (matched) {
         var probe = probeRunSuccess(matched, run);
@@ -1512,18 +1517,20 @@
           if (probe.baseline) matched.baseline = probe.baseline;
           if (probe.targetAvgSec != null) matched.targetAvgSec = probe.targetAvgSec;
           pushEvent(plan, "follow", "碰巧完成：" + (matched.title || matched.levelLabel), ts);
+          lastFollow = { kind: "lucky", taskId: matched.id || "" };
           closeTask(plan, matched, "success", "success", ts);
           replan(plan, ctx, matched, "success", ts);
         }
       } else {
         reissueIncomplete(plan, ctx, ts, "跑偏：按热图重算未完成（已完成与同关进度保留）");
+        lastFollow = { kind: "drift" };
         rebuilt = true;
       }
       plan.lastProcessedTs = ts;
     });
     if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
     activateFirst(plan.tasks);
-    return { plan: plan, rebuilt: rebuilt };
+    return { plan: plan, rebuilt: rebuilt, lastFollow: lastFollow };
   }
 
   function successCopy(task) {
@@ -1681,6 +1688,7 @@
     return (plan.tasks || []).map(function (t) {
       var isOpen = t.status === "active" || t.status === "pending";
       return {
+        id: t.id,
         action: t.action,
         mode: t.mode,
         levelIndex: t.levelIndex,
@@ -1933,6 +1941,7 @@
       grade: ctx.grade,
       profile: ctx.profile,
       scanTarget: ctx.scan,
+      lastFollow: sync.lastFollow || { kind: "none" },
       queue: queue,
       completed: doneTasks(plan),
       plan: plan,

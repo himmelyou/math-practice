@@ -2983,9 +2983,19 @@
       margin-right: auto;
     }
 
+    .game-over-buttons.daily-task-over-row {
+      flex-direction: row;
+      width: min(92%, 320px);
+    }
+
     .game-over-buttons .btn-primary {
       flex: none;
       width: 100%;
+    }
+
+    .game-over-buttons.daily-task-over-row .btn-primary {
+      flex: 1;
+      width: auto;
     }
 
     /* 题目区 + 键盘/记录：占满 game-section 剩余高度 */
@@ -4349,6 +4359,7 @@
         </div>
         <div class="game-over-buttons">
           <button class="btn-primary" id="play-again-btn">再玩一局</button>
+          <button class="btn-primary" id="daily-task-back-btn" type="button" style="display:none;">回到任务列表</button>
         </div>
       </div>
 
@@ -6260,6 +6271,143 @@
 
     let lastDailyTaskAdvice = null;
     let dailyTaskRenderSeq = 0;
+    let dailyTaskPlay = null;
+
+    function isDailyTaskPlay() {
+      return !!(dailyTaskPlay && dailyTaskPlay.action);
+    }
+
+    function clearDailyTaskPlay() {
+      dailyTaskPlay = null;
+      resetDailyTaskGameOverButtons();
+    }
+
+    function pinTrainingLevelFromDailyTask() {
+      if (!isDailyTaskPlay() || dailyTaskPlay.action !== "training") return false;
+      const lv = Number(dailyTaskPlay.levelIndex);
+      if (!Number.isFinite(lv)) return false;
+      currentLevelIndex = Math.min(15, Math.max(0, Math.floor(lv)));
+      trainingAutoPickLevelIndex = currentLevelIndex;
+      lastTrainingEntrySource = "daily_task";
+      return true;
+    }
+
+    function mergeDailyTaskRunMeta(meta) {
+      const base = meta && typeof meta === "object" ? Object.assign({}, meta) : {};
+      if (!isDailyTaskPlay()) return Object.keys(base).length ? base : undefined;
+      base.dailyTask = true;
+      if (dailyTaskPlay.taskId) base.dailyTaskId = dailyTaskPlay.taskId;
+      if (dailyTaskPlay.action) base.dailyTaskAction = dailyTaskPlay.action;
+      return base;
+    }
+
+    function resetDailyTaskGameOverButtons() {
+      const row = document.querySelector("#game-over-panel .game-over-buttons");
+      if (row) row.classList.remove("daily-task-over-row");
+      const back = document.getElementById("daily-task-back-btn");
+      if (back) back.style.display = "none";
+      if (dom.playAgainBtn) {
+        dom.playAgainBtn.textContent = t("game.btn.playAgain");
+      }
+    }
+
+    function setDailyTaskGameOverActions(follow, abandoned) {
+      const row = document.querySelector("#game-over-panel .game-over-buttons");
+      const play = dom.playAgainBtn;
+      const back = document.getElementById("daily-task-back-btn");
+      if (!isDailyTaskPlay()) {
+        resetDailyTaskGameOverButtons();
+        if (play) play.style.display = "";
+        return;
+      }
+      if (back) {
+        back.style.display = "";
+        back.textContent = t("dailyTasks.over.backToList");
+      }
+      const canRetry = !abandoned && follow && follow.kind === "pending";
+      if (canRetry) {
+        if (play) {
+          play.style.display = "";
+          play.textContent = t("dailyTasks.over.retry");
+        }
+        if (row) row.classList.add("daily-task-over-row");
+      } else {
+        if (play) play.style.display = "none";
+        if (row) row.classList.remove("daily-task-over-row");
+      }
+    }
+
+    async function syncDailyTaskFollowAfterRun() {
+      if (!isDailyTaskPlay()) return { kind: "none" };
+      try {
+        const advice = await loadDailyTaskAdvice();
+        if (advice) lastDailyTaskAdvice = advice;
+        return (advice && advice.lastFollow) || { kind: "none" };
+      } catch (e) {
+        return { kind: "none" };
+      }
+    }
+
+    async function finishDailyTaskGameOver(abandoned) {
+      if (!isDailyTaskPlay()) {
+        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        return;
+      }
+      if (abandoned) {
+        setDailyTaskGameOverActions({ kind: "none" }, true);
+        return;
+      }
+      const follow = await syncDailyTaskFollowAfterRun();
+      const titleEl = document.getElementById("game-over-title");
+      if (titleEl) {
+        titleEl.textContent =
+          follow && follow.kind === "success"
+            ? t("dailyTasks.over.success")
+            : t("dailyTasks.over.keepTrying");
+      }
+      setDailyTaskGameOverActions(follow, false);
+    }
+
+    function goDailyTaskListFromSettlement() {
+      dailyTaskPlay = null;
+      resetDailyTaskGameOverButtons();
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      setGameOverLayout(false);
+      if (dom.gameSection) {
+        dom.gameSection.classList.remove("visible");
+        dom.gameSection.classList.remove("training-prestart");
+      }
+      void showDailyTaskView();
+    }
+
+    async function startDailyTaskChallenge() {
+      if (isGuestMode || !isTesterUser()) return;
+      const queue = ((lastDailyTaskAdvice && lastDailyTaskAdvice.queue) || []).filter(function (s) {
+        return s && (s.status === "active" || s.status === "pending");
+      });
+      const step = queue[0];
+      if (!step || !step.action) return;
+      dailyTaskPlay = {
+        taskId: step.id || "",
+        action: step.action,
+        levelIndex: step.levelIndex,
+        scanKind: step.scanKind || "",
+      };
+      hideDailyTaskSection();
+      if (step.action === "level") {
+        gameMode = "level";
+        writeGameSubtitleForMode("level");
+        showGameSection();
+        return;
+      }
+      gameMode = "training";
+      pinTrainingLevelFromDailyTask();
+      writeGameSubtitleForMode("training");
+      setTrainingPickPendingUi(false);
+      showGameSection();
+      await ensureTrainingEntryReadyAsync();
+    }
 
     function hideDailyTaskSection() {
       const sec = document.getElementById("daily-task-section");
@@ -8519,6 +8667,10 @@
         "dailyTasks.label.retryClear": "衝榜",
         "dailyTasks.label.training": "四則訓練 {level}",
         "dailyTasks.label.open": "開 {level}",
+        "dailyTasks.over.success": "挑戰成功",
+        "dailyTasks.over.keepTrying": "還需努力",
+        "dailyTasks.over.retry": "再試一次",
+        "dailyTasks.over.backToList": "回到任務列表",
         "home.menu.switchLang": "切換語言",
         "home.menu.gameGuide": "遊戲說明",
         "home.menu.contactUs": "聯繫我們",
@@ -8960,6 +9112,10 @@
         "dailyTasks.label.retryClear": "Retry clear",
         "dailyTasks.label.training": "Arithmetic {level}",
         "dailyTasks.label.open": "Open {level}",
+        "dailyTasks.over.success": "Challenge complete",
+        "dailyTasks.over.keepTrying": "Keep going",
+        "dailyTasks.over.retry": "Try again",
+        "dailyTasks.over.backToList": "Back to tasks",
         "home.menu.switchLang": "Language",
         "home.menu.gameGuide": "How to play",
         "home.menu.contactUs": "Contact us",
@@ -11213,7 +11369,7 @@
       if (survivalTimerId) clearInterval(survivalTimerId);
       trainingRunStartMeta = snapshotTrainingRunStartMeta();
       // 档位已在「开始前」画面（进训练 / 再玩一局）算好；手改非自动关 → 本局按刷热图记轨
-      trainingRunBrushMode = resolveTrainingRunBrushMode();
+      trainingRunBrushMode = isDailyTaskPlay() ? false : resolveTrainingRunBrushMode();
       setTrainingLevelSelectVisible(false);
       trainingCorrectCount = 0;
       runScore = 0;
@@ -11310,6 +11466,7 @@
       setGameCardActionSlot("start");
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      resetDailyTaskGameOverButtons();
       updateGlobalBackButtonState();
       scheduleSyncAllRuleHints();
     }
@@ -11345,7 +11502,10 @@
       dom.answerInput.value = "";
 
       currentLevelIndex = getTrainingEntryLevelFallback();
-      if (!isTrainingNextEntryCacheValid()) {
+      if (pinTrainingLevelFromDailyTask()) {
+        setTrainingPickPendingUi(false);
+        setTrainingPracticeSubtitle();
+      } else if (!isTrainingNextEntryCacheValid()) {
         setTrainingPickPendingUi(true);
       } else {
         applyTrainingNextEntryCacheIfValid();
@@ -11370,6 +11530,7 @@
       if (trainingEntryPickPending) setTrainingPickPendingUi(true);
       if (dom.startGameBtn) dom.startGameBtn.textContent = t("game.btn.startChallenge");
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      resetDailyTaskGameOverButtons();
       updateGlobalBackButtonState();
       scheduleSyncAllRuleHints();
       await ensureTrainingEntryReadyAsync();
@@ -11838,17 +11999,19 @@
           if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(currentLevelIndex);
         }
         setGameCardActionSlot("hidden");
-        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
-        const abandonMode = applyLocalTrainingDayModeAfterPlay(true);
-        appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
+        const abandonMode = isDailyTaskPlay()
+          ? { st: loadTrainingFlowState(), runKind: "daily" }
+          : applyLocalTrainingDayModeAfterPlay(true);
+        await appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
           abandoned: true,
           trainingMeta: buildTrainingRunMeta({
             abandoned: true,
-            runBrushMode: abandonMode.st.dayMode === "heat",
+            runBrushMode: !!(abandonMode.st && abandonMode.st.dayMode === "heat"),
             runKind: abandonMode.runKind,
           }),
         });
         renderTrainingRunWrongReview();
+        await finishDailyTaskGameOver(true);
         return;
       }
 
@@ -11876,7 +12039,7 @@
               runKind: modeAfter.runKind,
             }),
           });
-          await runTrainingFinalizeWithTimeout();
+          if (!isDailyTaskPlay()) await runTrainingFinalizeWithTimeout();
         } catch (e) {
           console.warn("训练刷热图局 finalize 失败", e);
         } finally {
@@ -11906,12 +12069,14 @@
           if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
         }
         setGameCardActionSlot("hidden");
-        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        await finishDailyTaskGameOver(false);
         return;
       }
 
       const failCount = runPass ? 0 : 1;
-      const modeAfter = applyLocalTrainingDayModeAfterPlay(false);
+      const modeAfter = isDailyTaskPlay()
+        ? { st: loadTrainingFlowState(), runKind: "daily" }
+        : applyLocalTrainingDayModeAfterPlay(false);
       let tipText = "";
       if (runPass) {
         tipText = t("game.training.dailyRunPass");
@@ -11933,7 +12098,7 @@
             enterBrushAfter: false,
           }),
         });
-        await runTrainingFinalizeWithTimeout();
+        if (!isDailyTaskPlay()) await runTrainingFinalizeWithTimeout();
       } catch (e) {
         console.warn("训练当日局 finalize 失败，使用同步选关占位", e);
       } finally {
@@ -11963,10 +12128,10 @@
         if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
       }
       setGameCardActionSlot("hidden");
-      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+      await finishDailyTaskGameOver(false);
     }
 
-    function endLevelGame(completed, abandoned) {
+    async function endLevelGame(completed, abandoned) {
       if (survivalTimerId) {
         clearInterval(survivalTimerId);
         survivalTimerId = null;
@@ -11986,9 +12151,20 @@
         // 放弃：保存进度、写入 runs，不计分、不写错题本
         saveLevelChallengeLastLevel(persistIdx);
         saveLevelChallengeBestLevel(persistIdx);
-        appendRun(survivalTimeSec, 0, persistIdx, runWrongCount, "level", currentRunAttempts.slice(), false, false, {
-          abandoned: true,
-        });
+        const abandonOpts = { abandoned: true };
+        const abandonMeta = mergeDailyTaskRunMeta();
+        if (abandonMeta) abandonOpts.trainingMeta = abandonMeta;
+        const abandonSave = appendRun(
+          survivalTimeSec,
+          0,
+          persistIdx,
+          runWrongCount,
+          "level",
+          currentRunAttempts.slice(),
+          false,
+          false,
+          abandonOpts
+        );
         renderMainGameRunWrongReview();
         updateTrainingButtonLabel();
         if (dom.gameOverPanel) {
@@ -12014,13 +12190,31 @@
           if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
         }
         setGameCardActionSlot("hidden");
-        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        if (isDailyTaskPlay()) {
+          await abandonSave;
+          await finishDailyTaskGameOver(true);
+        } else if (dom.playAgainBtn) {
+          dom.playAgainBtn.style.display = "";
+        }
         return;
       }
       const endLevel = completed ? 15 : persistIdx;
       saveLevelChallengeLastLevel(endLevel);
       saveLevelChallengeBestLevel(endLevel);
-      appendRun(survivalTimeSec, runScore, endLevel, runWrongCount, "level", currentRunAttempts.slice(), completed === true);
+      const levelSaveOpts = {};
+      const levelMeta = mergeDailyTaskRunMeta();
+      if (levelMeta) levelSaveOpts.trainingMeta = levelMeta;
+      const levelSave = appendRun(
+        survivalTimeSec,
+        runScore,
+        endLevel,
+        runWrongCount,
+        "level",
+        currentRunAttempts.slice(),
+        completed === true,
+        false,
+        levelMeta ? levelSaveOpts : undefined
+      );
       if (completed === true && cachedUser) cachedUser.hasClearedLevel = true;
       renderMainGameRunWrongReview();
       updateLevelStatusUI();
@@ -12061,7 +12255,12 @@
         }
       }
       setGameCardActionSlot("hidden");
-      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+      if (isDailyTaskPlay()) {
+        await levelSave;
+        await finishDailyTaskGameOver(false);
+      } else if (dom.playAgainBtn) {
+        dom.playAgainBtn.style.display = "";
+      }
       updateTrainingButtonLabel();
     }
 
@@ -12155,6 +12354,7 @@
     }
 
     function showHome() {
+      clearDailyTaskPlay();
       cancelTrainingEntryRefresh();
       isPlaying = false;
       gameOver = false;
@@ -14711,6 +14911,7 @@
         dayKey: getLocalTrainingDayKey(),
         heatReady: !!(trainingHeatSnapshot && trainingHeatSnapshot.cells),
         entrySource: lastTrainingEntrySource || "unknown",
+        dailyTask: isDailyTaskPlay(),
         buildId: typeof window.JML_BUILD_ID === "string" ? window.JML_BUILD_ID : "",
       };
     }
@@ -14736,7 +14937,7 @@
           lastCompletedTrack: dayMode === "heat" ? "brush" : "daily",
         },
       });
-      return meta;
+      return mergeDailyTaskRunMeta(meta);
     }
 
     function recordTrainingLastRun(levelIndex, passed, failCount) {
@@ -14808,6 +15009,7 @@
       if (!sel) return;
       const show =
         gameMode === "training" &&
+        !isDailyTaskPlay() &&
         !isPlaying &&
         !trainingEntryPickPending &&
         !!dom.gameSection &&
@@ -14858,6 +15060,7 @@
     }
 
     function onTrainingLevelSelectChange() {
+      if (isDailyTaskPlay()) return;
       if (isPlaying || gameMode !== "training" || !dom.trainingLevelSelect) return;
       const v = Number(dom.trainingLevelSelect.value);
       if (!Number.isFinite(v)) return;
@@ -15197,6 +15400,18 @@
     /** 每次进 prestart 都重算选关（cache 仅作超时/首屏占位，不再钉死下一关） */
     async function ensureTrainingEntryReadyAsync() {
       if (gameMode !== "training") return;
+      if (pinTrainingLevelFromDailyTask()) {
+        cancelTrainingEntryRefresh();
+        setTrainingPickPendingUi(false);
+        setTrainingPracticeSubtitle();
+        updateTrainingStatusUI();
+        setTrainingLevelSelectVisible(false);
+        if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
+          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+          scheduleSyncAllRuleHints();
+        }
+        return;
+      }
       if (isTrainingNextEntryCacheValid()) {
         applyTrainingNextEntryCacheIfValid();
       }
@@ -15554,6 +15769,7 @@
 
     function handleModeLevel() {
       if (!gatePendingRunDraft()) return;
+      clearDailyTaskPlay();
       gameMode = "level";
       writeGameSubtitleForMode("level");
       showGameSection();
@@ -15581,6 +15797,7 @@
 
     async function handleModePractice() {
       if (!gatePendingRunDraft()) return;
+      clearDailyTaskPlay();
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
         return;
@@ -15870,9 +16087,20 @@
       });
       if (dom.playAgainBtn) dom.playAgainBtn.addEventListener("click", () => {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+        resetDailyTaskGameOverButtons();
         if (gameMode === "training") void showTrainingPrestart();
         else showMainGamePrestart();
       });
+      const dailyTaskBackBtn = document.getElementById("daily-task-back-btn");
+      if (dailyTaskBackBtn) dailyTaskBackBtn.addEventListener("click", goDailyTaskListFromSettlement);
+      const dailyTaskBodyEl = document.getElementById("daily-task-body");
+      if (dailyTaskBodyEl) {
+        dailyTaskBodyEl.addEventListener("click", function (e) {
+          const btn = e.target && e.target.closest ? e.target.closest("[data-daily-task-start]") : null;
+          if (!btn) return;
+          void startDailyTaskChallenge();
+        });
+      }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.addEventListener("click", () => {
         showExpandBracketsPrestart({ keepLevel: true });
       });
