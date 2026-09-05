@@ -301,8 +301,8 @@
         o.textContent = opt.label;
         gradeSelect.appendChild(o);
       });
-      var currentGrade = u.grade;
-      if (currentGrade === 0 || (typeof currentGrade === 'number' && currentGrade >= 1 && currentGrade <= 12)) {
+      var currentGrade = Number(u.grade);
+      if (Number.isInteger(currentGrade) && currentGrade >= 0 && currentGrade <= 13) {
         gradeSelect.value = String(currentGrade);
       } else {
         gradeSelect.value = '';
