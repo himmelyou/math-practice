@@ -758,8 +758,12 @@
       void ensureOverviewForCurrentSelection(false);
       return;
     }
-    if (!state.selectedUsername) return;
+    if (!state.selectedUsername) {
+      if (next === 'task-history') renderTaskHistoryPanel();
+      return;
+    }
     if (state.loadedStudentUsername !== state.selectedUsername) {
+      if (next === 'task-history') renderTaskHistoryPanel();
       void loadStudentData();
       return;
     }
@@ -770,6 +774,9 @@
     }
     if (next === 'train-debug') {
       void loadTrainDebug(false);
+    }
+    if (next === 'task-history') {
+      renderTaskHistoryPanel();
     }
   }
 
@@ -1222,7 +1229,11 @@
     state.trainDebugPayload = null;
     state.serverTrainingPick = null;
     state.serverCategoryNext = null;
+    state.practiceAdvice = null;
+    state.practiceAdviceError = '';
+    state.practiceAdviceLoading = false;
     renderRunsTable();
+    renderTaskHistoryPanel();
     renderWrongBook();
     renderExpandWrongBook();
     renderDivisibilityWrongBook();
@@ -1518,6 +1529,9 @@
         state.chartModel = null;
         state.heat = null;
         state.heatByCategory = {};
+        state.practiceAdvice = null;
+        state.practiceAdviceError = '';
+        state.practiceAdviceLoading = true;
 
         renderRunsTable();
         renderWrongBook();
@@ -1529,9 +1543,7 @@
         state.trainDebugPayload = null;
         state.heatmapFromServer = false;
         state.heatByCategory = {};
-        state.practiceAdvice = null;
-        state.practiceAdviceError = '';
-        state.practiceAdviceLoading = true;
+        renderTaskHistoryPanel();
         void fetchPracticeAdviceForSelectedUser();
         // 后台拉服务器热图格子（权威）
         void fetchServerHeatmapForSelectedUser()
@@ -1590,6 +1602,8 @@
           redrawAllStatsCharts();
         } else if (activeTabId() === 'train-debug') {
           void fetchAndRenderTrainDebug();
+        } else if (activeTabId() === 'task-history') {
+          renderTaskHistoryPanel();
         } else {
           var statsWrap = document.getElementById('jml-report-stats-body');
           if (statsWrap) {
@@ -1686,28 +1700,187 @@
     return formatTrainingSpeedSec(m.runAvgSec);
   }
 
+  var DAILY_TASK_SPEED_ACC_MIN = 0.95;
+
+  function formatDailyTaskPct(p) {
+    if (p == null || !Number.isFinite(Number(p))) return '';
+    return Math.round(Number(p) * 1000) / 10 + '%';
+  }
+
+  function formatDailyTaskSec(sec) {
+    if (sec == null || !Number.isFinite(Number(sec))) return null;
+    return Math.round(Number(sec) * 10) / 10;
+  }
+
+  function formatDailyTaskKindLabel(step) {
+    if (!step) return '';
+    if (step.action === 'level') {
+      return step.scanKind === 'retry_clear' ? '冲榜' : '闯关';
+    }
+    if (step.successKind === 'open_activate') {
+      return '开 ' + (step.levelLabel || '');
+    }
+    if (step.action === 'training' || step.levelLabel) {
+      return step.levelLabel ? '四则训练 ' + step.levelLabel : '四则训练';
+    }
+    return step.tileLabel || '';
+  }
+
+  function formatDailyTaskGoalText(step) {
+    if (!step) return '';
+    if (step.tileGoal) return String(step.tileGoal);
+    if (step.successKind === 'level_reach') {
+      if (step.scanKind === 'retry_clear') return '通关L16';
+      return step.scanLevelLabel ? '过' + step.scanLevelLabel : '过关';
+    }
+    if (step.successKind === 'open_activate') return '1局或20题';
+    if (step.successKind === 'speed_step') {
+      var sec = formatDailyTaskSec(step.targetAvgSec);
+      var acc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
+      if (sec != null) return '均速≤' + sec + 's 且准≥' + acc;
+      return acc ? '均速↓ 且准≥' + acc : '均速↓';
+    }
+    if (step.targetP != null) {
+      var pTxt = formatDailyTaskPct(step.targetP);
+      return pTxt ? '准≥' + pTxt : '准度↑';
+    }
+    return '';
+  }
+
+  function findAdviceTaskById(id) {
+    if (!id || !state.practiceAdvice) return null;
+    var lists = [state.practiceAdvice.history, state.practiceAdvice.queue];
+    var i;
+    var j;
+    var list;
+    var item;
+    for (i = 0; i < lists.length; i += 1) {
+      list = lists[i];
+      if (!Array.isArray(list)) continue;
+      for (j = 0; j < list.length; j += 1) {
+        item = list[j];
+        if (item && String(item.id) === String(id)) return item;
+      }
+    }
+    return null;
+  }
+
+  function lookupDailyTaskForRun(r) {
+    var m = r && r.trainingMeta;
+    if (!m || typeof m !== 'object' || !m.dailyTask) return null;
+    var info = m.dailyTaskInfo && typeof m.dailyTaskInfo === 'object' ? m.dailyTaskInfo : {};
+    var fromAdvice = findAdviceTaskById(m.dailyTaskId);
+    return {
+      action: info.action || m.dailyTaskAction || (fromAdvice && fromAdvice.action) || '',
+      successKind: info.successKind || (fromAdvice && fromAdvice.successKind) || '',
+      scanKind: info.scanKind || (fromAdvice && fromAdvice.scanKind) || '',
+      scanLevelLabel: info.scanLevelLabel || (fromAdvice && fromAdvice.scanLevelLabel) || '',
+      levelLabel: info.levelLabel || (fromAdvice && fromAdvice.levelLabel) || '',
+      targetP: info.targetP != null ? info.targetP : fromAdvice ? fromAdvice.targetP : null,
+      targetAvgSec: info.targetAvgSec != null ? info.targetAvgSec : fromAdvice ? fromAdvice.targetAvgSec : null,
+      tileGoal: info.tileGoal || (fromAdvice && fromAdvice.tileGoal) || '',
+      tileLabel: info.tileLabel || (fromAdvice && fromAdvice.tileLabel) || '',
+    };
+  }
+
   function formatTrainingRunPickCell(r) {
+    var m = r && r.trainingMeta;
+    var task = lookupDailyTaskForRun(r);
+    if (task) {
+      var parts = ['任务模式'];
+      var kind = formatDailyTaskKindLabel(task);
+      var goal = formatDailyTaskGoalText(task);
+      if (kind) parts.push(kind);
+      if (goal) parts.push(goal);
+      var taskTitle = m && typeof m === 'object' ? JSON.stringify(m, null, 2) : '任务模式';
+      return (
+        '<span class="jml-runs-pick" title="' +
+        escapeHtml(taskTitle) +
+        '">' +
+        escapeHtml(parts.join(' · ')) +
+        '</span>'
+      );
+    }
     if (String(r && r.mode ? r.mode : '').toLowerCase() !== 'training') {
       return '<span class="jml-runs-pick-muted">—</span>';
     }
-    var m = r.trainingMeta;
     if (!m || typeof m !== 'object') {
       return '<span class="jml-runs-pick-muted" title="旧记录无选关诊断">—</span>';
     }
-    var parts = [];
+    var trainParts = [];
     var lv = Number(m.pickedLevel);
-    if (Number.isFinite(lv) && lv >= 0) parts.push('L' + (lv + 1));
-    parts.push(m.runBrushMode ? '刷热图' : '闯关');
-    if (m.pickReason) parts.push(String(m.pickReason));
-    if (m.entrySource) parts.push(String(m.entrySource));
+    if (Number.isFinite(lv) && lv >= 0) trainParts.push('L' + (lv + 1));
+    trainParts.push(m.runBrushMode ? '刷热图' : '闯关');
+    if (m.pickReason) trainParts.push(String(m.pickReason));
+    if (m.entrySource) trainParts.push(String(m.entrySource));
     var title = JSON.stringify(m, null, 2);
     return (
       '<span class="jml-runs-pick" title="' +
       escapeHtml(title) +
       '">' +
-      escapeHtml(parts.join(' · ')) +
+      escapeHtml(trainParts.join(' · ')) +
       '</span>'
     );
+  }
+
+  function formatTaskHistoryTime(step) {
+    if (!step) return '-';
+    if (step.completedAt) {
+      var formatted = formatDateTime(step.completedAt);
+      if (formatted && formatted !== '-') return formatted;
+    }
+    if (step.chinaDay) return String(step.chinaDay);
+    return '-';
+  }
+
+  function renderTaskHistoryPanel() {
+    var wrap = document.getElementById('jml-report-task-history-body');
+    if (!wrap) return;
+    if (!state.selectedUsername) {
+      wrap.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
+      return;
+    }
+    if (state.loadedStudentUsername !== state.selectedUsername || state.practiceAdviceLoading) {
+      wrap.innerHTML = '<div class="jml-report-empty">任务历史加载中…</div>';
+      return;
+    }
+    if (state.practiceAdviceError && !state.practiceAdvice) {
+      wrap.innerHTML =
+        '<div class="jml-report-empty">' + escapeHtml(state.practiceAdviceError) + '</div>';
+      return;
+    }
+    var advice = state.practiceAdvice;
+    var history = advice && Array.isArray(advice.history) ? advice.history : [];
+    if (!history.length) {
+      wrap.innerHTML = '<div class="jml-report-empty">暂无已完成任务</div>';
+      return;
+    }
+    var rows = history
+      .map(function (step) {
+        return (
+          '<tr>' +
+          '<td class="jml-task-history-col-time">' +
+          escapeHtml(formatTaskHistoryTime(step)) +
+          '</td>' +
+          '<td class="jml-task-history-col-kind">' +
+          escapeHtml(formatDailyTaskKindLabel(step)) +
+          '</td>' +
+          '<td class="jml-task-history-col-goal">' +
+          escapeHtml(formatDailyTaskGoalText(step)) +
+          '</td>' +
+          '</tr>'
+        );
+      })
+      .join('');
+    wrap.innerHTML =
+      '<p class="jml-task-history-summary">已完成 ' +
+      escapeHtml(String(history.length)) +
+      '</p>' +
+      '<div class="jml-report-table-wrap"><table class="jml-report-table jml-task-history-table">' +
+      '<thead><tr><th>完成时间</th><th>种类</th><th>目标</th></tr></thead>' +
+      '<tbody>' +
+      rows +
+      '</tbody></table></div>';
   }
 
   function renderRunsTable() {
@@ -2365,6 +2538,8 @@
           state.practiceAdvice = null;
           state.practiceAdviceError = (data && data.error) || '任务单加载失败';
         }
+        renderRunsTable();
+        renderTaskHistoryPanel();
         if (activeTabId() === 'stats') renderStatsPanel();
       })
       .catch(function (e) {
@@ -2372,6 +2547,8 @@
         state.practiceAdviceLoading = false;
         state.practiceAdvice = null;
         state.practiceAdviceError = (e && e.message) || '任务单加载失败';
+        renderRunsTable();
+        renderTaskHistoryPanel();
         if (activeTabId() === 'stats') renderStatsPanel();
       });
   }

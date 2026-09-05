@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css?v=2" />
-  <link rel="stylesheet" href="report-page.css?v=51" />
+  <link rel="stylesheet" href="report-page.css?v=52" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -56,13 +56,14 @@
         </select>
         <button type="button" class="jml-btn" id="jml-report-refresh-student-btn" title="重新拉取当前学员最新记录" disabled>刷新</button>
       </div>
-      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序。数据分析顶部为助手任务单（对照用，不改训练开局；打开为只读快照，点「刷新」才跟进积压新局，「重新开单」只重排未完成）。热图「推荐下一练」仍是旧 F/H 选关。排查选关用「训练选关Debug」Tab。</p>
+      <p class="jml-report-hint">学员概览支持顶部「全部 / 仅 VIP / 单个学员」筛选；挑战记录按时间降序，任务局会在选关诊断里标「任务模式」与目标。「任务历史」是该学员全量成功记录（与学员端同一份）。数据分析顶部为助手任务单（对照用，不改训练开局；打开为只读快照，点「刷新」才跟进积压新局，「重新开单」只重排未完成）。热图「推荐下一练」仍是旧 F/H 选关。排查选关用「训练选关Debug」Tab。</p>
 
       <div id="jml-report-student-error" class="jml-report-error" style="display:none;"></div>
 
       <div class="jml-tabs" role="tablist">
         <button type="button" class="jml-tab active" data-tab="overview" role="tab">学员概览</button>
         <button type="button" class="jml-tab" data-tab="runs" role="tab">挑战记录</button>
+        <button type="button" class="jml-tab" data-tab="task-history" role="tab">任务历史</button>
         <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
         <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
         <button type="button" class="jml-tab" data-tab="div-wrong" role="tab">整除错题本</button>
@@ -75,6 +76,9 @@
       </div>
       <div id="panel-runs" class="jml-tab-panel hidden" data-panel="runs" role="tabpanel">
         <div id="jml-report-runs-body"></div>
+      </div>
+      <div id="panel-task-history" class="jml-tab-panel hidden" data-panel="task-history" role="tabpanel">
+        <div id="jml-report-task-history-body"></div>
       </div>
       <div id="panel-wrong" class="jml-tab-panel hidden" data-panel="wrong" role="tabpanel">
         <div id="jml-report-wrong-body"></div>
@@ -108,7 +112,7 @@
   <script src="../stats-aggregate-browser.js?v=52"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=90"></script>
+  <script src="report-page.js?v=91"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

@@ -125,9 +125,12 @@
 
 .jml-tabs {
   display: flex;
+  flex-wrap: nowrap;
   gap: 0;
   border-bottom: 1px solid #e2e8f0;
   margin-bottom: 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .jml-tab {
@@ -140,6 +143,8 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   font-family: inherit;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .jml-tab:hover {
@@ -352,11 +357,60 @@
 .jml-report-runs-table th:nth-child(9),
 .jml-report-runs-table td.jml-runs-col-pick {
   min-width: 160px;
-  max-width: 280px;
+  max-width: 360px;
   font-size: 0.78rem;
   line-height: 1.35;
   text-align: left;
   word-break: break-word;
+}
+
+.jml-task-history-summary {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #607d8b;
+}
+
+.jml-task-history-table {
+  table-layout: auto;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.jml-task-history-table th,
+.jml-task-history-table td {
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  vertical-align: middle;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.jml-task-history-table thead th {
+  font-weight: 600;
+  color: #64748b;
+  font-size: 11px;
+  text-align: left;
+}
+
+.jml-task-history-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.jml-task-history-col-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  width: 1%;
+  color: #475569;
+}
+
+.jml-task-history-col-kind {
+  white-space: nowrap;
+  width: 1%;
+  color: #0f172a;
+}
+
+.jml-task-history-col-goal {
+  color: #334155;
 }
 
 .jml-runs-pick {

@@ -6443,6 +6443,11 @@
       dailyTaskPlay.successKind = step.successKind || dailyTaskPlay.successKind || "";
       dailyTaskPlay.targetP = step.targetP;
       dailyTaskPlay.targetAvgSec = step.targetAvgSec;
+      if (step.levelLabel) dailyTaskPlay.levelLabel = step.levelLabel;
+      if (step.scanKind) dailyTaskPlay.scanKind = step.scanKind;
+      if (step.scanLevelLabel) dailyTaskPlay.scanLevelLabel = step.scanLevelLabel;
+      if (step.tileGoal) dailyTaskPlay.tileGoal = step.tileGoal;
+      if (step.tileLabel) dailyTaskPlay.tileLabel = step.tileLabel;
     }
 
     function mergeDailyTaskRunMeta(meta) {
@@ -6451,6 +6456,18 @@
       base.dailyTask = true;
       if (dailyTaskPlay.taskId) base.dailyTaskId = dailyTaskPlay.taskId;
       if (dailyTaskPlay.action) base.dailyTaskAction = dailyTaskPlay.action;
+      base.dailyTaskInfo = {
+        action: dailyTaskPlay.action || "",
+        successKind: dailyTaskPlay.successKind || "",
+        scanKind: dailyTaskPlay.scanKind || "",
+        scanLevelLabel: dailyTaskPlay.scanLevelLabel || "",
+        levelIndex: dailyTaskPlay.levelIndex,
+        levelLabel: dailyTaskPlay.levelLabel || "",
+        targetP: dailyTaskPlay.targetP,
+        targetAvgSec: dailyTaskPlay.targetAvgSec,
+        tileGoal: dailyTaskPlay.tileGoal || "",
+        tileLabel: dailyTaskPlay.tileLabel || "",
+      };
       return base;
     }
 
@@ -6545,10 +6562,14 @@
         taskId: step.id || "",
         action: step.action,
         levelIndex: step.levelIndex,
+        levelLabel: step.levelLabel || "",
         scanKind: step.scanKind || "",
+        scanLevelLabel: step.scanLevelLabel || "",
         successKind: step.successKind || "",
         targetP: step.targetP,
         targetAvgSec: step.targetAvgSec,
+        tileGoal: step.tileGoal || "",
+        tileLabel: step.tileLabel || "",
       };
       hideDailyTaskSection();
       if (step.action === "level") {
