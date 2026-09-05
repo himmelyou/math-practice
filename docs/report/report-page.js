@@ -2610,10 +2610,10 @@
       })
       .join('');
     var openSteps = (advice.queue || []).filter(function (s) {
-      return s.status !== 'success';
+      return s.status === 'active' || s.status === 'pending';
     });
     var doneSteps = (advice.queue || []).filter(function (s) {
-      return s.status === 'success';
+      return s.status === 'success' || s.status === 'fail';
     }).reverse();
     function adviceTileHtml(step, empty) {
       if (empty) {
@@ -2649,7 +2649,7 @@
     var queueHtml =
       '<p class="jml-advice-subh">未完成</p>' +
       adviceTileRow(openSteps) +
-      '<p class="jml-advice-subh">已完成</p>' +
+      '<p class="jml-advice-subh">冷却</p>' +
       adviceTileRow(doneSteps);
     var profileLine = advice.profile
       ? '<p class="jml-advice-profile">' +
@@ -2714,9 +2714,9 @@
       escapeHtml(advice.ruleVersion || '') +
       ' · 年级 ' +
       escapeHtml(gradeText) +
-      ' · 队头计失败 · 2～5 可碰巧完成</span>' +
+      ' · 失败进冷却 · 2～5 可碰巧完成</span>' +
       '<button type="button" class="jml-btn jml-advice-refresh" id="jml-advice-refresh" title="把积压新局跟进当前单；不重排未完成">刷新</button>' +
-      '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset" title="只重算未完成，已完成窗口保留">重新开单</button>' +
+      '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset" title="只重算未完成，冷却窗保留">重新开单</button>' +
       '</div>' +
       '<p class="jml-advice-primary">' +
       escapeHtml(p.title || '') +

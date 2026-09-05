@@ -699,6 +699,11 @@
   background: #eceff1;
   color: #546e7a;
 }
+.jml-advice-tile--fail {
+  border-color: #e57373;
+  background: #fdecee;
+  color: #b71c1c;
+}
 .jml-advice-tile--empty {
   border-style: dashed;
   background: transparent;
