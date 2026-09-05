@@ -3188,6 +3188,41 @@
       margin-top: 0;
     }
 
+    .game-section.training-prestart #game-card.game-card--prestart .question-text.training-daily-task-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 14px;
+      width: 100%;
+      max-width: 340px;
+      margin: 4px auto 0;
+      padding: 4px 8px;
+      text-align: left;
+      white-space: normal;
+      overflow: visible;
+    }
+
+    .training-daily-task-compare .dtc-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .training-daily-task-compare .dtc-label {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: var(--muted);
+      line-height: 1.2;
+    }
+
+    .training-daily-task-compare .dtc-val {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #37474f;
+      line-height: 1.25;
+    }
+
     .game-play-body > .recent-card .recent-body {
       flex: 1;
       min-height: 0;
@@ -6289,7 +6324,21 @@
       currentLevelIndex = Math.min(15, Math.max(0, Math.floor(lv)));
       trainingAutoPickLevelIndex = currentLevelIndex;
       lastTrainingEntrySource = "daily_task";
+      refreshDailyTaskPlayFromAdvice();
       return true;
+    }
+
+    function refreshDailyTaskPlayFromAdvice() {
+      if (!isDailyTaskPlay() || dailyTaskPlay.action !== "training") return;
+      const queue = ((lastDailyTaskAdvice && lastDailyTaskAdvice.queue) || []).filter(function (s) {
+        return s && (s.status === "active" || s.status === "pending");
+      });
+      const step = queue[0];
+      if (!step) return;
+      if (dailyTaskPlay.taskId && step.id && String(dailyTaskPlay.taskId) !== String(step.id)) return;
+      dailyTaskPlay.successKind = step.successKind || dailyTaskPlay.successKind || "";
+      dailyTaskPlay.targetP = step.targetP;
+      dailyTaskPlay.targetAvgSec = step.targetAvgSec;
     }
 
     function mergeDailyTaskRunMeta(meta) {
@@ -6393,6 +6442,9 @@
         action: step.action,
         levelIndex: step.levelIndex,
         scanKind: step.scanKind || "",
+        successKind: step.successKind || "",
+        targetP: step.targetP,
+        targetAvgSec: step.targetAvgSec,
       };
       hideDailyTaskSection();
       if (step.action === "level") {
@@ -8671,6 +8723,10 @@
         "dailyTasks.over.keepTrying": "還需努力",
         "dailyTasks.over.retry": "再試一次",
         "dailyTasks.over.backToList": "回到任務列表",
+        "dailyTasks.preview.currentAcc": "當前準確率",
+        "dailyTasks.preview.targetAcc": "目標準確率",
+        "dailyTasks.preview.currentSpeed": "當前速度",
+        "dailyTasks.preview.targetSpeed": "目標速度",
         "home.menu.switchLang": "切換語言",
         "home.menu.gameGuide": "遊戲說明",
         "home.menu.contactUs": "聯繫我們",
@@ -9116,6 +9172,10 @@
         "dailyTasks.over.keepTrying": "Keep going",
         "dailyTasks.over.retry": "Try again",
         "dailyTasks.over.backToList": "Back to tasks",
+        "dailyTasks.preview.currentAcc": "Current accuracy",
+        "dailyTasks.preview.targetAcc": "Target accuracy",
+        "dailyTasks.preview.currentSpeed": "Current speed",
+        "dailyTasks.preview.targetSpeed": "Target speed",
         "home.menu.switchLang": "Language",
         "home.menu.gameGuide": "How to play",
         "home.menu.contactUs": "Contact us",
@@ -11381,9 +11441,13 @@
       isPlaying = true;
       if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
       const gameCard = document.getElementById("game-card");
-      if (gameCard) gameCard.classList.remove("training-brush-prestart");
-      if (dom.questionText) dom.questionText.classList.remove("training-brush-stat");
-      if (dom.questionSubtext) dom.questionSubtext.classList.remove("training-brush-stat");
+      if (gameCard) gameCard.classList.remove("training-brush-prestart", "training-daily-task-prestart");
+      if (dom.questionText) {
+        dom.questionText.classList.remove("training-brush-stat", "training-daily-task-compare");
+      }
+      if (dom.questionSubtext) {
+        dom.questionSubtext.classList.remove("training-brush-stat");
+      }
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       setGameCardActionSlot("input");
@@ -15275,6 +15339,15 @@
       return { heat, runs, cohort, capMs };
     }
 
+    async function refreshTrainingHeatSnapshotOnly() {
+      try {
+        const pack = await buildTrainingHeatmapAsync();
+        if (pack && pack.heat) trainingHeatSnapshot = pack.heat;
+      } catch (e) {
+        console.warn("任务开局热图拉取失败", e);
+      }
+    }
+
     function computeTrainingEntryFromHeat(heat) {
       const HM = window.JmlStatsHeatmap;
       const today = getLocalTrainingDayKey();
@@ -15401,11 +15474,20 @@
     async function ensureTrainingEntryReadyAsync() {
       if (gameMode !== "training") return;
       if (pinTrainingLevelFromDailyTask()) {
-        cancelTrainingEntryRefresh();
+        const gen = ++trainingEntryRefreshGen;
         setTrainingPickPendingUi(false);
         setTrainingPracticeSubtitle();
         updateTrainingStatusUI();
         setTrainingLevelSelectVisible(false);
+        if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
+          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+          scheduleSyncAllRuleHints();
+        }
+        await refreshTrainingHeatSnapshotOnly();
+        if (gen !== trainingEntryRefreshGen || gameMode !== "training") return;
+        if (!pinTrainingLevelFromDailyTask()) return;
+        setTrainingPracticeSubtitle();
+        updateTrainingStatusUI();
         if (dom.gameSection && dom.gameSection.classList.contains("training-prestart")) {
           syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
           scheduleSyncAllRuleHints();
@@ -15650,9 +15732,10 @@
       if (!sub) return;
       const m = mode || gameMode;
       if (m === "training") {
-        sub.textContent = resolveTrainingRunBrushMode()
-          ? ""
-          : t("game.training.subtitle.dailyRules");
+        sub.textContent =
+          isDailyTaskPlay() || resolveTrainingRunBrushMode()
+            ? ""
+            : t("game.training.subtitle.dailyRules");
       } else if (m === "level") {
         sub.textContent = t("game.subtitle.level");
       } else if (m === "expandBrackets") {
@@ -15660,6 +15743,72 @@
       } else {
         sub.textContent = t("game.subtitle.survival");
       }
+    }
+
+    const DAILY_TASK_SPEED_ACC_MIN = 0.95;
+    const DAILY_TASK_METRIC_DASH = "--";
+
+    function formatDailyTaskPct(p) {
+      if (p == null || !Number.isFinite(Number(p))) return DAILY_TASK_METRIC_DASH;
+      return (Math.round(Number(p) * 1000) / 10).toFixed(1) + "%";
+    }
+
+    function formatDailyTaskSecValue(sec) {
+      if (sec == null || !Number.isFinite(Number(sec)) || Number(sec) <= 0) return DAILY_TASK_METRIC_DASH;
+      return String(Math.round(Number(sec) * 10) / 10) + "s";
+    }
+
+    function getDailyTaskPreviewMetrics(heat) {
+      const dash = DAILY_TASK_METRIC_DASH;
+      const empty = { curAcc: dash, tgtAcc: dash, curSpd: dash, tgtSpd: dash };
+      if (!isDailyTaskPlay() || dailyTaskPlay.action !== "training") return empty;
+      if (dailyTaskPlay.successKind === "open_activate") return empty;
+      const cell = getHeatCellForLevel(heat != null ? heat : trainingHeatSnapshot, currentLevelIndex);
+      const curAcc = cell && cell.p != null ? formatDailyTaskPct(cell.p) : dash;
+      const curSpd =
+        cell && cell.meanLnCorrect != null
+          ? formatDailyTaskSecValue(secFromMeanLn(cell.meanLnCorrect))
+          : dash;
+      let tgtAcc = dash;
+      let tgtSpd = dash;
+      if (dailyTaskPlay.successKind === "speed_step") {
+        tgtAcc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
+        tgtSpd = formatDailyTaskSecValue(dailyTaskPlay.targetAvgSec);
+      } else if (dailyTaskPlay.targetP != null) {
+        tgtAcc = formatDailyTaskPct(dailyTaskPlay.targetP);
+      }
+      return { curAcc: curAcc, tgtAcc: tgtAcc, curSpd: curSpd, tgtSpd: tgtSpd };
+    }
+
+    function renderDailyTaskTrainingPreview(heat) {
+      const gameCard = document.getElementById("game-card");
+      const metrics = getDailyTaskPreviewMetrics(heat);
+      if (gameCard) {
+        gameCard.classList.add("training-brush-prestart", "training-daily-task-prestart");
+      }
+      if (dom.questionSubtext) {
+        dom.questionSubtext.textContent = "";
+        dom.questionSubtext.style.display = "none";
+        dom.questionSubtext.classList.remove("training-brush-stat", "question-refresh-hidden");
+      }
+      if (!dom.questionText) return;
+      const cellHtml = function (labelKey, value) {
+        return (
+          '<div class="dtc-cell"><span class="dtc-label">' +
+          escapeHtml(t(labelKey)) +
+          '</span><span class="dtc-val">' +
+          escapeHtml(value) +
+          "</span></div>"
+        );
+      };
+      dom.questionText.classList.remove("rule-hint", "question-refresh-hidden");
+      dom.questionText.classList.add("training-brush-stat", "training-daily-task-compare");
+      dom.questionText.style.display = "";
+      dom.questionText.innerHTML =
+        cellHtml("dailyTasks.preview.currentAcc", metrics.curAcc) +
+        cellHtml("dailyTasks.preview.targetAcc", metrics.tgtAcc) +
+        cellHtml("dailyTasks.preview.currentSpeed", metrics.curSpd) +
+        cellHtml("dailyTasks.preview.targetSpeed", metrics.tgtSpd);
     }
 
     function syncTrainingPrestartQuestionArea(heat) {
@@ -15673,6 +15822,12 @@
       ) {
         return;
       }
+      if (isDailyTaskPlay() && dailyTaskPlay.action === "training") {
+        renderDailyTaskTrainingPreview(heat);
+        return;
+      }
+      if (gameCard) gameCard.classList.remove("training-daily-task-prestart");
+      dom.questionText.classList.remove("training-daily-task-compare");
       if (resolveTrainingRunBrushMode()) {
         const cell = getHeatCellForLevel(heat != null ? heat : trainingHeatSnapshot, currentLevelIndex);
         const p = cell && cell.pText != null ? String(cell.pText) : "—";
