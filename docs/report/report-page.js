@@ -2332,19 +2332,28 @@
     return !!(state.agg && state.agg.hasAny);
   }
 
-  function fetchPracticeAdviceForSelectedUser(resetIncomplete) {
+  function fetchPracticeAdviceForSelectedUser(mode) {
     var u = state.selectedUsername;
     if (!u) return Promise.resolve();
     state.practiceAdviceLoading = true;
     state.practiceAdviceError = '';
     var path = '/api/admin/user/' + encodeURIComponent(u) + '/practice-plan';
-    var req = resetIncomplete
-      ? apiFetch(path, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resetIncomplete: true }),
-        })
-      : apiFetch(path);
+    var req;
+    if (mode === true || mode === 'reset') {
+      req = apiFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resetIncomplete: true }),
+      });
+    } else if (mode === 'refresh') {
+      req = apiFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+    } else {
+      req = apiFetch(path);
+    }
     return req
       .then(function (data) {
         if (state.selectedUsername !== u) return;
@@ -2523,6 +2532,7 @@
       ' · 年级 ' +
       escapeHtml(gradeText) +
       ' · 队头计失败 · 2～5 可碰巧完成</span>' +
+      '<button type="button" class="jml-btn jml-advice-refresh" id="jml-advice-refresh" title="把积压新局跟进当前单；不重排未完成">刷新</button>' +
       '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset" title="只重算未完成，已完成窗口保留">重新开单</button>' +
       '</div>' +
       '<p class="jml-advice-primary">' +
@@ -2919,6 +2929,12 @@
     if (statsBody) {
       statsBody.addEventListener('click', function (ev) {
         var toggle = ev.target.closest('.jml-heat-cat-toggle');
+        var refreshAdvice = ev.target.closest('#jml-advice-refresh');
+        if (refreshAdvice && statsBody.contains(refreshAdvice)) {
+          ev.preventDefault();
+          void fetchPracticeAdviceForSelectedUser('refresh');
+          return;
+        }
         var resetAdvice = ev.target.closest('#jml-advice-reset');
         if (resetAdvice && statsBody.contains(resetAdvice)) {
           ev.preventDefault();

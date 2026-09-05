@@ -752,6 +752,7 @@ function computePracticePlanForUsername(username, opts) {
       cells,
       store: practicePlanStore,
       resetIncomplete: opts.resetIncomplete === true,
+      snapshot: opts.snapshot === true,
       includeSystemPick: false,
       systemPick,
     });
@@ -2323,18 +2324,8 @@ app.post("/api/user/:username/practice-plan", requireStudentAuth, ensureOwnData,
   return res.json(practicePlanService.studentPayload(out.advice));
 });
 
-/** 管理员：练习任务单对照（与学员同一份存盘） */
-app.get("/api/admin/user/:username/practice-plan", (req, res) => {
-  if (!checkAdminPin(req)) {
-    return res.status(403).json({ ok: false, error: "需要管理员口令" });
-  }
-  const { username } = req.params;
-  const out = computePracticePlanForUsername(username, { includeSystemPick: true });
-  if (!out.ok) {
-    return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
-  }
-  const advice = out.advice;
-  return res.json({
+function adminPracticePlanPayload(advice) {
+  return {
     ok: true,
     ruleVersion: advice.ruleVersion,
     grade: advice.grade,
@@ -2352,7 +2343,20 @@ app.get("/api/admin/user/:username/practice-plan", (req, res) => {
     unresolved: advice.unresolved,
     systemPick: advice.systemPick,
     divergesFromSystemPick: advice.divergesFromSystemPick,
-  });
+  };
+}
+
+/** 管理员：练习任务单对照（只读快照，不跟局、不写盘） */
+app.get("/api/admin/user/:username/practice-plan", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const out = computePracticePlanForUsername(username, { includeSystemPick: true, snapshot: true });
+  if (!out.ok) {
+    return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
+  }
+  return res.json(adminPracticePlanPayload(out.advice));
 });
 
 app.post("/api/admin/user/:username/practice-plan", (req, res) => {
@@ -2368,26 +2372,7 @@ app.post("/api/admin/user/:username/practice-plan", (req, res) => {
   if (!out.ok) {
     return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
   }
-  const advice = out.advice;
-  return res.json({
-    ok: true,
-    ruleVersion: advice.ruleVersion,
-    grade: advice.grade,
-    profile: advice.profile,
-    scanTarget: advice.scanTarget,
-    queue: advice.queue,
-    history: practicePlanService.Advice.historyToClientList(advice.plan),
-    plan: advice.plan,
-    planEvents: advice.planEvents,
-    primary: advice.primary,
-    dontOpen: advice.dontOpen,
-    dontOpenLabel: advice.dontOpenLabel,
-    clearEstimate: advice.clearEstimate,
-    reasons: advice.reasons,
-    unresolved: advice.unresolved,
-    systemPick: advice.systemPick,
-    divergesFromSystemPick: advice.divergesFromSystemPick,
-  });
+  return res.json(adminPracticePlanPayload(out.advice));
 });
 
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
@@ -4497,7 +4482,7 @@ app.put("/api/admin/feedback/:id", (req, res) => {
 });
 
 // ========== 管理员：备份全部数据 ==========
-const BACKUP_SCHEMA_VERSION = 2;
+const BACKUP_SCHEMA_VERSION = 3;
 
 function packImageAssetDir(dir) {
   const out = {};
@@ -4582,6 +4567,7 @@ app.get("/api/admin/backup", (req, res) => {
     adminMeta,
     avatarAssets,
     achievementAssets,
+    practicePlans: practicePlanStore.exportAll(),
   };
   res.setHeader("Content-Type", "application/json");
   res.setHeader(
@@ -4625,6 +4611,10 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
       } catch (e2) {
         /* 忽略 */
       }
+    }
+    if (body.practicePlans && typeof body.practicePlans === "object") {
+      practicePlanStore.replaceAll(body.practicePlans);
+      restored.push("practicePlans");
     }
     if (body.settings) {
       const s = body.settings;

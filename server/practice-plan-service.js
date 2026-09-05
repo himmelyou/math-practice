@@ -34,6 +34,17 @@ function systemPickFromTraining(pick) {
   };
 }
 
+function studentHistory(advice) {
+  const fromFull = Advice.historyToClientList(advice.plan);
+  if (fromFull && fromFull.length) return fromFull;
+  return (advice.queue || [])
+    .filter(function (s) {
+      return s && s.status === "success";
+    })
+    .slice()
+    .reverse();
+}
+
 function studentPayload(advice) {
   const queue = (advice.queue || []).filter(function (s) {
     return s && (s.status === "active" || s.status === "pending");
@@ -42,7 +53,7 @@ function studentPayload(advice) {
     ok: true,
     ruleVersion: advice.ruleVersion,
     queue: queue,
-    history: Advice.historyToClientList(advice.plan),
+    history: studentHistory(advice),
     lastFollow: advice.lastFollow || { kind: "none" },
   };
 }
@@ -82,11 +93,12 @@ function computePracticePlanForUser(opts) {
     runs: runs,
     savedPlan: savedPlan,
     resetIncomplete: opts.resetIncomplete === true,
+    snapshot: opts.snapshot === true,
     nowTs: opts.nowTs != null ? Number(opts.nowTs) : Date.now(),
     systemPick: systemPick,
   });
 
-  if (store && username && advice.plan) {
+  if (store && username && advice.plan && opts.snapshot !== true) {
     if (Advice.STORE_FULL_HISTORY !== true) {
       advice.plan.history = [];
     }

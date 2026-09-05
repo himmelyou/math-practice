@@ -314,14 +314,15 @@
           <input type="file" id="jml-restore-file" accept=".json" style="display:none;" />
         </div>
         <div class="jml-placeholder-panel">
-          <p><strong>备份内容（schema v2）</strong></p>
+          <p><strong>备份内容（schema v3）</strong></p>
           <ul style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
             <li><code>users</code> / <code>runs</code>（含成就解锁进度）</li>
             <li>设置、文案、反馈、成就 catalog</li>
             <li>生存 / 闯关 / 质数达人 / 整除达人榜</li>
             <li>头像 catalog + 头像/成就图片资源（base64）</li>
+            <li>练习任务单 <code>practicePlans</code>（按学员）</li>
           </ul>
-          <p class="muted" style="margin:0 0 8px;">不含管理口令、不含常模快照（恢复 runs 后会清常模，请在报表刷新全体常模）。含游戏说明自定义稿（若有）、年级一键升级记录（adminMeta）。旧版备份仍可导入；缺榜文件时会尝试从 runs 回填闯关/质数/整除榜。</p>
+          <p class="muted" style="margin:0 0 8px;">不含管理口令、不含常模快照（恢复 runs 后会清常模，请在报表刷新全体常模）。含游戏说明自定义稿（若有）、年级一键升级记录（adminMeta）。旧版备份仍可导入（无任务单字段则不覆盖现有任务单）；缺榜文件时会尝试从 runs 回填闯关/质数/整除榜。</p>
           <p>在执行维护操作前请先备份。恢复会覆盖对应线上数据，导入时会二次确认。</p>
         </div>
       </div>

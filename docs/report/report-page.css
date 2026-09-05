@@ -699,10 +699,14 @@
 .jml-advice-progress {
   color: #1565c0;
 }
+.jml-advice-refresh,
 .jml-advice-reset {
-  margin-left: auto;
+  margin-left: 0;
   font-size: 12px;
   padding: 2px 8px;
+}
+.jml-advice-refresh {
+  margin-left: auto;
 }
 .jml-advice-completed {
   margin: 0 0 10px;

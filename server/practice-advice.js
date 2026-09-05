@@ -38,8 +38,8 @@
   var COMPLETED_MAX = 5;
   /** 同一 key 两次出现之间至少隔这么多条；可练池空时破例 */
   var SAME_TASK_GAP = 5;
-  /** 测试期不落全量成功历史；上线后改 true。冷却窗仍走 plan.tasks 里 status=success（最多 5）。 */
-  var STORE_FULL_HISTORY = false;
+  /** 全量成功历史；冷却窗仍走 plan.tasks 里 status=success（最多 5）。 */
+  var STORE_FULL_HISTORY = true;
   /** 冲榜闯关：每关按 10 题均速加总，再乘开销；预估须 ≤ 纪录 × 此系数 */
   var SCAN_CLEAR_ITEMS = 10;
   var SCAN_CLEAR_OVERHEAD = 1.2;
@@ -1310,6 +1310,8 @@
       successKind: task.successKind,
       scanKind: task.scanKind || "",
       scanLevelLabel: task.scanLevelLabel || "",
+      targetP: task.targetP,
+      targetAvgSec: task.targetAvgSec,
       title: task.title || "",
       tileGoal: tileGoal(task),
       completedAt: task.completedAt || null,
@@ -1347,6 +1349,9 @@
         levelLabel: h.levelLabel,
         successKind: h.successKind,
         scanKind: h.scanKind || "",
+        scanLevelLabel: h.scanLevelLabel || "",
+        targetP: h.targetP,
+        targetAvgSec: h.targetAvgSec,
         tileGoal: h.tileGoal || "",
         tileProgress: h.chinaDay || "",
         status: "success",
@@ -1445,11 +1450,33 @@
     );
   }
 
+  function emptySnapshotPlan(username) {
+    return {
+      username: username || "",
+      ruleVersion: RULE_VERSION,
+      issuedAt: 0,
+      lastProcessedTs: 0,
+      nextId: 1,
+      tasks: [],
+      events: [],
+      history: [],
+    };
+  }
+
   function syncPlan(saved, ctx, runs, nowTs, username, flags) {
     flags = flags || {};
     var plan;
     var rebuilt = false;
     var lastFollow = { kind: "none" };
+    if (flags.snapshot) {
+      if (!saved || (username && saved.username && saved.username !== username)) {
+        return { plan: emptySnapshotPlan(username), rebuilt: false, lastFollow: lastFollow };
+      }
+      plan = cloneJson(saved);
+      if (!Array.isArray(plan.tasks)) plan.tasks = [];
+      if (!Array.isArray(plan.history)) plan.history = [];
+      return { plan: plan, rebuilt: false, lastFollow: lastFollow };
+    }
     if (!saved || (username && saved.username && saved.username !== username)) {
       plan = issuePlan(ctx, nowTs, username);
       rebuilt = true;
@@ -1705,6 +1732,8 @@
         successKind: t.successKind,
         targetP: t.targetP,
         targetAvgSec: t.targetAvgSec,
+        windowP: windowP(t),
+        windowAvgSec: t.window && t.window.avgSec != null ? roundSec(t.window.avgSec) : null,
         scanLevelLabel: t.scanLevelLabel,
         scanKind: t.scanKind || "",
         tileLabel: tileLabel(t),
@@ -1766,6 +1795,7 @@
     var nowTs = opts.nowTs != null && Number.isFinite(Number(opts.nowTs)) ? Number(opts.nowTs) : Date.now();
     var sync = syncPlan(opts.savedPlan || null, ctx, opts.runs || [], nowTs, opts.username || "", {
       resetIncomplete: opts.resetIncomplete === true,
+      snapshot: opts.snapshot === true,
     });
     var plan = sync.plan;
     var reasons = [];

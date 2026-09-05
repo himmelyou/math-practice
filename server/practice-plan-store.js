@@ -1,5 +1,5 @@
 /**
- * 练习任务单按用户落盘（未完成 + 冷却窗）。全量历史 plan.history 测试期不写，上线后再接通。
+ * 练习任务单按用户落盘（未完成 + 冷却窗 + 全量成功历史）。
  */
 const fs = require("fs");
 const path = require("path");
@@ -47,7 +47,53 @@ function createPracticePlanStore(opts) {
     });
   }
 
-  return { get, set, userFile, byUserDir };
+  function listUsernames() {
+    ensureDir();
+    if (!fs.existsSync(byUserDir)) return [];
+    return fs.readdirSync(byUserDir).filter(function (name) {
+      return name && name.toLowerCase().endsWith(".json");
+    }).map(function (name) {
+      try {
+        return decodeURIComponent(name.slice(0, -5));
+      } catch (e) {
+        return name.slice(0, -5);
+      }
+    });
+  }
+
+  function exportAll() {
+    const byUser = {};
+    listUsernames().forEach(function (name) {
+      const data = get(name);
+      if (data) byUser[name] = data;
+    });
+    return { byUser: byUser };
+  }
+
+  function replaceAll(payload) {
+    ensureDir();
+    const byUser =
+      payload && payload.byUser && typeof payload.byUser === "object" && !Array.isArray(payload.byUser)
+        ? payload.byUser
+        : payload && typeof payload === "object" && !Array.isArray(payload)
+          ? payload
+          : {};
+    try {
+      fs.readdirSync(byUserDir).forEach(function (name) {
+        if (name && name.toLowerCase().endsWith(".json")) {
+          fs.unlinkSync(path.join(byUserDir, name));
+        }
+      });
+    } catch (e) {
+      /* ignore */
+    }
+    Object.keys(byUser).forEach(function (username) {
+      const row = byUser[username];
+      if (row && typeof row === "object") set(username, row);
+    });
+  }
+
+  return { get, set, userFile, byUserDir, exportAll, replaceAll };
 }
 
 module.exports = { createPracticePlanStore };

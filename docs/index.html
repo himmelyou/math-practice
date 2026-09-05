@@ -6457,7 +6457,7 @@
     }
 
     async function startDailyTaskChallenge() {
-      if (isGuestMode || !isTesterUser()) return;
+      if (isGuestMode) return;
       const queue = ((lastDailyTaskAdvice && lastDailyTaskAdvice.queue) || []).filter(function (s) {
         return s && (s.status === "active" || s.status === "pending");
       });
@@ -6506,14 +6506,62 @@
       return tf("dailyTasks.label.training", { level: step.levelLabel || "" });
     }
 
+    function formatDailyTaskCardPct(p) {
+      if (p == null || !Number.isFinite(Number(p))) return "";
+      return Math.round(Number(p) * 1000) / 10 + "%";
+    }
+
+    function formatDailyTaskCardSec(sec) {
+      if (sec == null || !Number.isFinite(Number(sec))) return "";
+      return String(Math.round(Number(sec) * 10) / 10) + "s";
+    }
+
+    function dailyTaskGoalText(step) {
+      if (!step) return "";
+      if (step.successKind === "level_reach") {
+        if (step.scanKind === "retry_clear") return t("dailyTasks.goal.clearL16");
+        if (step.scanLevelLabel) return tf("dailyTasks.goal.passLevel", { level: step.scanLevelLabel });
+        return t("dailyTasks.goal.pass");
+      }
+      if (step.successKind === "open_activate") return t("dailyTasks.goal.open");
+      if (step.successKind === "speed_step") {
+        const acc = formatDailyTaskCardPct(DAILY_TASK_SPEED_ACC_MIN);
+        const sec = formatDailyTaskCardSec(step.targetAvgSec).replace(/s$/, "");
+        if (sec) return tf("dailyTasks.goal.speed", { sec: sec, acc: acc });
+        return tf("dailyTasks.goal.speedNoSec", { acc: acc });
+      }
+      if (step.targetP != null) return tf("dailyTasks.goal.acc", { acc: formatDailyTaskCardPct(step.targetP) });
+      return t("dailyTasks.goal.accUp");
+    }
+
+    function dailyTaskProgressText(step) {
+      if (!step) return "";
+      const games = Number(step.games) > 0 ? Number(step.games) : 0;
+      const bits = [];
+      if (step.status === "success") {
+        bits.push(step.chinaDay ? String(step.chinaDay) : t("dailyTasks.prog.done"));
+      } else if (!games) {
+        bits.push(t("dailyTasks.prog.none"));
+      } else {
+        bits.push(tf("dailyTasks.prog.tried", { n: games }));
+      }
+      if (games) {
+        const acc = formatDailyTaskCardPct(step.windowP);
+        if (acc) bits.push(tf("dailyTasks.prog.acc", { acc: acc }));
+        const sec = formatDailyTaskCardSec(step.windowAvgSec);
+        if (sec) bits.push(sec);
+      }
+      return bits.join(" ");
+    }
+
     function dailyTaskCardHtml(step, index, opts) {
       opts = opts || {};
       const isHead = !!opts.isHead;
       const title = opts.history
         ? dailyTaskKindLabel(step)
         : tf("dailyTasks.taskTitle", { n: index + 1, label: dailyTaskKindLabel(step) });
-      const goal = step.tileGoal || step.until || "";
-      const prog = step.tileProgress || "";
+      const goal = dailyTaskGoalText(step);
+      const prog = dailyTaskProgressText(step);
       const startBtn = isHead
         ? '<button type="button" class="home-pill-btn home-pill-btn--primary daily-task-start" data-daily-task-start="1">' +
           escapeHtml(t("game.btn.startChallenge")) +
@@ -6606,10 +6654,6 @@
 
     async function showDailyTaskView() {
       if (isGuestMode) return;
-      if (!isTesterUser()) {
-        showToast(t("home.soon.dailyTasks"));
-        return;
-      }
       const seq = (dailyTaskRenderSeq += 1);
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
@@ -6667,10 +6711,6 @@
 
     function handleDailyTaskEntryClick() {
       if (isGuestMode) return;
-      if (!isTesterUser()) {
-        showToast(t("home.soon.dailyTasks"));
-        return;
-      }
       void showDailyTaskView();
     }
 
@@ -8753,6 +8793,18 @@
         "dailyTasks.preview.targetAcc": "目標準確率",
         "dailyTasks.preview.currentSpeed": "當前速度",
         "dailyTasks.preview.targetSpeed": "目標速度",
+        "dailyTasks.goal.clearL16": "通關 L16",
+        "dailyTasks.goal.passLevel": "過 {level}",
+        "dailyTasks.goal.pass": "過關",
+        "dailyTasks.goal.open": "1 局或 20 題",
+        "dailyTasks.goal.speed": "均速≤{sec}s 且準≥{acc}",
+        "dailyTasks.goal.speedNoSec": "均速↓ 且準≥{acc}",
+        "dailyTasks.goal.acc": "準≥{acc}",
+        "dailyTasks.goal.accUp": "準度↑",
+        "dailyTasks.prog.done": "完成",
+        "dailyTasks.prog.none": "未練",
+        "dailyTasks.prog.tried": "已試 {n} 局",
+        "dailyTasks.prog.acc": "準 {acc}",
         "home.menu.switchLang": "切換語言",
         "home.menu.gameGuide": "遊戲說明",
         "home.menu.contactUs": "聯繫我們",
@@ -9202,6 +9254,18 @@
         "dailyTasks.preview.targetAcc": "Target accuracy",
         "dailyTasks.preview.currentSpeed": "Current speed",
         "dailyTasks.preview.targetSpeed": "Target speed",
+        "dailyTasks.goal.clearL16": "Clear L16",
+        "dailyTasks.goal.passLevel": "Pass {level}",
+        "dailyTasks.goal.pass": "Pass the level",
+        "dailyTasks.goal.open": "1 run or 20 questions",
+        "dailyTasks.goal.speed": "Avg ≤{sec}s and acc ≥{acc}",
+        "dailyTasks.goal.speedNoSec": "Faster, acc ≥{acc}",
+        "dailyTasks.goal.acc": "Acc ≥{acc}",
+        "dailyTasks.goal.accUp": "Accuracy up",
+        "dailyTasks.prog.done": "Done",
+        "dailyTasks.prog.none": "Not started",
+        "dailyTasks.prog.tried": "{n} runs",
+        "dailyTasks.prog.acc": "Acc {acc}",
         "home.menu.switchLang": "Language",
         "home.menu.gameGuide": "How to play",
         "home.menu.contactUs": "Contact us",
