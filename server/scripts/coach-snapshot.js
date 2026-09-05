@@ -120,8 +120,9 @@ function adminGet(apiBase, pin, pathname) {
 function gradeLabel(grade) {
   if (grade === null || grade === undefined || grade === "") return "未填";
   const n = Number(grade);
-  if (!Number.isInteger(n) || n < 0 || n > 12) return String(grade);
+  if (!Number.isInteger(n) || n < 0 || n > 13) return String(grade);
   if (n === 0) return "学前";
+  if (n === 13) return "成人";
   return n + "年级";
 }
 

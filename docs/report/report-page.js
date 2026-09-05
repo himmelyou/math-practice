@@ -2517,7 +2517,13 @@
       .join('');
     var gradeVal = advice.grade;
     var gradeText =
-      gradeVal === 0 ? '学前' : gradeVal != null && gradeVal !== '' ? gradeVal + '年级' : '未填';
+      gradeVal === 0
+        ? '学前'
+        : gradeVal === 13
+          ? '成人'
+          : gradeVal != null && gradeVal !== ''
+            ? gradeVal + '年级'
+            : '未填';
     var sp = advice.systemPick || state.serverTrainingPick;
 
     return (

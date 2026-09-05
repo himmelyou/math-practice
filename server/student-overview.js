@@ -13,8 +13,9 @@ const PRIME_RANKING_MAX_WRONG = 5;
 function formatGradeLabel(grade) {
   if (grade === null || grade === undefined || grade === "") return null;
   const n = Number(grade);
-  if (!Number.isInteger(n) || n < 0 || n > 12) return null;
+  if (!Number.isInteger(n) || n < 0 || n > 13) return null;
   if (n === 0) return "学前";
+  if (n === 13) return "成人";
   return String(n);
 }
 
@@ -243,7 +244,7 @@ function formatDivisibilityProgress(unlockedMax, runs, perfectEntry) {
 function gradeSortKey(grade) {
   if (grade === null || grade === undefined || grade === "") return null;
   const n = Number(grade);
-  if (!Number.isInteger(n) || n < 0 || n > 12) return null;
+  if (!Number.isInteger(n) || n < 0 || n > 13) return null;
   return n;
 }
 

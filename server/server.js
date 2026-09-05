@@ -170,14 +170,33 @@ function safeUserForStudent(u) {
   if (out && Object.prototype.hasOwnProperty.call(out, "adminNote")) {
     delete out.adminNote;
   }
+  out.needsGrade = !isGradeSet(u && u.grade);
   return out;
 }
 
-/** 管理端年级：null 未设置，0=学前，1–12 为年级 */
+const GRADE_ADULT = 13;
+const GRADE_MAX = 13;
+
+function isGradeSet(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 && n <= GRADE_MAX;
+}
+
+/** 管理端年级：null 未设置，0=学前，1–12 为年级，13=成人 */
 function normalizeAdminGrade(value) {
   if (value === null || value === undefined || value === "") return { value: null };
   const n = Number(value);
-  if (!Number.isInteger(n) || n < 0 || n > 12) return { error: "年级须为 0（学前）至 12 的整数" };
+  if (!Number.isInteger(n) || n < 0 || n > GRADE_MAX) {
+    return { error: "年级须为 0（学前）、1–12，或 13（成人）" };
+  }
+  return { value: n };
+}
+
+/** 注册 / 学员补填：必须选有效年级，不能空 */
+function normalizeRequiredGrade(value) {
+  if (value === null || value === undefined || value === "") return { error: "请选择年级" };
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > GRADE_MAX) return { error: "请选择有效年级" };
   return { value: n };
 }
 
@@ -222,11 +241,13 @@ function getGradeBulkUpgradeStatus(nowTs) {
   };
 }
 
-/** 一键升级：0→1…11→12，12→清空；未设置不动 */
+/** 一键升级：学前/成人/未设置不动；1→2…11→12；12→清空 */
 function bumpAdminGradeOneYear(grade) {
   if (grade === null || grade === undefined || grade === "") return { skip: "unset" };
   const n = Number(grade);
-  if (!Number.isInteger(n) || n < 0 || n > 12) return { skip: "invalid" };
+  if (!Number.isInteger(n) || n < 0 || n > GRADE_MAX) return { skip: "invalid" };
+  if (n === 0) return { skip: "preschool" };
+  if (n === GRADE_ADULT) return { skip: "adult" };
   if (n === 12) return { value: null, cleared: true };
   return { value: n + 1 };
 }
@@ -1088,6 +1109,11 @@ function legacyDefaultI18nPayload() {
       "login.register.confirm.placeholder": "確認密碼",
       "login.register.submit": "註冊",
       "login.register.back": "返回登入",
+      "login.register.grade.aria": "年級",
+      "grade.placeholder": "請選擇年級",
+      "grade.preschool": "學前",
+      "grade.n": "{n}年級",
+      "grade.adult": "成人",
       "login.hint": "登入/註冊需連網。可遊客試玩（僅本機保存，無需連網）。",
       "login.version": "版本",
       "home.group.arith": "四則運算",
@@ -1179,6 +1205,11 @@ function legacyDefaultI18nPayload() {
       "login.register.confirm.placeholder": "Confirm password",
       "login.register.submit": "Create Account",
       "login.register.back": "Back to Sign In",
+      "login.register.grade.aria": "Grade",
+      "grade.placeholder": "Select grade",
+      "grade.preschool": "Preschool",
+      "grade.n": "Grade {n}",
+      "grade.adult": "Adult",
       "login.hint": "Login/Register requires internet. Guest demo is local-only and does not require internet.",
       "login.version": "Version",
       "home.group.arith": "Arithmetic",
@@ -1804,7 +1835,7 @@ function isValidUsername(s) {
 }
 
 app.post("/api/register", async (req, res) => {
-  const { username, password } = req.body || {};
+  const { username, password, grade } = req.body || {};
   const name = (username || "").trim();
   const pwd = password ? String(password) : "";
   if (!name || !pwd) {
@@ -1815,6 +1846,10 @@ app.post("/api/register", async (req, res) => {
   }
   if (pwd.length < 6) {
     return res.json({ ok: false, error: "密码至少 6 位" });
+  }
+  const g = normalizeRequiredGrade(grade);
+  if (g.error) {
+    return res.json({ ok: false, error: g.error });
   }
   const data = readJson(USERS_FILE, { users: [] });
   if (dedupeUsernames.usernameTakenCaseInsensitive(data.users, name)) {
@@ -1866,6 +1901,7 @@ app.post("/api/register", async (req, res) => {
     heatmapL16Passed: false,
     createdBy: "self",
     createdAt: Date.now(),
+    grade: g.value,
   };
   data.users.push(newUser);
   writeJson(USERS_FILE, data);
@@ -2233,6 +2269,27 @@ app.post("/api/user/:username/change-password", requireStudentAuth, ensureOwnDat
   data.users[idx].password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
   writeJson(USERS_FILE, data);
   res.json({ ok: true });
+});
+
+// ========== 学员补填年级（仅未填时可写一次） ==========
+app.post("/api/user/:username/grade", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const u = data.users[idx];
+  if (isGradeSet(u.grade)) {
+    return res.status(409).json({ ok: false, error: "年级已设置", needsGrade: false });
+  }
+  const g = normalizeRequiredGrade(req.body && req.body.grade);
+  if (g.error) {
+    return res.status(400).json({ ok: false, error: g.error, needsGrade: true });
+  }
+  u.grade = g.value;
+  writeJson(USERS_FILE, data);
+  res.json({ ok: true, needsGrade: false, user: safeUserForStudent(u) });
 });
 
 // ========== 学员获取自己的练习记录（完整 runs，供首页「数据统计」用），需登录且只能访问自己 ==========
@@ -3073,12 +3130,22 @@ app.post("/api/admin/users/bulk-upgrade-grade", (req, res) => {
   let clearedFrom12 = 0;
   let skippedUnset = 0;
   let skippedInvalid = 0;
+  let skippedPreschool = 0;
+  let skippedAdult = 0;
 
   data.users.forEach((u) => {
     if (!u) return;
     const bumped = bumpAdminGradeOneYear(u.grade);
     if (bumped.skip === "unset") {
       skippedUnset += 1;
+      return;
+    }
+    if (bumped.skip === "preschool") {
+      skippedPreschool += 1;
+      return;
+    }
+    if (bumped.skip === "adult") {
+      skippedAdult += 1;
       return;
     }
     if (bumped.skip === "invalid") {
@@ -3102,6 +3169,8 @@ app.post("/api/admin/users/bulk-upgrade-grade", (req, res) => {
     clearedFrom12,
     skippedUnset,
     skippedInvalid,
+    skippedPreschool,
+    skippedAdult,
     gradeBulkUpgrade: nextStatus,
   });
 });

@@ -82,7 +82,7 @@
     var L = clampLevel(levelIndex) + 1;
     if (grade === null || grade === undefined || grade === "") return "unknown";
     var g = Number(grade);
-    if (!Number.isInteger(g) || g < 0 || g > 12) return "unknown";
+    if (!Number.isInteger(g) || g < 0 || g > 13) return "unknown";
     if (g === 0) return L <= 4 ? "current" : "ahead";
     if (g === 1) {
       if (L <= 6) return "learned";

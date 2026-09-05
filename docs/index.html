@@ -197,6 +197,24 @@
       color: #b0b5c5;
     }
 
+    .login-view .login-field-row select {
+      flex: 1;
+      min-width: 0;
+      width: 0;
+      height: 100%;
+      padding: 0;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      font-family: inherit;
+    }
+
+    .login-view .login-field-row select:invalid {
+      color: #b0b5c5;
+    }
+
     .login-view .login-btn {
       width: 100%;
       margin-top: 12px;
@@ -1586,11 +1604,13 @@
     .game-guide-body .game-guide-error { color: #c62828; }
     .change-password-modal h3 { margin: 0 0 14px 0; font-size: 1rem; color: #37474f; }
     .change-password-modal .login-field,
-    #change-nickname-modal-overlay .login-field {
+    #change-nickname-modal-overlay .login-field,
+    #grade-needed-modal-overlay .login-field {
       margin-bottom: 12px;
     }
     .change-password-modal .login-field input,
     #change-nickname-modal-overlay .login-field input,
+    #grade-needed-modal-overlay .login-field select,
     #contact-modal-overlay .login-field input,
     #contact-modal-overlay .login-field select,
     #contact-modal-overlay .login-field textarea {
@@ -1604,6 +1624,7 @@
     }
     .change-password-modal .login-field input:focus,
     #change-nickname-modal-overlay .login-field input:focus,
+    #grade-needed-modal-overlay .login-field select:focus,
     #contact-modal-overlay .login-field input:focus,
     #contact-modal-overlay .login-field select:focus,
     #contact-modal-overlay .login-field textarea:focus {
@@ -1612,6 +1633,7 @@
     }
     .change-password-modal .modal-actions,
     #change-nickname-modal-overlay .modal-actions,
+    #grade-needed-modal-overlay .modal-actions,
     #contact-modal-overlay .modal-actions {
       display: flex;
       gap: 10px;
@@ -1620,6 +1642,7 @@
     }
     .change-password-modal .modal-actions .login-btn,
     #change-nickname-modal-overlay .modal-actions .login-btn,
+    #grade-needed-modal-overlay .modal-actions .login-btn,
     #contact-modal-overlay .modal-actions .login-btn {
       width: auto;
       min-width: 72px;
@@ -1638,11 +1661,17 @@
     }
     .change-password-modal .modal-actions .login-btn.btn-secondary,
     #change-nickname-modal-overlay .modal-actions .login-btn.btn-secondary,
+    #grade-needed-modal-overlay .modal-actions .login-btn.btn-secondary,
     #contact-modal-overlay .modal-actions .login-btn.btn-secondary {
       background: #f1f6ff;
       color: var(--primary);
       border: 1px solid rgba(25, 118, 210, 0.25);
       line-height: 34px;
+    }
+    .change-password-modal .modal-actions .login-btn:disabled,
+    #grade-needed-modal-overlay .modal-actions .login-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     .change-password-modal .modal-error { color: #c62828; font-size: 0.82rem; margin-top: 8px; }
 
@@ -4158,6 +4187,13 @@
               <input id="register-confirm" type="password" autocomplete="new-password" placeholder="确认密码" />
             </div>
           </div>
+          <div class="login-field">
+            <div class="login-field-row">
+              <select id="register-grade" required aria-label="年级">
+                <option value="" selected disabled>请选择年级</option>
+              </select>
+            </div>
+          </div>
           <button id="register-btn" class="login-btn login-btn--accent" type="button">注册</button>
           <button id="back-to-login-btn" class="login-btn login-btn--outline" type="button">返回登录</button>
         </div>
@@ -5199,6 +5235,23 @@
       <div class="modal-actions">
         <button type="button" class="login-btn btn-secondary" id="change-nickname-cancel-btn">取消</button>
         <button type="button" class="login-btn" id="change-nickname-submit-btn">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="grade-needed-modal-overlay" class="change-password-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="grade-needed-modal-title">
+    <div class="change-password-modal">
+      <h3 id="grade-needed-modal-title">选择年级</h3>
+      <p class="stats-subtitle" id="grade-needed-modal-hint" style="margin:0 0 10px;font-size:0.82rem;color:var(--muted);">请输入学员年级，以便推荐最适合的任务列表</p>
+      <div class="login-field">
+        <select id="grade-needed-select" aria-label="年级">
+          <option value="" selected disabled>请选择年级</option>
+        </select>
+      </div>
+      <div id="grade-needed-modal-error" class="modal-error"></div>
+      <div class="modal-actions">
+        <button type="button" class="login-btn btn-secondary" id="grade-needed-back-btn">返回</button>
+        <button type="button" class="login-btn" id="grade-needed-submit-btn" disabled>确认</button>
       </div>
     </div>
   </div>
@@ -6738,7 +6791,75 @@
 
     function handleDailyTaskEntryClick() {
       if (isGuestMode) return;
+      if (cachedUser && cachedUser.needsGrade === true) {
+        showGradeNeededModal();
+        return;
+      }
       void showDailyTaskView();
+    }
+
+    function showGradeNeededModal() {
+      const overlay = document.getElementById("grade-needed-modal-overlay");
+      if (!overlay) return;
+      const selectEl = document.getElementById("grade-needed-select");
+      fillGradeSelect(selectEl);
+      if (selectEl) selectEl.setAttribute("aria-label", t("login.register.grade.aria"));
+      const errEl = document.getElementById("grade-needed-modal-error");
+      if (errEl) errEl.textContent = "";
+      syncGradeNeededConfirmEnabled();
+      overlay.classList.add("active");
+    }
+
+    function hideGradeNeededModal() {
+      const overlay = document.getElementById("grade-needed-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    async function handleGradeNeededSubmit() {
+      if (isGuestMode) return;
+      const name = loadCurrentUsername();
+      const selectEl = document.getElementById("grade-needed-select");
+      const grade = readGradeSelectValue(selectEl);
+      const errEl = document.getElementById("grade-needed-modal-error");
+      const btn = document.getElementById("grade-needed-submit-btn");
+      if (errEl) errEl.textContent = "";
+      if (grade == null) {
+        if (errEl) errEl.textContent = t("login.error.gradeRequired");
+        syncGradeNeededConfirmEnabled();
+        return;
+      }
+      if (!getApiBase() || !name) {
+        if (errEl) errEl.textContent = t("dailyTasks.grade.needNet");
+        return;
+      }
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch(getApiBase() + "/api/user/" + encodeURIComponent(name) + "/grade", {
+          method: "POST",
+          credentials: "include",
+          headers: Object.assign({ "Content-Type": "application/json" }, getAuthHeaders()),
+          body: JSON.stringify({ grade: grade }),
+        });
+        const data = await res.json().catch(function () {
+          return null;
+        });
+        if (res.status === 401) {
+          handleAuthRequired();
+          return;
+        }
+        if (res.status === 409 || (data && data.ok)) {
+          if (cachedUser) cachedUser.needsGrade = false;
+          if (data && data.user) cachedUser = data.user;
+          hideGradeNeededModal();
+          void showDailyTaskView();
+          return;
+        }
+        if (errEl) errEl.textContent = (data && data.error) || t("dailyTasks.grade.saveFail");
+        syncGradeNeededConfirmEnabled();
+      } catch (e) {
+        if (errEl) errEl.textContent = t("dailyTasks.grade.saveFail");
+        syncGradeNeededConfirmEnabled();
+      }
     }
 
     function handleGuestExitToRegister() {
@@ -8664,6 +8785,11 @@
         "login.register.confirm.placeholder": "確認密碼",
         "login.register.submit": "註冊",
         "login.register.back": "返回登入",
+        "login.register.grade.aria": "年級",
+        "grade.placeholder": "請選擇年級",
+        "grade.preschool": "學前",
+        "grade.n": "{n}年級",
+        "grade.adult": "成人",
         "login.hint": "登入/註冊需連網。可遊客試玩（僅本機保存，無需連網）。",
         "login.version": "版本",
         "login.error.needCredentials": "請輸入使用者名稱和密碼。",
@@ -8675,6 +8801,7 @@
         "login.error.passwordMismatch": "兩次輸入的密碼不一致。",
         "login.error.registerNeedNet": "註冊需連網，請連接網路後重試。",
         "login.error.registerFailed": "註冊失敗，請重試。",
+        "login.error.gradeRequired": "請選擇年級。",
         "home.group.arith": "四則運算",
         "home.group.special": "拓展練習",
         "home.group.numberSense": "數感練習",
@@ -8809,6 +8936,12 @@
         "dailyTasks.historyEmpty": "暫無",
         "dailyTasks.loading": "載入中…",
         "dailyTasks.loadFail": "任務暫不可用，請稍後重試。",
+        "dailyTasks.grade.title": "選擇年級",
+        "dailyTasks.grade.hint": "請輸入學員年級，以便推薦最適合的任務列表",
+        "dailyTasks.grade.confirm": "確認",
+        "dailyTasks.grade.back": "返回",
+        "dailyTasks.grade.needNet": "設定年級需連網，請連接網路後重試。",
+        "dailyTasks.grade.saveFail": "儲存失敗，請稍後重試。",
         "dailyTasks.taskTitle": "任務 {n} · {label}",
         "dailyTasks.label.level": "闖關",
         "dailyTasks.label.retryClear": "衝榜",
@@ -9134,6 +9267,11 @@
         "login.register.confirm.placeholder": "Confirm password",
         "login.register.submit": "Create Account",
         "login.register.back": "Back to Sign In",
+        "login.register.grade.aria": "Grade",
+        "grade.placeholder": "Select grade",
+        "grade.preschool": "Preschool",
+        "grade.n": "Grade {n}",
+        "grade.adult": "Adult",
         "login.hint": "Login/Register requires internet. Guest demo is local-only and does not require internet.",
         "login.version": "Version",
         "login.error.needCredentials": "Enter username and password.",
@@ -9145,6 +9283,7 @@
         "login.error.passwordMismatch": "The two passwords do not match.",
         "login.error.registerNeedNet": "Registration requires internet. Connect and try again.",
         "login.error.registerFailed": "Registration failed. Try again.",
+        "login.error.gradeRequired": "Please select a grade.",
         "home.group.arith": "Arithmetic",
         "home.group.special": "Extended Practice",
         "home.group.numberSense": "Number Sense",
@@ -9279,6 +9418,12 @@
         "dailyTasks.historyEmpty": "None yet",
         "dailyTasks.loading": "Loading…",
         "dailyTasks.loadFail": "Tasks are unavailable. Please try again later.",
+        "dailyTasks.grade.title": "Select grade",
+        "dailyTasks.grade.hint": "Please enter the student's grade so we can recommend the best task list.",
+        "dailyTasks.grade.confirm": "Confirm",
+        "dailyTasks.grade.back": "Back",
+        "dailyTasks.grade.needNet": "Setting grade requires internet. Connect and try again.",
+        "dailyTasks.grade.saveFail": "Save failed. Try again later.",
         "dailyTasks.taskTitle": "Task {n} · {label}",
         "dailyTasks.label.level": "Challenge",
         "dailyTasks.label.retryClear": "Retry clear",
@@ -9875,6 +10020,18 @@
       if (nnIn) nnIn.placeholder = t("modal.nickname.placeholder");
       setT("change-nickname-cancel-btn", "modal.cancel");
       setT("change-nickname-submit-btn", "modal.ok");
+      const gradeTitle = byId("grade-needed-modal-title");
+      if (gradeTitle) gradeTitle.textContent = t("dailyTasks.grade.title");
+      const gradeHint = byId("grade-needed-modal-hint");
+      if (gradeHint) gradeHint.textContent = t("dailyTasks.grade.hint");
+      const gradeSelect = byId("grade-needed-select");
+      if (gradeSelect) {
+        fillGradeSelect(gradeSelect);
+        gradeSelect.setAttribute("aria-label", t("login.register.grade.aria"));
+        syncGradeNeededConfirmEnabled();
+      }
+      setT("grade-needed-back-btn", "dailyTasks.grade.back");
+      setT("grade-needed-submit-btn", "dailyTasks.grade.confirm");
       const contactTitle = document.querySelector("#contact-modal-overlay h3");
       if (contactTitle) contactTitle.textContent = t("home.contact.title");
       const contactHint = document.getElementById("contact-modal-hint");
@@ -9952,6 +10109,11 @@
       if (registerUsername) registerUsername.placeholder = t("login.register.username.placeholder");
       if (registerPassword) registerPassword.placeholder = t("login.register.password.placeholder");
       if (registerConfirm) registerConfirm.placeholder = t("login.register.confirm.placeholder");
+      const registerGrade = byId("register-grade");
+      if (registerGrade) {
+        fillGradeSelect(registerGrade);
+        registerGrade.setAttribute("aria-label", t("login.register.grade.aria"));
+      }
       if (registerBtn) registerBtn.textContent = t("login.register.submit");
       if (backToLoginBtn) backToLoginBtn.textContent = t("login.register.back");
       if (loginHint) loginHint.textContent = t("login.hint");
@@ -10082,18 +10244,62 @@
       return data;
     }
 
-    async function apiRegister(username, password) {
+    async function apiRegister(username, password, grade) {
       const base = getApiBase();
       if (!base) return null;
       const res = await fetch(base + "/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, grade }),
         credentials: "include"
       });
       const data = await res.json();
       if (data && data.ok && data.token) setAuthToken(data.token);
       return data;
+    }
+
+    function gradeOptionLabel(n) {
+      if (n === 0) return t("grade.preschool");
+      if (n === 13) return t("grade.adult");
+      return tf("grade.n", { n: n });
+    }
+
+    function fillGradeSelect(selectEl) {
+      if (!selectEl) return;
+      const keep = String(selectEl.value || "");
+      selectEl.innerHTML = "";
+      const ph = document.createElement("option");
+      ph.value = "";
+      ph.disabled = true;
+      ph.textContent = t("grade.placeholder");
+      selectEl.appendChild(ph);
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].forEach((n) => {
+        const opt = document.createElement("option");
+        opt.value = String(n);
+        opt.textContent = gradeOptionLabel(n);
+        selectEl.appendChild(opt);
+      });
+      if (keep !== "" && Array.from(selectEl.options).some((o) => o.value === keep)) {
+        selectEl.value = keep;
+      } else {
+        selectEl.value = "";
+        ph.selected = true;
+      }
+    }
+
+    function readGradeSelectValue(selectEl) {
+      if (!selectEl) return null;
+      const raw = String(selectEl.value || "").trim();
+      if (raw === "") return null;
+      const n = Number(raw);
+      if (!Number.isInteger(n) || n < 0 || n > 13) return null;
+      return n;
+    }
+
+    function syncGradeNeededConfirmEnabled() {
+      const selectEl = document.getElementById("grade-needed-select");
+      const btn = document.getElementById("grade-needed-submit-btn");
+      if (btn) btn.disabled = readGradeSelectValue(selectEl) == null;
     }
 
     function isValidUsernameLocal(s) {
@@ -16236,10 +16442,12 @@
       const usernameInput = document.getElementById("register-username");
       const passwordInput = document.getElementById("register-password");
       const confirmInput = document.getElementById("register-confirm");
+      const gradeInput = document.getElementById("register-grade");
       const errorEl = document.getElementById("login-error");
       const username = (usernameInput.value || "").trim();
       const password = passwordInput.value || "";
       const confirm = confirmInput.value || "";
+      const grade = readGradeSelectValue(gradeInput);
 
       if (!username || !password) {
         errorEl.textContent = t("login.error.fillBoth");
@@ -16257,12 +16465,16 @@
         errorEl.textContent = t("login.error.passwordMismatch");
         return;
       }
+      if (grade == null) {
+        errorEl.textContent = t("login.error.gradeRequired");
+        return;
+      }
       if (!getApiBase()) {
         errorEl.textContent = t("login.error.registerNeedNet");
         return;
       }
 
-      const data = await apiRegister(username, password);
+      const data = await apiRegister(username, password, grade);
       if (!data || !data.ok) {
         errorEl.textContent = data && data.error ? data.error : t("login.error.registerFailed");
         return;
@@ -16482,6 +16694,14 @@
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
       const homeDailyTaskBtn = document.getElementById("home-daily-task-btn");
       if (homeDailyTaskBtn) homeDailyTaskBtn.addEventListener("click", handleDailyTaskEntryClick);
+      const gradeNeededSelect = document.getElementById("grade-needed-select");
+      if (gradeNeededSelect) {
+        gradeNeededSelect.addEventListener("change", syncGradeNeededConfirmEnabled);
+      }
+      const gradeNeededBack = document.getElementById("grade-needed-back-btn");
+      if (gradeNeededBack) gradeNeededBack.addEventListener("click", hideGradeNeededModal);
+      const gradeNeededSubmit = document.getElementById("grade-needed-submit-btn");
+      if (gradeNeededSubmit) gradeNeededSubmit.addEventListener("click", handleGradeNeededSubmit);
 
       const modeSurvival = document.getElementById("mode-survival");
       const modeLevel = document.getElementById("mode-level");

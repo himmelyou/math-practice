@@ -22,11 +22,12 @@
     '第 16 级 · 带括号的四则运算',
   ];
 
-  /** 管理端年级下拉：0=学前，1–12 为年级 */
+  /** 管理端年级下拉：0=学前，1–12 为年级，13=成人 */
   var GRADE_OPTIONS = [{ value: 0, label: '学前' }];
   for (var _g = 1; _g <= 12; _g++) {
     GRADE_OPTIONS.push({ value: _g, label: String(_g) });
   }
+  GRADE_OPTIONS.push({ value: 13, label: '成人' });
 
   var LEVEL_DESC_ZH = LEVEL_NAMES.map(function (n) {
     return String(n || '').replace(/^第\s*\d+\s*级\s*·\s*/, '').trim();
@@ -488,7 +489,8 @@
       var g = u.grade;
       if (g === null || g === undefined || g === '') return;
       var n = Number(g);
-      if (!Number.isInteger(n) || n < 0 || n > 12) return;
+      if (!Number.isInteger(n) || n < 0 || n > 13) return;
+      if (n === 0 || n === 13) return;
       if (n === 12) cleared += 1;
       else upgraded += 1;
     });
@@ -520,7 +522,7 @@
       '· 12 年级清空为「—」：约 ' +
       counts.willClear12 +
       ' 人\n' +
-      '· 未选年级的不变\n\n' +
+      '· 学前、成人、未选年级的不变\n\n' +
       '每个学年（9/1–次年8/31）只能成功一次。\n确认执行？';
     if (!window.confirm(msg)) return;
     setStatus('一键升级年级中…', '');
@@ -541,7 +543,11 @@
           ' 人，12→清空 ' +
           (data.clearedFrom12 || 0) +
           ' 人，未选跳过 ' +
-          (data.skippedUnset || 0),
+          (data.skippedUnset || 0) +
+          '，学前 ' +
+          (data.skippedPreschool || 0) +
+          '，成人 ' +
+          (data.skippedAdult || 0),
         'ok'
       );
     } catch (e) {
