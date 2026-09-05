@@ -1,8 +1,9 @@
 /**
- * 练习建议 v0.19：失败进冷却窗（与成功合计最多 5），不后插。速度任务须准≥95%。放弃局不算。
+ * 练习建议 v0.20：不整单重排未完成。任务局只跟这一条；成功/失败只补一格。
+ * 规则升级不拆队。跑偏才重算未完成，且保留已有尝试记录的关。
  */
 (function (root) {
-  var RULE_VERSION = "0.19-provisional";
+  var RULE_VERSION = "0.20-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -1046,16 +1047,26 @@
     return list;
   }
 
-  function fillIncomplete(plan, ctx, ts) {
+  function taskHasAttempts(t) {
+    if (!t) return false;
+    var w = t.window || emptyPlanWindow();
+    return (Number(w.games) || 0) > 0 || (Number(w.items) || 0) > 0;
+  }
+
+  function fillIncomplete(plan, ctx, ts, opts) {
+    opts = opts || {};
+    var keepExisting = opts.keepExisting === true;
+    var reorderScan = opts.reorderScan === true;
     var done = trimDone(cooldownTasks(plan));
     var next = openTasks(plan).filter(function (t) {
+      if (keepExisting) return true;
       if (isScanTask(t) && !scanIsNeeded(ctx)) return false;
       if (t.successKind !== "open_activate") return true;
       var row = rowByLevel(ctx.rows || [], t.levelIndex);
       if (!row || row.stage !== "no_data") return false;
       return canScheduleOpenNew(ctx.rows || []);
     });
-    if (ctx.scan) {
+    if (!keepExisting && ctx.scan) {
       next.forEach(function (t) {
         if (isScanTask(t)) applyScanFields(t, ctx.scan);
       });
@@ -1080,9 +1091,11 @@
     }
     appendFromNeeded(false);
     if (!next.length) appendFromNeeded(true);
-    var scanN = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : null;
-    if (isRetryClearScan(ctx)) next = placeRetryScanSecond(next, ctx);
-    else next = placeScanAfterPrereqs(next, done, scanN);
+    if (reorderScan) {
+      var scanN = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : null;
+      if (isRetryClearScan(ctx)) next = placeRetryScanSecond(next, ctx);
+      else next = placeScanAfterPrereqs(next, done, scanN);
+    }
     plan.tasks = done.concat(next);
     activateFirst(plan.tasks);
   }
@@ -1145,7 +1158,7 @@
       events: [],
       history: [],
     };
-    fillIncomplete(plan, ctx, issuedAt);
+    fillIncomplete(plan, ctx, issuedAt, { keepExisting: false, reorderScan: true });
     var head = getActiveTask(plan);
     pushEvent(
       plan,
@@ -1173,16 +1186,15 @@
     return probe;
   }
 
-  function reissueIncomplete(plan, ctx, ts, text, keepOpenWindows) {
+  function reissueIncomplete(plan, ctx, ts, text, keepStickyAttempts) {
     var done = trimDone(cooldownTasks(plan));
-    var kept = {};
-    if (keepOpenWindows !== false) {
+    var sticky = [];
+    if (keepStickyAttempts !== false) {
       openTasks(plan).forEach(function (t) {
-        if (!t || !t.key) return;
-        kept[t.key] = cloneJson(t.window || emptyPlanWindow());
+        if (taskHasAttempts(t)) sticky.push(t);
       });
     }
-    plan.tasks = done;
+    plan.tasks = done.concat(sticky);
     if (ctx && ctx.profile) plan.profile = ctx.profile;
     if (ctx) {
       plan.pickNote = ctx.pickNote;
@@ -1190,12 +1202,17 @@
       plan.dontOpen = dont.labels;
       plan.dontOpenLabel = dont.copy;
     }
-    fillIncomplete(plan, ctx, ts);
-    openTasks(plan).forEach(function (t) {
-      if (kept[t.key]) t.window = kept[t.key];
+    fillIncomplete(plan, ctx, ts, {
+      keepExisting: sticky.length > 0,
+      reorderScan: sticky.length === 0,
     });
     activateFirst(plan.tasks);
-    pushEvent(plan, "rebuild", text || "跑偏：按热图重算未完成（冷却窗保留）", ts);
+    pushEvent(
+      plan,
+      "rebuild",
+      text || "跑偏：按热图重算未完成（有尝试记录的关保留，冷却窗保留）",
+      ts
+    );
   }
 
   function getActiveTask(plan) {
@@ -1415,15 +1432,15 @@
       done = trimDone(done);
     }
     plan.tasks = done.concat(next);
-    fillIncomplete(plan, ctx, ts);
+    fillIncomplete(plan, ctx, ts, { keepExisting: true, reorderScan: false });
     var head = getActiveTask(plan);
     var openN = openTasks(plan).length;
     var coolN = cooldownTasks(plan).length;
     pushEvent(
       plan,
       "replan",
-      (reason === "success" ? "成功后重排队列" : reason === "fail" ? "失败进入冷却窗" : "重排") +
-        "：当前 " +
+      (reason === "success" ? "成功后补一格" : reason === "fail" ? "失败后补一格" : "补格") +
+        "（其余未完成不动）：当前 " +
         (head ? head.title || head.levelLabel : "无任务") +
         "；排队 " +
         openN +
@@ -1491,22 +1508,7 @@
     if (!Array.isArray(plan.tasks)) plan.tasks = [];
     if (!STORE_FULL_HISTORY) plan.history = [];
     else if (!Array.isArray(plan.history)) plan.history = [];
-    var versionBump = plan.ruleVersion !== RULE_VERSION;
-    if (versionBump || flags.resetIncomplete) {
-      plan.ruleVersion = RULE_VERSION;
-      if (username) plan.username = username;
-      reissueIncomplete(
-        plan,
-        ctx,
-        nowTs,
-        flags.resetIncomplete
-          ? "重新开单：重算未完成（冷却窗保留）"
-          : "规则升级：重算未完成（冷却窗保留）",
-        flags.resetIncomplete ? false : true
-      );
-      rebuilt = true;
-    }
-    if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
+    if (username) plan.username = username;
     activateFirst(plan.tasks);
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
     var incoming = (runs || [])
@@ -1554,13 +1556,30 @@
           replan(plan, ctx, matched, "success", ts);
         }
       } else {
-        reissueIncomplete(plan, ctx, ts, "跑偏：按热图重算未完成（冷却窗保留）");
+        reissueIncomplete(
+          plan,
+          ctx,
+          ts,
+          "跑偏：按热图重算未完成（有尝试记录的关保留，冷却窗保留）"
+        );
         lastFollow = { kind: "drift" };
         rebuilt = true;
       }
       plan.lastProcessedTs = ts;
     });
-    if (openTasks(plan).length < INCOMPLETE_SIZE) fillIncomplete(plan, ctx, nowTs);
+    var versionBump = plan.ruleVersion !== RULE_VERSION;
+    if (versionBump) {
+      plan.ruleVersion = RULE_VERSION;
+      pushEvent(plan, "rebuild", "规则升级：只更新版本号，未完成不重排", nowTs);
+    }
+    if (flags.resetIncomplete) {
+      plan.ruleVersion = RULE_VERSION;
+      reissueIncomplete(plan, ctx, nowTs, "重新开单：重算未完成（冷却窗保留）", false);
+      rebuilt = true;
+    }
+    if (openTasks(plan).length < INCOMPLETE_SIZE) {
+      fillIncomplete(plan, ctx, nowTs, { keepExisting: true, reorderScan: false });
+    }
     activateFirst(plan.tasks);
     return { plan: plan, rebuilt: rebuilt, lastFollow: lastFollow };
   }
@@ -1824,7 +1843,7 @@
         SAME_TASK_GAP +
         " 条才可再出现；冷却窗最多 " +
         COMPLETED_MAX +
-        " 条（成功+失败），满则挤最早。规则升级/重新开单/跑偏/热图变都不清冷却。只有可练池空才允许更密",
+        " 条（成功+失败），满则挤最早。规则升级不拆未完成；重新开单/跑偏才重算未完成。都不清冷却。只有可练池空才允许更密",
       "Q12 绿档速度补格：timePct<" +
         FOUNDATION_FAST_PCT +
         " 只比分位；否则 ×" +
@@ -1840,7 +1859,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 队头按成功/失败退出：成功或失败都进冷却窗，不后插；2～5 碰巧这一局达标才提前完成，未达标不记失败。放弃局整局不算。跑偏/规则升级/重新开单只重算未完成（冷却窗保留）"
+      "Q16 队头按成功/失败退出：成功或失败都进冷却窗，不后插，其余未完成不动只补一格；2～5 碰巧这一局达标才提前完成，未达标不记失败。放弃局整局不算。任务局不重算五格；名单外才重算未完成（有尝试记录的关保留）。规则升级不拆队；重新开单才丢掉未完成进度"
     ];
     reasons.push(
       reason(
@@ -1970,7 +1989,7 @@
         coolN;
       parentCopy =
         ctx.profile.label +
-        "。队头成功或失败都进冷却窗；排队项碰巧达标可提前完成；放弃局整局不算；跑偏才重算未完成。";
+        "。队头成功或失败都进冷却窗，缺格只补一条；排队项碰巧达标可提前完成；放弃局整局不算；名单外才重算未完成（已有尝试的关保留）。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
