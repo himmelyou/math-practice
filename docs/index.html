@@ -2857,11 +2857,23 @@
     .daily-task-header {
       flex-shrink: 0;
       padding: 0 4px 8px;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
     }
     .daily-task-title {
       margin: 0;
       font-size: 1.1rem;
       color: #263238;
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+    .daily-task-tagline {
+      margin: 0;
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--muted);
+      line-height: 1.3;
     }
     .daily-task-scroll {
       flex: 1;
@@ -4349,6 +4361,7 @@
     <section class="daily-task-section" id="daily-task-section" style="display:none;" hidden>
       <div class="daily-task-header">
         <h2 class="daily-task-title" id="daily-task-title">每日任务</h2>
+        <span class="daily-task-tagline" id="daily-task-tagline">(完成任务，冲击任务达人榜)</span>
       </div>
       <div class="daily-task-scroll" id="daily-task-scroll">
         <p class="daily-task-status" id="daily-task-status">载入中…</p>
@@ -6635,6 +6648,8 @@
     function applyDailyTaskPageI18n() {
       const title = document.getElementById("daily-task-title");
       if (title) title.textContent = t("dailyTasks.title");
+      const tagline = document.getElementById("daily-task-tagline");
+      if (tagline) tagline.textContent = t("dailyTasks.tagline");
       const status = document.getElementById("daily-task-status");
       if (status && !status.hidden) status.textContent = t("dailyTasks.loading");
       if (lastDailyTaskAdvice) renderDailyTaskAdvice(lastDailyTaskAdvice);
@@ -8788,6 +8803,7 @@
         "home.btn.settings": "設置",
         "home.btn.dailyTasks": "每日任務",
         "dailyTasks.title": "每日任務",
+        "dailyTasks.tagline": "(完成任務，衝擊任務達人榜)",
         "dailyTasks.openHeading": "未完成",
         "dailyTasks.historyHeading": "全部歷史（{n}）",
         "dailyTasks.historyEmpty": "暫無",
@@ -9257,6 +9273,7 @@
         "home.btn.settings": "Settings",
         "home.btn.dailyTasks": "Daily tasks",
         "dailyTasks.title": "Daily tasks",
+        "dailyTasks.tagline": "(Complete tasks, climb Task Master)",
         "dailyTasks.openHeading": "In progress",
         "dailyTasks.historyHeading": "All history ({n})",
         "dailyTasks.historyEmpty": "None yet",
