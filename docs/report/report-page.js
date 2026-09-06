@@ -2714,7 +2714,7 @@
       escapeHtml(advice.ruleVersion || '') +
       ' · 年级 ' +
       escapeHtml(gradeText) +
-      ' · 失败进冷却 · 2～5 可碰巧完成</span>' +
+      ' · 失败进冷却 · 1～5 都能跟局 / 碰巧完成</span>' +
       '<button type="button" class="jml-btn jml-advice-refresh" id="jml-advice-refresh" title="把积压新局跟进当前单；不重排未完成">刷新</button>' +
       '<button type="button" class="jml-btn jml-advice-reset" id="jml-advice-reset" title="只重算未完成，冷却窗保留">重新开单</button>' +
       '</div>' +

@@ -2931,8 +2931,9 @@
     }
     .daily-task-card {
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
       padding: 12px 14px;
       border-radius: 14px;
       background: #fff;
@@ -2946,12 +2947,6 @@
     .daily-task-card--done {
       background: #f7fafc;
       box-shadow: none;
-    }
-    .daily-task-card-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
     }
     .daily-task-card-main {
       min-width: 0;
@@ -2971,19 +2966,18 @@
       line-height: 1.35;
     }
     .daily-task-card-prog {
-      flex-shrink: 0;
-      max-width: 42%;
-      text-align: right;
       font-size: 0.82rem;
       color: #78909c;
       line-height: 1.35;
     }
     .daily-task-start {
-      margin-top: 8px;
-      width: 100%;
-      min-height: 40px;
-      border-radius: 12px;
-      font-size: 0.95rem;
+      flex-shrink: 0;
+      width: auto;
+      min-height: 32px;
+      margin: 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.75rem;
       font-weight: 700;
     }
     .daily-task-history {
@@ -6437,9 +6431,16 @@
       const queue = ((lastDailyTaskAdvice && lastDailyTaskAdvice.queue) || []).filter(function (s) {
         return s && (s.status === "active" || s.status === "pending");
       });
-      const step = queue[0];
+      let step = null;
+      if (dailyTaskPlay.taskId) {
+        for (let i = 0; i < queue.length; i += 1) {
+          if (queue[i] && String(queue[i].id || "") === String(dailyTaskPlay.taskId)) {
+            step = queue[i];
+            break;
+          }
+        }
+      }
       if (!step) return;
-      if (dailyTaskPlay.taskId && step.id && String(dailyTaskPlay.taskId) !== String(step.id)) return;
       dailyTaskPlay.successKind = step.successKind || dailyTaskPlay.successKind || "";
       dailyTaskPlay.targetP = step.targetP;
       dailyTaskPlay.targetAvgSec = step.targetAvgSec;
@@ -6531,7 +6532,7 @@
       const titleEl = document.getElementById("game-over-title");
       if (titleEl) {
         titleEl.textContent =
-          follow && follow.kind === "success"
+          follow && (follow.kind === "success" || follow.kind === "lucky")
             ? t("dailyTasks.over.success")
             : t("dailyTasks.over.keepTrying");
       }
@@ -6551,12 +6552,21 @@
       void showDailyTaskView();
     }
 
-    async function startDailyTaskChallenge() {
+    async function startDailyTaskChallenge(taskId) {
       if (isGuestMode) return;
       const queue = ((lastDailyTaskAdvice && lastDailyTaskAdvice.queue) || []).filter(function (s) {
         return s && (s.status === "active" || s.status === "pending");
       });
-      const step = queue[0];
+      let step = null;
+      const want = taskId != null ? String(taskId) : "";
+      if (want) {
+        for (let i = 0; i < queue.length; i += 1) {
+          if (queue[i] && String(queue[i].id || "") === want) {
+            step = queue[i];
+            break;
+          }
+        }
+      }
       if (!step || !step.action) return;
       dailyTaskPlay = {
         taskId: step.id || "",
@@ -6661,23 +6671,23 @@
         : tf("dailyTasks.taskTitle", { n: index + 1, label: dailyTaskKindLabel(step) });
       const goal = dailyTaskGoalText(step);
       const prog = dailyTaskProgressText(step);
-      const startBtn = isHead
-        ? '<button type="button" class="home-pill-btn home-pill-btn--primary daily-task-start" data-daily-task-start="1">' +
-          escapeHtml(t("game.btn.startChallenge")) +
-          "</button>"
-        : "";
+      const startBtn = opts.history
+        ? ""
+        : '<button type="button" class="home-pill-btn home-pill-btn--primary daily-task-start" data-daily-task-start="' +
+          escapeHtml(String(step && step.id ? step.id : "")) +
+          '">' +
+          escapeHtml(t("dailyTasks.start")) +
+          "</button>";
       return (
         '<article class="daily-task-card' +
         (isHead ? " daily-task-card--head" : "") +
         (step.status === "success" ? " daily-task-card--done" : "") +
         '">' +
-        '<div class="daily-task-card-row">' +
         '<div class="daily-task-card-main">' +
         '<div class="daily-task-card-title">' +
         escapeHtml(title) +
         "</div>" +
         (goal ? '<div class="daily-task-card-goal">' + escapeHtml(goal) + "</div>" : "") +
-        "</div>" +
         (prog ? '<div class="daily-task-card-prog">' + escapeHtml(prog) + "</div>" : "") +
         "</div>" +
         startBtn +
@@ -8964,6 +8974,7 @@
         "dailyTasks.grade.needNet": "設定年級需連網，請連接網路後重試。",
         "dailyTasks.grade.saveFail": "儲存失敗，請稍後重試。",
         "dailyTasks.taskTitle": "任務 {n} · {label}",
+        "dailyTasks.start": "開始挑戰",
         "dailyTasks.label.level": "闖關",
         "dailyTasks.label.retryClear": "衝榜",
         "dailyTasks.label.training": "四則訓練 {level}",
@@ -9446,6 +9457,7 @@
         "dailyTasks.grade.needNet": "Setting grade requires internet. Connect and try again.",
         "dailyTasks.grade.saveFail": "Save failed. Try again later.",
         "dailyTasks.taskTitle": "Task {n} · {label}",
+        "dailyTasks.start": "Start",
         "dailyTasks.label.level": "Challenge",
         "dailyTasks.label.retryClear": "Retry clear",
         "dailyTasks.label.training": "Arithmetic {level}",
@@ -16693,7 +16705,9 @@
         dailyTaskBodyEl.addEventListener("click", function (e) {
           const btn = e.target && e.target.closest ? e.target.closest("[data-daily-task-start]") : null;
           if (!btn) return;
-          void startDailyTaskChallenge();
+          const id = btn.getAttribute("data-daily-task-start");
+          if (!id) return;
+          void startDailyTaskChallenge(id);
         });
       }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.addEventListener("click", () => {

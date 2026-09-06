@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.20：不整单重排未完成。任务局只跟这一条；成功/失败只补一格。
- * 规则升级不拆队。跑偏才重算未完成，且保留已有尝试记录的关。
+ * 练习建议 v0.21：未完成 1～5 都能开练、对上就跟局（含首页碰巧）。
+ * 不整单重排。成功/失败只补一格。规则升级不拆队。
  */
 (function (root) {
-  var RULE_VERSION = "0.20-provisional";
+  var RULE_VERSION = "0.21-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -1177,13 +1177,9 @@
     return null;
   }
 
-  /** 只用这一局当任务窗，看是否已达成功线（不把失败写回原任务）。 */
-  function probeRunSuccess(task, run) {
-    if (!task || !run) return null;
-    var probe = cloneJson(task);
-    probe.window = emptyPlanWindow();
-    if (applyFollow(probe, run) !== "success") return null;
-    return probe;
+  function isTaskModeRun(run) {
+    var m = run && run.trainingMeta && typeof run.trainingMeta === "object" ? run.trainingMeta : null;
+    return !!(m && m.dailyTask === true);
   }
 
   function reissueIncomplete(plan, ctx, ts, text, keepStickyAttempts) {
@@ -1522,38 +1518,24 @@
       });
     incoming.forEach(function (run) {
       var ts = runTs(run);
-      var head = getActiveTask(plan);
       var matched = findMatchingOpenTask(plan, run);
-      if (matched && head && matched.id === head.id) {
+      if (matched) {
         var outcome = applyFollow(matched, run);
-        pushEvent(
-          plan,
-          "follow",
-          (matched.title || matched.levelLabel) +
-            (outcome === "success" ? " 成功" : outcome ? " 失败（" + outcome + "）" : " 未达"),
-          ts
-        );
+        var label = matched.title || matched.levelLabel;
+        var fromTaskBtn = isTaskModeRun(run);
         if (outcome === "success") {
-          lastFollow = { kind: "success", taskId: matched.id || "" };
+          pushEvent(plan, "follow", (fromTaskBtn ? "" : "碰巧完成：") + label + (fromTaskBtn ? " 成功" : ""), ts);
+          lastFollow = { kind: fromTaskBtn ? "success" : "lucky", taskId: matched.id || "" };
           closeTask(plan, matched, "success", "success", ts);
           replan(plan, ctx, matched, "success", ts);
         } else if (outcome) {
+          pushEvent(plan, "follow", label + " 失败（" + outcome + "）", ts);
           lastFollow = { kind: "fail", taskId: matched.id || "", reason: outcome };
           closeTask(plan, matched, "fail", outcome, ts);
           replan(plan, ctx, matched, "fail", ts);
         } else {
+          pushEvent(plan, "follow", label + " 未达", ts);
           lastFollow = { kind: "pending", taskId: matched.id || "" };
-        }
-      } else if (matched) {
-        var probe = probeRunSuccess(matched, run);
-        if (probe) {
-          matched.window = probe.window;
-          if (probe.baseline) matched.baseline = probe.baseline;
-          if (probe.targetAvgSec != null) matched.targetAvgSec = probe.targetAvgSec;
-          pushEvent(plan, "follow", "碰巧完成：" + (matched.title || matched.levelLabel), ts);
-          lastFollow = { kind: "lucky", taskId: matched.id || "" };
-          closeTask(plan, matched, "success", "success", ts);
-          replan(plan, ctx, matched, "success", ts);
         }
       } else {
         reissueIncomplete(
@@ -1859,7 +1841,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 队头按成功/失败退出：成功或失败都进冷却窗，不后插，其余未完成不动只补一格；2～5 碰巧这一局达标才提前完成，未达标不记失败。放弃局整局不算。任务局不重算五格；名单外才重算未完成（有尝试记录的关保留）。规则升级不拆队；重新开单才丢掉未完成进度"
+      "Q16 未完成 1～5 对上就跟局（记尝试/成功/失败），不限队头；点任务按钮和首页碰巧同一套。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外才重算未完成（有尝试记录的关保留）。规则升级不拆队；重新开单才丢掉未完成进度"
     ];
     reasons.push(
       reason(
@@ -1948,8 +1930,8 @@
           SAME_TASK_GAP +
           " 条；冷却窗最多 " +
           COMPLETED_MAX +
-          " 条（成功+失败）。可练池空才允许提前重复。队头失败进冷却、不后插；2～5 只认碰巧成功；跑偏重算未完成并保留冷却窗",
-        "Q8/Q9 队头失败；Q16 排队项碰巧成功",
+          " 条（成功+失败）。可练池空才允许提前重复。1～5 对上就跟局，失败进冷却、不后插；非任务入口当场成功称碰巧完成；跑偏重算未完成并保留冷却窗",
+        "Q8/Q9 对上的那条计失败；Q16 1～5 都能跟局/碰巧完成",
       )
     );
 
@@ -1989,7 +1971,7 @@
         coolN;
       parentCopy =
         ctx.profile.label +
-        "。队头成功或失败都进冷却窗，缺格只补一条；排队项碰巧达标可提前完成；放弃局整局不算；名单外才重算未完成（已有尝试的关保留）。";
+        "。未完成 1～5 对上就跟局，成功或失败都进冷却窗，缺格只补一条；首页打中名单里的关也会记尝试，当场成功称碰巧完成；放弃局整局不算；名单外才重算未完成（已有尝试的关保留）。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
