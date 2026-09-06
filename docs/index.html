@@ -6519,24 +6519,114 @@
       }
     }
 
+    function summarizeDailyTaskRunAttempts(levelIndex) {
+      const attempts = Array.isArray(currentRunAttempts) ? currentRunAttempts : [];
+      let filtered = attempts;
+      if (levelIndex != null && Number.isFinite(Number(levelIndex))) {
+        const lv = Math.floor(Number(levelIndex));
+        const matched = attempts.filter(function (a) {
+          return a && a.levelIndex != null && Math.floor(Number(a.levelIndex)) === lv;
+        });
+        if (matched.length) filtered = matched;
+      }
+      let n = 0;
+      let correct = 0;
+      let lnSum = 0;
+      let lnN = 0;
+      filtered.forEach(function (a) {
+        if (!a) return;
+        n += 1;
+        if (!a.correct) return;
+        correct += 1;
+        const ms = Number(a.timeSpentMs);
+        if (ms > 0 && ms < 60000) {
+          lnSum += Math.log(ms);
+          lnN += 1;
+        }
+      });
+      return {
+        p: n > 0 ? correct / n : null,
+        avgSec: lnN > 0 ? Math.exp(lnSum / lnN) / 1000 : null,
+      };
+    }
+
+    function fillDailyTaskOverStats() {
+      const dash = DAILY_TASK_METRIC_DASH;
+      const kind = dailyTaskPlay && dailyTaskPlay.successKind;
+      const lv =
+        dailyTaskPlay && dailyTaskPlay.action === "training" && dailyTaskPlay.levelIndex != null
+          ? dailyTaskPlay.levelIndex
+          : null;
+      const run = summarizeDailyTaskRunAttempts(lv);
+      let tgtSpd = dash;
+      let tgtAcc = dash;
+      if (kind === "speed_step") {
+        tgtSpd = formatDailyTaskSecValue(dailyTaskPlay.targetAvgSec);
+        tgtAcc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
+      } else if (kind === "open_activate" || kind === "level_reach") {
+        tgtSpd = dash;
+        tgtAcc = dash;
+      } else if (dailyTaskPlay && dailyTaskPlay.targetP != null) {
+        tgtAcc = formatDailyTaskPct(dailyTaskPlay.targetP);
+      }
+      const durationLabelEl = document.getElementById("game-over-duration-label");
+      const scoreLabelEl = document.getElementById("game-over-score-label");
+      const wrongLabelEl = document.getElementById("game-over-wrong-label");
+      const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
+      const durationEl = document.getElementById("game-over-duration");
+      const scoreEl = document.getElementById("game-over-score");
+      const wrongEl = document.getElementById("game-over-wrong");
+      const maxLevelEl = document.getElementById("game-over-max-level");
+      if (durationLabelEl) durationLabelEl.textContent = t("dailyTasks.over.targetSpeed");
+      if (scoreLabelEl) scoreLabelEl.textContent = t("dailyTasks.over.runSpeed");
+      if (wrongLabelEl) wrongLabelEl.textContent = t("dailyTasks.over.targetAcc");
+      if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("dailyTasks.over.runAcc");
+      if (durationEl) durationEl.textContent = tgtSpd;
+      if (scoreEl) scoreEl.textContent = formatDailyTaskSecValue(run.avgSec);
+      if (wrongEl) wrongEl.textContent = tgtAcc;
+      if (maxLevelEl) maxLevelEl.textContent = formatDailyTaskPct(run.p);
+    }
+
+    function prepareDailyTaskOverWait() {
+      setGameOverLayout(true);
+      setTrainingSummaryLayout(true);
+      setGameCardActionSlot("hidden");
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+      const back = document.getElementById("daily-task-back-btn");
+      if (back) back.style.display = "none";
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+    }
+
+    function paintDailyTaskOverPanel(follow, abandoned) {
+      if (!dom.gameOverPanel) return;
+      setGameOverLayout(true);
+      setTrainingSummaryLayout(true);
+      setGameCardActionSlot("hidden");
+      const titleEl = document.getElementById("game-over-title");
+      if (titleEl) {
+        if (abandoned) titleEl.textContent = t("game.over.abandonedTitle");
+        else if (follow && (follow.kind === "success" || follow.kind === "lucky")) {
+          titleEl.textContent = t("dailyTasks.over.success");
+        } else {
+          titleEl.textContent = t("dailyTasks.over.keepTrying");
+        }
+      }
+      fillDailyTaskOverStats();
+      dom.gameOverPanel.style.display = "block";
+      setDailyTaskGameOverActions(follow || { kind: "none" }, abandoned);
+    }
+
     async function finishDailyTaskGameOver(abandoned) {
       if (!isDailyTaskPlay()) {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         return;
       }
       if (abandoned) {
-        setDailyTaskGameOverActions({ kind: "none" }, true);
+        paintDailyTaskOverPanel({ kind: "none" }, true);
         return;
       }
       const follow = await syncDailyTaskFollowAfterRun();
-      const titleEl = document.getElementById("game-over-title");
-      if (titleEl) {
-        titleEl.textContent =
-          follow && (follow.kind === "success" || follow.kind === "lucky")
-            ? t("dailyTasks.over.success")
-            : t("dailyTasks.over.keepTrying");
-      }
-      setDailyTaskGameOverActions(follow, false);
+      paintDailyTaskOverPanel(follow, false);
     }
 
     function goDailyTaskListFromSettlement() {
@@ -8983,6 +9073,10 @@
         "dailyTasks.over.keepTrying": "還需努力",
         "dailyTasks.over.retry": "再試一次",
         "dailyTasks.over.backToList": "回到任務列表",
+        "dailyTasks.over.targetSpeed": "目標速度",
+        "dailyTasks.over.runSpeed": "該局速度",
+        "dailyTasks.over.targetAcc": "目標準確率",
+        "dailyTasks.over.runAcc": "本局準確率",
         "dailyTasks.preview.currentAcc": "當前準確率",
         "dailyTasks.preview.targetAcc": "目標準確率",
         "dailyTasks.preview.currentSpeed": "當前速度",
@@ -9466,6 +9560,10 @@
         "dailyTasks.over.keepTrying": "Keep going",
         "dailyTasks.over.retry": "Try again",
         "dailyTasks.over.backToList": "Back to tasks",
+        "dailyTasks.over.targetSpeed": "Target speed",
+        "dailyTasks.over.runSpeed": "This run speed",
+        "dailyTasks.over.targetAcc": "Target accuracy",
+        "dailyTasks.over.runAcc": "This run accuracy",
         "dailyTasks.preview.currentAcc": "Current accuracy",
         "dailyTasks.preview.targetAcc": "Target accuracy",
         "dailyTasks.preview.currentSpeed": "Current speed",
@@ -12415,7 +12513,9 @@
 
       if (abandoned) {
         setFeedback("", null);
-        if (dom.gameOverPanel) {
+        if (isDailyTaskPlay()) {
+          prepareDailyTaskOverWait();
+        } else if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
           const titleEl = document.getElementById("game-over-title");
@@ -12485,6 +12585,12 @@
           setTrainingRunFinalizeUi(false);
         }
         renderTrainingRunWrongReview();
+        if (isDailyTaskPlay()) {
+          prepareDailyTaskOverWait();
+          setGameCardActionSlot("hidden");
+          await finishDailyTaskGameOver(false);
+          return;
+        }
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -12543,12 +12649,18 @@
       } finally {
         setTrainingRunFinalizeUi(false);
       }
-      renderTrainingRunWrongReview();
-      if (dom.gameOverPanel) {
-        setGameOverLayout(true);
-        dom.gameOverPanel.style.display = "block";
-        const titleEl = document.getElementById("game-over-title");
-        if (titleEl) titleEl.textContent = tipText;
+        renderTrainingRunWrongReview();
+        if (isDailyTaskPlay()) {
+          prepareDailyTaskOverWait();
+          setGameCardActionSlot("hidden");
+          await finishDailyTaskGameOver(false);
+          return;
+        }
+        if (dom.gameOverPanel) {
+          setGameOverLayout(true);
+          dom.gameOverPanel.style.display = "block";
+          const titleEl = document.getElementById("game-over-title");
+          if (titleEl) titleEl.textContent = tipText;
         const durationLabelEl = document.getElementById("game-over-duration-label");
         const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
         const durationEl = document.getElementById("game-over-duration");
@@ -12606,6 +12718,13 @@
         );
         renderMainGameRunWrongReview();
         updateTrainingButtonLabel();
+        if (isDailyTaskPlay()) {
+          prepareDailyTaskOverWait();
+          setGameCardActionSlot("hidden");
+          await abandonSave;
+          await finishDailyTaskGameOver(true);
+          return;
+        }
         if (dom.gameOverPanel) {
           setGameOverLayout(true);
           dom.gameOverPanel.style.display = "block";
@@ -12629,12 +12748,7 @@
           if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
         }
         setGameCardActionSlot("hidden");
-        if (isDailyTaskPlay()) {
-          await abandonSave;
-          await finishDailyTaskGameOver(true);
-        } else if (dom.playAgainBtn) {
-          dom.playAgainBtn.style.display = "";
-        }
+        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         return;
       }
       const endLevel = completed ? 15 : persistIdx;
@@ -12657,6 +12771,14 @@
       if (completed === true && cachedUser) cachedUser.hasClearedLevel = true;
       renderMainGameRunWrongReview();
       updateLevelStatusUI();
+      if (isDailyTaskPlay()) {
+        prepareDailyTaskOverWait();
+        setGameCardActionSlot("hidden");
+        await levelSave;
+        await finishDailyTaskGameOver(false);
+        updateTrainingButtonLabel();
+        return;
+      }
       if (dom.gameOverPanel) {
         setGameOverLayout(true);
         dom.gameOverPanel.style.display = "block";
@@ -12694,12 +12816,7 @@
         }
       }
       setGameCardActionSlot("hidden");
-      if (isDailyTaskPlay()) {
-        await levelSave;
-        await finishDailyTaskGameOver(false);
-      } else if (dom.playAgainBtn) {
-        dom.playAgainBtn.style.display = "";
-      }
+      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
       updateTrainingButtonLabel();
     }
 

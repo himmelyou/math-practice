@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.21：未完成 1～5 都能开练、对上就跟局（含首页碰巧）。
+ * 练习建议 v0.22：训练成功按本局判（不再多局平均）。1～5 都能开练。
  * 不整单重排。成功/失败只补一格。规则升级不拆队。
  */
 (function (root) {
-  var RULE_VERSION = "0.21-provisional";
+  var RULE_VERSION = "0.22-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -1263,21 +1263,20 @@
     }
   }
 
-  function evaluateSuccess(task, run) {
-    if (!sampleOk(task)) return false;
+  function evaluateSuccess(task, run, stats) {
+    stats = stats || summarizeRun(run, task.action === "training" ? task.levelIndex : null);
     if (task.successKind === "level_reach") {
       return passedScanTarget(run, task.scanLevelIndex);
     }
-    if (task.successKind === "open_activate") return true;
+    if (task.successKind === "open_activate") return !!(stats && stats.n > 0);
+    if (!stats || !stats.n) return false;
     if (task.successKind === "speed_step") {
-      if (task.targetAvgSec == null || task.window.avgSec == null) return false;
-      var speedP = windowP(task);
-      if (speedP == null || speedP + 1e-9 < HEAT_P_YELLOW) return false;
-      return Number(task.window.avgSec) <= Number(task.targetAvgSec) + 1e-9;
+      if (task.targetAvgSec == null || stats.avgSec == null) return false;
+      if (stats.p == null || stats.p + 1e-9 < HEAT_P_YELLOW) return false;
+      return Number(stats.avgSec) <= Number(task.targetAvgSec) + 1e-9;
     }
-    var p = windowP(task);
-    if (p == null || task.targetP == null) return false;
-    return p + 1e-9 >= Number(task.targetP);
+    if (stats.p == null || task.targetP == null) return false;
+    return stats.p + 1e-9 >= Number(task.targetP);
   }
 
   function evaluateFail(task) {
@@ -1310,7 +1309,7 @@
       w.speedN = prevSpeedN + stats.speedN;
     }
     if (day) w.gamesByDay[day] = (w.gamesByDay[day] || 0) + 1;
-    if (evaluateSuccess(task, run)) return "success";
+    if (evaluateSuccess(task, run, stats)) return "success";
     var fail = evaluateFail(task);
     return fail || "";
   }
@@ -1588,27 +1587,17 @@
       var sec = roundSec(task.targetAvgSec);
       var tp = task.targetTimePct != null ? Math.round(task.targetTimePct) : null;
       return (
-        "成功：本任务新打均速 ≤ " +
+        "成功：本局均速 ≤ " +
         (sec != null ? sec + "s" : "开单均速的 92%") +
-        "，且准度 ≥ " +
+        "，且本局准度 ≥ " +
         pctText(HEAT_P_YELLOW) +
-        "（至少 " +
-        MIN_SUCCESS_GAMES +
-        " 局或 " +
-        MIN_SUCCESS_ITEMS +
-        " 题" +
-        (tp != null ? "；对照 timePct→" + tp : "") +
-        "）"
+        (tp != null ? "（对照 timePct→" + tp + "）" : "")
       );
     }
     return (
-      "成功：本任务新打准度达到 " +
+      "成功：本局准度达到 " +
       pctText(task.targetP) +
-      "（至少 " +
-      MIN_SUCCESS_GAMES +
-      " 局或 " +
-      MIN_SUCCESS_ITEMS +
-      " 题，不是整格热图）"
+      "（不是整格热图）"
     );
   }
 
@@ -1815,7 +1804,7 @@
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：从 L1 起连续准≥95%（不计分位），再和历史最高取 min；目标 Ln 须通过 Ln。L1 不够 95% 时仍排闯关且目标为 L1",
       "Q6 准度小步暂定 +" + Math.round(ACC_STEP * 1000) / 10 + "pp，封顶 95%",
-      "Q7 速度小步暂定任务窗均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且窗内准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%",
+      "Q7 速度小步暂定本局均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且本局准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%。训练成功按本局判，不再多局平均",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
       "Q10 一条队列：未完成最多 " +
@@ -1841,7 +1830,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 未完成 1～5 对上就跟局（记尝试/成功/失败），不限队头；点任务按钮和首页碰巧同一套。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外才重算未完成（有尝试记录的关保留）。规则升级不拆队；重新开单才丢掉未完成进度"
+      "Q16 未完成 1～5 对上就跟局（记尝试/成功/失败），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标，不再把多局搓在一起。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外才重算未完成（有尝试记录的关保留）。规则升级不拆队；重新开单才丢掉未完成进度"
     ];
     reasons.push(
       reason(
