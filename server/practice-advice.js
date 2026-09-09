@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.23：准度任务本局 ≥95%，废掉低于 95% 的小步目标。
- * 训练成功按本局判。1～5 都能开练。不整单重排。
+ * 练习建议 v0.24：黄橙洞分加剩余步×10，准度不合格时更先补低档。
+ * 准度任务本局 ≥95%。训练成功按本局判。1～5 都能开练。不整单重排。
  */
 (function (root) {
-  var RULE_VERSION = "0.23-provisional";
+  var RULE_VERSION = "0.24-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -20,6 +20,8 @@
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
   var FOUNDATION_RATIO = 1.15;
+  /** 黄橙洞分：本线剩余步 × 此系数（与 timePct 同量级；准度不够时更先补靠前档） */
+  var HOLE_FOUNDATION_STEP = 10;
   /** Q6 已废：准度不再小步。常量仅兼容旧输出字段。 */
   var ACC_STEP = 0.015;
   /** Q7：速度小步：任务窗均速 ≤ 基线 × 此系数；对照 timePct −10 */
@@ -210,11 +212,16 @@
     return tp * Math.pow(FOUNDATION_RATIO, foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0)));
   }
 
+  function holeFoundationTerm(row) {
+    return foundationRemaining(row && (row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0))) * HOLE_FOUNDATION_STEP;
+  }
+
   function holeScore(row) {
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
     var spd = timePctVal(row);
-    if (row.stage === "weak") return 2000 + (1 - p) * 1000 + (row.tooSlow ? 80 : 0) + spd;
-    if (row.stage === "shaky") return 1000 + (1 - p) * 1000 + spd;
+    var found = holeFoundationTerm(row);
+    if (row.stage === "weak") return 2000 + (1 - p) * 1000 + (row.tooSlow ? 80 : 0) + spd + found;
+    if (row.stage === "shaky") return 1000 + (1 - p) * 1000 + spd + found;
     return 0;
   }
 
@@ -1838,7 +1845,10 @@
       "Q13 黄橙与热图二维上色对齐：橙=准<90%或timePct≥" +
         HEAT_PCT_PLUS1 +
         "；黄=准<95%或timePct≥" +
-        FAST_TIME_PCT,
+        FAST_TIME_PCT +
+        "。洞分=档位+准度差+timePct+剩余步×" +
+        HOLE_FOUNDATION_STEP +
+        "（准度不合格时更先补靠前档）",
       "Q14 已激活校内全绿才开一档已学/同步空关；热图全空只排闯关、不开新关；闯关留下数据即当老关；超前无数据不开",
       "Q15 底板型已通关：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
@@ -2038,6 +2048,7 @@
         Q11_completedMax: COMPLETED_MAX,
         Q12_foundationFastPct: FOUNDATION_FAST_PCT,
         Q12_foundationRatio: FOUNDATION_RATIO,
+        Q13_holeFoundationStep: HOLE_FOUNDATION_STEP,
         Q13_heatPctPlus1: HEAT_PCT_PLUS1,
         Q14_openWhenSchoolGreen: true,
         Q15_retryClearImprove: SCAN_CLEAR_IMPROVE,
@@ -2065,12 +2076,14 @@
     SCAN_CLEAR_IMPROVE: SCAN_CLEAR_IMPROVE,
     FOUNDATION_FAST_PCT: FOUNDATION_FAST_PCT,
     FOUNDATION_RATIO: FOUNDATION_RATIO,
+    HOLE_FOUNDATION_STEP: HOLE_FOUNDATION_STEP,
     curriculumPrior: curriculumPrior,
     classifyStage: classifyStage,
     classifyProfile: classifyProfile,
     heatBand: heatBand,
     foundationRemaining: foundationRemaining,
     fillerScore: fillerScore,
+    holeScore: holeScore,
     successKindForRow: successKindForRow,
     schoolActivatedReady: schoolActivatedReady,
     nextOpenableRow: nextOpenableRow,
