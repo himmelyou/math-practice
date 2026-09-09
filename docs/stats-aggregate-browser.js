@@ -7,8 +7,10 @@
 (function (global) {
   var LEVEL_COUNT = 16;
   var DECIMAL_LEVEL_COUNT = 6;
-  /** 折线图：该难度下「有答题」的最近多少个日历日（无则向前不填充） */
+  /** 折线图：该难度下「够格入选」的最近多少个日历日（无则向前不填充） */
   var CHART_PRACTICE_DAYS = 14;
+  /** 折线入选：当天该难度至少答这么多题，且能算出均速（≥1 道有效答对用时） */
+  var CHART_MIN_ATTEMPTS = 5;
   var DEFAULT_MAX_TIME_SPENT_MS = 60 * 1000;
 
   function emptyLevelAgg() {
@@ -189,7 +191,7 @@
   /**
    * @param {object} byDay
    * @param {number} levelIndex
-   * @param {{ levelCount?: number }} [opts]
+   * @param {{ levelCount?: number, minAttempts?: number }} [opts]
    */
   function buildChartSeries(byDay, levelIndex, opts) {
     if (!byDay || typeof byDay !== 'object') return null;
@@ -198,11 +200,16 @@
       opts.levelCount > 0 && Number.isFinite(Number(opts.levelCount))
         ? Math.floor(Number(opts.levelCount))
         : LEVEL_COUNT;
+    var minAttempts =
+      opts.minAttempts > 0 && Number.isFinite(Number(opts.minAttempts))
+        ? Math.floor(Number(opts.minAttempts))
+        : CHART_MIN_ATTEMPTS;
     var li = Math.max(0, Math.min(levelCount - 1, Number(levelIndex) || 0));
     var dates = Object.keys(byDay)
       .filter(function (d) {
         var L = byDay[d] && byDay[d][li];
-        return L && (L.total || 0) > 0;
+        if (!L || (L.total || 0) < minAttempts) return false;
+        return avgSecFromAgg(L) != null;
       })
       .sort();
     if (dates.length === 0) return null;
@@ -213,7 +220,6 @@
     var series = dates.map(function (d) {
       var L = byDay[d][li];
       var total = L ? L.total || 0 : 0;
-      if (total <= 0) return { errorRate: null, avgSec: null };
       return {
         errorRate: Math.round((1 - L.correct / total) * 100),
         avgSec: avgSecFromAgg(L),
@@ -272,6 +278,7 @@
     LEVEL_COUNT: LEVEL_COUNT,
     DECIMAL_LEVEL_COUNT: DECIMAL_LEVEL_COUNT,
     CHART_PRACTICE_DAYS: CHART_PRACTICE_DAYS,
+    CHART_MIN_ATTEMPTS: CHART_MIN_ATTEMPTS,
     DEFAULT_MAX_TIME_SPENT_MS: DEFAULT_MAX_TIME_SPENT_MS,
     normalizeMode: normalizeMode,
     filterRunsByModes: filterRunsByModes,
