@@ -402,12 +402,17 @@ try {
   console.warn("[runs-store] sync failed", e && e.message ? e.message : e);
 }
 
-function readTaskCountsByUser() {
+/** 任务达人：只数上海时区当前自然月完成数（history 仍全量保留，月初自然从 0 再比） */
+function readTaskCountsByUser(monthKey) {
   const out = {};
+  const mk =
+    monthKey && /^\d{4}-\d{2}$/.test(String(monthKey))
+      ? String(monthKey)
+      : practicePlanStore.currentChinaMonthKey();
   try {
     const names = practicePlanStore.listUsernames();
     names.forEach(function (name) {
-      const n = practicePlanStore.historyCount(name);
+      const n = practicePlanStore.historyCountInMonth(name, mk);
       if (n > 0) out[name] = n;
     });
   } catch (e) {
@@ -1422,8 +1427,61 @@ function migrateI18nRankingPublicTop20() {
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
+/** 任务达人改为月榜：线上 i18n.json 旧累计文案部署后对齐代码默认。 */
+const TASK_MASTER_MONTHLY_I18N_KEYS = [
+  "dailyTasks.tagline",
+  "ranking.hint.taskMaster.loading",
+  "ranking.hint.taskMaster.needNet",
+  "ranking.hint.taskMaster.desc",
+  "ranking.hint.taskMaster.descFull",
+  "ranking.hint.taskMaster.fail",
+  "ranking.hint.tabLoading.taskMaster",
+  "ranking.th.taskCount",
+];
+
+function needsTaskMasterMonthlyI18nMigrate(value, key) {
+  const s = String(value || "");
+  if (!s) return false;
+  if (key === "ranking.th.taskCount") {
+    return s === "完成數" || s === "完成数" || /^Completed$/i.test(s);
+  }
+  if (key === "dailyTasks.tagline") {
+    return /衝擊任務達人榜|冲击任务达人榜|climb Task Master\)/i.test(s) && !/本月|this month/i.test(s);
+  }
+  if (/按已完成每日任務數|按已完成每日任务数|Ranked by completed daily tasks/i.test(s)) return true;
+  if (/任務達人 · 載入|Task master · Loading/i.test(s) && !/本月|this month/i.test(s)) return true;
+  if (/任務達人 · 需要|Task master · Server/i.test(s) && !/本月|this month/i.test(s)) return true;
+  if (/任務達人 · 載入失敗|Task master · Load failed/i.test(s) && !/本月|this month/i.test(s)) return true;
+  if (/任務達人 · 測試員|Task master · Tester/i.test(s) && !/本月|this month/i.test(s)) return true;
+  return false;
+}
+
+function migrateI18nTaskMasterMonthly() {
+  if (!fs.existsSync(I18N_FILE)) return;
+  const raw = readJson(I18N_FILE, {});
+  const defaults = defaultI18nPayload();
+  let changed = false;
+  ["zhHant", "en"].forEach((lang) => {
+    const src = raw[lang];
+    if (!src || typeof src !== "object") return;
+    TASK_MASTER_MONTHLY_I18N_KEYS.forEach((key) => {
+      const cur = src[key];
+      if (typeof cur !== "string" || !needsTaskMasterMonthlyI18nMigrate(cur, key)) return;
+      const next = defaults[lang] && defaults[lang][key];
+      if (!next || cur === next) return;
+      src[key] = next;
+      changed = true;
+    });
+  });
+  if (changed) {
+    writeJson(I18N_FILE, normalizeI18nPayload(raw));
+    console.log("[i18n] migrated task-master ranking to monthly");
+  }
+}
+
 migrateI18nScoreRankingLabels();
 migrateI18nRankingPublicTop20();
+migrateI18nTaskMasterMonthly();
 if (!fs.existsSync(AVATAR_ASSET_DIR)) {
   fs.mkdirSync(AVATAR_ASSET_DIR, { recursive: true });
 }
@@ -2879,29 +2937,30 @@ function formatPrimePerfectRankingEntry(ctx, e, rank) {
   return formatSurvivalRankingEntry(ctx, e, rank);
 }
 
-// ========== 任务达人：按全量成功历史条数；并列同名次，同档展示顺序每次随机 ==========
+// ========== 任务达人：按当月（上海）完成数；并列同名次，同档展示顺序每次随机 ==========
 app.get("/api/task-master-ranking", (req, res) => {
   const ctx = createRankingLookupContext(req);
-  const rows = achievementRankings.buildTaskMasterRankingRows(ctx.users, readTaskCountsByUser(), {
+  const month = practicePlanStore.currentChinaMonthKey();
+  const rows = achievementRankings.buildTaskMasterRankingRows(ctx.users, readTaskCountsByUser(month), {
     shuffleTies: true,
   });
-  res.json(
-    buildPublicRankingJson(rows, req.query.username, {
-      listLimit: ctx.rankingListLimit,
-      fullList: ctx.rankingFullList,
-      getRank: (row) => (row && Number(row.rank) > 0 ? Number(row.rank) : 0),
-      toEntry: (row, rank) => {
-        if (!row || !row.username) return null;
-        return ctx.withEquippedBadges({
-          rank,
-          username: row.username,
-          displayName: ctx.nicknameFor(row.username),
-          taskCount: Number(row.taskCount) || 0,
-          avatarUrl: ctx.avatarUrlForUsername(row.username),
-        });
-      },
-    })
-  );
+  const payload = buildPublicRankingJson(rows, req.query.username, {
+    listLimit: ctx.rankingListLimit,
+    fullList: ctx.rankingFullList,
+    getRank: (row) => (row && Number(row.rank) > 0 ? Number(row.rank) : 0),
+    toEntry: (row, rank) => {
+      if (!row || !row.username) return null;
+      return ctx.withEquippedBadges({
+        rank,
+        username: row.username,
+        displayName: ctx.nicknameFor(row.username),
+        taskCount: Number(row.taskCount) || 0,
+        avatarUrl: ctx.avatarUrlForUsername(row.username),
+      });
+    },
+  });
+  payload.month = month;
+  res.json(payload);
 });
 
 // ========== 等级榜：按 totalScore 降序；返回前二十名 + 当前用户全榜名次（?username=） ==========

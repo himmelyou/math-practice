@@ -89,7 +89,7 @@ function assignCompetitionRanks(rows, getKey) {
 }
 
 /**
- * 任务达人：只数全量成功历史 plan.history.length。
+ * 任务达人：按 taskCountsByUser（调用方传入当月完成数）。
  * 完成数为 0 不进榜；同数量竞赛名次相同（1、1、3）；shuffleTies 时同档展示顺序随机。
  */
 function buildTaskMasterRankingRows(users, taskCountsByUser, opts) {

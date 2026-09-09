@@ -47,10 +47,52 @@ function createPracticePlanStore(opts) {
     });
   }
 
+  function chinaDayFromTs(ts) {
+    const n = Number(ts);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Shanghai",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(n));
+    } catch (e) {
+      return new Date(n).toISOString().slice(0, 10);
+    }
+  }
+
+  /** @returns {string} YYYY-MM（上海时区） */
+  function currentChinaMonthKey(nowTs) {
+    const day = chinaDayFromTs(nowTs != null ? nowTs : Date.now());
+    return day ? day.slice(0, 7) : "";
+  }
+
+  function historyEntryMonthKey(h) {
+    if (!h || typeof h !== "object") return "";
+    const day = String(h.chinaDay || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(day)) return day.slice(0, 7);
+    return chinaDayFromTs(h.completedAt).slice(0, 7);
+  }
+
+  /** 全量成功历史条数（任务页历史列表等） */
   function historyCount(username) {
     const data = get(username);
     const hist = data && data.plan && Array.isArray(data.plan.history) ? data.plan.history : [];
     return hist.length;
+  }
+
+  /** 指定上海月（YYYY-MM）内完成的任务数；用于任务达人月榜 */
+  function historyCountInMonth(username, monthKey) {
+    const mk = String(monthKey || "").trim();
+    if (!/^\d{4}-\d{2}$/.test(mk)) return 0;
+    const data = get(username);
+    const hist = data && data.plan && Array.isArray(data.plan.history) ? data.plan.history : [];
+    let n = 0;
+    for (let i = 0; i < hist.length; i += 1) {
+      if (historyEntryMonthKey(hist[i]) === mk) n += 1;
+    }
+    return n;
   }
 
   function listUsernames() {
@@ -99,7 +141,18 @@ function createPracticePlanStore(opts) {
     });
   }
 
-  return { get, set, userFile, byUserDir, exportAll, replaceAll, listUsernames, historyCount };
+  return {
+    get,
+    set,
+    userFile,
+    byUserDir,
+    exportAll,
+    replaceAll,
+    listUsernames,
+    historyCount,
+    historyCountInMonth,
+    currentChinaMonthKey,
+  };
 }
 
 module.exports = { createPracticePlanStore };

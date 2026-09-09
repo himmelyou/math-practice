@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=123"></script>
+  <script src="shared/app-version.js?v=124"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -4391,7 +4391,7 @@
     <section class="daily-task-section" id="daily-task-section" style="display:none;" hidden>
       <div class="daily-task-header">
         <h2 class="daily-task-title" id="daily-task-title">每日任务</h2>
-        <span class="daily-task-tagline" id="daily-task-tagline">(完成任务，冲击任务达人榜)</span>
+        <span class="daily-task-tagline" id="daily-task-tagline">(完成任务，冲击本月任务达人榜)</span>
       </div>
       <div class="daily-task-scroll" id="daily-task-scroll">
         <p class="daily-task-status" id="daily-task-status">载入中…</p>
@@ -4710,7 +4710,7 @@
       </div>
       <div class="ranking-main-row">
         <div class="ranking-panel" id="ranking-panel">
-          <div class="panel-hint" id="ranking-panel-hint">任务达人 · 加载中…</div>
+          <div class="panel-hint" id="ranking-panel-hint">任务达人（本月）· 加载中…</div>
 
           <div class="gate-card" id="ranking-survival-gate" style="display:none;">
             <p class="gate-title" id="ranking-gate-title">生存榜</p>
@@ -9050,7 +9050,7 @@
         "home.btn.settings": "設置",
         "home.btn.dailyTasks": "每日任務",
         "dailyTasks.title": "每日任務",
-        "dailyTasks.tagline": "(完成任務，衝擊任務達人榜)",
+        "dailyTasks.tagline": "(完成任務，衝擊本月任務達人榜)",
         "dailyTasks.openHeading": "未完成",
         "dailyTasks.historyHeading": "全部歷史（{n}）",
         "dailyTasks.historyEmpty": "暫無",
@@ -9221,11 +9221,11 @@
         "wrongbook.empty": "暫無錯題記錄。",
         "ranking.selectAria": "選擇榜單",
         "ranking.tablistAria": "排行榜 Tab",
-        "ranking.hint.taskMaster.loading": "任務達人 · 載入中…",
-        "ranking.hint.taskMaster.needNet": "任務達人 · 需要連接伺服器",
-        "ranking.hint.taskMaster.desc": "任務達人 · 按已完成每日任務數排名，數量相同則名次相同（展示前二十名；未進前二十會顯示你的名次）",
-        "ranking.hint.taskMaster.descFull": "任務達人 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
-        "ranking.hint.taskMaster.fail": "任務達人 · 載入失敗，請稍後重試",
+        "ranking.hint.taskMaster.loading": "任務達人（本月）· 載入中…",
+        "ranking.hint.taskMaster.needNet": "任務達人（本月）· 需要連接伺服器",
+        "ranking.hint.taskMaster.desc": "任務達人 · 按本月完成任務數排名，每月清零；數量相同則名次相同（展示前二十名；未進前二十會顯示你的名次）",
+        "ranking.hint.taskMaster.descFull": "任務達人（本月）· 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
+        "ranking.hint.taskMaster.fail": "任務達人（本月）· 載入失敗，請稍後重試",
         "ranking.hint.score.loading": "等級榜 · 載入中…",
         "ranking.hint.score.needNet": "等級榜 · 需要連接伺服器",
         "ranking.hint.score.desc": "等級榜 · 按總經驗從高到低（展示前二十名；未進前二十會顯示你的名次）",
@@ -9256,7 +9256,7 @@
         "ranking.hint.combo.desc": "連擊榜 · 最高與當前連對（展示前二十名；未進前二十會顯示你的名次）",
         "ranking.hint.combo.descFull": "連擊榜 · 測試員視圖 · 完整榜單（共 {total} 人，展示 {shown} 名；未在榜內會顯示你的名次）",
         "ranking.hint.combo.fail": "連擊榜 · 載入失敗，請稍後重試",
-        "ranking.hint.tabLoading.taskMaster": "任務達人 · 載入中…",
+        "ranking.hint.tabLoading.taskMaster": "任務達人（本月）· 載入中…",
         "ranking.hint.tabLoading.score": "等級榜 · 載入中…",
         "ranking.hint.tabLoading.survival": "生存榜 · 載入中…",
         "ranking.hint.tabLoading.levelClear": "闖關達人 · 載入中…",
@@ -9277,7 +9277,7 @@
         "ranking.th.challenger": "挑戰者",
         "ranking.th.totalScore": "總積分",
         "ranking.th.playerLevel": "等級",
-        "ranking.th.taskCount": "完成數",
+        "ranking.th.taskCount": "本月完成",
         "ranking.th.time": "用時",
         "ranking.th.wrong": "錯題",
         "ranking.th.date": "日期",
@@ -9537,7 +9537,7 @@
         "home.btn.settings": "Settings",
         "home.btn.dailyTasks": "Daily tasks",
         "dailyTasks.title": "Daily tasks",
-        "dailyTasks.tagline": "(Complete tasks, climb Task Master)",
+        "dailyTasks.tagline": "(Complete tasks, climb this month's Task Master)",
         "dailyTasks.openHeading": "In progress",
         "dailyTasks.historyHeading": "All history ({n})",
         "dailyTasks.historyEmpty": "None yet",
@@ -9691,11 +9691,11 @@
         "wrongbook.empty": "No wrong questions yet.",
         "ranking.selectAria": "Select leaderboard",
         "ranking.tablistAria": "Leaderboard tabs",
-        "ranking.hint.taskMaster.loading": "Task master · Loading…",
-        "ranking.hint.taskMaster.needNet": "Task master · Server required",
-        "ranking.hint.taskMaster.desc": "Task master · Ranked by completed daily tasks; same count shares rank (top 20; your row if outside)",
-        "ranking.hint.taskMaster.descFull": "Task master · Tester view · Full list ({shown} of {total}; your row if outside the list)",
-        "ranking.hint.taskMaster.fail": "Task master · Load failed, try again",
+        "ranking.hint.taskMaster.loading": "Task master (this month) · Loading…",
+        "ranking.hint.taskMaster.needNet": "Task master (this month) · Server required",
+        "ranking.hint.taskMaster.desc": "Task master · Ranked by tasks completed this month (resets monthly); same count shares rank (top 20; your row if outside)",
+        "ranking.hint.taskMaster.descFull": "Task master (this month) · Tester view · Full list ({shown} of {total}; your row if outside the list)",
+        "ranking.hint.taskMaster.fail": "Task master (this month) · Load failed, try again",
         "ranking.hint.score.loading": "Level rank · Loading…",
         "ranking.hint.score.needNet": "Level rank · Server required",
         "ranking.hint.score.desc": "Level rank · Top 20 by total XP; your row shown if outside the top 20",
@@ -9726,7 +9726,7 @@
         "ranking.hint.combo.desc": "Combo · Best and current combo (top 20; your row if outside)",
         "ranking.hint.combo.descFull": "Combo · Tester view · Full list ({shown} of {total}; your row if outside the list)",
         "ranking.hint.combo.fail": "Combo · Load failed, try again",
-        "ranking.hint.tabLoading.taskMaster": "Task master · Loading…",
+        "ranking.hint.tabLoading.taskMaster": "Task master (this month) · Loading…",
         "ranking.hint.tabLoading.score": "Level rank · Loading…",
         "ranking.hint.tabLoading.survival": "Survival · Loading…",
         "ranking.hint.tabLoading.levelClear": "Level master · Loading…",
@@ -9747,7 +9747,7 @@
         "ranking.th.challenger": "Player",
         "ranking.th.totalScore": "Points",
         "ranking.th.playerLevel": "Level",
-        "ranking.th.taskCount": "Completed",
+        "ranking.th.taskCount": "This month",
         "ranking.th.time": "Time",
         "ranking.th.wrong": "Wrong",
         "ranking.th.date": "Date",
