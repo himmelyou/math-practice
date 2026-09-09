@@ -1740,11 +1740,8 @@
       if (sec != null) return '均速≤' + sec + 's 且准≥' + acc;
       return acc ? '均速↓ 且准≥' + acc : '均速↓';
     }
-    if (step.targetP != null) {
-      var pTxt = formatDailyTaskPct(step.targetP);
-      return pTxt ? '准≥' + pTxt : '准度↑';
-    }
-    return '';
+    var pTxt = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
+    return pTxt ? '准≥' + pTxt : '准度↑';
   }
 
   function findAdviceTaskById(id) {

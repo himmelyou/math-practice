@@ -1,13 +1,13 @@
 /**
- * 练习建议 v0.22：训练成功按本局判（不再多局平均）。1～5 都能开练。
- * 不整单重排。成功/失败只补一格。规则升级不拆队。
+ * 练习建议 v0.23：准度任务本局 ≥95%，废掉低于 95% 的小步目标。
+ * 训练成功按本局判。1～5 都能开练。不整单重排。
  */
 (function (root) {
-  var RULE_VERSION = "0.22-provisional";
+  var RULE_VERSION = "0.23-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
-  /** 绿档小步准度封顶 */
+  /** 绿档补格权重：离此越远越先补；不是任务及格线 */
   var HEAT_P_STABLE = 0.97;
   var AHEAD_MASTERED_N = 80;
   /** Q3：绿快底板连续档数 */
@@ -20,7 +20,7 @@
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
   var FOUNDATION_RATIO = 1.15;
-  /** Q6：准度小步（百分点） */
+  /** Q6 已废：准度不再小步。常量仅兼容旧输出字段。 */
   var ACC_STEP = 0.015;
   /** Q7：速度小步：任务窗均速 ≤ 基线 × 此系数；对照 timePct −10 */
   var SPEED_RATIO = 0.92;
@@ -692,13 +692,7 @@
   function successKindForRow(row) {
     if (!row) return "acc_step";
     var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : null;
-    if (row.tooSlow && p != null && p >= HEAT_P_ORANGE) return "speed_step";
-    if (p != null && p >= HEAT_P_ORANGE && timePctVal(row) >= HEAT_PCT_PLUS1) return "speed_step";
-    if (p != null && p < HEAT_P_YELLOW) return "acc_step";
-    if (p != null && p + 1e-9 >= HEAT_P_STABLE) return "speed_step";
-    var accFrag = p != null ? Math.max(0, HEAT_P_STABLE - p) * 1000 : 0;
-    var spd = timePctVal(row);
-    if (spd >= FAST_TIME_PCT && spd >= accFrag) return "speed_step";
+    if (p != null && p + 1e-9 >= HEAT_P_YELLOW) return "speed_step";
     return "acc_step";
   }
 
@@ -728,13 +722,7 @@
     var targetTimePct = null;
     var targetAvgSec = null;
     if (kind !== "speed_step") {
-      var baseP = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
-      var accCap = baseP >= HEAT_P_YELLOW ? HEAT_P_STABLE : HEAT_P_YELLOW;
-      if (baseP + 1e-9 >= accCap) {
-        kind = "speed_step";
-      } else {
-        targetP = Math.min(accCap, baseP + ACC_STEP);
-      }
+      targetP = HEAT_P_YELLOW;
     }
     if (kind === "speed_step") {
       var spdT = applySpeedTargets(row);
@@ -783,6 +771,31 @@
       title: title,
       detail: detail,
     };
+  }
+
+  function normalizeOpenTrainingGoals(plan) {
+    openTasks(plan).forEach(function (t) {
+      if (!t || t.action !== "training") return;
+      if (t.successKind === "open_activate") return;
+      var baseP = t.baseline && t.baseline.p != null && Number.isFinite(Number(t.baseline.p)) ? Number(t.baseline.p) : null;
+      if (baseP != null && baseP + 1e-9 >= HEAT_P_YELLOW) {
+        t.successKind = "speed_step";
+        t.targetP = null;
+        if (t.targetAvgSec == null) {
+          var spdT = applySpeedTargets({
+            avgSec: t.baseline && t.baseline.avgSec,
+            timePct: t.baseline && t.baseline.timePct,
+          });
+          t.targetTimePct = spdT.targetTimePct;
+          t.targetAvgSec = spdT.targetAvgSec;
+        }
+        return;
+      }
+      t.successKind = "acc_step";
+      t.targetP = HEAT_P_YELLOW;
+      t.targetAvgSec = null;
+      t.targetTimePct = null;
+    });
   }
 
   function makeOpenTask(plan, row) {
@@ -1275,8 +1288,8 @@
       if (stats.p == null || stats.p + 1e-9 < HEAT_P_YELLOW) return false;
       return Number(stats.avgSec) <= Number(task.targetAvgSec) + 1e-9;
     }
-    if (stats.p == null || task.targetP == null) return false;
-    return stats.p + 1e-9 >= Number(task.targetP);
+    if (stats.p == null) return false;
+    return stats.p + 1e-9 >= HEAT_P_YELLOW;
   }
 
   function evaluateFail(task) {
@@ -1492,6 +1505,7 @@
       plan = cloneJson(saved);
       if (!Array.isArray(plan.tasks)) plan.tasks = [];
       if (!Array.isArray(plan.history)) plan.history = [];
+      normalizeOpenTrainingGoals(plan);
       return { plan: plan, rebuilt: false, lastFollow: lastFollow };
     }
     if (!saved || (username && saved.username && saved.username !== username)) {
@@ -1505,6 +1519,7 @@
     else if (!Array.isArray(plan.history)) plan.history = [];
     if (username) plan.username = username;
     activateFirst(plan.tasks);
+    normalizeOpenTrainingGoals(plan);
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
     var incoming = (runs || [])
       .filter(isPlayRun)
@@ -1595,8 +1610,8 @@
       );
     }
     return (
-      "成功：本局准度达到 " +
-      pctText(task.targetP) +
+      "成功：本局准度 ≥ " +
+      pctText(HEAT_P_YELLOW) +
       "（不是整格热图）"
     );
   }
@@ -1637,7 +1652,7 @@
       var sec = roundSec(task.targetAvgSec);
       return "均速迈一小步" + (sec != null ? "（≤" + sec + "s）" : "") + "，且准≥" + pctText(HEAT_P_YELLOW);
     }
-    return "准度迈一小步（→" + pctText(task.targetP) + "）";
+    return "本局准度 ≥" + pctText(HEAT_P_YELLOW) + " 即成功";
   }
 
   function statusLabel(st) {
@@ -1670,7 +1685,7 @@
         ? "均速≤" + sec + "s 且准≥" + pctText(HEAT_P_YELLOW)
         : "均速↓ 且准≥" + pctText(HEAT_P_YELLOW);
     }
-    return t.targetP != null ? "准≥" + pctText(t.targetP) : "准度↑";
+    return "准≥" + pctText(HEAT_P_YELLOW);
   }
 
   function tileProgress(t) {
@@ -1803,7 +1818,7 @@
       "Q2 已学/同步黄橙暂定永远压过超前",
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：从 L1 起连续准≥95%（不计分位），再和历史最高取 min；目标 Ln 须通过 Ln。L1 不够 95% 时仍排闯关且目标为 L1",
-      "Q6 准度小步暂定 +" + Math.round(ACC_STEP * 1000) / 10 + "pp，封顶 95%",
+      "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
       "Q7 速度小步暂定本局均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且本局准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%。训练成功按本局判，不再多局平均",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",

@@ -6566,8 +6566,8 @@
       } else if (kind === "open_activate" || kind === "level_reach") {
         tgtSpd = dash;
         tgtAcc = dash;
-      } else if (dailyTaskPlay && dailyTaskPlay.targetP != null) {
-        tgtAcc = formatDailyTaskPct(dailyTaskPlay.targetP);
+      } else {
+        tgtAcc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
       }
       const durationLabelEl = document.getElementById("game-over-duration-label");
       const scoreLabelEl = document.getElementById("game-over-score-label");
@@ -6729,8 +6729,7 @@
         if (sec) return tf("dailyTasks.goal.speed", { sec: sec, acc: acc });
         return tf("dailyTasks.goal.speedNoSec", { acc: acc });
       }
-      if (step.targetP != null) return tf("dailyTasks.goal.acc", { acc: formatDailyTaskCardPct(step.targetP) });
-      return t("dailyTasks.goal.accUp");
+      return tf("dailyTasks.goal.acc", { acc: formatDailyTaskCardPct(DAILY_TASK_SPEED_ACC_MIN) });
     }
 
     function dailyTaskProgressText(step) {
@@ -16337,8 +16336,8 @@
       if (dailyTaskPlay.successKind === "speed_step") {
         tgtAcc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
         tgtSpd = formatDailyTaskSecValue(dailyTaskPlay.targetAvgSec);
-      } else if (dailyTaskPlay.targetP != null) {
-        tgtAcc = formatDailyTaskPct(dailyTaskPlay.targetP);
+      } else {
+        tgtAcc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
       }
       return { curAcc: curAcc, tgtAcc: tgtAcc, curSpd: curSpd, tgtSpd: tgtSpd };
     }
