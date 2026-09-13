@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.24：黄橙洞分加剩余步×10，准度不合格时更先补低档。
- * 准度任务本局 ≥95%。训练成功按本局判。1～5 都能开练。不整单重排。
+ * 练习建议 v0.25：闯关合格线取历史最高与热图连续 95% 顶的 max，不就低。
+ * 黄橙洞分加剩余步×10。准度任务本局 ≥95%。不整单重排。
  */
 (function (root) {
-  var RULE_VERSION = "0.24-provisional";
+  var RULE_VERSION = "0.25-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -329,7 +329,7 @@
     return top;
   }
 
-  /** 合格线 Ln = 须通过 Ln。只看从 L1 起连续准≥95%，再和历史最高取 min。L1 不够 95% 时目标仍是 L1。 */
+  /** 合格线 Ln = 须通过 Ln。取历史最高与热图连续准≥95%顶的 max。无历史且 L1 不够 95% 时目标仍是 L1。 */
   function resolveScanTarget(rows, opts) {
     opts = opts || {};
     var hist = null;
@@ -341,10 +341,13 @@
       if (hist == null || fromRuns > hist) hist = fromRuns;
     }
     var accTop = accConsecutiveTopIndex(rows);
+    var heatIdx = accTop >= 0 ? accTop : null;
     var idx;
-    if (accTop < 0) idx = 0;
-    else if (hist != null && hist >= 0) idx = Math.min(hist, accTop);
-    else idx = accTop;
+    if (hist != null && hist >= 0) {
+      idx = heatIdx == null ? hist : Math.max(hist, heatIdx);
+    } else {
+      idx = heatIdx == null ? 0 : heatIdx;
+    }
     idx = clampLevel(idx);
     return { levelIndex: idx, levelLabel: levelLabel(idx) };
   }
@@ -802,6 +805,17 @@
       t.targetP = HEAT_P_YELLOW;
       t.targetAvgSec = null;
       t.targetTimePct = null;
+    });
+  }
+
+  function normalizeOpenScanGoals(plan, ctx) {
+    if (!plan || !ctx || !ctx.scan) return;
+    var retry = isRetryClearScan(ctx);
+    openTasks(plan).forEach(function (t) {
+      if (!isScanTask(t)) return;
+      var taskRetry = t.scanKind === "retry_clear";
+      if (taskRetry !== retry) return;
+      applyScanFields(t, ctx.scan);
     });
   }
 
@@ -1513,6 +1527,7 @@
       if (!Array.isArray(plan.tasks)) plan.tasks = [];
       if (!Array.isArray(plan.history)) plan.history = [];
       normalizeOpenTrainingGoals(plan);
+      normalizeOpenScanGoals(plan, ctx);
       return { plan: plan, rebuilt: false, lastFollow: lastFollow };
     }
     if (!saved || (username && saved.username && saved.username !== username)) {
@@ -1527,6 +1542,7 @@
     if (username) plan.username = username;
     activateFirst(plan.tasks);
     normalizeOpenTrainingGoals(plan);
+    normalizeOpenScanGoals(plan, ctx);
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
     var incoming = (runs || [])
       .filter(isPlayRun)
@@ -1824,7 +1840,7 @@
       "Q1 超前「会了」暂定 n≥" + AHEAD_MASTERED_N,
       "Q2 已学/同步黄橙暂定永远压过超前",
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
-      "Q5 闯关合格线：从 L1 起连续准≥95%（不计分位），再和历史最高取 min；目标 Ln 须通过 Ln。L1 不够 95% 时仍排闯关且目标为 L1",
+      "Q5 闯关合格线：历史最高与热图连续准≥95%顶取 max（不计分位）；目标 Ln 须通过 Ln。无历史且 L1 不够 95% 时目标仍是 L1。不因热图变差把目标降到低于历史",
       "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
       "Q7 速度小步暂定本局均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且本局准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%。训练成功按本局判，不再多局平均",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
@@ -1885,7 +1901,7 @@
             "acc_pass_target",
             "闯关须过 " +
               ctx.scan.levelLabel +
-              "（连续准度顶，不计分位；与历史最高取 min）",
+              "（连续准度顶与历史最高取 max，不计分位）",
             "Q5：未完成里关号≤目标且刚练过的除外，排在闯关前"
           )
         );
