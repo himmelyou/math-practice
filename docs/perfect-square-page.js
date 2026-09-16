@@ -568,7 +568,7 @@
       psRunDeck.shift();
       psMastered += 1;
       psScore += PS_SCORE_PER_CORRECT;
-      if (dom().psScoreText) dom().psScoreText.textContent = String(psScore);
+      if (dom().psScoreText) dom().psScoreText.textContent = "--";
       if (dom().psProgressText) dom().psProgressText.textContent = formatPsProgress();
       setPsFeedback(t("game.feedback.correctSurvival"), "correct");
       setTimeout(function () {
@@ -649,7 +649,7 @@
     setPsLevelPickerVisible(false);
     syncPsLevelTexts();
     if (dom().psProgressText) dom().psProgressText.textContent = formatPsProgress();
-    if (dom().psScoreText) dom().psScoreText.textContent = "0";
+    if (dom().psScoreText) dom().psScoreText.textContent = "--";
     if (dom().psWrongText) dom().psWrongText.textContent = "0";
     setPsHistoryVisible(false);
     setPsCardActionSlot("playing");
@@ -726,6 +726,7 @@
     if (dom().psGoScore) dom().psGoScore.textContent = "L" + (startLevel + 1);
     if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
     if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
+    if (dom().psScoreText) dom().psScoreText.textContent = String(psScore);
     if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
     if (dom().psGoResult) {
       dom().psGoResult.textContent = t("expand.result." + outcome.resultKey);
@@ -946,7 +947,7 @@
     setPsLevelPickerVisible(false);
     syncPsLevelTexts();
     if (dom().psProgressText) dom().psProgressText.textContent = formatPsProgress();
-    if (dom().psScoreText) dom().psScoreText.textContent = String(psScore);
+    if (dom().psScoreText) dom().psScoreText.textContent = "--";
     if (dom().psWrongText) dom().psWrongText.textContent = String(psWrongCount);
     setPsHistoryVisible(false);
     setPsCardActionSlot("playing");

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=124"></script>
+  <script src="shared/app-version.js?v=125"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -5318,9 +5318,9 @@
   <script src="shared/decimal-questions.js?v=49"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=51"></script>
-  <script src="divisibility-page.js?v=16"></script>
-  <script src="decimal-page.js?v=16"></script>
+  <script src="perfect-square-page.js?v=52"></script>
+  <script src="divisibility-page.js?v=17"></script>
+  <script src="decimal-page.js?v=17"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -8546,7 +8546,7 @@
       syncExpandActionButton();
       if (ok) {
         expandScore += EXPAND_SCORE_PER_CORRECT;
-        if (dom.expandScoreText) dom.expandScoreText.textContent = String(expandScore);
+        if (dom.expandScoreText) dom.expandScoreText.textContent = "--";
         setTimeout(() => {
           nextExpandQuestion();
         }, 250);
@@ -8619,7 +8619,7 @@
       setExpandLevelPickerVisible(false);
       syncExpandLevelTexts();
       if (dom.expandProgressText) dom.expandProgressText.textContent = "0 / 20";
-      if (dom.expandScoreText) dom.expandScoreText.textContent = "0";
+      if (dom.expandScoreText) dom.expandScoreText.textContent = "--";
       if (dom.expandWrongText) dom.expandWrongText.textContent = "0";
       setExpandHistoryVisible(false);
       if (dom.expandChoices) dom.expandChoices.style.display = "grid";
@@ -8663,6 +8663,7 @@
       if (dom.expandGoScore) dom.expandGoScore.textContent = `L${startLevel + 1}`;
       if (dom.expandGoWrongLabel) dom.expandGoWrongLabel.textContent = t("expand.end.wrong");
       if (dom.expandGoWrong) dom.expandGoWrong.textContent = String(expandWrongCount);
+      if (dom.expandScoreText) dom.expandScoreText.textContent = String(expandScore);
       if (dom.expandGoResultLabel) dom.expandGoResultLabel.textContent = t("expand.end.result");
       if (dom.expandGoResult) {
         dom.expandGoResult.textContent = t("expand.result." + outcome.resultKey);
@@ -11610,7 +11611,8 @@
       setTrainingLevelSelectVisible(false);
       const correctPerLevel = SURVIVAL_CORRECT_PER_LEVEL;
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = consecutiveCorrect + " / " + correctPerLevel;
-      if (dom.runScore) dom.runScore.textContent = runScore;
+      // 局中隐藏得分，避免用涨分判断对错
+      if (dom.runScore) dom.runScore.textContent = isPlaying && !gameOver ? "--" : String(runScore);
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (Math.max(maxLevelThisRun, currentLevelIndex) + 1);
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
       if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
@@ -11641,7 +11643,7 @@
       if (dom.currentLevelName) dom.currentLevelName.textContent = getLevelDisplayName(currentLevelIndex);
       setTrainingLevelSelectVisible(false);
       if (dom.consecutiveCorrect) dom.consecutiveCorrect.textContent = formatLevelChallengeProgressText();
-      if (dom.runScore) dom.runScore.textContent = runScore;
+      if (dom.runScore) dom.runScore.textContent = isPlaying && !gameOver ? "--" : String(runScore);
       if (dom.bestSurvivalTime) dom.bestSurvivalTime.textContent = "L" + (getLevelChallengeBestLevel() + 1);
       if (dom.bestScore) dom.bestScore.textContent = runWrongCount;
       if (dom.currentUsernameLabel) dom.currentUsernameLabel.textContent = getDisplayName();
@@ -11887,7 +11889,7 @@
           ? formatTrainingProgressText()
           : trainingCorrectCount + " / " + TRAINING_MAIN_PER_RUN;
       }
-      if (dom.runScore) dom.runScore.textContent = runScore;
+      if (dom.runScore) dom.runScore.textContent = isPlaying && !gameOver ? "--" : String(runScore);
       if (dom.bestSurvivalTime) {
         dom.bestSurvivalTime.textContent = pickWait
           ? t("game.training.pickingLevel")
@@ -13255,6 +13257,8 @@
       if (fw) fw.textContent = String(primeCompositeWrongCount);
       if (ft) ft.textContent = formatGameElapsedClock(elapsedSec);
       if (fs) fs.textContent = abandoned ? "0" : String(Math.max(0, primeCompositeSessionScore));
+      const scoreEl = document.getElementById("prime-session-score");
+      if (scoreEl) scoreEl.textContent = abandoned ? "0" : String(Math.max(0, primeCompositeSessionScore));
 
       const listEl = document.getElementById("prime-finish-wrong-list");
       if (listEl) {
@@ -13324,7 +13328,7 @@
         primeCompositeMastered += 1;
         primeCompositeSessionScore += JML.SCORE_PER_CORRECT;
         const scoreEl = document.getElementById("prime-session-score");
-        if (scoreEl) scoreEl.textContent = String(primeCompositeSessionScore);
+        if (scoreEl) scoreEl.textContent = "--";
         if (primeCompositeMastered >= JML.TOTAL_QUESTIONS) {
           void primeCompositeFinish();
         } else {
@@ -13334,7 +13338,7 @@
         primeCompositeWrongCount += 1;
         primeCompositeSessionScore -= JML.SCORE_PER_WRONG || JML.SCORE_PER_CORRECT;
         const scoreEl = document.getElementById("prime-session-score");
-        if (scoreEl) scoreEl.textContent = String(primeCompositeSessionScore);
+        if (scoreEl) scoreEl.textContent = "--";
         const liveWrongEl = document.getElementById("prime-live-wrong");
         if (liveWrongEl) liveWrongEl.textContent = String(primeCompositeWrongCount);
         primeCompositeWrongItems.push({ n: q.n, kind: q.kind });
@@ -13380,7 +13384,7 @@
       setPrimePlayBodyPhase("playing");
       setPrimeRecentVisible(false);
       const scoreEl = document.getElementById("prime-session-score");
-      if (scoreEl) scoreEl.textContent = "0";
+      if (scoreEl) scoreEl.textContent = "--";
       const liveWrongEl = document.getElementById("prime-live-wrong");
       if (liveWrongEl) liveWrongEl.textContent = "0";
       const elapsedEl = document.getElementById("prime-elapsed");

@@ -479,7 +479,7 @@
 
     if (correct) {
       decScore += DEC_SCORE_PER_CORRECT;
-      if (dom().decScoreText) dom().decScoreText.textContent = String(decScore);
+      if (dom().decScoreText) dom().decScoreText.textContent = "--";
       setDecFeedback(t("game.feedback.correctSurvival"), "correct");
       setTimeout(function () {
         advanceDecAfterAnswer();
@@ -550,7 +550,7 @@
     setDecLevelPickerVisible(false);
     syncDecLevelTexts();
     if (dom().decProgressText) dom().decProgressText.textContent = formatDecProgress(0);
-    if (dom().decScoreText) dom().decScoreText.textContent = "0";
+    if (dom().decScoreText) dom().decScoreText.textContent = "--";
     if (dom().decWrongText) dom().decWrongText.textContent = "0";
     setDecHistoryVisible(false);
     setDecCardActionSlot("playing");
@@ -744,6 +744,7 @@
     if (dom().decGoScore) dom().decGoScore.textContent = "L" + (startLevel + 1);
     if (dom().decGoWrongLabel) dom().decGoWrongLabel.textContent = t("expand.end.wrong");
     if (dom().decGoWrong) dom().decGoWrong.textContent = String(decWrongCount);
+    if (dom().decScoreText) dom().decScoreText.textContent = String(decScore);
     if (dom().decGoResultLabel) dom().decGoResultLabel.textContent = t("expand.end.result");
     if (dom().decGoResult) {
       dom().decGoResult.textContent = t("expand.result." + outcome.resultKey);
@@ -967,7 +968,7 @@
     if (dom().decProgressText) {
       dom().decProgressText.textContent = formatDecProgress(decQuestionIndex + 1);
     }
-    if (dom().decScoreText) dom().decScoreText.textContent = String(decScore);
+    if (dom().decScoreText) dom().decScoreText.textContent = "--";
     if (dom().decWrongText) dom().decWrongText.textContent = String(decWrongCount);
     setDecHistoryVisible(false);
     setDecCardActionSlot("playing");

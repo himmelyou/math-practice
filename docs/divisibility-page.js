@@ -215,7 +215,10 @@
 
   function updateDivStatusStrip() {
     if (dom().divProgressText) dom().divProgressText.textContent = formatDivProgress();
-    if (dom().divScoreText) dom().divScoreText.textContent = String(divScore);
+    const playing = deps.getIsPlaying && deps.getIsPlaying() && !(deps.getGameOver && deps.getGameOver());
+    if (dom().divScoreText) {
+      dom().divScoreText.textContent = playing ? "--" : String(divScore);
+    }
     if (dom().divWrongText) dom().divWrongText.textContent = String(divWrongCount);
     if (dom().divLevelText) dom().divLevelText.textContent = levelLabel(divLevel);
     if (dom().divElapsed) {
@@ -224,7 +227,6 @@
     }
     const wrongRow = document.getElementById("div-status-row-wrong");
     if (wrongRow) {
-      const playing = deps.getIsPlaying && deps.getIsPlaying() && !(deps.getGameOver && deps.getGameOver());
       const finished =
         document.getElementById("div-panel-finished") &&
         document.getElementById("div-panel-finished").style.display !== "none";
