@@ -3012,6 +3012,49 @@
       color: #90a4ae;
     }
 
+    .home-coach-float {
+      position: fixed;
+      left: 50%;
+      bottom: max(16px, env(safe-area-inset-bottom, 0px));
+      transform: translateX(-50%);
+      z-index: 60;
+      width: min(92vw, 420px);
+      box-sizing: border-box;
+      padding: 14px 14px 12px;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid rgba(78, 131, 248, 0.28);
+      box-shadow: 0 10px 28px rgba(30, 60, 120, 0.16);
+    }
+    .home-coach-float[hidden] {
+      display: none !important;
+    }
+    .home-coach-float-text {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.45;
+      color: var(--text-main, #1f2a44);
+    }
+    .home-coach-float-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .home-coach-float-dismiss {
+      border: none;
+      background: transparent;
+      color: #78909c;
+      font-size: 0.88rem;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .home-coach-float-cta {
+      min-width: 7.5rem;
+    }
+
     .game-over-buttons {
       display: flex;
       flex-direction: column;
@@ -4385,6 +4428,22 @@
         </section>
       </div>
     </section>
+    <aside
+      class="home-coach-float"
+      id="home-coach-float"
+      hidden
+      role="dialog"
+      aria-live="polite"
+      aria-labelledby="home-coach-float-text"
+    >
+      <p class="home-coach-float-text" id="home-coach-float-text"></p>
+      <div class="home-coach-float-actions">
+        <button type="button" class="home-coach-float-dismiss" id="home-coach-float-dismiss">知道了</button>
+        <button type="button" class="home-pill-btn home-pill-btn--primary home-coach-float-cta" id="home-coach-float-cta">
+          去每日任务
+        </button>
+      </div>
+    </aside>
     <p class="app-home-version" id="app-home-version"></p>
     <script>if (window.applyJmlAppVersionText) window.applyJmlAppVersionText();</script>
 
@@ -5603,6 +5662,7 @@
 
     function showWrongbookViewFast() {
       setTopActionsVisible(false);
+      hideHomeCoachFloat();
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.expandSection) {
@@ -6854,6 +6914,7 @@
 
     async function showDailyTaskView() {
       if (isGuestMode) return;
+      hideHomeCoachFloat();
       const seq = (dailyTaskRenderSeq += 1);
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
@@ -6916,6 +6977,232 @@
         return;
       }
       void showDailyTaskView();
+    }
+
+    const HOME_COACH_DISMISS_KEY = "jml_home_coach_dismiss_v1";
+    let homeCoachRenderSeq = 0;
+    let homeCoachActiveKind = "";
+    let homeCoachRunsCache = null;
+    let homeCoachRunsCacheUser = "";
+
+    function hideHomeCoachFloat() {
+      const el = document.getElementById("home-coach-float");
+      if (el) el.hidden = true;
+      homeCoachActiveKind = "";
+    }
+
+    function readHomeCoachDismissMap() {
+      try {
+        const raw = localStorage.getItem(HOME_COACH_DISMISS_KEY);
+        const data = raw ? JSON.parse(raw) : null;
+        return data && typeof data === "object" ? data : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function writeHomeCoachDismissMap(map) {
+      try {
+        localStorage.setItem(HOME_COACH_DISMISS_KEY, JSON.stringify(map || {}));
+      } catch (e) {}
+    }
+
+    function isHomeCoachDismissedToday(kind) {
+      const name = loadCurrentUsername();
+      if (!name || !kind) return true;
+      const day = getLocalTrainingDayKey();
+      const map = readHomeCoachDismissMap();
+      const userMap = map[name] && typeof map[name] === "object" ? map[name] : null;
+      const dayMap = userMap && userMap[day] && typeof userMap[day] === "object" ? userMap[day] : null;
+      return !!(dayMap && dayMap[kind]);
+    }
+
+    function markHomeCoachDismissedToday(kind) {
+      const name = loadCurrentUsername();
+      if (!name || !kind) return;
+      const day = getLocalTrainingDayKey();
+      const map = readHomeCoachDismissMap();
+      if (!map[name] || typeof map[name] !== "object") map[name] = {};
+      if (!map[name][day] || typeof map[name][day] !== "object") map[name][day] = {};
+      map[name][day][kind] = true;
+      writeHomeCoachDismissMap(map);
+    }
+
+    function homeCoachRecentRunCount(user) {
+      if (!user) return 0;
+      const keys = [
+        "recentLevelRuns",
+        "recentTrainingRuns",
+        "recentSurvivalRuns",
+        "recentDecimalRuns",
+        "recentPerfectSquareRuns",
+        "recentDivisibilityRuns",
+        "recentPrimeCompositeRuns",
+        "recentExpandBracketsRuns",
+      ];
+      let n = 0;
+      for (let i = 0; i < keys.length; i += 1) {
+        const arr = user[keys[i]];
+        if (Array.isArray(arr)) n += arr.length;
+      }
+      return n;
+    }
+
+    function homeCoachCacheSuggestsNotNew(user) {
+      if (!user) return false;
+      if (user.hasClearedLevel === true) return true;
+      if ((Number(user.levelChallengeBestLevel) || 0) > 0) return true;
+      if ((Number(user.levelChallengeLastLevel) || 0) > 0) return true;
+      if (Array.isArray(user.recentLevelRuns) && user.recentLevelRuns.length > 0) return true;
+      return homeCoachRecentRunCount(user) >= 3;
+    }
+
+    function isHomeCoachCountableRun(run) {
+      if (!run || run.comboOnly === true) return false;
+      const ts = Number(run.ts);
+      return Number.isFinite(ts) && ts > 0;
+    }
+
+    function normalizeHomeCoachRunMode(mode) {
+      return String(mode || "")
+        .trim()
+        .toLowerCase();
+    }
+
+    async function fetchHomeCoachRuns() {
+      const name = loadCurrentUsername();
+      const base = getApiBase();
+      if (!name || !base) return null;
+      if (homeCoachRunsCache && homeCoachRunsCacheUser === name) return homeCoachRunsCache;
+      try {
+        const res = await fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", {
+          credentials: "include",
+          headers: getAuthHeaders(),
+        });
+        const data = await res.json().catch(function () {
+          return null;
+        });
+        if (res.status === 401) {
+          handleAuthRequired();
+          return null;
+        }
+        if (!res.ok || !data || data.ok !== true || !Array.isArray(data.runs)) return null;
+        homeCoachRunsCacheUser = name;
+        homeCoachRunsCache = data.runs;
+        return homeCoachRunsCache;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function resolveHomeCoachKind() {
+      if (isGuestMode) return "";
+      const user = cachedUser || getCurrentUser();
+      if (!user) return "";
+      if (user.needsGrade === true) return isHomeCoachDismissedToday("B") ? "" : "B";
+      let isNew = false;
+      if (!homeCoachCacheSuggestsNotNew(user)) {
+        const runs = await fetchHomeCoachRuns();
+        if (!runs) return "";
+        let total = 0;
+        let hasLevel = false;
+        for (let i = 0; i < runs.length; i += 1) {
+          const r = runs[i];
+          if (!isHomeCoachCountableRun(r)) continue;
+          total += 1;
+          if (normalizeHomeCoachRunMode(r.mode) === "level") hasLevel = true;
+        }
+        isNew = total < 3 && !hasLevel;
+      }
+      if (isNew) return isHomeCoachDismissedToday("C") ? "" : "C";
+      return isHomeCoachDismissedToday("D") ? "" : "D";
+    }
+
+    function paintHomeCoachFloat(kind) {
+      const el = document.getElementById("home-coach-float");
+      const textEl = document.getElementById("home-coach-float-text");
+      const ctaEl = document.getElementById("home-coach-float-cta");
+      const dismissEl = document.getElementById("home-coach-float-dismiss");
+      if (!el || !textEl || !ctaEl) return;
+      let bodyKey = "";
+      let ctaKey = "";
+      if (kind === "B") {
+        bodyKey = "home.coach.grade.body";
+        ctaKey = "home.coach.grade.cta";
+      } else if (kind === "C") {
+        bodyKey = "home.coach.level.body";
+        ctaKey = "home.coach.level.cta";
+      } else if (kind === "D") {
+        bodyKey = "home.coach.tasks.body";
+        ctaKey = "home.coach.tasks.cta";
+      } else {
+        hideHomeCoachFloat();
+        return;
+      }
+      homeCoachActiveKind = kind;
+      textEl.textContent = t(bodyKey);
+      ctaEl.textContent = t(ctaKey);
+      if (dismissEl) dismissEl.textContent = t("home.coach.dismiss");
+      el.hidden = false;
+    }
+
+    function applyHomeCoachFloatI18n() {
+      if (!homeCoachActiveKind) return;
+      const el = document.getElementById("home-coach-float");
+      if (!el || el.hidden) return;
+      paintHomeCoachFloat(homeCoachActiveKind);
+    }
+
+    async function scheduleHomeCoachFloat() {
+      const seq = (homeCoachRenderSeq += 1);
+      if (isGuestMode) {
+        hideHomeCoachFloat();
+        return;
+      }
+      const home = document.getElementById("home-section");
+      if (!home || home.classList.contains("hidden")) {
+        hideHomeCoachFloat();
+        return;
+      }
+      try {
+        const kind = await resolveHomeCoachKind();
+        if (seq !== homeCoachRenderSeq) return;
+        if (!kind) {
+          hideHomeCoachFloat();
+          return;
+        }
+        const homeNow = document.getElementById("home-section");
+        if (!homeNow || homeNow.classList.contains("hidden") || isGuestMode) {
+          hideHomeCoachFloat();
+          return;
+        }
+        paintHomeCoachFloat(kind);
+      } catch (e) {
+        if (seq === homeCoachRenderSeq) hideHomeCoachFloat();
+      }
+    }
+
+    function dismissHomeCoachFloat() {
+      if (homeCoachActiveKind) markHomeCoachDismissedToday(homeCoachActiveKind);
+      hideHomeCoachFloat();
+    }
+
+    function handleHomeCoachCta() {
+      const kind = homeCoachActiveKind;
+      if (!kind) return;
+      markHomeCoachDismissedToday(kind);
+      hideHomeCoachFloat();
+      if (kind === "B") {
+        showGradeNeededModal();
+        return;
+      }
+      if (kind === "C") {
+        handleModeLevel();
+        return;
+      }
+      if (kind === "D") {
+        handleDailyTaskEntryClick();
+      }
     }
 
     function showGradeNeededModal() {
@@ -7646,6 +7933,7 @@
 
     function enterMainGameShellForResume(mode) {
       setTopActionsVisible(false);
+      hideHomeCoachFloat();
       setGameOverLayout(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) {
@@ -9050,6 +9338,13 @@
         "home.btn.backHome": "返回首頁",
         "home.btn.settings": "設置",
         "home.btn.dailyTasks": "每日任務",
+        "home.coach.dismiss": "知道了",
+        "home.coach.grade.body": "先選一下年級，我才能給你合適的練習。",
+        "home.coach.grade.cta": "去選年級",
+        "home.coach.level.body": "先做一次闖關模式，測一測你目前四則運算的能力。",
+        "home.coach.level.cta": "闖關模式",
+        "home.coach.tasks.body": "看看今天有什麼適合的任務要挑戰吧。",
+        "home.coach.tasks.cta": "去每日任務",
         "dailyTasks.title": "每日任務",
         "dailyTasks.tagline": "(完成任務，衝擊本月任務達人榜)",
         "dailyTasks.openHeading": "未完成",
@@ -9537,6 +9832,13 @@
         "home.btn.backHome": "Home",
         "home.btn.settings": "Settings",
         "home.btn.dailyTasks": "Daily tasks",
+        "home.coach.dismiss": "Got it",
+        "home.coach.grade.body": "Pick a grade first so I can suggest the right practice.",
+        "home.coach.grade.cta": "Choose grade",
+        "home.coach.level.body": "Try Challenge mode once to check your current arithmetic level.",
+        "home.coach.level.cta": "Challenge mode",
+        "home.coach.tasks.body": "See what tasks are a good challenge for you today.",
+        "home.coach.tasks.cta": "Daily tasks",
         "dailyTasks.title": "Daily tasks",
         "dailyTasks.tagline": "(Complete tasks, climb this month's Task Master)",
         "dailyTasks.openHeading": "In progress",
@@ -10303,6 +10605,7 @@
       setHomeModeLabel("mode-stats", "home.mode.stats");
       setHomeModeLabel("mode-ranking", "home.mode.ranking");
       setHomeModeLabel("mode-achievement-wall", "home.mode.achievementWall");
+      applyHomeCoachFloatI18n();
 
       setTextById("ranking-title-main", "ranking.title");
       updateRankingModeDropdownI18n();
@@ -12957,6 +13260,9 @@
       applyAchievementWallHomeMode();
       scheduleHomeTopBreathe();
       refreshSurvivalEligibility();
+      homeCoachRunsCache = null;
+      homeCoachRunsCacheUser = "";
+      void scheduleHomeCoachFloat();
     }
 
     function userHasClearedSurvival(user) {
@@ -12976,6 +13282,7 @@
         showToast(t("toast.guestNeedLogin"));
         return;
       }
+      hideHomeCoachFloat();
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -13017,6 +13324,7 @@
         showToast(t("toast.guestNeedLogin"));
         return;
       }
+      hideHomeCoachFloat();
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -13054,6 +13362,7 @@
         showToast(t("toast.guestNeedLogin"));
         return;
       }
+      hideHomeCoachFloat();
       primeCompositeResetToIdle();
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
@@ -14175,6 +14484,7 @@
     function showAvatarPicker() {
       const sec = document.getElementById("avatar-picker-section");
       if (!sec) return;
+      hideHomeCoachFloat();
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -14732,6 +15042,7 @@
       }
       const name = loadCurrentUsername();
       if (!name) return;
+      hideHomeCoachFloat();
       setTopActionsVisible(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -14825,6 +15136,7 @@
     }
 
     function showGameSection() {
+      hideHomeCoachFloat();
       if (gameMode === "expandBrackets") {
         showExpandBracketsSection();
         return;
@@ -14918,6 +15230,7 @@
 
     function showExpandBracketsSection() {
       setTopActionsVisible(false);
+      hideHomeCoachFloat();
       setGameOverLayout(false);
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
@@ -15069,6 +15382,7 @@
 
     async function showWrongbookView() {
       setTopActionsVisible(false);
+      hideHomeCoachFloat();
       if (dom.homeSection) dom.homeSection.classList.add("hidden");
       if (dom.gameSection) dom.gameSection.classList.remove("visible");
       if (dom.expandSection) {
@@ -16849,6 +17163,10 @@
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
       const homeDailyTaskBtn = document.getElementById("home-daily-task-btn");
       if (homeDailyTaskBtn) homeDailyTaskBtn.addEventListener("click", handleDailyTaskEntryClick);
+      const homeCoachCta = document.getElementById("home-coach-float-cta");
+      if (homeCoachCta) homeCoachCta.addEventListener("click", handleHomeCoachCta);
+      const homeCoachDismiss = document.getElementById("home-coach-float-dismiss");
+      if (homeCoachDismiss) homeCoachDismiss.addEventListener("click", dismissHomeCoachFloat);
       const gradeNeededSelect = document.getElementById("grade-needed-select");
       if (gradeNeededSelect) {
         gradeNeededSelect.addEventListener("change", syncGradeNeededConfirmEnabled);
