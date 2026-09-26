@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=126"></script>
+  <script src="shared/app-version.js?v=127"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3015,16 +3015,17 @@
     .home-coach-float {
       position: fixed;
       left: 50%;
-      bottom: max(16px, env(safe-area-inset-bottom, 0px));
-      transform: translateX(-50%);
+      top: 50%;
+      bottom: auto;
+      transform: translate(-50%, -50%);
       z-index: 60;
-      width: min(92vw, 420px);
+      width: min(78vw, 300px);
       box-sizing: border-box;
-      padding: 14px 14px 12px;
-      border-radius: 16px;
-      background: #fff;
-      border: 1px solid rgba(78, 131, 248, 0.28);
-      box-shadow: 0 10px 28px rgba(30, 60, 120, 0.16);
+      padding: 16px 16px 14px;
+      border-radius: 18px;
+      background: #1a2336;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 16px 40px rgba(10, 16, 32, 0.45);
     }
     .home-coach-float[hidden] {
       display: none !important;
@@ -3033,19 +3034,19 @@
       margin: 0;
       font-size: 0.95rem;
       line-height: 1.45;
-      color: var(--text-main, #1f2a44);
+      color: #f4f7ff;
     }
     .home-coach-float-actions {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 14px;
       align-items: center;
       justify-content: flex-end;
     }
     .home-coach-float-dismiss {
       border: none;
       background: transparent;
-      color: #78909c;
+      color: rgba(244, 247, 255, 0.72);
       font-size: 0.88rem;
       padding: 8px 10px;
       cursor: pointer;
@@ -3053,6 +3054,12 @@
     }
     .home-coach-float-cta {
       min-width: 7.5rem;
+      background: #6b93ff;
+      color: #fff;
+      border: none;
+    }
+    .home-coach-float-cta:hover {
+      filter: brightness(1.06);
     }
 
     .game-over-buttons {
@@ -17497,6 +17504,7 @@
             applyAchievementWallHomeMode();
             scheduleHomeTopBreathe();
             promptPendingRunDraftIfAny();
+            void scheduleHomeCoachFloat();
             return;
         }
       } catch (e) {
