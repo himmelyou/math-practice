@@ -15856,8 +15856,9 @@
         brushPoolMax: dayMode === "heat" ? 15 : null,
         brushMode: dayMode === "heat",
         runBrushMode: dayMode === "heat",
-        heatMeanLnAtStart: heatSpeed.heatMeanLnAtStart,
-        heatAvgSecAtStart: heatSpeed.heatAvgSecAtStart,
+        // 开局加权速权威在服务端 append 前按既有 runs 计算；此处仅客户端诊断快照
+        heatMeanLnAtStartClient: heatSpeed.heatMeanLnAtStart,
+        heatAvgSecAtStartClient: heatSpeed.heatAvgSecAtStart,
         lastRunBefore: null,
         dayKey: getLocalTrainingDayKey(),
         heatReady: !!(trainingHeatSnapshot && trainingHeatSnapshot.cells),
@@ -16477,8 +16478,9 @@
     }
 
     /**
-     * 小数 / 平方数 / 整除 Z1–Z4：开局加权速（入库前热图格）+ 本局均速。
-     * 整除 Z5 不写速度字段（Report 显示 —）。须在 appendRun 前调用。
+     * 小数 / 平方数 / 整除 Z1–Z4：本局均速 + 开局加权速客户端诊断快照。
+     * 入库权威 heatAvgSecAtStart 由服务端 append 前按既有 runs 计算。
+     * 整除 Z5 不写速度字段（Report 显示 —）。
      */
     async function buildSingleLevelSpeedMeta(mode, levelIndex, attempts) {
       const m = normalizeAppendRunMode(mode);
@@ -16501,8 +16503,8 @@
             : 4;
       const modes = cat && Array.isArray(cat.modes) ? cat.modes : [m];
 
-      let heatMeanLnAtStart = null;
-      let heatAvgSecAtStart = null;
+      let heatMeanLnAtStartClient = null;
+      let heatAvgSecAtStartClient = null;
       let capMs = 60 * 1000;
       try {
         const fetchCohort =
@@ -16523,12 +16525,12 @@
           });
           const cell = getHeatCellForLevel(heat, Math.min(levelCount - 1, lv));
           if (cell && cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))) {
-            heatMeanLnAtStart = Number(cell.meanLnCorrect);
-            heatAvgSecAtStart = secFromMeanLn(heatMeanLnAtStart);
+            heatMeanLnAtStartClient = Number(cell.meanLnCorrect);
+            heatAvgSecAtStartClient = secFromMeanLn(heatMeanLnAtStartClient);
           }
         }
       } catch (e) {
-        console.warn("单关开局加权速快照失败", e);
+        console.warn("单关开局加权速诊断快照失败", e);
       }
 
       let runMeanLn = null;
@@ -16547,8 +16549,8 @@
 
       return {
         pickedLevel: lv,
-        heatMeanLnAtStart: heatMeanLnAtStart,
-        heatAvgSecAtStart: heatAvgSecAtStart,
+        heatMeanLnAtStartClient: heatMeanLnAtStartClient,
+        heatAvgSecAtStartClient: heatAvgSecAtStartClient,
         runMeanLn: runMeanLn,
         runAvgSec: runAvgSec,
       };

@@ -21,6 +21,7 @@ const { buildTrafficStats } = require("./traffic-stats");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
+const { attachHeatBaselineBeforeWrite } = require("./heat-baseline-at-append");
 const { buildUserHeatmapsByCategory } = require("./user-heatmap");
 const {
   computeDecimalNextLevel,
@@ -2739,6 +2740,20 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     runEntry.score = 0;
   }
   if (!comboOnly) {
+    // 开局加权速权威：写入前用既有 runs 建热图（不含本局），覆盖 client 快照
+    try {
+      attachHeatBaselineBeforeWrite({
+        runEntry,
+        existingRuns: runsStore.getUserRuns(username),
+        cohortsByCategory: cohortsByCategoryForHeatmap(),
+      });
+    } catch (e) {
+      console.warn(
+        "[heat-baseline]",
+        username,
+        e && e.message ? e.message : e
+      );
+    }
     allRunsAfterWrite = runsStore.prependUserRun(username, runEntry);
   }
 
