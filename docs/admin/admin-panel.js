@@ -1630,6 +1630,63 @@
     }
   }
 
+  async function swapDecimalD4D5Migration() {
+    try {
+      setStatus('小数 D4/D5 迁移 · dry-run 扫描中…', '');
+      var dry = await apiFetch('/api/admin/maintenance/swap-decimal-d4-d5', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: true }),
+      });
+      if (!dry || dry.ok !== true) throw new Error((dry && dry.error) || 'dry-run 失败');
+      if (dry.alreadyDone) {
+        setStatus('已迁移过（' + (dry.swappedAt || '') + '），无需再跑', 'ok');
+        return;
+      }
+      var msg =
+        '将把小数历史关号 3↔4 对调（热图跟新 D4/D5 内容）。\n\n' +
+        '预估：触及用户 ' +
+        (dry.runUsersTouched || 0) +
+        '，局 ' +
+        (dry.runsRemapped || 0) +
+        '，attempt ' +
+        (dry.attemptsRemapped || 0) +
+        '，错题 ' +
+        (dry.wrongAnswersRemapped || 0) +
+        '，recent ' +
+        (dry.recentDecimalRemapped || 0) +
+        '，任务单条目 ' +
+        (dry.practicePlanEntriesRemapped || 0) +
+        '。\n\n' +
+        '不改解锁进度。正式写入后不可再跑。\n请确认已备份且前端出题已部署。';
+      if (!window.confirm(msg)) {
+        setStatus('已取消迁移', '');
+        return;
+      }
+      setStatus('小数 D4/D5 正式迁移中…', '');
+      var data = await apiFetch('/api/admin/maintenance/swap-decimal-d4-d5', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: false }),
+      });
+      if (!data || data.ok !== true) throw new Error((data && data.error) || '迁移失败');
+      if (data.alreadyDone) {
+        setStatus('已迁移过，跳过', 'ok');
+        return;
+      }
+      setStatus(
+        '迁移完成：用户 ' +
+          (data.runUsersTouched || 0) +
+          '，局 ' +
+          (data.runsRemapped || 0) +
+          '，attempt ' +
+          (data.attemptsRemapped || 0) +
+          (data.cohortCleared ? '；已清小数常模，请到报表重建' : ''),
+        'ok'
+      );
+    } catch (e) {
+      setStatus(e.message || '迁移失败', 'err');
+    }
+  }
+
   async function backfillDivisibilityPerfectRanking() {
     try {
       var msg = '将从 runs 扫描 L5（Z5）零错整除局，重建 divisibility-perfect-ranking.json。\n\n'
@@ -1954,6 +2011,8 @@
     if (backfillDivisibilityPerfectRankingBtn) {
       backfillDivisibilityPerfectRankingBtn.addEventListener('click', backfillDivisibilityPerfectRanking);
     }
+    var swapDecimalD4D5Btn = document.getElementById('jml-btn-swap-decimal-d4-d5');
+    if (swapDecimalD4D5Btn) swapDecimalD4D5Btn.addEventListener('click', swapDecimalD4D5Migration);
     var purgeDivWrongBtn = document.getElementById('jml-btn-purge-divisibility-wrong');
     if (purgeDivWrongBtn) purgeDivWrongBtn.addEventListener('click', purgeDivisibilityWrongAnswers);
     var runsStoreVerifyBtn = document.getElementById('jml-btn-runs-store-verify');

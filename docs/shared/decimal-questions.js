@@ -8,15 +8,16 @@
 
   var QUESTIONS_PER_RUN = 20;
   var DECIMAL_MAX_LEVEL = 5;
-  var D4_FRACTION_LEVEL_INDEX = 3;
+  /** 单位分数互化关（现为 D5 / index 4；2026-09 与乘除整数对调） */
+  var D4_FRACTION_LEVEL_INDEX = 4;
   var D4_QUESTIONS_PER_RUN = 36;
 
   var LEVEL_DEFS = [
     { id: "D1", name: "第 1 级 · 一位小数与整数混合加减" },
     { id: "D2", name: "第 2 级 · 一位与两位小数混合加减" },
     { id: "D3", name: "第 3 级 · 乘或除以 10ⁿ" },
-    { id: "D4", name: "第 4 级 · 单位分数与小数互化" },
-    { id: "D5", name: "第 5 级 · 小数乘除一位整数" },
+    { id: "D4", name: "第 4 级 · 小数乘除一位整数" },
+    { id: "D5", name: "第 5 级 · 单位分数与小数互化" },
     { id: "D6", name: "第 6 级 · 小数乘除小数" },
   ];
 
@@ -389,7 +390,7 @@
     });
   }
 
-  /** D4：分母 = 2^{0..3}×10ⁿ 或 5^{0..3}×10ⁿ，∈(1,1000]，分子恒 1 → 18 个分母 × 2 挖空 = 36 题 */
+  /** 单位分数关（D5）：分母 = 2^{0..3}×10ⁿ 或 5^{0..3}×10ⁿ，∈(1,1000]，分子恒 1 → 18 个分母 × 2 挖空 = 36 题 */
   var D4_UNIT_DENOMS = (function () {
     var set = {};
     var list = [];
@@ -436,7 +437,7 @@
           text: "1/" + denom + " = ?",
           prompt: "1/" + denom + " = ?",
           answer: decText,
-          baseLevelId: "D4",
+          baseLevelId: "D5",
           displayKind: "unitFraction",
           blankSide: "decimal",
           denom: denom,
@@ -451,7 +452,7 @@
           text: "1/? = " + decText,
           prompt: "1/? = " + decText,
           answer: String(denom),
-          baseLevelId: "D4",
+          baseLevelId: "D5",
           displayKind: "unitFraction",
           blankSide: "denom",
           denom: denom,
@@ -564,7 +565,7 @@
     return wrapQuestion({
       text: first.text + " × " + n + " = ?",
       answer: formatAnswer(ans),
-      baseLevelId: "D5",
+      baseLevelId: "D4",
       op: "×",
       a: first.value,
       b: n,
@@ -596,7 +597,7 @@
     return wrapQuestion({
       text: first.text + " ÷ " + n + " = ?",
       answer: formatAnswer(quotient),
-      baseLevelId: "D5",
+      baseLevelId: "D4",
       op: "÷",
       a: first.value,
       b: n,
@@ -611,7 +612,7 @@
     return wrapQuestion({
       text: "2.4 × 3 = ?",
       answer: "7.2",
-      baseLevelId: "D5",
+      baseLevelId: "D4",
       op: "×",
       a: 2.4,
       b: 3,
@@ -826,8 +827,8 @@
     buildD1Question,
     buildD2Question,
     buildD3Question,
-    buildD4Question,
-    buildD5MulDivQuestion,
+    buildD5MulDivQuestion, // D4：小数 ×÷ 一位整数
+    buildD4Question, // D5：单位分数 ↔ 小数
     buildD6Question,
   ];
 

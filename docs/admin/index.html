@@ -332,6 +332,7 @@
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
           <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn jml-btn-primary">重建质数达人榜</button>
           <button type="button" id="jml-btn-backfill-divisibility-perfect-ranking" class="jml-btn jml-btn-primary">重建整除达人榜</button>
+          <button type="button" id="jml-btn-swap-decimal-d4-d5" class="jml-btn jml-btn-primary" title="小数 D4/D5 内容对调后，历史 runs levelIndex 3↔4（一次性）">小数 D4/D5 迁移</button>
           <button type="button" id="jml-btn-purge-divisibility-wrong" class="jml-btn jml-btn-danger" title="全库清除错题本中的整除题（mode=divisibility）">清除整除错题</button>
           <button type="button" id="jml-btn-dedupe-usernames-maint" class="jml-btn jml-btn-danger">清理重名空户</button>
           <button type="button" id="jml-btn-runs-store-verify" class="jml-btn jml-btn-primary" title="只读核对：legacy runs.json vs runs-by-user">核对 runs 分文件</button>
@@ -378,6 +379,18 @@
           <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
         </div>
         <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>小数 D4 / D5 对调迁移</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>出题已改为：D4 = 小数×÷一位整数，D5 = 单位分数互化（36 题）</li>
+            <li>本按钮把历史 <code>mode=decimal</code> 的 <code>maxLevel</code> / <code>attempts.levelIndex</code> 做 <strong>3↔4</strong>，热图跟内容走</li>
+            <li>同步：错题本小数条目、<code>recentDecimalRuns</code>、练习任务单中的小数关</li>
+            <li><strong>不改</strong> <code>levelDecimalUnlockedMax</code> / currentLevel</li>
+            <li>一次性幂等（写入 <code>adminMeta.decimalD4D5SwappedAt</code>）；会先 dry-run 再确认正式写</li>
+            <li>正式迁移后会删除小数常模缓存，请到报表「重建小数常模」</li>
+          </ol>
+          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。须先部署含新出题的前端/服务端。</p>
+        </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
           <p><strong>清除整除错题（临时）</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
             <li>全库扫描 <code>users.json</code> 的 <code>wrongAnswers</code>，删除 <code>mode=divisibility</code> 条目</li>
@@ -411,7 +424,7 @@
 
   <script src="../shared/app-version.js?v=22"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "49";
+    window.JML_ADMIN_STATIC_REV = "50";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -432,10 +445,10 @@
   <script src="../shared/admin-auth.js?v=21"></script>
   <script src="../shared/arithmetic-questions.js?v=43"></script>
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
-  <script src="../shared/decimal-questions.js?v=49"></script>
+  <script src="../shared/decimal-questions.js?v=50"></script>
   <script src="../shared/divisibility-questions.js?v=5"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=49"></script>
+    <script src="admin-panel.js?v=50"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=24"></script>
   <script src="admin-achievements.js?v=9"></script>

@@ -19,6 +19,7 @@ const achievementImport = require("./achievements/import");
 const { buildStudentOverviewRows } = require("./student-overview");
 const { buildTrafficStats } = require("./traffic-stats");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
+const { swapDecimalD4D5 } = require("./swap-decimal-d4-d5");
 const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { attachHeatBaselineBeforeWrite } = require("./heat-baseline-at-append");
@@ -1480,9 +1481,48 @@ function migrateI18nTaskMasterMonthly() {
   }
 }
 
+/** 小数 D4/D5 对调：线上 i18n.json 旧关名部署后对齐代码默认。 */
+const DECIMAL_D4_D5_I18N_KEYS = ["dec.level.L4", "dec.level.L5"];
+
+function needsDecimalD4D5I18nMigrate(value, key) {
+  const s = String(value || "");
+  if (!s) return false;
+  if (key === "dec.level.L4") {
+    return /單位分數|单位分数|Unit fraction/i.test(s);
+  }
+  if (key === "dec.level.L5") {
+    return /乘除一位|one-digit integer/i.test(s) && !/單位分數|单位分数|Unit fraction/i.test(s);
+  }
+  return false;
+}
+
+function migrateI18nDecimalD4D5Labels() {
+  if (!fs.existsSync(I18N_FILE)) return;
+  const raw = readJson(I18N_FILE, {});
+  const defaults = defaultI18nPayload();
+  let changed = false;
+  ["zhHant", "en"].forEach((lang) => {
+    const src = raw[lang];
+    if (!src || typeof src !== "object") return;
+    DECIMAL_D4_D5_I18N_KEYS.forEach((key) => {
+      const cur = src[key];
+      if (typeof cur !== "string" || !needsDecimalD4D5I18nMigrate(cur, key)) return;
+      const next = defaults[lang] && defaults[lang][key];
+      if (!next || cur === next) return;
+      src[key] = next;
+      changed = true;
+    });
+  });
+  if (changed) {
+    writeJson(I18N_FILE, normalizeI18nPayload(raw));
+    console.log("[i18n] migrated decimal D4/D5 level labels");
+  }
+}
+
 migrateI18nScoreRankingLabels();
 migrateI18nRankingPublicTop20();
 migrateI18nTaskMasterMonthly();
+migrateI18nDecimalD4D5Labels();
 if (!fs.existsSync(AVATAR_ASSET_DIR)) {
   fs.mkdirSync(AVATAR_ASSET_DIR, { recursive: true });
 }
@@ -4930,6 +4970,56 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
     });
   } catch (e) {
     res.json({ ok: false, error: "恢复失败：" + (e.message || String(e)) });
+  }
+});
+
+// ========== 管理员：小数 D4/D5 对调迁移（runs levelIndex 3↔4；幂等） ==========
+app.post("/api/admin/maintenance/swap-decimal-d4-d5", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const dryRun = !!(req.body && req.body.dryRun);
+  const meta = readAdminMeta();
+  if (meta.decimalD4D5SwappedAt) {
+    return res.json({
+      ok: true,
+      alreadyDone: true,
+      dryRun,
+      swappedAt: meta.decimalD4D5SwappedAt,
+      message: "已迁移过，跳过（防再次 3↔4 对调回去）",
+    });
+  }
+  try {
+    const usersData = readJson(USERS_FILE, { users: [] });
+    const users = Array.isArray(usersData.users) ? usersData.users : [];
+    const stats = swapDecimalD4D5({
+      dryRun,
+      forEachUserRuns: (fn) => runsStore.forEachUserRuns(fn),
+      setUserRuns: (username, runs) => runsStore.setUserRuns(username, runs),
+      users,
+      practicePlanStore,
+    });
+    if (!dryRun) {
+      writeJson(USERS_FILE, usersData);
+      if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) {
+        try {
+          fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      meta.decimalD4D5SwappedAt = Date.now();
+      writeAdminMeta(meta);
+    }
+    return res.json({
+      ok: true,
+      alreadyDone: false,
+      cohortCleared: !dryRun,
+      swappedAt: dryRun ? null : meta.decimalD4D5SwappedAt,
+      ...stats,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "迁移失败：" + (e.message || String(e)) });
   }
 });
 

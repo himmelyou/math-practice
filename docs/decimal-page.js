@@ -397,7 +397,7 @@
       .replace(/"/g, "&quot;");
   }
 
-  /** D4 单位分数：竖排真分数，不用斜杠 */
+  /** D5 单位分数：竖排真分数，不用斜杠 */
   function formatDecUnitFractionHtml(q) {
     var blankDenom = q && q.blankSide === "denom";
     var denText = blankDenom ? "?" : String(q && q.denom != null ? q.denom : "");
