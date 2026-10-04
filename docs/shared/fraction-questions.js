@@ -103,8 +103,34 @@
     return t + rem + "/" + d;
   }
 
-  function mixedHtml(whole, n, d) {
-    return valueHtml(whole * d + n, d);
+  function isLowest(n, d) {
+    return d > 1 && gcd(n, d) === 1;
+  }
+
+  function pickCoprimeProper(d) {
+    var n;
+    var t;
+    for (t = 0; t < 30; t += 1) {
+      n = pickProper(d);
+      if (isLowest(n, d)) return n;
+    }
+    return 1;
+  }
+
+  function pickCoprimeImproper(d) {
+    var n;
+    var t;
+    for (t = 0; t < 40; t += 1) {
+      n = d + randomInt(1, Math.max(2, d * 3));
+      if (n % d === 0) n += 1;
+      if (isLowest(n, d)) return n;
+    }
+    return d + 1;
+  }
+
+  /** 题面带分数：分数部分保持原分母，不预约分 */
+  function promptMixedHtml(whole, n, d) {
+    return whole + "&nbsp;" + fracHtml(n, d);
   }
 
   function pickDen() {
@@ -122,25 +148,23 @@
   }
 
   function renderOperand(v) {
-    if (v.kind === "m") return mixedHtml(v.whole, v.n, v.d);
+    if (v.kind === "m") return promptMixedHtml(v.whole, v.n, v.d);
     return fracHtml(v.n, v.d);
   }
 
   function pickProperVal() {
     var d = pickDen();
-    return { kind: "p", n: pickProper(d), d: d };
+    return { kind: "p", n: pickCoprimeProper(d), d: d };
   }
 
   function pickImproperVal() {
     var d = pickDen();
-    var n = d + randomInt(1, d * 3);
-    if (n % d === 0) n += 1;
-    return { kind: "i", n: n, d: d };
+    return { kind: "i", n: pickCoprimeImproper(d), d: d };
   }
 
   function pickMixedVal() {
     var d = pickDen();
-    return { kind: "m", whole: randomInt(1, 5), n: pickProper(d), d: d };
+    return { kind: "m", whole: randomInt(1, 5), n: pickCoprimeProper(d), d: d };
   }
 
   function pickOperandMix() {
@@ -148,6 +172,10 @@
     if (r < 0.34) return pickProperVal();
     if (r < 0.67) return pickImproperVal();
     return pickMixedVal();
+  }
+
+  function operandIsLowest(v) {
+    return isLowest(v.n, v.d);
   }
 
   function q(promptHtml, answerHtml, answerText, section, extra) {
@@ -208,8 +236,7 @@
     return fillSection(SECTION_SIZE, function (list, seen) {
       if (Math.random() < 0.5) {
         var d = pickDen();
-        var n = d + randomInt(1, Math.min(20, d * 4));
-        if (n % d === 0) n += 1;
+        var n = pickCoprimeImproper(d);
         uniquePush(
           list,
           q(fracHtml(n, d) + " =", valueHtml(n, d), valueText(n, d), "假分数与带分数"),
@@ -219,11 +246,11 @@
       } else {
         var d2 = pickDen();
         var w = randomInt(1, 6);
-        var n2 = pickProper(d2);
+        var n2 = pickCoprimeProper(d2);
         var imp = w * d2 + n2;
         uniquePush(
           list,
-          q(mixedHtml(w, n2, d2) + " =", fracHtml(imp, d2), imp + "/" + d2, "假分数与带分数"),
+          q(promptMixedHtml(w, n2, d2) + " =", fracHtml(imp, d2), imp + "/" + d2, "假分数与带分数"),
           "m-" + w + "-" + n2 + "/" + d2,
           seen
         );
@@ -236,8 +263,9 @@
       var d1 = pickDen();
       var d2 = pickDen();
       if (d1 === d2) d2 = d1 === 12 ? 8 : d1 + 1;
-      var n1 = pickProper(d1);
-      var n2 = pickProper(d2);
+      var n1 = pickCoprimeProper(d1);
+      var n2 = pickCoprimeProper(d2);
+      if (d1 === d2) return;
       var L = lcm(d1, d2);
       if (L > 60) return;
       var a1 = n1 * (L / d1);
@@ -255,8 +283,27 @@
 
   function buildCompare() {
     return fillSection(SECTION_SIZE, function (list, seen) {
-      var A = pickProperVal();
-      var B = pickProperVal();
+      var A;
+      var B;
+      if (Math.random() < 0.35) {
+        var d0 = randomInt(2, 9);
+        var n0 = pickCoprimeProper(d0);
+        var k = randomInt(2, 4);
+        A = { n: n0, d: d0 };
+        B = { n: n0 * k, d: d0 * k };
+        if (Math.random() < 0.5) {
+          var sw = A;
+          A = B;
+          B = sw;
+        }
+      } else {
+        A = { n: 0, d: pickDen() };
+        A.n = pickProper(A.d);
+        B = { n: 0, d: pickDen() };
+        B.n = pickProper(B.d);
+        if (A.n === B.n && A.d === B.d) return;
+      }
+      if (A.n === B.n && A.d === B.d) return;
       var left = A.n * B.d;
       var right = B.n * A.d;
       var mark = left === right ? "=" : left > right ? ">" : "<";
@@ -279,15 +326,15 @@
       do {
         B = pickOperandMix();
         B.d = A.d;
-        if (B.kind === "p" || B.kind === "i") {
-          if (B.kind === "p") B.n = pickProper(A.d);
-          else {
-            B.n = A.d + randomInt(1, A.d * 3);
-            if (B.n % A.d === 0) B.n += 1;
-          }
-        } else B.n = pickProper(A.d);
+        if (B.kind === "p") B.n = pickCoprimeProper(A.d);
+        else if (B.kind === "i") B.n = pickCoprimeImproper(A.d);
+        else B.n = pickCoprimeProper(A.d);
         tries += 1;
-      } while (tries < 20 && toImproper(A) === toImproper(B) && op === "−");
+      } while (
+        tries < 20 &&
+        ((op === "−" && toImproper(A) === toImproper(B)) || !operandIsLowest(B))
+      );
+      if (!operandIsLowest(A) || !operandIsLowest(B) || A.d !== B.d) return;
       var an = toImproper(A);
       var bn = toImproper(B);
       var d = A.d;
@@ -352,16 +399,14 @@
       var B = pickOperandMix();
       A.d = dens[0];
       B.d = dens[1];
-      if (A.kind === "p") A.n = pickProper(A.d);
-      else if (A.kind === "i") {
-        A.n = A.d + randomInt(1, A.d * 2);
-        if (A.n % A.d === 0) A.n += 1;
-      } else A.n = pickProper(A.d);
-      if (B.kind === "p") B.n = pickProper(B.d);
+      if (A.kind === "p") A.n = pickCoprimeProper(A.d);
+      else if (A.kind === "i") A.n = pickCoprimeImproper(A.d);
+      else A.n = pickCoprimeProper(A.d);
+      if (B.kind === "p") B.n = pickCoprimeProper(B.d);
       else if (B.kind === "i") {
-        B.n = B.d + randomInt(1, B.d * 2);
-        if (B.n % B.d === 0) B.n += 1;
-      } else B.n = pickProper(B.d);
+        B.n = pickCoprimeImproper(B.d);
+      } else B.n = pickCoprimeProper(B.d);
+      if (!operandIsLowest(A) || !operandIsLowest(B) || A.d === B.d) return;
       var L = lcm(A.d, B.d);
       var an = toImproper(A) * (L / A.d);
       var bn = toImproper(B) * (L / B.d);
