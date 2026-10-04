@@ -785,7 +785,7 @@
   var L4_ADD_POOL_SIZE = 50;
   var L4_SUB_POOL_SIZE = 80;
   var L11_LEVEL_INDEX = 10;
-  var L11_POOL_SIZE = 56;
+  var L11_POOL_SIZE = 64;
   var L13_LEVEL_INDEX = 12;
   var L13_POOL_SIZE = 98;
   var L14_LEVEL_INDEX = 13;
@@ -929,7 +929,6 @@
     var pool = [];
     for (var divisor = 2; divisor <= 9; divisor += 1) {
       for (var quotient = 2; quotient <= 9; quotient += 1) {
-        if (divisor === quotient) continue;
         var dividend = divisor * quotient;
         pool.push({ dividend: dividend, divisor: divisor, quotient: quotient });
       }
