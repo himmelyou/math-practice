@@ -676,19 +676,16 @@
         {
           id: "L13",
           name: "第 13 级 · 两位乘一位",
-          description: "两位数乘一位数，结果不超过 100，为多位数乘法竖式打基础。",
+          description: "两位×一位；五库等额：整十、其余×2、其余偶数×5、其余12/15/25、其余积≤99。",
           operations: ["×"],
           min: 2,
           max: 9,
           generateQuestion() {
-            let a, b, answer;
-            b = randomInt(this.min, this.max);
-            const maxA = Math.floor(99 / b);
-            const minA = 11;
-            a = maxA >= minA ? randomInt(minA, maxA) : minA;
-            answer = a * b;
-            const text = `${a} × ${b} = ?`;
-            return { a, b, op: "×", text, answer, baseLevelId: this.id };
+            var keys = L13_POOL_KEYS;
+            var key = keys[randomInt(0, keys.length - 1)];
+            var pool = L13_POOLS[key];
+            var item = pool[randomInt(0, pool.length - 1)];
+            return materializeL13Question(item);
           }
         },
         {
@@ -787,7 +784,8 @@
   var L11_LEVEL_INDEX = 10;
   var L11_POOL_SIZE = 64;
   var L13_LEVEL_INDEX = 12;
-  var L13_POOL_SIZE = 98;
+  var L13_POOL_KEYS = ["A", "B", "C", "D", "E"];
+  var L13_ANCHORS = { 12: true, 15: true, 25: true };
   var L14_LEVEL_INDEX = 13;
   var L14_QUOTIENT_MIN = 11;
   var L14_QUOTIENT_MAX = 99;
@@ -804,6 +802,8 @@
   var l10Deck = [];
   var l11Deck = [];
   var l13Deck = [];
+  var l13SegmentCount = DEFAULT_SEGMENT_COUNT;
+  var l13KeepPoolOrder = false;
   var l14Deck = [];
   var l14SegmentCount = DEFAULT_SEGMENT_COUNT;
   var segmentSeenKeys = null;
@@ -1050,15 +1050,79 @@
     };
   }
 
-  function buildL13Pool() {
-    var pool = [];
-    for (var b = 2; b <= 9; b += 1) {
-      var maxA = Math.floor(99 / b);
-      for (var a = 11; a <= maxA; a += 1) {
-        pool.push({ a: a, b: b, answer: a * b });
+  function l13IsTens(a) {
+    return a >= 20 && a <= 90 && a % 10 === 0;
+  }
+
+  /** A→B→C→D→E 互斥；过百仅出现在 A–D。 */
+  function l13Classify(a, b) {
+    if (a < 11 || a > 99 || b < 2 || b > 9) return null;
+    if (l13IsTens(a)) return "A";
+    if (b === 2) return "B";
+    if (b === 5 && a % 2 === 0) return "C";
+    if (L13_ANCHORS[a]) return "D";
+    if (a * b <= 99) return "E";
+    return null;
+  }
+
+  function buildL13Pools() {
+    var pools = { A: [], B: [], C: [], D: [], E: [] };
+    var a;
+    var b;
+    var key;
+    for (a = 11; a <= 99; a += 1) {
+      for (b = 2; b <= 9; b += 1) {
+        key = l13Classify(a, b);
+        if (!key) continue;
+        pools[key].push({ a: a, b: b, answer: a * b, pool: key });
       }
     }
-    return pool;
+    return pools;
+  }
+
+  var L13_POOLS = buildL13Pools();
+  var L13_POOL_SIZE =
+    L13_POOLS.A.length + L13_POOLS.B.length + L13_POOLS.C.length + L13_POOLS.D.length + L13_POOLS.E.length;
+
+  function splitEqualFive(count) {
+    var base = Math.floor(count / 5);
+    var rem = count % 5;
+    return [
+      base + (rem > 0 ? 1 : 0),
+      base + (rem > 1 ? 1 : 0),
+      base + (rem > 2 ? 1 : 0),
+      base + (rem > 3 ? 1 : 0),
+      base,
+    ];
+  }
+
+  function takeFromPoolCycling(pool, n) {
+    var out = [];
+    if (!pool || !pool.length || n <= 0) return out;
+    var bag = shuffleArray(pool);
+    var i = 0;
+    while (out.length < n) {
+      if (i >= bag.length) {
+        bag = shuffleArray(pool);
+        i = 0;
+      }
+      out.push(bag[i]);
+      i += 1;
+    }
+    return out;
+  }
+
+  function buildL13RunDeck(count, keepPoolOrder) {
+    count = Math.max(0, Math.floor(Number(count) || 0));
+    if (count === 0) return [];
+    var sizes = splitEqualFive(count);
+    var deck = [];
+    var k;
+    for (k = 0; k < L13_POOL_KEYS.length; k += 1) {
+      deck = deck.concat(takeFromPoolCycling(L13_POOLS[L13_POOL_KEYS[k]], sizes[k]));
+    }
+    if (!keepPoolOrder) deck = shuffleArray(deck);
+    return deck;
   }
 
   function materializeL13Question(item) {
@@ -1069,6 +1133,7 @@
       text: item.a + " × " + item.b + " = ?",
       answer: item.answer,
       baseLevelId: "L13",
+      l13Pool: item.pool || l13Classify(item.a, item.b),
     };
   }
 
@@ -1156,9 +1221,10 @@
     return fallback;
   }
 
-  function resetLevelDeck(levelIndex, count) {
+  function resetLevelDeck(levelIndex, count, options) {
     levelIndex = clampLevelIndex(levelIndex);
     var segCount = resolveSegmentCount(count);
+    var keepPoolOrder = !!(options && options.keepPoolOrder);
     segmentSeenKeys = null;
     segmentLevelIndex = null;
 
@@ -1196,7 +1262,9 @@
       return;
     }
     if (levelIndex === L13_LEVEL_INDEX) {
-      l13Deck = shuffleArray(buildL13Pool());
+      l13SegmentCount = segCount;
+      l13KeepPoolOrder = keepPoolOrder;
+      l13Deck = buildL13RunDeck(l13SegmentCount, l13KeepPoolOrder);
       lastBuiltLevelIndex = L13_LEVEL_INDEX;
       return;
     }
@@ -1235,9 +1303,9 @@
 
   function buildL13Question() {
     if (l13Deck.length === 0) {
-      l13Deck = shuffleArray(buildL13Pool());
+      l13Deck = buildL13RunDeck(l13SegmentCount, l13KeepPoolOrder);
     }
-    return materializeL13Question(l13Deck.pop());
+    return materializeL13Question(l13Deck.shift());
   }
 
   function buildL14Question() {
@@ -1412,6 +1480,8 @@
     L4_SUB_POOL_SIZE: L4_SUB_POOL_SIZE,
     L13_LEVEL_INDEX: L13_LEVEL_INDEX,
     L13_POOL_SIZE: L13_POOL_SIZE,
+    L13_POOL_KEYS: L13_POOL_KEYS.slice(),
+    l13Classify: l13Classify,
     L14_LEVEL_INDEX: L14_LEVEL_INDEX,
     DEDUP_LEVEL_INDICES: DEDUP_LEVEL_INDICES.slice(),
     isDualDeckLevel: isDualDeckLevel,

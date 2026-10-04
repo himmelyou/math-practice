@@ -91,7 +91,9 @@
       return div.buildRun(level, count).map(mapDivisibilityQuestion);
     }
     if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
-      window.JmlArithmetic.resetLevelDeck(level, count);
+      window.JmlArithmetic.resetLevelDeck(level, count, {
+        keepPoolOrder: level === (window.JmlArithmetic.L13_LEVEL_INDEX || 12),
+      });
     }
     if (mode === 'decimal' && window.JmlDecimal && typeof window.JmlDecimal.resetLevelSegment === 'function') {
       window.JmlDecimal.resetLevelSegment(level, count);
