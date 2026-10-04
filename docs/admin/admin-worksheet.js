@@ -1,5 +1,5 @@
 /**
- * 管理端：四则 / 拆括号 / 小数 / 整除习题纸生成与打印
+ * 管理端：四则 / 拆括号 / 小数 / 整除 / 分数习题纸生成与打印
  */
 (function () {
   function getPageLayout(mode) {
@@ -8,6 +8,15 @@
     }
     if (mode === 'divisibility') {
       return { questionsPerPage: 24, perCol: 12, pageClass: 'jml-ws-page--24' };
+    }
+    if (mode === 'fraction') {
+      return {
+        questionsPerPage: 24,
+        perCol: 6,
+        sectionSize: 12,
+        pageClass: 'jml-ws-page--frac',
+        stackedSections: true,
+      };
     }
     return { questionsPerPage: 20, perCol: 10, pageClass: 'jml-ws-page--20' };
   }
@@ -27,7 +36,29 @@
     if (mode === 'arithmetic') return 'arithmetic';
     if (mode === 'decimal') return 'decimal';
     if (mode === 'divisibility') return 'divisibility';
+    if (mode === 'fraction') return 'fraction';
     return 'expandBrackets';
+  }
+
+  function mapFractionQuestion(q) {
+    return {
+      prompt: q.prompt || '',
+      promptHtml: q.promptHtml || '',
+      answer: q.answer != null ? String(q.answer) : '',
+      answerHtml: q.answerHtml || '',
+      section: q.section || '',
+      compact: false,
+    };
+  }
+
+  function promptInnerHtml(q) {
+    if (q.promptHtml) return q.promptHtml;
+    return escapeHtml(q.prompt);
+  }
+
+  function answerInnerHtml(q) {
+    if (q.answerHtml) return q.answerHtml;
+    return escapeHtml(q.answer);
   }
 
   function mapDivisibilityQuestion(q) {
@@ -70,6 +101,13 @@
       }
       return mapDivisibilityQuestion(div.buildQuestion(level));
     }
+    if (mode === 'fraction') {
+      var fr = window.JmlFraction;
+      if (!fr || typeof fr.buildQuestion !== 'function') {
+        throw new Error('未加载出题模块 fraction-questions.js');
+      }
+      return mapFractionQuestion(fr.buildQuestion(level));
+    }
     var eng = window.JmlExpandBrackets;
     if (!eng || typeof eng.buildQuestion !== 'function') {
       throw new Error('未加载出题模块 expand-brackets-questions.js');
@@ -89,6 +127,13 @@
         throw new Error('未加载出题模块 divisibility-questions.js');
       }
       return div.buildRun(level, count).map(mapDivisibilityQuestion);
+    }
+    if (mode === 'fraction') {
+      var fr = window.JmlFraction;
+      if (!fr || typeof fr.buildRun !== 'function') {
+        throw new Error('未加载出题模块 fraction-questions.js');
+      }
+      return fr.buildRun(level, count).map(mapFractionQuestion);
     }
     if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
       window.JmlArithmetic.resetLevelDeck(level, count, {
@@ -129,10 +174,14 @@
         '<span class="' +
         promptClass +
         '">' +
-        escapeHtml(q.prompt) +
+        promptInnerHtml(q) +
         '</span>';
       if (showAnswers) {
-        html += '<span class="jml-ws-ans"> = ' + escapeHtml(q.answer) + '</span>';
+        html +=
+          '<span class="jml-ws-ans">' +
+          (q.section === '比大小' ? ' ' : ' = ') +
+          answerInnerHtml(q) +
+          '</span>';
       }
       html += '</div>';
       if (!showAnswers) {
@@ -143,14 +192,68 @@
     return html;
   }
 
+  function renderTwoColGrid(questions, startIndex, perCol, showAnswers) {
+    var split = splitIntoColumns(questions, perCol);
+    return (
+      '<div class="jml-ws-grid">' +
+      '<ol class="jml-ws-col" start="' +
+      startIndex +
+      '">' +
+      renderColumnItems(split.left, startIndex, showAnswers) +
+      '</ol>' +
+      '<ol class="jml-ws-col" start="' +
+      (startIndex + perCol) +
+      '">' +
+      renderColumnItems(split.right, startIndex + perCol, showAnswers) +
+      '</ol>' +
+      '</div>'
+    );
+  }
+
   function renderPageHtml(opts) {
     var title = opts.title;
     var name = opts.studentName;
     var questions = opts.questions;
     var showAnswers = !!opts.showAnswers;
     var layout = opts.layout || getPageLayout('expandBrackets');
-    var split = splitIntoColumns(questions, layout.perCol);
     var nameHtml = name ? escapeHtml(name) : '&nbsp;';
+    var body;
+
+    if (layout.stackedSections) {
+      var sectionSize = layout.sectionSize || 12;
+      var perCol = layout.perCol || 6;
+      var meta = opts.sectionTitles || ['', ''];
+      var top = questions.slice(0, sectionSize);
+      var bot = questions.slice(sectionSize, sectionSize * 2);
+      body =
+        '<div class="jml-ws-sections">' +
+        '<div class="jml-ws-frac-sec">' +
+        '<h2 class="jml-ws-frac-sec-title">' +
+        escapeHtml(meta[0] || '') +
+        '</h2>' +
+        renderTwoColGrid(top, 1, perCol, showAnswers) +
+        '</div>' +
+        '<div class="jml-ws-frac-sec">' +
+        '<h2 class="jml-ws-frac-sec-title">' +
+        escapeHtml(meta[1] || '') +
+        '</h2>' +
+        renderTwoColGrid(bot, sectionSize + 1, perCol, showAnswers) +
+        '</div>' +
+        '</div>';
+    } else {
+      var split = splitIntoColumns(questions, layout.perCol);
+      body =
+        '<div class="jml-ws-grid">' +
+        '<ol class="jml-ws-col" start="1">' +
+        renderColumnItems(split.left, 1, showAnswers) +
+        '</ol>' +
+        '<ol class="jml-ws-col" start="' +
+        (layout.perCol + 1) +
+        '">' +
+        renderColumnItems(split.right, layout.perCol + 1, showAnswers) +
+        '</ol>' +
+        '</div>';
+    }
 
     return (
       '<section class="jml-ws-page ' +
@@ -165,16 +268,7 @@
       nameHtml +
       '</span></p>' +
       '</header>' +
-      '<div class="jml-ws-grid">' +
-      '<ol class="jml-ws-col" start="1">' +
-      renderColumnItems(split.left, 1, showAnswers) +
-      '</ol>' +
-      '<ol class="jml-ws-col" start="' +
-      (layout.perCol + 1) +
-      '">' +
-      renderColumnItems(split.right, layout.perCol + 1, showAnswers) +
-      '</ol>' +
-      '</div>' +
+      body +
       '</section>'
     );
   }
@@ -187,6 +281,10 @@
     if (mode === 'decimal') {
       var maxD = (window.JmlDecimal && window.JmlDecimal.LEVEL_COUNT) || 5;
       return Math.min(maxD - 1, Math.max(0, Math.floor(level)));
+    }
+    if (mode === 'fraction') {
+      var maxF = (window.JmlFraction && window.JmlFraction.LEVEL_COUNT) || 4;
+      return Math.min(maxF - 1, Math.max(0, Math.floor(level)));
     }
     if (mode === 'divisibility') {
       var maxZ = (window.JmlDivisibility && window.JmlDivisibility.LEVEL_COUNT) || 5;
@@ -201,6 +299,9 @@
     }
     if (mode === 'decimal') {
       return (window.JmlDecimal && window.JmlDecimal.LEVEL_LABELS) || [];
+    }
+    if (mode === 'fraction') {
+      return (window.JmlFraction && window.JmlFraction.LEVEL_LABELS) || [];
     }
     if (mode === 'divisibility') {
       return (window.JmlDivisibility && window.JmlDivisibility.LEVEL_LABELS) || [];
@@ -246,7 +347,9 @@
           ? 'D' + (level + 1)
           : mode === 'divisibility'
             ? 'Z' + (level + 1)
-            : '去括号 L' + (level + 1));
+            : mode === 'fraction'
+              ? 'F' + (level + 1)
+              : '去括号 L' + (level + 1));
     var title =
       mode === 'arithmetic'
         ? '四则运算 · ' + levelLabel
@@ -254,7 +357,15 @@
           ? '小数运算 · ' + levelLabel
           : mode === 'divisibility'
             ? '整除判断 · ' + levelLabel
-            : '去括号练习 · ' + levelLabel;
+            : mode === 'fraction'
+              ? '分数运算 · ' + levelLabel
+              : '去括号练习 · ' + levelLabel;
+
+    var fracMeta =
+      mode === 'fraction' && window.JmlFraction && typeof window.JmlFraction.getLevelMeta === 'function'
+        ? window.JmlFraction.getLevelMeta(level)
+        : null;
+    var sectionTitles = fracMeta && fracMeta.sections ? fracMeta.sections : null;
 
     var html = '';
     try {
@@ -266,6 +377,7 @@
           questions: batch,
           showAnswers: false,
           layout: layout,
+          sectionTitles: sectionTitles,
         });
         if (includeAnswers) {
           html += renderPageHtml({
@@ -274,6 +386,7 @@
             questions: batch,
             showAnswers: true,
             layout: layout,
+            sectionTitles: sectionTitles,
           });
         }
       }

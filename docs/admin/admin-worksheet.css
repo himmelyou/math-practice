@@ -224,6 +224,98 @@
   padding-top: 0.25mm;
 }
 
+/* 分数：两类上下各 12 题，每类左右各 6 */
+.jml-ws-page--frac .jml-ws-head {
+  margin-bottom: 3mm;
+  padding-bottom: 3mm;
+  gap: 2mm;
+}
+
+.jml-ws-page--frac .jml-ws-title {
+  font-size: 12.5pt;
+}
+
+.jml-ws-sections {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3.5mm;
+}
+
+.jml-ws-frac-sec {
+  flex: 1 1 50%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.jml-ws-frac-sec-title {
+  flex: 0 0 auto;
+  margin: 0 0 1.5mm;
+  font-size: 10pt;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.jml-ws-frac-sec .jml-ws-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.jml-ws-page--frac .jml-ws-col {
+  gap: 0.8mm;
+}
+
+.jml-ws-page--frac .jml-ws-workspace {
+  min-height: 7mm;
+  max-height: 10mm;
+  margin-top: 0.6mm;
+}
+
+.jml-ws-page--frac .jml-ws-prompt {
+  font-size: 11pt;
+  font-weight: 600;
+}
+
+.jml-ws-page--frac.jml-ws-answers .jml-ws-workspace {
+  display: none;
+}
+
+.jml-ws-frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  line-height: 1;
+  margin: 0 0.12em;
+}
+
+.jml-ws-frac-num,
+.jml-ws-frac-den {
+  display: block;
+  text-align: center;
+  padding: 0 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+
+.jml-ws-frac-num {
+  border-bottom: 1.2px solid currentColor;
+  padding-bottom: 0.08em;
+}
+
+.jml-ws-frac-den {
+  padding-top: 0.08em;
+}
+
+.jml-ws-frac-blank {
+  display: inline-block;
+  min-width: 9mm;
+  border-bottom: 1px solid #334155;
+  vertical-align: middle;
+  margin: 0 0.25em;
+}
+
 /* 四则 30 题：略收紧行距与书写区 */
 .jml-ws-page--30 .jml-ws-col {
   gap: 0.45mm;
