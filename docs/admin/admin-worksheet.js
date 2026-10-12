@@ -1,12 +1,12 @@
 /**
- * 管理端：四则 / 拆括号 / 小数 / 整除 / 分数习题纸生成与打印
+ * 管理端：四则 / 拆括号 / 小数 / 整除 / 分数 / 因数倍数习题纸生成与打印
  */
 (function () {
   function getPageLayout(mode) {
     if (mode === 'arithmetic' || mode === 'decimal') {
       return { questionsPerPage: 30, perCol: 15, pageClass: 'jml-ws-page--30' };
     }
-    if (mode === 'divisibility') {
+    if (mode === 'divisibility' || mode === 'factorsMultiples') {
       return { questionsPerPage: 24, perCol: 12, pageClass: 'jml-ws-page--24' };
     }
     if (mode === 'fraction') {
@@ -37,7 +37,16 @@
     if (mode === 'decimal') return 'decimal';
     if (mode === 'divisibility') return 'divisibility';
     if (mode === 'fraction') return 'fraction';
+    if (mode === 'factorsMultiples') return 'factorsMultiples';
     return 'expandBrackets';
+  }
+
+  function mapFactorsMultiplesQuestion(q) {
+    return {
+      prompt: q.text || q.prompt || '',
+      answer: q.answer != null ? String(q.answer) : '',
+      compact: true,
+    };
   }
 
   function mapFractionQuestion(q) {
@@ -108,6 +117,13 @@
       }
       return mapFractionQuestion(fr.buildQuestion(level));
     }
+    if (mode === 'factorsMultiples') {
+      var fm = window.JmlFactorsMultiples;
+      if (!fm || typeof fm.buildQuestion !== 'function') {
+        throw new Error('未加载出题模块 factors-multiples-questions.js');
+      }
+      return mapFactorsMultiplesQuestion(fm.buildQuestion(level));
+    }
     var eng = window.JmlExpandBrackets;
     if (!eng || typeof eng.buildQuestion !== 'function') {
       throw new Error('未加载出题模块 expand-brackets-questions.js');
@@ -120,7 +136,7 @@
     };
   }
 
-  function buildPageBatch(mode, level, count) {
+  function buildPageBatch(mode, level, count, pageIndex) {
     if (mode === 'divisibility') {
       var div = window.JmlDivisibility;
       if (!div || typeof div.buildRun !== 'function') {
@@ -134,6 +150,18 @@
         throw new Error('未加载出题模块 fraction-questions.js');
       }
       return fr.buildRun(level, count).map(mapFractionQuestion);
+    }
+    if (mode === 'factorsMultiples') {
+      var fm = window.JmlFactorsMultiples;
+      if (!fm || typeof fm.buildRun !== 'function') {
+        throw new Error('未加载出题模块 factors-multiples-questions.js');
+      }
+      return fm
+        .buildRun(level, count, {
+          keepOrder: true,
+          offset: (Math.max(0, Math.floor(Number(pageIndex) || 0))) * count,
+        })
+        .map(mapFactorsMultiplesQuestion);
     }
     if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
       window.JmlArithmetic.resetLevelDeck(level, count, {
@@ -290,6 +318,10 @@
       var maxZ = (window.JmlDivisibility && window.JmlDivisibility.LEVEL_COUNT) || 5;
       return Math.min(maxZ - 1, Math.max(0, Math.floor(level)));
     }
+    if (mode === 'factorsMultiples') {
+      var maxY = (window.JmlFactorsMultiples && window.JmlFactorsMultiples.LEVEL_COUNT) || 1;
+      return Math.min(maxY - 1, Math.max(0, Math.floor(level)));
+    }
     return Math.min(4, Math.max(0, Math.floor(level)));
   }
 
@@ -305,6 +337,9 @@
     }
     if (mode === 'divisibility') {
       return (window.JmlDivisibility && window.JmlDivisibility.LEVEL_LABELS) || [];
+    }
+    if (mode === 'factorsMultiples') {
+      return (window.JmlFactorsMultiples && window.JmlFactorsMultiples.LEVEL_LABELS) || [];
     }
     return (
       (window.JmlExpandBrackets && window.JmlExpandBrackets.LEVEL_LABELS) || [
@@ -349,7 +384,9 @@
             ? 'Z' + (level + 1)
             : mode === 'fraction'
               ? 'F' + (level + 1)
-              : '去括号 L' + (level + 1));
+              : mode === 'factorsMultiples'
+                ? 'Y' + (level + 1)
+                : '去括号 L' + (level + 1));
     var title =
       mode === 'arithmetic'
         ? '四则运算 · ' + levelLabel
@@ -359,7 +396,9 @@
             ? '整除判断 · ' + levelLabel
             : mode === 'fraction'
               ? '分数运算 · ' + levelLabel
-              : '去括号练习 · ' + levelLabel;
+              : mode === 'factorsMultiples'
+                ? '因数倍数 · ' + levelLabel
+                : '去括号练习 · ' + levelLabel;
 
     var fracMeta =
       mode === 'fraction' && window.JmlFraction && typeof window.JmlFraction.getLevelMeta === 'function'
@@ -370,7 +409,7 @@
     var html = '';
     try {
       for (var p = 0; p < pages; p += 1) {
-        var batch = buildPageBatch(mode, level, layout.questionsPerPage);
+        var batch = buildPageBatch(mode, level, layout.questionsPerPage, p);
         html += renderPageHtml({
           title: title,
           studentName: studentName,
