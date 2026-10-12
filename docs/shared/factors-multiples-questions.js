@@ -3,15 +3,18 @@
  * Y1：哪个是 N 的因数？合数 N=4～100；(f,N) 同权；假选项 <N。
  * Y2：哪个是 K 的倍数？合数 K=4～50；m=K×t(t≥2)≤100；(m,K) 同权；
  *      假选项为 K 最大真因数 d 的倍数、但非 K 的倍数，且 K<w≤100。
+ * Y3：填空求最大公因数；2≤a<b≤99；三层互质:质数GCF:合数GCF = 1:2:3（24题→4+8+12）。
  */
 (function (global) {
   var QUESTIONS_PER_RUN = 24;
   var Y2_M_MAX = 100;
+  var Y3_MAX = 99;
+  var LEVEL_COUNT = 3;
 
   var LEVEL_DEFS = [
     { id: "Y1", name: "第 1 级 · 因数" },
     { id: "Y2", name: "第 2 级 · 倍数" },
-    { id: "Y3", name: "第 3 级 · 最大公因数（待定）" },
+    { id: "Y3", name: "第 3 级 · 最大公因数" },
     { id: "Y4", name: "第 4 级 · 最小公倍数（待定）" },
   ];
 
@@ -45,6 +48,18 @@
 
   function isFactor(f, n) {
     return f >= 1 && n % f === 0;
+  }
+
+  function gcd(a, b) {
+    var x = Math.abs(a);
+    var y = Math.abs(b);
+    var t;
+    while (y) {
+      t = y;
+      y = x % y;
+      x = t;
+    }
+    return x;
   }
 
   /** N 的真因数：去掉 1 和 N */
@@ -169,8 +184,67 @@
     return pool;
   }
 
+  function buildY3Pools() {
+    var coprime = [];
+    var primeGcd = [];
+    var compositeGcd = [];
+    var a;
+    var b;
+    var g;
+    var item;
+    for (a = 2; a <= Y3_MAX - 1; a += 1) {
+      for (b = a + 1; b <= Y3_MAX; b += 1) {
+        g = gcd(a, b);
+        item = { a: a, b: b, g: g };
+        if (g === 1) coprime.push(item);
+        else if (isPrime(g)) primeGcd.push(item);
+        else compositeGcd.push(item);
+      }
+    }
+    return {
+      coprime: coprime,
+      primeGcd: primeGcd,
+      compositeGcd: compositeGcd,
+    };
+  }
+
   var Y1_POOL = buildY1Pool();
   var Y2_POOL = buildY2Pool();
+  var Y3_POOLS = buildY3Pools();
+  var Y3_POOL_COPRIME = Y3_POOLS.coprime;
+  var Y3_POOL_PRIME_GCD = Y3_POOLS.primeGcd;
+  var Y3_POOL_COMPOSITE_GCD = Y3_POOLS.compositeGcd;
+
+  /** 1:2:3 → 互质 : 质数GCF : 合数GCF；余数按小数部分最大优先补。 */
+  function y3StratumCounts(total) {
+    total = Math.max(0, Math.floor(Number(total) || 0));
+    var weights = [1, 2, 3];
+    var sumW = 6;
+    var raw = [];
+    var floors = [];
+    var i;
+    var rem;
+    var order;
+    for (i = 0; i < 3; i += 1) {
+      raw[i] = (total * weights[i]) / sumW;
+      floors[i] = Math.floor(raw[i]);
+    }
+    rem = total - (floors[0] + floors[1] + floors[2]);
+    order = [0, 1, 2].sort(function (i, j) {
+      var fi = raw[i] - floors[i];
+      var fj = raw[j] - floors[j];
+      if (fj !== fi) return fj - fi;
+      return i - j;
+    });
+    for (i = 0; i < rem; i += 1) {
+      floors[order[i]] += 1;
+    }
+    return {
+      coprime: floors[0],
+      primeGcd: floors[1],
+      compositeGcd: floors[2],
+    };
+  }
 
   function materializeY1(item) {
     var correctFirst = Math.random() < 0.5;
@@ -214,8 +288,23 @@
     };
   }
 
+  function materializeY3(item) {
+    var text = item.a + " 和 " + item.b + " 的最大公因数是 ______";
+    return {
+      text: text,
+      prompt: text,
+      answer: String(item.g),
+      a: item.a,
+      b: item.b,
+      g: item.g,
+      baseLevelId: "Y3",
+      op: "gcf",
+      fillIn: true,
+    };
+  }
+
   function clampLevelIndex(i) {
-    return Math.max(0, Math.min(1, Math.floor(Number(i) || 0)));
+    return Math.max(0, Math.min(LEVEL_COUNT - 1, Math.floor(Number(i) || 0)));
   }
 
   function buildPoolRun(pool, materialize, count, opts) {
@@ -247,12 +336,30 @@
     return run;
   }
 
+  function buildY3Run(count, opts) {
+    opts = opts || {};
+    var counts = y3StratumCounts(count);
+    var run = [];
+    run = run.concat(
+      buildPoolRun(Y3_POOL_COPRIME, materializeY3, counts.coprime, opts)
+    );
+    run = run.concat(
+      buildPoolRun(Y3_POOL_PRIME_GCD, materializeY3, counts.primeGcd, opts)
+    );
+    run = run.concat(
+      buildPoolRun(Y3_POOL_COMPOSITE_GCD, materializeY3, counts.compositeGcd, opts)
+    );
+    if (opts.keepOrder) return run;
+    return shuffleArray(run);
+  }
+
   function buildRun(levelIndex, count, opts) {
     levelIndex = clampLevelIndex(levelIndex);
     if (count == null || count === "") count = QUESTIONS_PER_RUN;
     count = Math.max(0, Math.floor(Number(count) || 0));
     if (levelIndex === 0) return buildPoolRun(Y1_POOL, materializeY1, count, opts);
     if (levelIndex === 1) return buildPoolRun(Y2_POOL, materializeY2, count, opts);
+    if (levelIndex === 2) return buildY3Run(count, opts);
     throw new Error("因数倍数 Y" + (levelIndex + 1) + " 尚未定稿");
   }
 
@@ -260,18 +367,24 @@
     return buildRun(levelIndex, 1)[0];
   }
 
-  var LEVEL_LABELS = LEVEL_DEFS.slice(0, 2).map(function (level) {
+  var LEVEL_LABELS = LEVEL_DEFS.slice(0, LEVEL_COUNT).map(function (level) {
     var shortName = String(level.name || "").replace(/^第\s*\d+\s*级\s*·\s*/, "");
     return (level.id || "") + " · " + shortName;
   });
 
   global.JmlFactorsMultiples = {
-    LEVEL_COUNT: 2,
+    LEVEL_COUNT: LEVEL_COUNT,
     QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
     Y1_POOL_SIZE: Y1_POOL.length,
     Y2_POOL_SIZE: Y2_POOL.length,
+    Y3_POOL_COPRIME_SIZE: Y3_POOL_COPRIME.length,
+    Y3_POOL_PRIME_GCD_SIZE: Y3_POOL_PRIME_GCD.length,
+    Y3_POOL_COMPOSITE_GCD_SIZE: Y3_POOL_COMPOSITE_GCD.length,
     Y1_POOL: Y1_POOL,
     Y2_POOL: Y2_POOL,
+    Y3_POOL_COPRIME: Y3_POOL_COPRIME,
+    Y3_POOL_PRIME_GCD: Y3_POOL_PRIME_GCD,
+    Y3_POOL_COMPOSITE_GCD: Y3_POOL_COMPOSITE_GCD,
     LEVEL_LABELS: LEVEL_LABELS,
     LEVEL_DEFS: LEVEL_DEFS,
     buildY1Distractor: buildY1Distractor,
@@ -279,6 +392,8 @@
     buildDistractor: buildY1Distractor,
     properFactors: properFactors,
     largestProperDivisor: largestProperDivisor,
+    gcd: gcd,
+    y3StratumCounts: y3StratumCounts,
     buildQuestion: buildQuestion,
     buildRun: buildRun,
     getLevelMeta: function (levelIndex) {
