@@ -156,12 +156,7 @@
       if (!fm || typeof fm.buildRun !== 'function') {
         throw new Error('未加载出题模块 factors-multiples-questions.js');
       }
-      return fm
-        .buildRun(level, count, {
-          keepOrder: true,
-          offset: (Math.max(0, Math.floor(Number(pageIndex) || 0))) * count,
-        })
-        .map(mapFactorsMultiplesQuestion);
+      return fm.buildRun(level, count).map(mapFactorsMultiplesQuestion);
     }
     if (mode === 'arithmetic' && window.JmlArithmetic && typeof window.JmlArithmetic.resetLevelDeck === 'function') {
       window.JmlArithmetic.resetLevelDeck(level, count, {
