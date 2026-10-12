@@ -314,7 +314,7 @@
       return Math.min(maxZ - 1, Math.max(0, Math.floor(level)));
     }
     if (mode === 'factorsMultiples') {
-      var maxY = (window.JmlFactorsMultiples && window.JmlFactorsMultiples.LEVEL_COUNT) || 3;
+      var maxY = (window.JmlFactorsMultiples && window.JmlFactorsMultiples.LEVEL_COUNT) || 6;
       return Math.min(maxY - 1, Math.max(0, Math.floor(level)));
     }
     return Math.min(4, Math.max(0, Math.floor(level)));
