@@ -1,13 +1,16 @@
 /**
- * 因数倍数 Y1–Y4 出题（先管理端打印；Y1 已定稿）
- * Y1：哪个是 N 的因数？全库 (f,N) 同权；假选项固定策略且必须 < N。
+ * 因数倍数 Y1–Y4 出题（先管理端打印）
+ * Y1：哪个是 N 的因数？合数 N=4～100；(f,N) 同权；假选项 <N。
+ * Y2：哪个是 K 的倍数？合数 K=4～50；m=K×t(t≥2)≤100；(m,K) 同权；
+ *      假选项为 K 最大真因数 d 的倍数、但非 K 的倍数，且 K<w≤100。
  */
 (function (global) {
   var QUESTIONS_PER_RUN = 24;
+  var Y2_M_MAX = 100;
 
   var LEVEL_DEFS = [
     { id: "Y1", name: "第 1 级 · 因数" },
-    { id: "Y2", name: "第 2 级 · 倍数（待定）" },
+    { id: "Y2", name: "第 2 级 · 倍数" },
     { id: "Y3", name: "第 3 级 · 最大公因数（待定）" },
     { id: "Y4", name: "第 4 级 · 最小公倍数（待定）" },
   ];
@@ -61,11 +64,26 @@
     return out;
   }
 
+  function smallestPrimeFactor(n) {
+    if (n % 2 === 0) return 2;
+    var i;
+    for (i = 3; i * i <= n; i += 2) {
+      if (n % i === 0) return i;
+    }
+    return n;
+  }
+
+  /** K 的最大真因数（≥2）；质数无 */
+  function largestProperDivisor(k) {
+    if (k < 4 || isPrime(k)) return null;
+    return k / smallestPrimeFactor(k);
+  }
+
   /**
-   * 假选项：必须 ≥2、<N、≠f、不是 N 的因数。
-   * 优先 2f → 3f → 4f（且 <N），再 f+1、f−1，再从 f+2 往上找。
+   * Y1 假选项：≥2、<N、≠f、不是 N 的因数。
+   * 优先 2f → 3f → 4f（且 <N），再 f±1，再往上找。
    */
-  function buildDistractor(f, n) {
+  function buildY1Distractor(f, n) {
     function ok(w) {
       return w >= 2 && w < n && w !== f && !isFactor(w, n);
     }
@@ -84,6 +102,35 @@
     return null;
   }
 
+  /**
+   * Y2 假选项：K < w ≤ 100，不是 K 的倍数；
+   * 优先「K 最大真因数 d 的倍数」中离 m 最近者。
+   */
+  function buildY2Distractor(m, k) {
+    var d = largestProperDivisor(k);
+    if (d == null || d < 2) return null;
+
+    function ok(w) {
+      return w > k && w <= Y2_M_MAX && w !== m && !isFactor(k, w);
+    }
+
+    var candidates = [];
+    var t;
+    var w;
+    for (t = 1; d * t <= Y2_M_MAX; t += 1) {
+      w = d * t;
+      if (ok(w)) candidates.push(w);
+    }
+    if (!candidates.length) return null;
+    candidates.sort(function (a, b) {
+      var da = Math.abs(a - m);
+      var db = Math.abs(b - m);
+      if (da !== db) return da - db;
+      return a - b;
+    });
+    return candidates[0];
+  }
+
   function buildY1Pool() {
     var pool = [];
     var n;
@@ -96,7 +143,7 @@
       factors = properFactors(n);
       for (i = 0; i < factors.length; i += 1) {
         f = factors[i];
-        wrong = buildDistractor(f, n);
+        wrong = buildY1Distractor(f, n);
         if (wrong == null) continue;
         pool.push({ n: n, factor: f, wrong: wrong });
       }
@@ -104,7 +151,26 @@
     return pool;
   }
 
+  function buildY2Pool() {
+    var pool = [];
+    var k;
+    var t;
+    var m;
+    var wrong;
+    for (k = 4; k <= 50; k += 1) {
+      if (isPrime(k)) continue;
+      for (t = 2; k * t <= Y2_M_MAX; t += 1) {
+        m = k * t;
+        wrong = buildY2Distractor(m, k);
+        if (wrong == null) continue;
+        pool.push({ k: k, multiple: m, wrong: wrong });
+      }
+    }
+    return pool;
+  }
+
   var Y1_POOL = buildY1Pool();
+  var Y2_POOL = buildY2Pool();
 
   function materializeY1(item) {
     var correctFirst = Math.random() < 0.5;
@@ -127,11 +193,32 @@
     };
   }
 
-  function clampLevelIndex(i) {
-    return Math.max(0, Math.min(LEVEL_DEFS.length - 1, Math.floor(Number(i) || 0)));
+  function materializeY2(item) {
+    var correctFirst = Math.random() < 0.5;
+    var optA = correctFirst ? item.multiple : item.wrong;
+    var optB = correctFirst ? item.wrong : item.multiple;
+    var answerLetter = correctFirst ? "A" : "B";
+    var text =
+      "哪个是 " + item.k + " 的倍数？  A. " + optA + "  B. " + optB;
+    return {
+      text: text,
+      prompt: text,
+      answer: answerLetter + "（" + item.multiple + "）",
+      answerLetter: answerLetter,
+      correctValue: item.multiple,
+      wrongValue: item.wrong,
+      k: item.k,
+      multiple: item.multiple,
+      baseLevelId: "Y2",
+      op: "multiple",
+    };
   }
 
-  function buildY1Run(count, opts) {
+  function clampLevelIndex(i) {
+    return Math.max(0, Math.min(1, Math.floor(Number(i) || 0)));
+  }
+
+  function buildPoolRun(pool, materialize, count, opts) {
     count = Math.max(0, Math.floor(Number(count) || 0));
     if (count === 0) return [];
     opts = opts || {};
@@ -140,22 +227,21 @@
     var idx;
     var deck;
     if (opts.keepOrder) {
-      // 管理端验题：按 N、f 顺序，多页用 offset 接续
       var offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
       for (i = 0; i < count; i += 1) {
-        idx = (offset + i) % Y1_POOL.length;
-        run.push(materializeY1(Y1_POOL[idx]));
+        idx = (offset + i) % pool.length;
+        run.push(materialize(pool[idx]));
       }
       return run;
     }
-    deck = shuffleArray(Y1_POOL);
+    deck = shuffleArray(pool);
     i = 0;
     while (run.length < count) {
       if (i >= deck.length) {
-        deck = shuffleArray(Y1_POOL);
+        deck = shuffleArray(pool);
         i = 0;
       }
-      run.push(materializeY1(deck[i]));
+      run.push(materialize(deck[i]));
       i += 1;
     }
     return run;
@@ -165,7 +251,8 @@
     levelIndex = clampLevelIndex(levelIndex);
     if (count == null || count === "") count = QUESTIONS_PER_RUN;
     count = Math.max(0, Math.floor(Number(count) || 0));
-    if (levelIndex === 0) return buildY1Run(count, opts);
+    if (levelIndex === 0) return buildPoolRun(Y1_POOL, materializeY1, count, opts);
+    if (levelIndex === 1) return buildPoolRun(Y2_POOL, materializeY2, count, opts);
     throw new Error("因数倍数 Y" + (levelIndex + 1) + " 尚未定稿");
   }
 
@@ -173,20 +260,25 @@
     return buildRun(levelIndex, 1)[0];
   }
 
-  var LEVEL_LABELS = LEVEL_DEFS.map(function (level) {
+  var LEVEL_LABELS = LEVEL_DEFS.slice(0, 2).map(function (level) {
     var shortName = String(level.name || "").replace(/^第\s*\d+\s*级\s*·\s*/, "");
     return (level.id || "") + " · " + shortName;
   });
 
   global.JmlFactorsMultiples = {
-    LEVEL_COUNT: 1,
+    LEVEL_COUNT: 2,
     QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
     Y1_POOL_SIZE: Y1_POOL.length,
+    Y2_POOL_SIZE: Y2_POOL.length,
     Y1_POOL: Y1_POOL,
-    LEVEL_LABELS: LEVEL_LABELS.slice(0, 1),
+    Y2_POOL: Y2_POOL,
+    LEVEL_LABELS: LEVEL_LABELS,
     LEVEL_DEFS: LEVEL_DEFS,
-    buildDistractor: buildDistractor,
+    buildY1Distractor: buildY1Distractor,
+    buildY2Distractor: buildY2Distractor,
+    buildDistractor: buildY1Distractor,
     properFactors: properFactors,
+    largestProperDivisor: largestProperDivisor,
     buildQuestion: buildQuestion,
     buildRun: buildRun,
     getLevelMeta: function (levelIndex) {
