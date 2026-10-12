@@ -12,6 +12,7 @@
   var DECIMAL_LEVEL_COUNT = 6;
   var PERFECT_SQUARE_LEVEL_COUNT = 4;
   var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 按除数拆入 Z1–Z4
+  var FACTORS_MULTIPLES_LEVEL_COUNT = 6;
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
@@ -53,6 +54,15 @@
       labelKey: 'stats.cat.divisibility',
       labelFallback: '整除',
       cohortKind: 'divisibility',
+    },
+    {
+      id: 'factorsMultiples',
+      modes: ['factorsMultiples'],
+      levelCount: FACTORS_MULTIPLES_LEVEL_COUNT,
+      levelPrefix: 'Y',
+      labelKey: 'stats.cat.factorsMultiples',
+      labelFallback: '因数倍数',
+      cohortKind: 'factorsMultiples',
     },
   ];
 
@@ -1662,6 +1672,7 @@
     DECIMAL_LEVEL_COUNT: DECIMAL_LEVEL_COUNT,
     PERFECT_SQUARE_LEVEL_COUNT: PERFECT_SQUARE_LEVEL_COUNT,
     DIVISIBILITY_LEVEL_COUNT: DIVISIBILITY_LEVEL_COUNT,
+    FACTORS_MULTIPLES_LEVEL_COUNT: FACTORS_MULTIPLES_LEVEL_COUNT,
     HEATMAP_CATEGORIES: HEATMAP_CATEGORIES,
     getHeatmapCategories: getHeatmapCategories,
     getHeatmapCategory: getHeatmapCategory,

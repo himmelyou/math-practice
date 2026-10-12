@@ -8,6 +8,7 @@ const EXPAND_MAX_LEVEL = 4;
 const PS_MAX_LEVEL = 3;
 const DECIMAL_MAX_LEVEL = 5;
 const DIV_MAX_LEVEL = 4;
+const FM_MAX_LEVEL = 5;
 const PRIME_RANKING_MAX_WRONG = 5;
 
 function formatGradeLabel(grade) {
@@ -470,11 +471,18 @@ function buildStudentOverviewRows(options) {
         : typeof u.levelDivisibilityCurrentLevel === "number"
           ? u.levelDivisibilityCurrentLevel
           : 0;
+    const fmUnlocked =
+      typeof u.levelFactorsMultiplesUnlockedMax === "number"
+        ? u.levelFactorsMultiplesUnlockedMax
+        : typeof u.levelFactorsMultiplesCurrentLevel === "number"
+          ? u.levelFactorsMultiplesCurrentLevel
+          : 0;
     const primeEntry = primeMap[username];
     const psP = formatSpecialModeProgress(psUnlocked, PS_MAX_LEVEL, "L", runs, "perfectSquare");
     const decP = formatSpecialModeProgress(decUnlocked, DECIMAL_MAX_LEVEL, "D", runs, "decimal");
     const expP = formatSpecialModeProgress(expUnlocked, EXPAND_MAX_LEVEL, "L", runs, "expandBrackets");
     const divP = formatDivisibilityProgress(divUnlocked, runs, divPerfectMap[username]);
+    const fmP = formatSpecialModeProgress(fmUnlocked, FM_MAX_LEVEL, "Y", runs, "factorsMultiples");
 
     rows.push({
       username,
@@ -502,6 +510,8 @@ function buildStudentOverviewRows(options) {
       divisibilityProgress: divP.text,
       divisibilityProgressSort: divP.sortKey,
       divisibilityPerfectSec: divP.perfectSec,
+      factorsMultiplesProgress: fmP.text,
+      factorsMultiplesProgressSort: fmP.sortKey,
       perfectSquareProgress: psP.text,
       perfectSquareProgressSort: psP.sortKey,
       decimalProgress: decP.text,

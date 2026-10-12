@@ -256,6 +256,8 @@ function printSummary(snap) {
       (o.perfectSquareProgress || "—") +
       "  整除 " +
       (o.divisibilityProgress || "—") +
+      "  因数倍数 " +
+      (o.factorsMultiplesProgress || "—") +
       "  拆括号 " +
       (o.expandProgress || "—")
   );
@@ -443,6 +445,7 @@ async function fetchSnapshot(apiBase, pin, username) {
       decimalProgress: overviewRow.decimalProgress,
       perfectSquareProgress: overviewRow.perfectSquareProgress,
       divisibilityProgress: overviewRow.divisibilityProgress,
+      factorsMultiplesProgress: overviewRow.factorsMultiplesProgress,
       expandProgress: overviewRow.expandProgress,
       nickname: overviewRow.nickname || user.nickname || "",
     },

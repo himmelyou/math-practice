@@ -266,11 +266,14 @@
     var optA = correctFirst ? item.factor : item.wrong;
     var optB = correctFirst ? item.wrong : item.factor;
     var answerLetter = correctFirst ? "A" : "B";
-    var text =
-      "哪个是 " + item.n + " 的因数？  A. " + optA + "  B. " + optB;
+    var promptStem = "哪个是 " + item.n + " 的因数？";
+    var text = promptStem + "  A. " + optA + "  B. " + optB;
     return {
       text: text,
       prompt: text,
+      promptStem: promptStem,
+      optionA: optA,
+      optionB: optB,
       answer: answerLetter + "（" + item.factor + "）",
       answerLetter: answerLetter,
       correctValue: item.factor,
@@ -279,6 +282,7 @@
       factor: item.factor,
       baseLevelId: "Y1",
       op: "factor",
+      fillIn: false,
     };
   }
 
@@ -287,11 +291,14 @@
     var optA = correctFirst ? item.multiple : item.wrong;
     var optB = correctFirst ? item.wrong : item.multiple;
     var answerLetter = correctFirst ? "A" : "B";
-    var text =
-      "哪个是 " + item.k + " 的倍数？  A. " + optA + "  B. " + optB;
+    var promptStem = "哪个是 " + item.k + " 的倍数？";
+    var text = promptStem + "  A. " + optA + "  B. " + optB;
     return {
       text: text,
       prompt: text,
+      promptStem: promptStem,
+      optionA: optA,
+      optionB: optB,
       answer: answerLetter + "（" + item.multiple + "）",
       answerLetter: answerLetter,
       correctValue: item.multiple,
@@ -300,6 +307,7 @@
       multiple: item.multiple,
       baseLevelId: "Y2",
       op: "multiple",
+      fillIn: false,
     };
   }
 
@@ -444,6 +452,7 @@
 
   global.JmlFactorsMultiples = {
     LEVEL_COUNT: LEVEL_COUNT,
+    FM_MAX_LEVEL: LEVEL_COUNT - 1,
     QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
     LCM_CAP: LCM_CAP,
     INTRO_B_MAX: INTRO_B_MAX,

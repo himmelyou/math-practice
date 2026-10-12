@@ -37,6 +37,15 @@
     '第 4 级 · 2/3/5 质因数的幂',
   ];
 
+  var FACTORS_MULTIPLES_LEVEL_NAMES = [
+    'Y1 · 因数',
+    'Y2 · 倍数',
+    'Y3 · 最大公因数 · 入门',
+    'Y4 · 最小公倍数 · 入门',
+    'Y5 · 最大公因数 · 进阶',
+    'Y6 · 最小公倍数 · 进阶',
+  ];
+
   var DIVISIBILITY_LEVEL_NAMES = [
     '第 1 级 · 2 与 5 的整除',
     '第 2 级 · 3 与 9 的整除',
@@ -50,6 +59,7 @@
     training: '训练模式',
     decimal: '小数运算',
     perfectSquare: '平方数',
+    factorsMultiples: '因数倍数',
   };
 
   var WRONG_ANSWER_MODES = {
@@ -58,6 +68,7 @@
     training: true,
     decimal: true,
     perfectSquare: true,
+    factorsMultiples: true,
   };
 
   var WRONG_ANSWER_LEVEL_MAX = {
@@ -66,6 +77,7 @@
     training: 15,
     decimal: 5,
     perfectSquare: 3,
+    factorsMultiples: 5,
   };
 
   function normalizeWrongAnswerMode(mode) {
@@ -84,6 +96,8 @@
     var m = normalizeWrongAnswerMode(mode);
     var n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
     if (m === 'decimal') return 'D' + n;
+    if (m === 'factorsMultiples') return 'Y' + n;
+    if (m === 'perfectSquare') return 'L' + n;
     return 'L' + n;
   }
 
@@ -153,6 +167,7 @@
     survivalProgress: 'survivalProgressSort',
     primeProgress: 'primeProgressSec',
     divisibilityProgress: 'divisibilityProgressSort',
+    factorsMultiplesProgress: 'factorsMultiplesProgressSort',
     perfectSquareProgress: 'perfectSquareProgressSort',
     decimalProgress: 'decimalProgressSort',
     expandProgress: 'expandProgressSort',
@@ -658,6 +673,9 @@
           escapeHtml(dashCell(r.divisibilityProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.factorsMultiplesProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog">' +
           escapeHtml(dashCell(r.perfectSquareProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
@@ -685,6 +703,7 @@
       overviewSortLabel('survivalProgress', '生存', 'num') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
       overviewSortLabel('divisibilityProgress', '整除', 'num') +
+      overviewSortLabel('factorsMultiplesProgress', '因数倍数') +
       overviewSortLabel('perfectSquareProgress', '平方数') +
       overviewSortLabel('decimalProgress', '小数') +
       overviewSortLabel('expandProgress', '拆括号') +
@@ -1256,17 +1275,22 @@
       apiFetch('/api/admin/stats/divisibility-cohort').catch(function (e) {
         return { ok: false, error: e.message || String(e) };
       }),
+      apiFetch('/api/admin/stats/factors-multiples-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
     ])
       .then(function (results) {
         var level = results[0];
         var decimal = results[1];
         var perfectSquare = results[2];
         var divisibility = results[3];
+        var factorsMultiples = results[4];
         state.cohortByCategory = {
           arithmetic: level && level.ok ? level : null,
           decimal: decimal && decimal.ok ? decimal : null,
           perfectSquare: perfectSquare && perfectSquare.ok ? perfectSquare : null,
           divisibility: divisibility && divisibility.ok ? divisibility : null,
+          factorsMultiples: factorsMultiples && factorsMultiples.ok ? factorsMultiples : null,
         };
         state.cohort = state.cohortByCategory.arithmetic;
         var errs = [];
@@ -1281,6 +1305,11 @@
         }
         if (!state.cohortByCategory.divisibility) {
           errs.push('整除：' + ((divisibility && divisibility.error) || '常模接口返回异常'));
+        }
+        if (!state.cohortByCategory.factorsMultiples) {
+          errs.push(
+            '因数倍数：' + ((factorsMultiples && factorsMultiples.error) || '常模接口返回异常')
+          );
         }
         state.cohortError = errs.length ? errs.join('；') : '';
       })
@@ -2819,6 +2848,9 @@
     if (catId === 'divisibility') {
       return DIVISIBILITY_LEVEL_NAMES[li] || 'Z' + (li + 1);
     }
+    if (catId === 'factorsMultiples') {
+      return FACTORS_MULTIPLES_LEVEL_NAMES[li] || 'Y' + (li + 1);
+    }
     return LEVEL_NAMES[li] || prefix + (li + 1);
   }
 
@@ -3194,6 +3226,8 @@
               decimal: d && d.decimal && d.decimal.ok ? d.decimal : null,
               perfectSquare: d && d.perfectSquare && d.perfectSquare.ok ? d.perfectSquare : null,
               divisibility: d && d.divisibility && d.divisibility.ok ? d.divisibility : null,
+              factorsMultiples:
+                d && d.factorsMultiples && d.factorsMultiples.ok ? d.factorsMultiples : null,
             };
             state.cohortError = d && d.ok ? '' : '常模重建返回异常';
             if (state.selectedUsername) renderStatsPanel();

@@ -836,6 +836,11 @@
       divSec.style.display = "none";
       divSec.classList.remove("visible");
     }
+    const fmSec = document.getElementById("factors-multiples-section");
+    if (fmSec) {
+      fmSec.style.display = "none";
+      fmSec.classList.remove("visible");
+    }
     const sec = document.getElementById("decimal-section");
     if (sec) {
       sec.style.display = "flex";
@@ -923,6 +928,11 @@
     if (divSec) {
       divSec.style.display = "none";
       divSec.classList.remove("visible");
+    }
+    const fmSec = document.getElementById("factors-multiples-section");
+    if (fmSec) {
+      fmSec.style.display = "none";
+      fmSec.classList.remove("visible");
     }
     const sec = document.getElementById("decimal-section");
     if (sec) {

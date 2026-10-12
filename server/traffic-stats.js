@@ -14,6 +14,7 @@ const MODE_ORDER = [
   "training",
   "primeComposite",
   "divisibility",
+  "factorsMultiples",
   "perfectSquare",
   "decimal",
   "expandBrackets",
@@ -25,6 +26,7 @@ const MODE_LABELS = {
   training: "训练",
   primeComposite: "质数",
   divisibility: "整除",
+  factorsMultiples: "因数倍数",
   perfectSquare: "平方数",
   decimal: "小数",
   expandBrackets: "拆括号",
@@ -46,6 +48,7 @@ function normalizeMode(mode) {
   if (m === "expandBrackets") return "expandBrackets";
   if (m === "perfectSquare") return "perfectSquare";
   if (m === "divisibility") return "divisibility";
+  if (m === "factorsMultiples") return "factorsMultiples";
   if (m === "decimal") return "decimal";
   return "survival";
 }

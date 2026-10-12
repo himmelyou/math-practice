@@ -9,6 +9,7 @@ const ARITH_LEVEL_COUNT = 16;
 const DECIMAL_LEVEL_COUNT = 6;
 const PERFECT_SQUARE_LEVEL_COUNT = 4;
 const DIVISIBILITY_HEAT_LEVEL_COUNT = 4;
+const FACTORS_MULTIPLES_LEVEL_COUNT = 6;
 const DEFAULT_CAP_MS = 60 * 1000;
 
 function normalizeRunMode(mode) {
@@ -53,6 +54,13 @@ function resolveHeatTarget(mode) {
       modes: ["divisibility"],
       levelCount: DIVISIBILITY_HEAT_LEVEL_COUNT,
       cohortKey: "divisibility",
+    };
+  }
+  if (m === "factorsmultiples") {
+    return {
+      modes: ["factorsMultiples"],
+      levelCount: FACTORS_MULTIPLES_LEVEL_COUNT,
+      cohortKey: "factorsMultiples",
     };
   }
   return null;

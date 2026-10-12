@@ -28,6 +28,7 @@ const {
   computeDecimalNextLevel,
   computeDivisibilityNextLevel,
   computePerfectSquareNextLevel,
+  computeFactorsMultiplesNextLevel,
   computeSpecialCategoryNextLevels,
 } = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
@@ -68,7 +69,15 @@ const WRONGBOOK_MAX_STORE = 100;
 const EXPAND_WRONG_MAX_STORE = 20;
 const DIVISIBILITY_WRONG_MAX_STORE = 20;
 
-const WRONG_ANSWER_MODES = new Set(["survival", "level", "training", "decimal", "perfectSquare", "divisibility"]);
+const WRONG_ANSWER_MODES = new Set([
+  "survival",
+  "level",
+  "training",
+  "decimal",
+  "perfectSquare",
+  "divisibility",
+  "factorsMultiples",
+]);
 const WRONG_ANSWER_LEVEL_MAX = {
   survival: 15,
   level: 15,
@@ -76,6 +85,7 @@ const WRONG_ANSWER_LEVEL_MAX = {
   decimal: 5,
   perfectSquare: 3,
   divisibility: 4,
+  factorsMultiples: 5,
 };
 
 function normalizeWrongAnswerMode(mode) {
@@ -278,6 +288,10 @@ function buildRunSyncForStudent(u, mode) {
     sync.recentPerfectSquareRuns = Array.isArray(u.recentPerfectSquareRuns) ? u.recentPerfectSquareRuns : [];
   } else if (m === "divisibility") {
     sync.recentDivisibilityRuns = Array.isArray(u.recentDivisibilityRuns) ? u.recentDivisibilityRuns : [];
+  } else if (m === "factorsMultiples") {
+    sync.recentFactorsMultiplesRuns = Array.isArray(u.recentFactorsMultiplesRuns)
+      ? u.recentFactorsMultiplesRuns
+      : [];
   } else if (m === "decimal") {
     sync.recentDecimalRuns = Array.isArray(u.recentDecimalRuns) ? u.recentDecimalRuns : [];
   } else {
@@ -318,6 +332,7 @@ const COHORT_LEVEL_STATS_FILE = path.join(DATA_DIR, "cohort-level-stats.json");
 const COHORT_DECIMAL_STATS_FILE = path.join(DATA_DIR, "cohort-decimal-stats.json");
 const COHORT_PERFECT_SQUARE_STATS_FILE = path.join(DATA_DIR, "cohort-perfect-square-stats.json");
 const COHORT_DIVISIBILITY_STATS_FILE = path.join(DATA_DIR, "cohort-divisibility-stats.json");
+const COHORT_FACTORS_MULTIPLES_STATS_FILE = path.join(DATA_DIR, "cohort-factors-multiples-stats.json");
 /** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
 const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
@@ -452,6 +467,7 @@ function normalizeRunMode(mode) {
   if (mode === "perfectSquare") return "perfectSquare";
   if (mode === "divisibility") return "divisibility";
   if (mode === "decimal") return "decimal";
+  if (mode === "factorsMultiples") return "factorsMultiples";
   return "survival";
 }
 
@@ -727,12 +743,18 @@ function readCohortDivisibilityResultForHeatmap() {
   return cache && cache.result && cache.result.ok === true ? cache.result : null;
 }
 
+function readCohortFactorsMultiplesResultForHeatmap() {
+  const cache = readCohortFactorsMultiplesStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
 function cohortsByCategoryForHeatmap() {
   return {
     arithmetic: readCohortResultForHeatmap(),
     decimal: readCohortDecimalResultForHeatmap(),
     perfectSquare: readCohortPerfectSquareResultForHeatmap(),
     divisibility: readCohortDivisibilityResultForHeatmap(),
+    factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
   };
 }
 
@@ -1973,6 +1995,7 @@ app.post("/api/register", async (req, res) => {
     recentPerfectSquareRuns: [],
     recentDecimalRuns: [],
     recentDivisibilityRuns: [],
+    recentFactorsMultiplesRuns: [],
     streakCurrent: 0,
     streakBest: 0,
     streakLastDate: "",
@@ -1989,6 +2012,8 @@ app.post("/api/register", async (req, res) => {
     levelDecimalUnlockedMax: 0,
     levelDivisibilityCurrentLevel: 0,
     levelDivisibilityUnlockedMax: 0,
+    levelFactorsMultiplesCurrentLevel: 0,
+    levelFactorsMultiplesUnlockedMax: 0,
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
@@ -2303,7 +2328,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -2690,6 +2715,60 @@ app.get("/api/user/:username/divisibility/next-level", requireStudentAuth, ensur
   }
 });
 
+/** 学员：因数倍数下一关（未通关梯子 / 通关后刷弱项） */
+app.get("/api/user/:username/factors-multiples/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const runs = runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const cohort = readCohortFactorsMultiplesResultForHeatmap();
+    const unlockedMax =
+      req.query.unlockedMax != null && req.query.unlockedMax !== ""
+        ? Number(req.query.unlockedMax)
+        : typeof user.levelFactorsMultiplesUnlockedMax === "number"
+          ? user.levelFactorsMultiplesUnlockedMax
+          : 0;
+    const playableMax =
+      req.query.playableMax != null && req.query.playableMax !== ""
+        ? Number(req.query.playableMax)
+        : undefined;
+    const pick = computeFactorsMultiplesNextLevel({
+      runs,
+      cohort,
+      unlockedMax,
+      playableMax,
+      currentLevel:
+        typeof user.levelFactorsMultiplesCurrentLevel === "number"
+          ? user.levelFactorsMultiplesCurrentLevel
+          : 0,
+    });
+    if (!pick || !pick.ok) {
+      return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
+    }
+    return res.json({
+      ok: true,
+      source: "server",
+      levelIndex: pick.levelIndex,
+      reason: pick.reason,
+      mode: pick.mode,
+      cleared: !!pick.cleared,
+      unlockedMax: pick.unlockedMax,
+      playableMax: pick.playableMax,
+      ladderTop: pick.ladderTop != null ? pick.ladderTop : null,
+    });
+  } catch (e) {
+    console.warn("[user/factors-multiples/next-level]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  }
+});
+
 /** 学员：平方数下一关（未通关梯子 / 通关后刷弱项） */
 app.get("/api/user/:username/perfect-square/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -2865,6 +2944,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentDivisibilityRuns)) u.recentDivisibilityRuns = [];
       u.recentDivisibilityRuns.unshift(runEntry);
       if (u.recentDivisibilityRuns.length > 10) u.recentDivisibilityRuns = u.recentDivisibilityRuns.slice(0, 10);
+    } else if (!comboOnly && runEntry.mode === "factorsMultiples") {
+      if (!Array.isArray(u.recentFactorsMultiplesRuns)) u.recentFactorsMultiplesRuns = [];
+      u.recentFactorsMultiplesRuns.unshift(runEntry);
+      if (u.recentFactorsMultiplesRuns.length > 10) {
+        u.recentFactorsMultiplesRuns = u.recentFactorsMultiplesRuns.slice(0, 10);
+      }
     }
     if (!comboOnly && runEntry.mode === "level") {
       const ml = Math.min(SURVIVAL_UNLOCK_L16_INDEX, Math.max(0, Number(runEntry.maxLevel) || 0));
@@ -3420,10 +3505,13 @@ app.post("/api/admin/users", async (req, res) => {
     levelDecimalUnlockedMax: 0,
     levelDivisibilityCurrentLevel: 0,
     levelDivisibilityUnlockedMax: 0,
+    levelFactorsMultiplesCurrentLevel: 0,
+    levelFactorsMultiplesUnlockedMax: 0,
     recentExpandBracketsRuns: [],
     recentPerfectSquareRuns: [],
     recentDecimalRuns: [],
     recentDivisibilityRuns: [],
+    recentFactorsMultiplesRuns: [],
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
@@ -3541,6 +3629,10 @@ function purgeUserCompletely(username) {
     }
     if (fs.existsSync(COHORT_DIVISIBILITY_STATS_FILE)) {
       fs.unlinkSync(COHORT_DIVISIBILITY_STATS_FILE);
+      cohortStatsInvalidated = true;
+    }
+    if (fs.existsSync(COHORT_FACTORS_MULTIPLES_STATS_FILE)) {
+      fs.unlinkSync(COHORT_FACTORS_MULTIPLES_STATS_FILE);
       cohortStatsInvalidated = true;
     }
   } catch (e) {
@@ -3994,6 +4086,7 @@ app.get("/api/admin/user/:username/category-next-levels", (req, res) => {
         decimal: readCohortDecimalResultForHeatmap(),
         perfectSquare: readCohortPerfectSquareResultForHeatmap(),
         divisibility: readCohortDivisibilityResultForHeatmap(),
+        factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
       },
     });
     return res.json({
@@ -4011,6 +4104,8 @@ app.get("/api/admin/user/:username/category-next-levels", (req, res) => {
         levelPerfectSquareUnlockedMax: user.levelPerfectSquareUnlockedMax,
         levelDivisibilityCurrentLevel: user.levelDivisibilityCurrentLevel,
         levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
+        levelFactorsMultiplesCurrentLevel: user.levelFactorsMultiplesCurrentLevel,
+        levelFactorsMultiplesUnlockedMax: user.levelFactorsMultiplesUnlockedMax,
       },
     });
   } catch (e) {
@@ -4282,6 +4377,8 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   writeCohortPerfectSquareStatsCache(builtAt, perfectSquareResult);
   const divisibilityResult = computeDivisibilityCohortResult();
   writeCohortDivisibilityStatsCache(builtAt, divisibilityResult);
+  const factorsMultiplesResult = computeFactorsMultiplesCohortResult();
+  writeCohortFactorsMultiplesStatsCache(builtAt, factorsMultiplesResult);
   const wrapExtra = (extra) => ({
     ...extra,
     builtAt,
@@ -4300,6 +4397,7 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
     decimal: wrapExtra(decimalResult),
     perfectSquare: wrapExtra(perfectSquareResult),
     divisibility: wrapExtra(divisibilityResult),
+    factorsMultiples: wrapExtra(factorsMultiplesResult),
   });
 });
 
@@ -4649,6 +4747,99 @@ app.get("/api/admin/stats/divisibility-cohort", (req, res) => {
   });
 });
 
+/** 因数倍数全体常模（Y1–Y6） */
+const COHORT_FACTORS_MULTIPLES_LEVEL_COUNT = 6;
+
+function computeFactorsMultiplesCohortResult() {
+  const personLnByLevel = collectPersonMeanLnByLevel(
+    (mode) => mode === "factorsMultiples",
+    COHORT_FACTORS_MULTIPLES_LEVEL_COUNT
+  );
+  const levels = [];
+  for (let k = 0; k < COHORT_FACTORS_MULTIPLES_LEVEL_COUNT; k++) {
+    const lnQ = summarizeQuantiles(personLnByLevel[k]);
+    levels.push({
+      levelIndex: k,
+      cohortLnTimeCorrect: lnQ,
+      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+    });
+  }
+  return {
+    ok: true,
+    kind: "factorsMultiples",
+    levelCount: COHORT_FACTORS_MULTIPLES_LEVEL_COUNT,
+    sampleUnit: "person",
+    minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
+    timeSpentMsCapNote:
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。",
+    levels,
+  };
+}
+
+function readCohortFactorsMultiplesStatsCache() {
+  const raw = readJson(COHORT_FACTORS_MULTIPLES_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortFactorsMultiplesStatsCache(builtAt, result) {
+  writeJson(COHORT_FACTORS_MULTIPLES_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/public/factors-multiples-cohort", (req, res) => {
+  const cache = readCohortFactorsMultiplesStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({
+      ok: false,
+      error: "暂无因数倍数常模，请管理员在后台拉取或刷新常模后再试",
+    });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
+app.get("/api/admin/stats/factors-multiples-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortFactorsMultiplesStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computeFactorsMultiplesCohortResult();
+  const builtAt = now;
+  writeCohortFactorsMultiplesStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+  });
+});
+
 function readFeedbackStore() {
   const data = readJson(FEEDBACK_FILE, { items: [] });
   return Array.isArray(data.items) ? data : { items: [] };
@@ -4869,6 +5060,9 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
         if (fs.existsSync(COHORT_DECIMAL_STATS_FILE)) fs.unlinkSync(COHORT_DECIMAL_STATS_FILE);
         if (fs.existsSync(COHORT_PERFECT_SQUARE_STATS_FILE)) fs.unlinkSync(COHORT_PERFECT_SQUARE_STATS_FILE);
         if (fs.existsSync(COHORT_DIVISIBILITY_STATS_FILE)) fs.unlinkSync(COHORT_DIVISIBILITY_STATS_FILE);
+        if (fs.existsSync(COHORT_FACTORS_MULTIPLES_STATS_FILE)) {
+          fs.unlinkSync(COHORT_FACTORS_MULTIPLES_STATS_FILE);
+        }
         notes.push("已清除常模快照（请在报表刷新全体常模）");
       } catch (e2) {
         /* 忽略 */

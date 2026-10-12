@@ -9,7 +9,7 @@ const DEFAULT_CAP_MS = 60 * 1000;
 /**
  * @param {object} opts
  * @param {Array} opts.runs
- * @param {object} opts.cohortsByCategory { arithmetic, decimal, perfectSquare, divisibility }
+ * @param {object} opts.cohortsByCategory { arithmetic, decimal, perfectSquare, divisibility, factorsMultiples }
  * @param {number} [opts.nowMs]
  * @returns {{ ok: boolean, byCategory: object, categories: Array, error?: string }}
  */

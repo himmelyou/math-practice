@@ -25,7 +25,7 @@ npm start
 - **真源文件**：`server/stats-heatmap-browser.js`（只在这里改算法）。
 - **兼容壳**：`server/stats-heatmap.js` 仅转发到真源，无第二套实现。
 - **Pages 副本**：`docs/stats-heatmap-browser.js` 由同步生成，供浏览器加载元数据/上色兜底。
-- **API**：选关 `…/training/next-level`；热图格子 `…/heatmap`；小数刷选 `…/decimal/next-level`；整除通关后 `…/divisibility/next-level`。
+- **API**：选关 `…/training/next-level`；热图格子 `…/heatmap`；小数刷选 `…/decimal/next-level`；整除通关后 `…/divisibility/next-level`；因数倍数 `…/factors-multiples/next-level`。
 - **改完后**：
 
 ```bash

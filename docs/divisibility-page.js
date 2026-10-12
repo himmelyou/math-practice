@@ -901,6 +901,11 @@
       decSec.style.display = "none";
       decSec.classList.remove("visible");
     }
+    const fmSec = document.getElementById("factors-multiples-section");
+    if (fmSec) {
+      fmSec.style.display = "none";
+      fmSec.classList.remove("visible");
+    }
   }
 
   function showDivisibilitySection() {
