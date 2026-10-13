@@ -544,10 +544,7 @@
     const stem =
       q.promptStem ||
       ("以下哪个整数可以被 " + (q.divisor != null ? q.divisor : "?") + " 整除？");
-    const qNum = divAnswered + 1;
-    if (promptEl) {
-      promptEl.textContent = tf("div.questionNum", { n: qNum, stem: stem });
-    }
+    if (promptEl) promptEl.textContent = stem;
     const optA =
       q.optionA != null
         ? q.optionA

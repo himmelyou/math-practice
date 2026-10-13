@@ -596,10 +596,8 @@
     setFmAnswerSurface(fillIn ? "fill" : "choice");
 
     const stem = q.promptStem || q.prompt || q.text || "—";
-    const qNum = fmAnswered + 1;
-    const labeled = tf("fm.questionNum", { n: qNum, stem: stem });
     if (fillIn) {
-      if (fillTextEl) fillTextEl.textContent = labeled;
+      if (fillTextEl) fillTextEl.textContent = stem;
       if (promptEl) promptEl.textContent = "—";
       if (dom().fmAnswerInput) {
         dom().fmAnswerInput.value = "";
@@ -607,7 +605,7 @@
       }
       initFmSoftKeyboardIfNeeded();
     } else {
-      if (promptEl) promptEl.textContent = labeled;
+      if (promptEl) promptEl.textContent = stem;
       if (fillTextEl) fillTextEl.textContent = "—";
       const optA =
         q.optionA != null
