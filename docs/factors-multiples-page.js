@@ -1194,6 +1194,13 @@
     bindEvents();
   }
 
+  function getAbandonProgress() {
+    return {
+      answered: Math.max(0, Math.floor(Number(fmAnswered) || 0)),
+      total: Math.max(0, Math.floor(Number(questionsPerRun(fmRunStartLevel)) || 0)),
+    };
+  }
+
   global.JmlFactorsMultiplesPage = {
     init: init,
     hideFactorsMultiplesSection: hideFactorsMultiplesSection,
@@ -1201,6 +1208,7 @@
     handleModeFactorsMultiples: handleModeFactorsMultiples,
     isFactorsMultiplesPlayingNow: isFactorsMultiplesPlayingNow,
     abandonFactorsMultiplesGame: abandonFactorsMultiplesGame,
+    getAbandonProgress: getAbandonProgress,
     renderFactorsMultiplesRecentRuns: renderFactorsMultiplesRecentRuns,
     showFactorsMultiplesPrestart: showFactorsMultiplesPrestart,
     captureRunDraft: captureRunDraft,

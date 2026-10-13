@@ -5636,10 +5636,10 @@
   <script src="shared/decimal-questions.js?v=50"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=53"></script>
-  <script src="divisibility-page.js?v=18"></script>
-  <script src="factors-multiples-page.js?v=3"></script>
-  <script src="decimal-page.js?v=19"></script>
+  <script src="perfect-square-page.js?v=54"></script>
+  <script src="divisibility-page.js?v=19"></script>
+  <script src="factors-multiples-page.js?v=4"></script>
+  <script src="decimal-page.js?v=20"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -7943,6 +7943,9 @@
     const ABANDON_COOLDOWN_STORAGE_KEY = "jml_abandon_cooldown_v1";
     const ABANDON_MAX_PER_DAY = 5;
     const ABANDON_BASE_COOLDOWN_MS = 10 * 60 * 1000;
+    /** 一局总题数 ≤ 此值 → 小练习：满 5 题禁弃、前 5 题自由弃且不进冷却翻倍 */
+    const ABANDON_SHORT_MAX_TOTAL = 50;
+    const ABANDON_SHORT_LOCK_AFTER = 5;
     let abandonCooldownUiTimerId = null;
 
     function abandonLocalDayKey(d) {
@@ -8025,8 +8028,12 @@
     }
 
     function showAbandonBlockedAlert(gate) {
-      const g = gate || getAbandonGate();
+      const g = gate || evaluateAbandonGate(gameMode);
       if (g.ok) return;
+      if (g.reason === "shortLock") {
+        alert(t("game.abandonAfterFiveBlocked"));
+        return;
+      }
       if (g.reason === "limit") {
         alert(t("game.abandonDailyLimit"));
         return;
@@ -8054,10 +8061,186 @@
       }
     }
 
+    function normalizeAbandonProgress(raw) {
+      const answered = Math.max(0, Math.floor(Number(raw && raw.answered) || 0));
+      const totalRaw = Number(raw && raw.total);
+      const total = Number.isFinite(totalRaw) && totalRaw > 0 ? Math.floor(totalRaw) : null;
+      return { answered: answered, total: total };
+    }
+
+    /** 本局计划总题数 ≤30 → 小练习；闯关/生存等无固定短上限 → 时间翻倍轨 */
+    function getAbandonRunSnapshot(mode, draft) {
+      const m = String((draft && draft.mode) || mode || gameMode || "");
+      if (draft && typeof draft === "object") {
+        const attemptsLen = Array.isArray(draft.attempts) ? draft.attempts.length : 0;
+        let answered = Math.max(
+          0,
+          Math.floor(Number(draft.answered != null ? draft.answered : draft.questionIndex) || 0)
+        );
+        if (!answered && attemptsLen) answered = attemptsLen;
+        if (m === "training") {
+          answered = Math.max(
+            0,
+            Math.floor(Number(draft.trainingMainAnswered) || 0) +
+              Math.floor(Number(draft.trainingExtensionAnswered) || 0)
+          );
+          if (!answered && attemptsLen) answered = attemptsLen;
+          return { mode: m, answered: answered, total: TRAINING_DECK_PER_RUN };
+        }
+        if (m === "level" || m === "survival") {
+          return { mode: m, answered: attemptsLen, total: null };
+        }
+        let total = null;
+        if (m === "decimal" && window.JmlDecimal && typeof window.JmlDecimal.questionsPerRun === "function") {
+          const lv = Math.max(
+            0,
+            Math.floor(Number(draft.runStartLevel != null ? draft.runStartLevel : draft.level) || 0)
+          );
+          total = window.JmlDecimal.questionsPerRun(lv);
+        } else if (
+          m === "perfectSquare" &&
+          window.JmlPerfectSquare &&
+          typeof window.JmlPerfectSquare.questionsPerRun === "function"
+        ) {
+          const lv = Math.max(
+            0,
+            Math.floor(Number(draft.runStartLevel != null ? draft.runStartLevel : draft.level) || 0)
+          );
+          total = window.JmlPerfectSquare.questionsPerRun(lv);
+        } else if (
+          m === "divisibility" &&
+          window.JmlDivisibility &&
+          typeof window.JmlDivisibility.questionsPerRun === "function"
+        ) {
+          total = window.JmlDivisibility.questionsPerRun(
+            Math.max(0, Math.floor(Number(draft.runStartLevel != null ? draft.runStartLevel : draft.level) || 0))
+          );
+        } else if (m === "factorsMultiples" && window.JmlFactorsMultiples) {
+          if (typeof window.JmlFactorsMultiples.questionsPerRun === "function") {
+            total = window.JmlFactorsMultiples.questionsPerRun(
+              Math.max(
+                0,
+                Math.floor(Number(draft.runStartLevel != null ? draft.runStartLevel : draft.level) || 0)
+              )
+            );
+          } else {
+            total = window.JmlFactorsMultiples.QUESTIONS_PER_RUN || 24;
+          }
+        }
+        return Object.assign({ mode: m }, normalizeAbandonProgress({ answered: answered, total: total }));
+      }
+
+      if (m === "survival" || m === "level") {
+        return { mode: m, answered: 0, total: null };
+      }
+      if (m === "training") {
+        return {
+          mode: m,
+          answered: Math.max(0, trainingMainAnswered + trainingExtensionAnswered),
+          total: TRAINING_DECK_PER_RUN,
+        };
+      }
+      if (m === "expandBrackets") {
+        return {
+          mode: m,
+          answered: Array.isArray(expandAttempts) ? expandAttempts.length : 0,
+          total: 20,
+        };
+      }
+      if (m === "primeComposite") {
+        const total =
+          window.JMLPrimeComposite && window.JMLPrimeComposite.TOTAL_QUESTIONS
+            ? window.JMLPrimeComposite.TOTAL_QUESTIONS
+            : 50;
+        return {
+          mode: m,
+          answered: Array.isArray(primeCompositeAttempts) ? primeCompositeAttempts.length : 0,
+          total: total,
+        };
+      }
+      if (m === "decimal" && window.JmlDecimalPage && typeof JmlDecimalPage.getAbandonProgress === "function") {
+        return Object.assign({ mode: m }, normalizeAbandonProgress(JmlDecimalPage.getAbandonProgress()));
+      }
+      if (
+        m === "perfectSquare" &&
+        window.JmlPerfectSquarePage &&
+        typeof JmlPerfectSquarePage.getAbandonProgress === "function"
+      ) {
+        return Object.assign(
+          { mode: m },
+          normalizeAbandonProgress(JmlPerfectSquarePage.getAbandonProgress())
+        );
+      }
+      if (
+        m === "divisibility" &&
+        window.JmlDivisibilityPage &&
+        typeof JmlDivisibilityPage.getAbandonProgress === "function"
+      ) {
+        return Object.assign(
+          { mode: m },
+          normalizeAbandonProgress(JmlDivisibilityPage.getAbandonProgress())
+        );
+      }
+      if (
+        m === "factorsMultiples" &&
+        window.JmlFactorsMultiplesPage &&
+        typeof JmlFactorsMultiplesPage.getAbandonProgress === "function"
+      ) {
+        return Object.assign(
+          { mode: m },
+          normalizeAbandonProgress(JmlFactorsMultiplesPage.getAbandonProgress())
+        );
+      }
+      return { mode: m, answered: 0, total: null };
+    }
+
+    function isAbandonShortPractice(snap) {
+      return !!(snap && Number.isFinite(snap.total) && snap.total > 0 && snap.total <= ABANDON_SHORT_MAX_TOTAL);
+    }
+
+    function evaluateAbandonGate(mode, draft) {
+      const snap = getAbandonRunSnapshot(mode, draft);
+      if (isAbandonShortPractice(snap)) {
+        if (snap.answered >= ABANDON_SHORT_LOCK_AFTER) {
+          return {
+            ok: false,
+            reason: "shortLock",
+            waitMs: 0,
+            count: 0,
+            shortPractice: true,
+            skipCooldownRecord: true,
+            answered: snap.answered,
+            total: snap.total,
+          };
+        }
+        return {
+          ok: true,
+          reason: "",
+          waitMs: 0,
+          count: 0,
+          shortPractice: true,
+          skipCooldownRecord: true,
+          answered: snap.answered,
+          total: snap.total,
+        };
+      }
+      const gate = getAbandonGate();
+      return {
+        ok: gate.ok,
+        reason: gate.reason,
+        waitMs: gate.waitMs,
+        count: gate.count,
+        shortPractice: false,
+        skipCooldownRecord: false,
+        answered: snap.answered,
+        total: snap.total,
+      };
+    }
+
     function syncAbandonCooldownButtonUi() {
       clearAbandonCooldownUiTimer();
       const inProgress = isRunInProgress();
-      const gate = getAbandonGate();
+      const gate = evaluateAbandonGate(gameMode);
       const cooling = inProgress && !gate.ok;
       const globalBackBtn = document.getElementById("global-back-home-btn");
       if (globalBackBtn) {
@@ -8073,17 +8256,17 @@
       }
     }
 
-    /** 训练/生存/闯关放弃仍写入 attempts（进热图）；拓展模式多为 comboOnly，仅丢分 */
-    function confirmAbandonRun(mode) {
-      const gate = getAbandonGate();
+    /** 小练习：题数闸；闯关/生存等长局：冷却翻倍。训练/生存/闯关放弃仍写 attempts（进热图） */
+    function confirmAbandonRun(mode, draft) {
+      const m = String((draft && draft.mode) || mode || gameMode || "");
+      const gate = evaluateAbandonGate(m, draft);
       if (!gate.ok) {
         showAbandonBlockedAlert(gate);
         return false;
       }
-      const m = String(mode || gameMode || "");
       const heatmapModes = m === "training" || m === "survival" || m === "level";
       const ok = confirm(t(heatmapModes ? "game.abandonConfirm" : "game.abandonConfirmScoreOnly"));
-      if (ok) recordAbandonSuccess();
+      if (ok && !gate.skipCooldownRecord) recordAbandonSuccess();
       return ok;
     }
 
@@ -8257,11 +8440,15 @@
       const bodyEl = document.getElementById("run-draft-modal-body");
       const draft = loadRunDraft();
       const modeLabel = runDraftModeLabel(draft && draft.mode);
-      const gate = getAbandonGate();
+      const gate = evaluateAbandonGate(draft && draft.mode, draft);
       if (bodyEl) {
-        bodyEl.textContent = gate.ok
-          ? tf("game.runDraft.body", { mode: modeLabel })
-          : tf("game.runDraft.bodyCooldown", { mode: modeLabel });
+        if (gate.ok) {
+          bodyEl.textContent = tf("game.runDraft.body", { mode: modeLabel });
+        } else if (gate.reason === "shortLock") {
+          bodyEl.textContent = tf("game.runDraft.bodyShortLock", { mode: modeLabel });
+        } else {
+          bodyEl.textContent = tf("game.runDraft.bodyCooldown", { mode: modeLabel });
+        }
       }
       if (abandonBtn) {
         abandonBtn.disabled = !gate.ok;
@@ -8271,6 +8458,9 @@
         if (gate.ok) {
           hintEl.style.display = "none";
           hintEl.textContent = "";
+        } else if (gate.reason === "shortLock") {
+          hintEl.style.display = "";
+          hintEl.textContent = t("game.abandonAfterFiveBlocked");
         } else if (gate.reason === "limit") {
           hintEl.style.display = "";
           hintEl.textContent = t("game.runDraft.limitHint");
@@ -8496,13 +8686,7 @@
         hideRunDraftResumeModal();
         return;
       }
-      const gate = getAbandonGate();
-      if (!gate.ok) {
-        syncRunDraftModalAbandonUi();
-        showAbandonBlockedAlert(gate);
-        return;
-      }
-      if (!confirmAbandonRun(draft.mode)) {
+      if (!confirmAbandonRun(draft.mode, draft)) {
         syncRunDraftModalAbandonUi();
         return;
       }
@@ -9860,6 +10044,8 @@
         "game.abandonConfirmScoreOnly": "將丟失所有積分，確認放棄？",
         "game.abandonCooldownWait": "請等待 {wait} 後再放棄本局。",
         "game.abandonDailyLimit": "今天已達放棄上限（5 次），請明天再試。",
+        "game.abandonAfterFiveBlocked": "5題之後不可以中途放棄，請堅持完成練習",
+        "game.runDraft.bodyShortLock": "偵測到上次未完成的{mode}。已答滿 5 題，不可中途放棄，請繼續完成本局。",
         "game.abandonWaitMinutes": "{n} 分鐘",
         "game.abandonWaitSeconds": "{n} 秒",
         "game.abandonWaitMinSec": "{m} 分 {s} 秒",
@@ -10374,6 +10560,8 @@
         "game.abandonConfirmScoreOnly": "You will lose all points. Abandon this run?",
         "game.abandonCooldownWait": "Please wait {wait} before abandoning again.",
         "game.abandonDailyLimit": "Daily abandon limit reached (5). Try again tomorrow.",
+        "game.abandonAfterFiveBlocked": "You can't abandon after 5 questions — please finish the practice.",
+        "game.runDraft.bodyShortLock": "You have an unfinished {mode} run. After 5 questions you can't abandon — please continue.",
         "game.abandonWaitMinutes": "{n} min",
         "game.abandonWaitSeconds": "{n} sec",
         "game.abandonWaitMinSec": "{m} min {s} sec",

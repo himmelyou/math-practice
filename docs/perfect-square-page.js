@@ -1033,6 +1033,13 @@
     bindEvents();
   }
 
+  function getAbandonProgress() {
+    return {
+      answered: Array.isArray(psAttempts) ? psAttempts.length : 0,
+      total: Math.max(0, Math.floor(Number(questionsPerRun(psRunStartLevel)) || 0)),
+    };
+  }
+
   global.JmlPerfectSquarePage = {
     init: init,
     hidePerfectSquareSection: hidePerfectSquareSection,
@@ -1040,6 +1047,7 @@
     handleModePerfectSquare: handleModePerfectSquare,
     isPerfectSquarePlayingNow: isPerfectSquarePlayingNow,
     abandonPerfectSquareGame: abandonPerfectSquareGame,
+    getAbandonProgress: getAbandonProgress,
     renderPerfectSquareRecentRuns: renderPerfectSquareRecentRuns,
     showPerfectSquarePrestart: showPerfectSquarePrestart,
     captureRunDraft: captureRunDraft,

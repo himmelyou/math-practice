@@ -1053,6 +1053,13 @@
     bindEvents();
   }
 
+  function getAbandonProgress() {
+    return {
+      answered: Math.max(0, Math.floor(Number(divAnswered) || 0)),
+      total: Math.max(0, Math.floor(Number(questionsPerRun(divRunStartLevel)) || 0)),
+    };
+  }
+
   global.JmlDivisibilityPage = {
     init: init,
     hideDivisibilitySection: hideDivisibilitySection,
@@ -1060,6 +1067,7 @@
     handleModeDivisibility: handleModeDivisibility,
     isDivisibilityPlayingNow: isDivisibilityPlayingNow,
     abandonDivisibilityGame: abandonDivisibilityGame,
+    getAbandonProgress: getAbandonProgress,
     renderDivisibilityRecentRuns: renderDivisibilityRecentRuns,
     showDivisibilityPrestart: showDivisibilityPrestart,
     captureRunDraft: captureRunDraft,

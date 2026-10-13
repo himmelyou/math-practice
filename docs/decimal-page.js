@@ -1050,6 +1050,13 @@
     bindEvents();
   }
 
+  function getAbandonProgress() {
+    return {
+      answered: Math.max(0, Math.floor(Number(decQuestionIndex) || 0)),
+      total: Math.max(0, Math.floor(Number(decQuestionsTotal()) || 0)),
+    };
+  }
+
   global.JmlDecimalPage = {
     init: init,
     hideDecimalSection: hideDecimalSection,
@@ -1057,6 +1064,7 @@
     handleModeDecimal: handleModeDecimal,
     isDecimalPlayingNow: isDecimalPlayingNow,
     abandonDecimalGame: abandonDecimalGame,
+    getAbandonProgress: getAbandonProgress,
     renderDecimalRecentRuns: renderDecimalRecentRuns,
     showDecimalPrestart: showDecimalPrestart,
     captureRunDraft: captureRunDraft,
