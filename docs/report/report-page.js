@@ -669,14 +669,14 @@
           '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.primeProgress)) +
           '</td>' +
+          '<td class="jml-ov-col-prog">' +
+          escapeHtml(dashCell(r.perfectSquareProgress)) +
+          '</td>' +
           '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.divisibilityProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
           escapeHtml(dashCell(r.factorsMultiplesProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog">' +
-          escapeHtml(dashCell(r.perfectSquareProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
           escapeHtml(dashCell(r.decimalProgress)) +
@@ -702,9 +702,9 @@
       overviewSortLabel('trainingProgress', '训练流畅', 'num') +
       overviewSortLabel('survivalProgress', '生存', 'num') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
+      overviewSortLabel('perfectSquareProgress', '平方数') +
       overviewSortLabel('divisibilityProgress', '整除', 'num') +
       overviewSortLabel('factorsMultiplesProgress', '因数倍数') +
-      overviewSortLabel('perfectSquareProgress', '平方数') +
       overviewSortLabel('decimalProgress', '小数') +
       overviewSortLabel('expandProgress', '拆括号') +
       '</tr></thead><tbody>' +
@@ -1297,9 +1297,6 @@
         if (!state.cohortByCategory.arithmetic) {
           errs.push('四则：' + ((level && level.error) || '常模接口返回异常'));
         }
-        if (!state.cohortByCategory.decimal) {
-          errs.push('小数：' + ((decimal && decimal.error) || '常模接口返回异常'));
-        }
         if (!state.cohortByCategory.perfectSquare) {
           errs.push('平方数：' + ((perfectSquare && perfectSquare.error) || '常模接口返回异常'));
         }
@@ -1310,6 +1307,9 @@
           errs.push(
             '因数倍数：' + ((factorsMultiples && factorsMultiples.error) || '常模接口返回异常')
           );
+        }
+        if (!state.cohortByCategory.decimal) {
+          errs.push('小数：' + ((decimal && decimal.error) || '常模接口返回异常'));
         }
         state.cohortError = errs.length ? errs.join('；') : '';
       })
@@ -2784,7 +2784,7 @@
     ensureStudentStatsBuilt();
     if (!anyStatsCategoryHasData()) {
       wrap.innerHTML =
-        '<div class="jml-report-empty">暂无热图相关 attempts（四则 / 小数 / 平方数 / 整除）</div>';
+        '<div class="jml-report-empty">暂无热图相关 attempts（四则 / 平方数 / 整除 / 因数倍数 / 小数）</div>';
       return;
     }
 

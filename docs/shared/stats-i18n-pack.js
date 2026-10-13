@@ -41,7 +41,7 @@
       "stats.heat.capNote": "答對題單題耗時超過 {cap} 的記錄不納入個人/全體速度側統計（排除掛機、長時間切屏等異常偏慢）。",
       "stats.heat.legend.title": "圖例：",
       "stats.heat.legend.body":
-        "分類：四則=survival/level/training；小數=decimal；平方數=perfectSquare；整除=divisibility（熱圖 Z1–Z4，Z5 按除數拆入）。每檔取最近 {window} 題，按天齡指數權重（半衰期 {halfLife} 天）。格內準確率、答對均時為加權值（僅答對且≤1 分鐘）；窗口 n≥{minAttempts} 激活著色。顏色為二維短板：準&lt;90% 或速分位≥約84（mean+1σ）為橙系；否則黃→檸綠（約準95%且達 mean）；≥98% 且速分位≤約16（mean−1σ）為熟練綠。無常模分位時速度不拖後腿。",
+        "分類：四則=survival/level/training；平方數=perfectSquare；整除=divisibility（熱圖 Z1–Z4，Z5 按除數拆入）；因數倍數=factorsMultiples；小數=decimal。每檔取最近 {window} 題，按天齡指數權重（半衰期 {halfLife} 天）。格內準確率、答對均時為加權值（僅答對且≤1 分鐘）；窗口 n≥{minAttempts} 激活著色。顏色為二維短板：準&lt;90% 或速分位≥約84（mean+1σ）為橙系；否則黃→檸綠（約準95%且達 mean）；≥98% 且速分位≤約16（mean−1σ）為熟練綠。無常模分位時速度不拖後腿。",
       "stats.heat.legend.speedCap": "速度上限：",
       "stats.heat.legend.cohortSnap": "常模快照：",
       "stats.heat.legend.cohortBuilt": "生成 {built}，過期 {expires}（默認 TTL 24h，環境變量 COHORT_STATS_TTL_MS 可改）。",
@@ -64,7 +64,7 @@
       "stats.report.helpSummary": "熱圖與圖表說明",
       "stats.report.helpCohortBuilt": "常模生成 {built}",
       "stats.report.intro":
-        "左側按分類折疊熱圖（四則 L1–L16、小數 D1–D6、平方數 L1–L4、整除 Z1–Z4；Z5 混合局按除數拆入 Z1–Z4）。點分類標題展開/收起（同時只展開一個）；點任一格子切換右側按日曲線與常模圖。各分類標題旁顯示「下一練」：四則為訓練選關；小數/平方數/整除為通關前闖關、通關後刷弱項。直方圖需先點工具欄「刷新全體常模」後才有數據。",
+        "左側按分類折疊熱圖（四則 L1–L16、平方數 L1–L4、整除 Z1–Z4、因數倍數 Y1–Y6、小數 D1–D6；Z5 混合局按除數拆入 Z1–Z4）。點分類標題展開/收起（同時只展開一個）；點任一格子切換右側按日曲線與常模圖。各分類標題旁顯示「下一練」：四則為訓練選關；平方數/整除/因數倍數/小數為通關前闖關、通關後刷弱項。直方圖需先點工具欄「刷新全體常模」後才有數據。",
       "stats.report.chartHeading": "按日曲線（{name} · 最近最多 14 個有練習日）",
       "stats.report.boxHeading": "全體人級均時 · 分位箱線圖（{name}）",
       "stats.report.histHeading": "全體人級均時 · 直方圖（{name}）",
@@ -132,7 +132,7 @@
         "Correct-answer times over {cap} are excluded from personal/cohort speed stats (idle/tab-away outliers).",
       "stats.heat.legend.title": "Legend:",
       "stats.heat.legend.body":
-        "Categories: arithmetic=survival/level/training; decimals=decimal; perfect squares=perfectSquare; divisibility=divisibility (heatmap Z1–Z4; Z5 split by divisor). Per level: latest {window} attempts, day-age exponential weights (half-life {halfLife} d). Cell accuracy & avg correct time are weighted (correct only, ≤1 min); active when n≥{minAttempts}. Color is 2D bottleneck: orange if accuracy&lt;90% or speed pct≥~84 (mean+1σ); else yellow→lime (~95% acc & cohort mean); fluent green at ≥98% and speed pct≤~16 (mean−1σ). Missing speed percentile does not hold the cell back.",
+        "Categories: arithmetic=survival/level/training; perfect squares=perfectSquare; divisibility=divisibility (heatmap Z1–Z4; Z5 split by divisor); factors & multiples=factorsMultiples; decimals=decimal. Per level: latest {window} attempts, day-age exponential weights (half-life {halfLife} d). Cell accuracy & avg correct time are weighted (correct only, ≤1 min); active when n≥{minAttempts}. Color is 2D bottleneck: orange if accuracy&lt;90% or speed pct≥~84 (mean+1σ); else yellow→lime (~95% acc & cohort mean); fluent green at ≥98% and speed pct≤~16 (mean−1σ). Missing speed percentile does not hold the cell back.",
       "stats.heat.legend.speedCap": "Speed cap:",
       "stats.heat.legend.cohortSnap": "Cohort snapshot:",
       "stats.heat.legend.cohortBuilt": "Built {built}, expires {expires} (default TTL 24h; COHORT_STATS_TTL_MS).",
@@ -155,7 +155,7 @@
       "stats.report.helpSummary": "Heatmap & chart notes",
       "stats.report.helpCohortBuilt": "Cohort built {built}",
       "stats.report.intro":
-        "Left: collapsible heatmaps (arithmetic L1–L16, decimals D1–D6, perfect squares L1–L4, divisibility Z1–Z4; Z5 mixed runs split by divisor). Expand one category at a time; tap a cell to drive the right-side daily chart and cohort plots. Each category header shows “next”: arithmetic uses training pick; decimal / perfect square / divisibility use frontier before clear and brush after. Rebuild cohort for histogram bins.",
+        "Left: collapsible heatmaps (arithmetic L1–L16, perfect squares L1–L4, divisibility Z1–Z4, factors & multiples Y1–Y6, decimals D1–D6; Z5 mixed runs split by divisor). Expand one category at a time; tap a cell to drive the right-side daily chart and cohort plots. Each category header shows “next”: arithmetic uses training pick; perfect square / divisibility / factors & multiples / decimal use frontier before clear and brush after. Rebuild cohort for histogram bins.",
       "stats.report.chartHeading": "Daily chart ({name} · up to 14 practice days)",
       "stats.report.boxHeading": "Cohort person-level time · box plot ({name})",
       "stats.report.histHeading": "Cohort person-level time · histogram ({name})",

@@ -17,7 +17,7 @@
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
 
-  /** 热图分类注册表（拆括号仅补 attempt，暂不进热图） */
+  /** 热图分类注册表（拆括号仅补 attempt，暂不进热图）；顺序按学习难度：四则→平方数→整除→因数倍数→小数 */
   var HEATMAP_CATEGORIES = [
     {
       id: 'arithmetic',
@@ -27,15 +27,6 @@
       labelKey: 'stats.cat.arithmetic',
       labelFallback: '四则运算',
       cohortKind: 'level',
-    },
-    {
-      id: 'decimal',
-      modes: ['decimal'],
-      levelCount: DECIMAL_LEVEL_COUNT,
-      levelPrefix: 'D',
-      labelKey: 'stats.cat.decimal',
-      labelFallback: '小数运算',
-      cohortKind: 'decimal',
     },
     {
       id: 'perfectSquare',
@@ -63,6 +54,15 @@
       labelKey: 'stats.cat.factorsMultiples',
       labelFallback: '因数倍数',
       cohortKind: 'factorsMultiples',
+    },
+    {
+      id: 'decimal',
+      modes: ['decimal'],
+      levelCount: DECIMAL_LEVEL_COUNT,
+      levelPrefix: 'D',
+      labelKey: 'stats.cat.decimal',
+      labelFallback: '小数运算',
+      cohortKind: 'decimal',
     },
   ];
 
