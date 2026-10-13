@@ -10,7 +10,7 @@
   var DECIMAL_MAX_LEVEL = 5;
   /** 单位分数互化关（现为 D5 / index 4；2026-09 与乘除整数对调） */
   var D4_FRACTION_LEVEL_INDEX = 4;
-  var D4_QUESTIONS_PER_RUN = 36;
+  var D4_QUESTIONS_PER_RUN = 30;
 
   var LEVEL_DEFS = [
     { id: "D1", name: "第 1 级 · 一位小数与整数混合加减" },
@@ -390,13 +390,14 @@
     });
   }
 
-  /** 单位分数关（D5）：分母 = 2^{0..3}×10ⁿ 或 5^{0..3}×10ⁿ，∈(1,1000]，分子恒 1 → 18 个分母 × 2 挖空 = 36 题 */
+  /** 单位分数关（D5）：分母 = 2^{0..3}×10ⁿ 或 5^{0..3}×10ⁿ，∈(1,1000]；去掉 80/400/800（小数位过长）→ 15 个分母 × 2 挖空 = 30 题 */
   var D4_UNIT_DENOMS = (function () {
     var set = {};
     var list = [];
+    var exclude = { 80: true, 400: true, 800: true };
     function add(d) {
       if (!(d > 1) || d > 1000) return;
-      if (set[d]) return;
+      if (exclude[d] || set[d]) return;
       set[d] = true;
       list.push(d);
     }

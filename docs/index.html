@@ -5633,13 +5633,13 @@
   <script src="shared/perfect-square-questions.js?v=44"></script>
   <script src="shared/divisibility-questions.js?v=5"></script>
   <script src="shared/factors-multiples-questions.js?v=3"></script>
-  <script src="shared/decimal-questions.js?v=50"></script>
+  <script src="shared/decimal-questions.js?v=51"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
   <script src="divisibility-page.js?v=20"></script>
   <script src="factors-multiples-page.js?v=5"></script>
-  <script src="decimal-page.js?v=20"></script>
+  <script src="decimal-page.js?v=21"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -13340,6 +13340,8 @@
       currentRunAttempts.push({ levelIndex: currentLevelIndex, correct, timeSpentMs });
       const isCorrect = correct;
 
+      // 生存局中不即时揭晓对错（与训练/闯关一致）
+      setFeedback("", null);
       if (isCorrect) {
         survivalTimeLeft += 2;
         const points = 5;
@@ -13351,21 +13353,18 @@
             consecutiveCorrect = 0;
           } else {
             maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
-            setFeedback(t("game.feedback.allCleared16"), "correct");
             updateSurvivalStatusUI();
-            setTimeout(function () { endSurvivalGame(true); }, 600);
+            void endSurvivalGame(true);
             return;
           }
         }
         maxLevelThisRun = Math.max(maxLevelThisRun, currentLevelIndex);
-        setFeedback(tf("game.feedback.survivalPlus", { pts: points }), "correct");
       } else {
         runWrongCount += 1;
         consecutiveCorrect = 0;
         const levelAtWrong = currentLevelIndex;
         if (currentLevelIndex > 0) currentLevelIndex -= 1;
         recordWrongAnswer(question.text, question.answer, userAnswer, levelAtWrong);
-        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + question.answer + "</strong>", "incorrect");
       }
       updateSurvivalStatusUI();
       showNextSurvivalQuestion();

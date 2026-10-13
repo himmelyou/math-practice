@@ -477,30 +477,19 @@
     const correct = decimalAnswersEqual(userAnswer, decCurrent.answer);
     decAttempts.push({ levelIndex: decLevel, correct: correct, timeSpentMs: timeSpentMs });
 
+    // 小数局中不即时揭晓对错（与训练/闯关一致）；空答/非法输入仍提示
+    setDecFeedback("", null);
     if (correct) {
       decScore += DEC_SCORE_PER_CORRECT;
       if (dom().decScoreText) dom().decScoreText.textContent = "--";
-      setDecFeedback(t("game.feedback.correctSurvival"), "correct");
-      setTimeout(function () {
-        advanceDecAfterAnswer();
-      }, 350);
+      advanceDecAfterAnswer();
       return;
     }
 
     decWrongCount += 1;
     if (dom().decWrongText) dom().decWrongText.textContent = String(decWrongCount);
     deps.recordWrongAnswer(decCurrent.text || decCurrent.prompt, decCurrent.answer, userAnswer, decLevel, "decimal");
-    setDecFeedback(
-      t("game.feedback.incorrectPrefixHtml") +
-        t("game.feedback.correctAnswerLabel") +
-        "<strong>" +
-        decCurrent.answer +
-        "</strong>",
-      "incorrect"
-    );
-    setTimeout(function () {
-      advanceDecAfterAnswer();
-    }, 650);
+    advanceDecAfterAnswer();
   }
 
   function handleDecSubmit() {
