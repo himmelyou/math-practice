@@ -650,24 +650,12 @@
           min: 10,
           max: 99,
           generateQuestion() {
+            // 合法对拒绝采样：a、b 独立均匀于 [10,99]，和 <101 则整对重抽（近似均匀合法对）
             let a, b, answer;
-            a = randomInt(10, 99);
-            const minB = Math.max(10, 101 - a);
-            if (Math.random() < 0.8) {
-              const aUnit = a % 10;
-              const minUnitB = Math.max(1, 10 - aUnit);
-              const unitB = randomInt(minUnitB, 9);
-              const needTenB = Math.ceil((minB - unitB) / 10);
-              const maxTenB = Math.floor((99 - unitB) / 10);
-              if (maxTenB >= needTenB) {
-                const tenB = randomInt(needTenB, maxTenB);
-                b = tenB * 10 + unitB;
-              } else {
-                b = randomInt(minB, 99);
-              }
-            } else {
-              b = randomInt(minB, 99);
-            }
+            do {
+              a = randomInt(10, 99);
+              b = randomInt(10, 99);
+            } while (a + b < 101);
             answer = a + b;
             const text = `${a} + ${b} = ?`;
             return { a, b, op: "+", text, answer, baseLevelId: this.id };
