@@ -3,7 +3,8 @@
  * Y1/Y2 共用数对 (f,N)：合数 N=4～100，f 为真因数（≥2、<N）。
  * 抽题：先抽 count 个不同 f（f 同权），再在各自 (f,N) 中各抽 1 对；整卷打乱。
  * Y1：哪个是 N 的因数？正解 f；假选项绕 f 邻域扩圈（奇 N±2，偶 N±1）。
- * Y2：哪个是 f 的倍数？正解 N；假选项绕 N 邻域 ±1 扩圈（非 f 的倍数，f<w≤100）。
+ * Y2：哪个是 f 的倍数？正解 N；假选项 w=k·f±m（m 按质数/10≥20/5/2/3 分档；
+ *      k 在 {N/f−1,N/f,N/f+1} 去 1 后随机；f<w≤100）。
  * Y3/Y4 入门共用牌库：2≤a<b≤30 且 lcm≤100；三层 1:2:3；Y3 问 g，Y4 问 L。
  * Y5/Y6 进阶共用牌库：2≤a<b≤99 且 lcm≤100；三层 1:2:3；Y5 问 g，Y6 问 L。
  */
@@ -131,26 +132,45 @@
     return null;
   }
 
+  /** Y2 偏移档：质数→1；10 的倍数且≥20→10；5 的倍数→5；偶数→2；3 的倍数→3；否则 1。 */
+  function y2OffsetStep(f) {
+    if (isPrime(f)) return 1;
+    if (f % 10 === 0 && f >= 20) return 10;
+    if (f % 5 === 0) return 5;
+    if (f % 2 === 0) return 2;
+    if (f % 3 === 0) return 3;
+    return 1;
+  }
+
   /**
-   * Y2 假选项：正解倍数为 m(=N)，底数为 k(=f)。
-   * f < w ≤ 100、≠m、不是 f 的倍数；从 m 邻域 ±1 扩圈，随机方向。
+   * Y2 假选项：正解倍数为 n，底数为 f。
+   * w = k·f ± m；m=y2OffsetStep(f)；k ∈ {t−1,t,t+1}\{1}，t=n/f。
+   * 要求 f < w ≤ 100、≠n、不是 f 的倍数。
    */
-  function buildY2Distractor(m, k) {
+  function buildY2Distractor(n, f) {
     function ok(w) {
-      return w > k && w <= Y2_M_MAX && w !== m && !isFactor(k, w);
+      return w > f && w <= Y2_M_MAX && w !== n && !isFactor(f, w);
     }
-    var maxDist = Math.max(m - (k + 1), Y2_M_MAX - m);
-    var ring;
-    var d;
-    var dir;
+    if (!f || n % f !== 0) return null;
+    var t = n / f;
+    var m = y2OffsetStep(f);
+    var kOpts = [t - 1, t, t + 1].filter(function (k) {
+      return k !== 1;
+    });
+    if (!kOpts.length) return null;
+    var ks = shuffleArray(kOpts);
+    var i;
+    var j;
+    var k;
+    var signs;
     var w;
-    for (ring = 1; ring <= maxDist + 1; ring += 1) {
-      d = ring;
-      dir = Math.random() < 0.5 ? 1 : -1;
-      w = m + dir * d;
-      if (ok(w)) return w;
-      w = m - dir * d;
-      if (ok(w)) return w;
+    for (i = 0; i < ks.length; i += 1) {
+      k = ks[i];
+      signs = Math.random() < 0.5 ? [1, -1] : [-1, 1];
+      for (j = 0; j < signs.length; j += 1) {
+        w = k * f + signs[j] * m;
+        if (ok(w)) return w;
+      }
     }
     return null;
   }
@@ -544,6 +564,7 @@
     LEVEL_DEFS: LEVEL_DEFS,
     buildY1Distractor: buildY1Distractor,
     buildY2Distractor: buildY2Distractor,
+    y2OffsetStep: y2OffsetStep,
     buildDistractor: buildY1Distractor,
     properFactors: properFactors,
     largestProperDivisor: largestProperDivisor,
