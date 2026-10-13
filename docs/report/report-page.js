@@ -1909,6 +1909,49 @@
       '</tbody></table></div>';
   }
 
+  function formatRunWrongTotalCell(r) {
+    var wrong =
+      typeof r.wrongCount === 'number' && Number.isFinite(r.wrongCount)
+        ? Math.max(0, Math.floor(r.wrongCount))
+        : Array.isArray(r.wrongQuestionIds)
+          ? r.wrongQuestionIds.length
+          : 0;
+    var total =
+      Array.isArray(r.attempts) && r.attempts.length > 0 ? r.attempts.length : null;
+    if (total == null) return escapeHtml(String(wrong));
+    return escapeHtml(String(wrong) + '/' + String(total));
+  }
+
+  /** 用已有字段推断结束情况（不新增落库字段） */
+  function formatRunEndStatusCell(r) {
+    var metaAbandoned = !!(r.trainingMeta && r.trainingMeta.abandoned === true);
+    var abandoned = r.abandoned === true || metaAbandoned;
+    var comboOnly = r.comboOnly === true;
+    var cleared = r.cleared === true;
+    var label;
+    var title;
+    if (abandoned) {
+      label = '中途放弃';
+      title = 'abandoned=true';
+    } else if (comboOnly) {
+      label = '中途放弃（不计分）';
+      title = 'comboOnly=true（生存/专项等旧放弃路径常无 abandoned）';
+    } else if (cleared) {
+      label = '正常结算·通关';
+      title = 'cleared=true';
+    } else {
+      label = '正常结算';
+      title = '正常结束（未标 abandoned / comboOnly）';
+    }
+    return (
+      '<span class="jml-runs-end" title="' +
+      escapeHtml(title) +
+      '">' +
+      escapeHtml(label) +
+      '</span>'
+    );
+  }
+
   function renderRunsTable() {
     var wrap = document.getElementById('jml-report-runs-body');
     if (!wrap) return;
@@ -1923,12 +1966,6 @@
     }
     var rows = runs
       .map(function (r) {
-        var wrong =
-          typeof r.wrongCount === 'number' && Number.isFinite(r.wrongCount)
-            ? r.wrongCount
-            : Array.isArray(r.wrongQuestionIds)
-              ? r.wrongQuestionIds.length
-              : 0;
         var durationSec =
           r.durationSec != null && Number.isFinite(Number(r.durationSec))
             ? Number(r.durationSec)
@@ -1951,8 +1988,8 @@
           '<td class="num jml-runs-col-score">' +
           escapeHtml(String(r.score != null ? r.score : 0)) +
           '</td>' +
-          '<td class="num jml-runs-col-wrong">' +
-          escapeHtml(String(wrong)) +
+          '<td class="num jml-runs-col-wrong" title="错误题数 / 本局作答题数（attempts）">' +
+          formatRunWrongTotalCell(r) +
           '</td>' +
           '<td class="num jml-runs-col-level">' +
           escapeHtml(maxDisplay) +
@@ -1966,6 +2003,9 @@
           '<td class="jml-runs-col-pick">' +
           formatTrainingRunPickCell(r) +
           '</td>' +
+          '<td class="jml-runs-col-end">' +
+          formatRunEndStatusCell(r) +
+          '</td>' +
           '</tr>'
         );
       })
@@ -1973,7 +2013,7 @@
 
     wrap.innerHTML =
       '<div class="jml-report-table-wrap"><table class="jml-report-table jml-report-runs-table">' +
-      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num" title="仅答对几何均，剔除&gt;60s">本局均速</th><th>选关诊断</th></tr></thead>' +
+      '<thead><tr><th>日期时间</th><th>挑战类型</th><th class="num">用时</th><th class="num">得分</th><th class="num" title="错误/作答题数">错误题数</th><th class="num">最高难度</th><th class="num">开局加权速</th><th class="num" title="仅答对几何均，剔除&gt;60s">本局均速</th><th>选关诊断</th><th title="由 abandoned / comboOnly / cleared 推断，无新字段">结束情况</th></tr></thead>' +
       '<tbody>' +
       rows +
       '</tbody></table></div>';

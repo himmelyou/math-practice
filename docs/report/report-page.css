@@ -332,7 +332,7 @@
 
 .jml-report-runs-table th:nth-child(5),
 .jml-report-runs-table td.jml-runs-col-wrong {
-  min-width: 64px;
+  min-width: 72px;
   white-space: nowrap;
 }
 
@@ -362,6 +362,18 @@
   line-height: 1.35;
   text-align: left;
   word-break: break-word;
+}
+
+.jml-report-runs-table th:nth-child(10),
+.jml-report-runs-table td.jml-runs-col-end {
+  min-width: 120px;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.jml-runs-end {
+  color: #334155;
 }
 
 .jml-task-history-summary {
