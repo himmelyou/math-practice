@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=130"></script>
+  <script src="shared/app-version.js?v=131"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3925,23 +3925,65 @@
       align-self: stretch;
     }
 
-    .prime-composite-page #prime-game-card.card {
+    /* 质数 / 整除 / 因数倍数：局中选择题卡共用（题+选项贴紧，整组垂直居中） */
+    .choice-play-card.card {
       flex: 0 0 auto;
       height: var(--prime-card-playing-height);
+      max-height: var(--prime-card-playing-height);
       overflow: hidden;
       margin-top: 8px;
-      padding: 10px 14px 12px;
+      padding: 12px 14px;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .choice-play-card > .question-header {
+      flex-shrink: 0;
+      width: 100%;
+    }
+    .choice-play-card > .choice-play-stack {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 4px;
+      justify-content: center;
+      gap: 12px;
+    }
+    .choice-play-card > .choice-play-stack > .question-text {
+      flex: 0 0 auto;
+      width: 100%;
+      margin: 0;
+      padding: 0 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .choice-play-card .button-row.prime-choice-row,
+    .choice-play-card .button-row.div-choice-row {
+      width: min(94%, 384px);
+      max-width: 100%;
+      margin: 0 auto;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    .choice-play-card .button-row.prime-choice-row .btn-primary,
+    .choice-play-card .button-row.div-choice-row .btn-primary {
+      flex: 1 1 50%;
+      min-width: 0;
+      min-height: 2.6em;
+    }
+    .choice-play-card .input-row {
+      width: min(94%, 384px);
+      max-width: 100%;
+      flex-shrink: 0;
     }
 
     .prime-composite-page #prime-game-card > .question-header {
-      flex-shrink: 0;
-      width: 100%;
       text-align: center;
     }
 
@@ -3950,15 +3992,8 @@
       width: 100%;
     }
 
-    .prime-composite-page #prime-game-card > .question-text.prime-question-num {
-      flex: 1 1 auto;
-      min-height: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
+    .prime-composite-page #prime-game-card .question-text.prime-question-num {
       padding: 4px 6px;
-      margin: 0;
     }
 
     .prime-composite-page .prime-finish-card.card {
@@ -4042,20 +4077,8 @@
       color: #0d47a1;
       line-height: 1.12;
     }
-    .prime-composite-page .button-row.prime-choice-row {
-      width: min(94%, 384px);
-      max-width: 100%;
-      margin-top: 0;
-      margin-left: auto;
-      margin-right: auto;
-      flex-shrink: 0;
-      gap: 8px;
-    }
     .prime-composite-page .button-row.prime-choice-row .btn-primary {
-      flex: 1 1 50%;
-      min-width: 0;
       padding: 10px 12px;
-      min-height: 2.6em;
     }
     .prime-choice-btn.prime-choice-wrong {
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
@@ -4119,50 +4142,14 @@
       margin-top: auto;
       align-self: stretch;
     }
-    .divisibility-page #div-game-card.card {
-      flex: 0 0 auto;
-      height: var(--prime-card-playing-height);
-      max-height: var(--prime-card-playing-height);
-      overflow: hidden;
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      justify-content: space-between;
-      padding-top: 14px;
-      padding-bottom: 14px;
-    }
-    .divisibility-page #div-game-card > .question-header {
-      flex-shrink: 0;
-    }
     .divisibility-page #div-question-prompt {
-      flex: 1 1 auto;
-      min-height: 0;
-      margin-top: 0;
       font-size: clamp(1.05rem, 4.2vw, 1.35rem);
       font-weight: 700;
       color: #0d47a1;
       line-height: 1.25;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 0 6px;
-    }
-    .divisibility-page .button-row.div-choice-row {
-      width: min(94%, 384px);
-      max-width: 100%;
-      margin-top: 0;
-      margin-left: auto;
-      margin-right: auto;
-      flex-shrink: 0;
-      gap: 8px;
     }
     .divisibility-page .button-row.div-choice-row .btn-primary {
-      flex: 1 1 50%;
-      min-width: 0;
       padding: 10px 8px;
-      min-height: 2.6em;
       font-size: clamp(0.95rem, 3.8vw, 1.15rem);
       font-weight: 700;
       letter-spacing: 0;
@@ -4238,50 +4225,14 @@
       margin-top: auto;
       align-self: stretch;
     }
-    .factors-multiples-page #fm-game-card.card {
-      flex: 0 0 auto;
-      height: var(--prime-card-playing-height);
-      max-height: var(--prime-card-playing-height);
-      overflow: hidden;
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      justify-content: space-between;
-      padding-top: 14px;
-      padding-bottom: 14px;
-    }
-    .factors-multiples-page #fm-game-card > .question-header {
-      flex-shrink: 0;
-    }
     .factors-multiples-page #fm-question-prompt {
-      flex: 1 1 auto;
-      min-height: 0;
-      margin-top: 0;
       font-size: clamp(1.05rem, 4.2vw, 1.35rem);
       font-weight: 700;
       color: #0d47a1;
       line-height: 1.25;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 0 6px;
-    }
-    .factors-multiples-page .button-row.div-choice-row {
-      width: min(94%, 384px);
-      max-width: 100%;
-      margin-top: 0;
-      margin-left: auto;
-      margin-right: auto;
-      flex-shrink: 0;
-      gap: 8px;
     }
     .factors-multiples-page .button-row.div-choice-row .btn-primary {
-      flex: 1 1 50%;
-      min-width: 0;
       padding: 10px 8px;
-      min-height: 2.6em;
       font-size: clamp(0.95rem, 3.8vw, 1.15rem);
       font-weight: 700;
       letter-spacing: 0;
@@ -4990,16 +4941,18 @@
       </div>
 
       <div id="prime-panel-playing" class="prime-panel-playing" style="display:none;">
-        <main class="card" id="prime-game-card">
+        <main class="card choice-play-card" id="prime-game-card">
           <div class="question-header">
             <div class="question-label">
               <span class="status-label" id="prime-header-hint">请判断是质数还是合数</span>
             </div>
           </div>
-          <div class="question-text prime-question-num" id="prime-current-n">—</div>
-          <div class="button-row prime-choice-row">
-            <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-prime">质数</button>
-            <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-composite">合数</button>
+          <div class="choice-play-stack">
+            <div class="question-text prime-question-num" id="prime-current-n">—</div>
+            <div class="button-row prime-choice-row">
+              <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-prime">质数</button>
+              <button type="button" class="btn-primary prime-choice-btn" id="prime-btn-composite">合数</button>
+            </div>
           </div>
         </main>
       </div>
@@ -5197,17 +5150,19 @@
       </div>
 
       <div id="div-panel-playing" class="prime-panel-playing" style="display:none;">
-        <main class="card" id="div-game-card">
+        <main class="card choice-play-card" id="div-game-card">
           <div class="question-header">
             <div class="question-label">
               <span class="status-label" id="div-header-hint">请选择能被整除的数</span>
               <span class="status-value" id="div-current-level-name" style="display:none;">L1</span>
             </div>
           </div>
-          <div class="question-text" id="div-question-prompt">—</div>
-          <div class="button-row div-choice-row">
-            <button type="button" class="btn-primary div-choice-btn" id="div-btn-a">—</button>
-            <button type="button" class="btn-primary div-choice-btn" id="div-btn-b">—</button>
+          <div class="choice-play-stack">
+            <div class="question-text" id="div-question-prompt">—</div>
+            <div class="button-row div-choice-row">
+              <button type="button" class="btn-primary div-choice-btn" id="div-btn-a">—</button>
+              <button type="button" class="btn-primary div-choice-btn" id="div-btn-b">—</button>
+            </div>
           </div>
         </main>
       </div>
@@ -5311,20 +5266,22 @@
       </div>
 
       <div id="fm-panel-playing" class="prime-panel-playing" style="display:none;">
-        <main class="card" id="fm-game-card">
+        <main class="card choice-play-card" id="fm-game-card">
           <div class="question-header">
             <div class="question-label">
               <span class="status-label" id="fm-header-hint">请选择正确选项</span>
               <span class="status-value" id="fm-current-level-name" style="display:none;">L1</span>
             </div>
           </div>
-          <div class="question-text" id="fm-question-prompt">—</div>
-          <div class="button-row div-choice-row" id="fm-choice-row">
-            <button type="button" class="btn-primary div-choice-btn" id="fm-btn-a">—</button>
-            <button type="button" class="btn-primary div-choice-btn" id="fm-btn-b">—</button>
-          </div>
-          <div class="input-row" id="fm-answer-input-row" style="display:none;">
-            <input id="fm-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+          <div class="choice-play-stack">
+            <div class="question-text" id="fm-question-prompt">—</div>
+            <div class="button-row div-choice-row" id="fm-choice-row">
+              <button type="button" class="btn-primary div-choice-btn" id="fm-btn-a">—</button>
+              <button type="button" class="btn-primary div-choice-btn" id="fm-btn-b">—</button>
+            </div>
+            <div class="input-row" id="fm-answer-input-row" style="display:none;">
+              <input id="fm-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+            </div>
           </div>
         </main>
         <section class="soft-kbd-card" id="fm-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>

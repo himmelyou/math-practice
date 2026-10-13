@@ -1,6 +1,6 @@
 /**
  * 因数倍数 Y1–Y6 出题（先管理端打印）
- * Y1：哪个是 N 的因数？合数 N=4～100；(f,N) 同权；假选项 <N。
+ * Y1：哪个是 N 的因数？合数 N=4～100；(f,N) 同权；假选项按邻域扩圈（奇 N±2，偶 N±1）。
  * Y2：哪个是 K 的倍数？合数 K=4～50；m=K×t(t≥2)≤100；(m,K) 同权；
  *      假选项为 K 最大真因数 d 的倍数、但非 K 的倍数，且 K<w≤100。
  * Y3/Y4 入门共用牌库：2≤a<b≤30 且 lcm≤100；三层 1:2:3；Y3 问 g，Y4 问 L。
@@ -106,23 +106,26 @@
 
   /**
    * Y1 假选项：≥2、<N、≠f、不是 N 的因数。
-   * 优先 2f → 3f → 4f（且 <N），再 f±1，再往上找。
+   * 从 f 邻域扩圈：N 奇数步长 2（保持奇数），N 偶数步长 1。
+   * 每圈随机一个方向，先试该侧再试对侧；两侧都不行则扩大一格。
    */
   function buildY1Distractor(f, n) {
     function ok(w) {
       return w >= 2 && w < n && w !== f && !isFactor(w, n);
     }
+    var step = n % 2 === 0 ? 1 : 2;
+    var maxDist = Math.max(f - 2, n - 1 - f);
     var k;
-    for (k = 2; k <= 4; k += 1) {
-      if (ok(k * f)) return k * f;
-    }
-    if (ok(f + 1)) return f + 1;
-    if (ok(f - 1)) return f - 1;
-    for (k = f + 2; k < n; k += 1) {
-      if (ok(k)) return k;
-    }
-    for (k = 2; k < n; k += 1) {
-      if (ok(k)) return k;
+    var d;
+    var dir;
+    var w;
+    for (k = 1; k * step <= maxDist + step; k += 1) {
+      d = k * step;
+      dir = Math.random() < 0.5 ? 1 : -1;
+      w = f + dir * d;
+      if (ok(w)) return w;
+      w = f - dir * d;
+      if (ok(w)) return w;
     }
     return null;
   }
