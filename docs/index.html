@@ -4196,6 +4196,35 @@
       flex-direction: column;
       gap: 8px;
     }
+    .factors-multiples-page #fm-play-body > .prime-panel-playing {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .factors-multiples-page #fm-play-body.fm-play-body--kbd > .prime-panel-playing {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .factors-multiples-page #fm-panel-playing.fm-panel-playing--fill {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .factors-multiples-page #fm-panel-playing.fm-panel-playing--fill > .run-mode-game-card.game-card--playing {
+      flex: 0 1 auto;
+      min-height: var(--game-card-playing-min);
+      max-height: var(--game-card-playing-max);
+      margin-top: 8px;
+    }
+    .factors-multiples-page #fm-panel-playing.fm-panel-playing--fill > .soft-kbd-card {
+      flex: 0 0 auto;
+      overflow: hidden;
+    }
+    .factors-multiples-page #fm-panel-playing.fm-panel-playing--fill > .game-play-tail {
+      display: block;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
     .factors-multiples-page .fm-idle-card.card {
       height: var(--prime-card-idle-height);
       overflow: hidden;
@@ -4231,6 +4260,12 @@
       color: #0d47a1;
       line-height: 1.25;
     }
+    .factors-multiples-page #fm-fill-question-text {
+      white-space: normal;
+      text-overflow: clip;
+      line-height: 1.3;
+      font-size: clamp(1.05rem, 4vw, 1.45rem);
+    }
     .factors-multiples-page .button-row.div-choice-row .btn-primary {
       padding: 10px 8px;
       font-size: clamp(0.95rem, 3.8vw, 1.15rem);
@@ -4252,6 +4287,11 @@
         --prime-card-playing-height: clamp(264px, 36vh, 336px);
       }
       #fm-play-body {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+      }
+      #fm-play-body.fm-play-body--kbd {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         overscroll-behavior: contain;
@@ -5213,8 +5253,8 @@
       </div>
     </section>
 
-    <!-- 因数倍数：Y1–Y6；Y1–Y2 双选项，Y3–Y6 整数填空 -->
-    <section class="game-section factors-multiples-page" id="factors-multiples-section" style="display:none;">
+    <!-- 因数倍数：Y1–Y6；Y1–Y2 双选项卡，Y3–Y6 平方数同款 run-mode 填空卡 -->
+    <section class="game-section factors-multiples-page run-mode-page" id="factors-multiples-section" style="display:none;">
       <div class="status-grid" id="fm-status-grid">
         <div class="timer-chip" id="fm-timer-chip">
           <span id="fm-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="fm-elapsed">0:00</span>
@@ -5266,10 +5306,10 @@
       </div>
 
       <div id="fm-panel-playing" class="prime-panel-playing" style="display:none;">
-        <main class="card choice-play-card" id="fm-game-card">
+        <main class="card choice-play-card" id="fm-game-card-choice">
           <div class="question-header">
             <div class="question-label">
-              <span class="status-label" id="fm-header-hint">请选择正确选项</span>
+              <span class="status-label" id="fm-header-hint-choice">请选择正确选项</span>
               <span class="status-value" id="fm-current-level-name" style="display:none;">L1</span>
             </div>
           </div>
@@ -5279,12 +5319,27 @@
               <button type="button" class="btn-primary div-choice-btn" id="fm-btn-a">—</button>
               <button type="button" class="btn-primary div-choice-btn" id="fm-btn-b">—</button>
             </div>
-            <div class="input-row" id="fm-answer-input-row" style="display:none;">
-              <input id="fm-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
-            </div>
           </div>
         </main>
+        <main class="card run-mode-game-card game-card--playing" id="fm-game-card-fill" style="display:none;">
+          <div class="question-header">
+            <div class="question-label">
+              <span class="status-label" id="fm-header-hint-fill">请输入答案</span>
+            </div>
+          </div>
+          <div class="question-body">
+            <div class="question-text" id="fm-fill-question-text">—</div>
+          </div>
+          <form id="fm-answer-form" class="answer-form" action="javascript:void(0);">
+            <div class="game-card-action-anchor">
+              <div class="input-row" id="fm-answer-input-row">
+                <input id="fm-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+              </div>
+            </div>
+          </form>
+        </main>
         <section class="soft-kbd-card" id="fm-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
+        <div class="game-play-tail" id="fm-play-tail" aria-hidden="true"></div>
       </div>
 
       <div id="fm-panel-finished" class="prime-panel-finished" style="display:none;">
@@ -5577,13 +5632,13 @@
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=44"></script>
   <script src="shared/divisibility-questions.js?v=5"></script>
-  <script src="shared/factors-multiples-questions.js?v=2"></script>
+  <script src="shared/factors-multiples-questions.js?v=3"></script>
   <script src="shared/decimal-questions.js?v=50"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=53"></script>
   <script src="divisibility-page.js?v=18"></script>
-  <script src="factors-multiples-page.js?v=2"></script>
+  <script src="factors-multiples-page.js?v=3"></script>
   <script src="decimal-page.js?v=19"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -6119,9 +6174,14 @@
       dom.fmRecentTitle = document.getElementById("fm-recent-title");
       dom.fmAnswerInput = document.getElementById("fm-answer-input");
       dom.fmAnswerInputRow = document.getElementById("fm-answer-input-row");
+      dom.fmAnswerForm = document.getElementById("fm-answer-form");
       dom.fmSoftKbdCard = document.getElementById("fm-soft-kbd-card");
       dom.fmChoiceRow = document.getElementById("fm-choice-row");
-      dom.fmHeaderHint = document.getElementById("fm-header-hint");
+      dom.fmGameCardChoice = document.getElementById("fm-game-card-choice");
+      dom.fmGameCardFill = document.getElementById("fm-game-card-fill");
+      dom.fmHeaderHintChoice = document.getElementById("fm-header-hint-choice");
+      dom.fmHeaderHintFill = document.getElementById("fm-header-hint-fill");
+      dom.fmFillQuestionText = document.getElementById("fm-fill-question-text");
 
       dom.decTimerValue = document.getElementById("dec-timer-value");
       dom.decProgressText = document.getElementById("dec-progress-text");
@@ -10765,6 +10825,8 @@
       setT("fm-lbl-level", "game.status.expandLevel");
       setT("fm-lbl-wrong", "game.status.expandWrong");
       setT("fm-lbl-difficulty", "ps.difficultyLabel");
+      setT("fm-header-hint-choice", "fm.headerHintChoice");
+      setT("fm-header-hint-fill", "fm.headerHintFill");
       setT("fm-start-btn", "game.btn.startChallenge");
       setT("fm-again-btn", "game.btn.playAgain");
       setT("fm-finish-title", "expand.end.title");

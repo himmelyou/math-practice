@@ -212,30 +212,52 @@
     const idle = document.getElementById("fm-panel-idle");
     const playing = document.getElementById("fm-panel-playing");
     const finished = document.getElementById("fm-panel-finished");
+    const playBody = document.getElementById("fm-play-body");
     if (idle) idle.style.display = mode === "idle" ? "" : "none";
     if (playing) playing.style.display = mode === "playing" ? "" : "none";
     if (finished) finished.style.display = mode === "finished" ? "" : "none";
+    if (mode !== "playing") {
+      if (playing) playing.classList.remove("fm-panel-playing--fill");
+      if (playBody) playBody.classList.remove("fm-play-body--kbd");
+      if (dom().fmSoftKbdCard) {
+        if (global.JmlSoftKeyboard && typeof global.JmlSoftKeyboard.setCardVisible === "function") {
+          global.JmlSoftKeyboard.setCardVisible(dom().fmSoftKbdCard, false);
+        } else {
+          dom().fmSoftKbdCard.style.display = "none";
+        }
+      }
+    }
   }
 
   function setFmAnswerSurface(kind) {
     const choice = kind === "choice";
-    if (dom().fmChoiceRow) dom().fmChoiceRow.style.display = choice ? "" : "none";
-    if (dom().fmAnswerInputRow) dom().fmAnswerInputRow.style.display = choice ? "none" : "";
+    const fill = !choice;
+    const playBody = document.getElementById("fm-play-body");
+    const panel = document.getElementById("fm-panel-playing");
+    if (dom().fmGameCardChoice) {
+      dom().fmGameCardChoice.style.display = choice ? "" : "none";
+    }
+    if (dom().fmGameCardFill) {
+      dom().fmGameCardFill.style.display = fill ? "" : "none";
+    }
+    if (panel) panel.classList.toggle("fm-panel-playing--fill", fill);
+    if (playBody) playBody.classList.toggle("fm-play-body--kbd", fill);
     if (dom().fmSoftKbdCard) {
       if (global.JmlSoftKeyboard && typeof global.JmlSoftKeyboard.setCardVisible === "function") {
-        global.JmlSoftKeyboard.setCardVisible(dom().fmSoftKbdCard, !choice);
+        global.JmlSoftKeyboard.setCardVisible(dom().fmSoftKbdCard, fill);
       } else {
-        dom().fmSoftKbdCard.style.display = choice ? "none" : "flex";
+        dom().fmSoftKbdCard.style.display = fill ? "flex" : "none";
       }
     }
-    if (!choice && dom().fmAnswerInput) {
+    if (fill && dom().fmAnswerInput) {
       dom().fmAnswerInput.value = "";
       dom().fmAnswerInput.disabled = false;
     }
-    if (dom().fmHeaderHint) {
-      dom().fmHeaderHint.textContent = choice
-        ? t("fm.headerHintChoice") || ""
-        : t("fm.headerHintFill") || "";
+    if (dom().fmHeaderHintChoice) {
+      dom().fmHeaderHintChoice.textContent = t("fm.headerHintChoice") || "";
+    }
+    if (dom().fmHeaderHintFill) {
+      dom().fmHeaderHintFill.textContent = t("fm.headerHintFill") || "";
     }
   }
 
@@ -557,13 +579,16 @@
     fmQuestionShownAt = Date.now();
     resetFmChoiceButtons();
     const promptEl = document.getElementById("fm-question-prompt");
+    const fillTextEl = document.getElementById("fm-fill-question-text");
     const btnA = document.getElementById("fm-btn-a");
     const btnB = document.getElementById("fm-btn-b");
 
     if (!q) {
       if (promptEl) promptEl.textContent = "—";
+      if (fillTextEl) fillTextEl.textContent = "—";
       if (btnA) btnA.textContent = "—";
       if (btnB) btnB.textContent = "—";
+      setFmAnswerSurface("choice");
       return;
     }
 
@@ -572,17 +597,18 @@
 
     const stem = q.promptStem || q.prompt || q.text || "—";
     const qNum = fmAnswered + 1;
-    if (promptEl) {
-      promptEl.textContent = tf("fm.questionNum", { n: qNum, stem: stem });
-    }
-
+    const labeled = tf("fm.questionNum", { n: qNum, stem: stem });
     if (fillIn) {
+      if (fillTextEl) fillTextEl.textContent = labeled;
+      if (promptEl) promptEl.textContent = "—";
       if (dom().fmAnswerInput) {
         dom().fmAnswerInput.value = "";
         dom().fmAnswerInput.disabled = false;
       }
       initFmSoftKeyboardIfNeeded();
     } else {
+      if (promptEl) promptEl.textContent = labeled;
+      if (fillTextEl) fillTextEl.textContent = "—";
       const optA =
         q.optionA != null
           ? q.optionA

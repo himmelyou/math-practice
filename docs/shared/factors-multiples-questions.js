@@ -1,8 +1,8 @@
 /**
  * 因数倍数 Y1–Y6 出题（先管理端打印）
- * Y1：哪个是 N 的因数？合数 N=4～100；(f,N) 同权；假选项按邻域扩圈（奇 N±2，偶 N±1）。
- * Y2：哪个是 K 的倍数？合数 K=4～50；m=K×t(t≥2)≤100；(m,K) 同权；
- *      假选项为 K 最大真因数 d 的倍数、但非 K 的倍数，且 K<w≤100。
+ * Y1/Y2 共用数对 (f,N)：合数 N=4～100，f 为真因数（≥2、<N），同权。
+ * Y1：哪个是 N 的因数？正解 f；假选项绕 f 邻域扩圈（奇 N±2，偶 N±1）。
+ * Y2：哪个是 f 的倍数？正解 N；假选项绕 N 邻域 ±1 扩圈（非 f 的倍数，f<w≤100）。
  * Y3/Y4 入门共用牌库：2≤a<b≤30 且 lcm≤100；三层 1:2:3；Y3 问 g，Y4 问 L。
  * Y5/Y6 进阶共用牌库：2≤a<b≤99 且 lcm≤100；三层 1:2:3；Y5 问 g，Y6 问 L。
  */
@@ -131,67 +131,44 @@
   }
 
   /**
-   * Y2 假选项：K < w ≤ 100，不是 K 的倍数；
-   * 优先「K 最大真因数 d 的倍数」中离 m 最近者。
+   * Y2 假选项：正解倍数为 m(=N)，底数为 k(=f)。
+   * f < w ≤ 100、≠m、不是 f 的倍数；从 m 邻域 ±1 扩圈，随机方向。
    */
   function buildY2Distractor(m, k) {
-    var d = largestProperDivisor(k);
-    if (d == null || d < 2) return null;
-
     function ok(w) {
       return w > k && w <= Y2_M_MAX && w !== m && !isFactor(k, w);
     }
-
-    var candidates = [];
-    var t;
+    var maxDist = Math.max(m - (k + 1), Y2_M_MAX - m);
+    var ring;
+    var d;
+    var dir;
     var w;
-    for (t = 1; d * t <= Y2_M_MAX; t += 1) {
-      w = d * t;
-      if (ok(w)) candidates.push(w);
+    for (ring = 1; ring <= maxDist + 1; ring += 1) {
+      d = ring;
+      dir = Math.random() < 0.5 ? 1 : -1;
+      w = m + dir * d;
+      if (ok(w)) return w;
+      w = m - dir * d;
+      if (ok(w)) return w;
     }
-    if (!candidates.length) return null;
-    candidates.sort(function (a, b) {
-      var da = Math.abs(a - m);
-      var db = Math.abs(b - m);
-      if (da !== db) return da - db;
-      return a - b;
-    });
-    return candidates[0];
+    return null;
   }
 
-  function buildY1Pool() {
+  /** Y1/Y2 共用：(factor, n)，仅保留两侧假选项都能生成的对。 */
+  function buildSharedFactorPool() {
     var pool = [];
     var n;
     var factors;
     var i;
     var f;
-    var wrong;
     for (n = 4; n <= 100; n += 1) {
       if (isPrime(n)) continue;
       factors = properFactors(n);
       for (i = 0; i < factors.length; i += 1) {
         f = factors[i];
-        wrong = buildY1Distractor(f, n);
-        if (wrong == null) continue;
-        pool.push({ n: n, factor: f, wrong: wrong });
-      }
-    }
-    return pool;
-  }
-
-  function buildY2Pool() {
-    var pool = [];
-    var k;
-    var t;
-    var m;
-    var wrong;
-    for (k = 4; k <= 50; k += 1) {
-      if (isPrime(k)) continue;
-      for (t = 2; k * t <= Y2_M_MAX; t += 1) {
-        m = k * t;
-        wrong = buildY2Distractor(m, k);
-        if (wrong == null) continue;
-        pool.push({ k: k, multiple: m, wrong: wrong });
+        if (buildY1Distractor(f, n) == null) continue;
+        if (buildY2Distractor(n, f) == null) continue;
+        pool.push({ n: n, factor: f });
       }
     }
     return pool;
@@ -228,8 +205,9 @@
     };
   }
 
-  var Y1_POOL = buildY1Pool();
-  var Y2_POOL = buildY2Pool();
+  var SHARED_FACTOR_POOL = buildSharedFactorPool();
+  var Y1_POOL = SHARED_FACTOR_POOL;
+  var Y2_POOL = SHARED_FACTOR_POOL;
   var INTRO_POOLS = buildPairPools(INTRO_B_MAX);
   var ADV_POOLS = buildPairPools(ADV_B_MAX);
 
@@ -265,9 +243,13 @@
   }
 
   function materializeY1(item) {
+    var wrong = buildY1Distractor(item.factor, item.n);
+    if (wrong == null) {
+      throw new Error("Y1 假选项生成失败: f=" + item.factor + " N=" + item.n);
+    }
     var correctFirst = Math.random() < 0.5;
-    var optA = correctFirst ? item.factor : item.wrong;
-    var optB = correctFirst ? item.wrong : item.factor;
+    var optA = correctFirst ? item.factor : wrong;
+    var optB = correctFirst ? wrong : item.factor;
     var answerLetter = correctFirst ? "A" : "B";
     var promptStem = "哪个是 " + item.n + " 的因数？";
     var text = promptStem + "  A. " + optA + "  B. " + optB;
@@ -280,7 +262,7 @@
       answer: answerLetter + "（" + item.factor + "）",
       answerLetter: answerLetter,
       correctValue: item.factor,
-      wrongValue: item.wrong,
+      wrongValue: wrong,
       n: item.n,
       factor: item.factor,
       baseLevelId: "Y1",
@@ -290,11 +272,17 @@
   }
 
   function materializeY2(item) {
+    var multiple = item.n;
+    var k = item.factor;
+    var wrong = buildY2Distractor(multiple, k);
+    if (wrong == null) {
+      throw new Error("Y2 假选项生成失败: f=" + k + " N=" + multiple);
+    }
     var correctFirst = Math.random() < 0.5;
-    var optA = correctFirst ? item.multiple : item.wrong;
-    var optB = correctFirst ? item.wrong : item.multiple;
+    var optA = correctFirst ? multiple : wrong;
+    var optB = correctFirst ? wrong : multiple;
     var answerLetter = correctFirst ? "A" : "B";
-    var promptStem = "哪个是 " + item.k + " 的倍数？";
+    var promptStem = "哪个是 " + k + " 的倍数？";
     var text = promptStem + "  A. " + optA + "  B. " + optB;
     return {
       text: text,
@@ -302,12 +290,14 @@
       promptStem: promptStem,
       optionA: optA,
       optionB: optB,
-      answer: answerLetter + "（" + item.multiple + "）",
+      answer: answerLetter + "（" + multiple + "）",
       answerLetter: answerLetter,
-      correctValue: item.multiple,
-      wrongValue: item.wrong,
-      k: item.k,
-      multiple: item.multiple,
+      correctValue: multiple,
+      wrongValue: wrong,
+      k: k,
+      multiple: multiple,
+      n: item.n,
+      factor: item.factor,
       baseLevelId: "Y2",
       op: "multiple",
       fillIn: false,
@@ -460,6 +450,7 @@
     LCM_CAP: LCM_CAP,
     INTRO_B_MAX: INTRO_B_MAX,
     ADV_B_MAX: ADV_B_MAX,
+    SHARED_FACTOR_POOL_SIZE: SHARED_FACTOR_POOL.length,
     Y1_POOL_SIZE: Y1_POOL.length,
     Y2_POOL_SIZE: Y2_POOL.length,
     INTRO_POOL_COPRIME_SIZE: INTRO_POOLS.coprime.length,
@@ -468,6 +459,7 @@
     ADV_POOL_COPRIME_SIZE: ADV_POOLS.coprime.length,
     ADV_POOL_PRIME_GCD_SIZE: ADV_POOLS.primeGcd.length,
     ADV_POOL_COMPOSITE_GCD_SIZE: ADV_POOLS.compositeGcd.length,
+    SHARED_FACTOR_POOL: SHARED_FACTOR_POOL,
     Y1_POOL: Y1_POOL,
     Y2_POOL: Y2_POOL,
     INTRO_POOLS: INTRO_POOLS,
