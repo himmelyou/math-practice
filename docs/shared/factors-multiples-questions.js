@@ -1,6 +1,7 @@
 /**
  * 因数倍数 Y1–Y6 出题（先管理端打印）
- * Y1/Y2 共用数对 (f,N)：合数 N=4～100，f 为真因数（≥2、<N），同权。
+ * Y1/Y2 共用数对 (f,N)：合数 N=4～100，f 为真因数（≥2、<N）。
+ * 抽题：先抽 count 个不同 f（f 同权），再在各自 (f,N) 中各抽 1 对；整卷打乱。
  * Y1：哪个是 N 的因数？正解 f；假选项绕 f 邻域扩圈（奇 N±2，偶 N±1）。
  * Y2：哪个是 f 的倍数？正解 N；假选项绕 N 邻域 ±1 扩圈（非 f 的倍数，f<w≤100）。
  * Y3/Y4 入门共用牌库：2≤a<b≤30 且 lcm≤100；三层 1:2:3；Y3 问 g，Y4 问 L。
@@ -208,6 +209,30 @@
   var SHARED_FACTOR_POOL = buildSharedFactorPool();
   var Y1_POOL = SHARED_FACTOR_POOL;
   var Y2_POOL = SHARED_FACTOR_POOL;
+
+  function indexSharedFactorPool(pool) {
+    var byF = {};
+    var i;
+    var item;
+    var f;
+    for (i = 0; i < pool.length; i += 1) {
+      item = pool[i];
+      f = item.factor;
+      if (!byF[f]) byF[f] = [];
+      byF[f].push(item);
+    }
+    var keys = Object.keys(byF)
+      .map(Number)
+      .sort(function (a, b) {
+        return a - b;
+      });
+    return { byF: byF, keys: keys };
+  }
+
+  var SHARED_FACTOR_INDEX = indexSharedFactorPool(SHARED_FACTOR_POOL);
+  var SHARED_FACTOR_BY_F = SHARED_FACTOR_INDEX.byF;
+  var SHARED_FACTOR_KEYS = SHARED_FACTOR_INDEX.keys;
+
   var INTRO_POOLS = buildPairPools(INTRO_B_MAX);
   var ADV_POOLS = buildPairPools(ADV_B_MAX);
 
@@ -385,12 +410,60 @@
     return shuffleArray(run);
   }
 
+  /**
+   * Y1/Y2：先抽不同 f（f 同权），再在该 f 的数对里各抽 1 题。
+   * count ≤ 不同 f 数时，一局内 f 互不重复。
+   */
+  function buildFactorBalancedRun(materialize, count, opts) {
+    count = Math.max(0, Math.floor(Number(count) || 0));
+    if (count === 0) return [];
+    opts = opts || {};
+    var keys = SHARED_FACTOR_KEYS;
+    var byF = SHARED_FACTOR_BY_F;
+    if (!keys.length) {
+      throw new Error("因数倍数牌库为空，无法出题");
+    }
+    var run = [];
+    var i;
+    var f;
+    var pairs;
+    var item;
+    var selected = [];
+
+    if (opts.keepOrder) {
+      var offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
+      for (i = 0; i < count; i += 1) {
+        f = keys[(offset + i) % keys.length];
+        pairs = byF[f];
+        item = pairs[(offset + i) % pairs.length];
+        run.push(materialize(item));
+      }
+      return run;
+    }
+
+    while (selected.length < count) {
+      var deck = shuffleArray(keys);
+      var take = Math.min(deck.length, count - selected.length);
+      for (i = 0; i < take; i += 1) {
+        selected.push(deck[i]);
+      }
+    }
+
+    for (i = 0; i < selected.length; i += 1) {
+      f = selected[i];
+      pairs = byF[f];
+      item = pairs[randomInt(0, pairs.length - 1)];
+      run.push(materialize(item));
+    }
+    return shuffleArray(run);
+  }
+
   function buildRun(levelIndex, count, opts) {
     levelIndex = clampLevelIndex(levelIndex);
     if (count == null || count === "") count = QUESTIONS_PER_RUN;
     count = Math.max(0, Math.floor(Number(count) || 0));
-    if (levelIndex === 0) return buildPoolRun(Y1_POOL, materializeY1, count, opts);
-    if (levelIndex === 1) return buildPoolRun(Y2_POOL, materializeY2, count, opts);
+    if (levelIndex === 0) return buildFactorBalancedRun(materializeY1, count, opts);
+    if (levelIndex === 1) return buildFactorBalancedRun(materializeY2, count, opts);
     if (levelIndex === 2) {
       return buildStratifiedPairRun(
         INTRO_POOLS,
@@ -451,6 +524,7 @@
     INTRO_B_MAX: INTRO_B_MAX,
     ADV_B_MAX: ADV_B_MAX,
     SHARED_FACTOR_POOL_SIZE: SHARED_FACTOR_POOL.length,
+    SHARED_FACTOR_KEY_COUNT: SHARED_FACTOR_KEYS.length,
     Y1_POOL_SIZE: Y1_POOL.length,
     Y2_POOL_SIZE: Y2_POOL.length,
     INTRO_POOL_COPRIME_SIZE: INTRO_POOLS.coprime.length,
@@ -460,6 +534,8 @@
     ADV_POOL_PRIME_GCD_SIZE: ADV_POOLS.primeGcd.length,
     ADV_POOL_COMPOSITE_GCD_SIZE: ADV_POOLS.compositeGcd.length,
     SHARED_FACTOR_POOL: SHARED_FACTOR_POOL,
+    SHARED_FACTOR_BY_F: SHARED_FACTOR_BY_F,
+    SHARED_FACTOR_KEYS: SHARED_FACTOR_KEYS,
     Y1_POOL: Y1_POOL,
     Y2_POOL: Y2_POOL,
     INTRO_POOLS: INTRO_POOLS,
