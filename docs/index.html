@@ -8200,6 +8200,19 @@
 
     function evaluateAbandonGate(mode, draft) {
       const snap = getAbandonRunSnapshot(mode, draft);
+      // 测试员不受「满5题禁弃」与「冷却翻倍/每日上限」限制
+      if (typeof isTesterUser === "function" && isTesterUser()) {
+        return {
+          ok: true,
+          reason: "",
+          waitMs: 0,
+          count: 0,
+          shortPractice: isAbandonShortPractice(snap),
+          skipCooldownRecord: true,
+          answered: snap.answered,
+          total: snap.total,
+        };
+      }
       if (isAbandonShortPractice(snap)) {
         if (snap.answered >= ABANDON_SHORT_LOCK_AFTER) {
           return {
