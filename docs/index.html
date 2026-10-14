@@ -4484,7 +4484,7 @@
               <span class="home-mode-label">整除</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-factors-multiples" style="display:none;">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-factors-multiples">
               <img class="home-mode-icon" src="assets/home/ic_challenge_3.png" width="28" height="28" alt="" />
               <span class="home-mode-label">因数倍数</span>
               <span class="home-mode-badge" aria-label="新功能">新</span>
@@ -8826,7 +8826,8 @@
     const buildExpandBracketsQuestion = (level) => JmlExpandBrackets.buildQuestion(level);
     const formatExpandedTerms = (terms) => JmlExpandBrackets.formatExpandedTerms(terms);
 
-    const TESTER_ONLY_HOME_MODE_IDS = ["mode-factors-multiples"];
+    /** 首页仅测试员可见的模式入口（当前无）；因数倍数已全员开放。 */
+    const TESTER_ONLY_HOME_MODE_IDS = [];
 
     function isTesterUser() {
       return !!(cachedUser && cachedUser.isTester === true);
