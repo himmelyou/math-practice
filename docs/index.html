@@ -669,10 +669,12 @@
     .group-head {
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 8px;
       margin: 0 0 10px;
       padding: 0 4px;
+    }
+    .group-head--with-action {
+      justify-content: space-between;
     }
     .group-head-main {
       display: flex;
@@ -4533,9 +4535,14 @@
         </section>
 
         <section class="mode-group">
-          <div class="group-head">
-            <img class="group-head-icon" src="assets/home/ic_tool.png" width="18" height="18" alt="" />
-            <div class="group-title" id="group-title-tools">工具与统计</div>
+          <div class="group-head group-head--with-action">
+            <div class="group-head-main">
+              <img class="group-head-icon" src="assets/home/ic_tool.png" width="18" height="18" alt="" />
+              <div class="group-title" id="group-title-tools">工具与统计</div>
+            </div>
+            <button type="button" id="home-monthly-report-btn" class="home-pill-btn home-pill-btn--primary" hidden>
+              <span id="home-monthly-report-btn-label">月度报告</span>
+            </button>
           </div>
           <div class="mode-list">
             <button type="button" class="mode-btn home-mode-card mode-btn-wrongbook" id="mode-wrongbook">
@@ -8861,7 +8868,23 @@
         el.classList.remove("mode-btn-soon", "mode-btn-locked");
         el.removeAttribute("aria-disabled");
       });
+      syncMonthlyReportEntryVisibility();
       scheduleHomeTopBreathe();
+    }
+
+    function syncMonthlyReportEntryVisibility() {
+      const btn = document.getElementById("home-monthly-report-btn");
+      if (!btn) return;
+      btn.hidden = !isTesterUser();
+      if (!btn.hidden) {
+        setTextById("home-monthly-report-btn-label", "home.btn.monthlyReport");
+        btn.setAttribute("aria-label", t("home.btn.monthlyReport"));
+      }
+    }
+
+    function handleMonthlyReportEntryClick() {
+      if (!isTesterUser()) return;
+      showToast(t("toast.monthlyReportPlaceholder"));
     }
 
     /** 成就墙：登录学员与游客首页均显示入口（游客点击需登录）。 */
@@ -9970,6 +9993,8 @@
         "home.btn.backHome": "返回首頁",
         "home.btn.settings": "設置",
         "home.btn.dailyTasks": "每日任務",
+        "home.btn.monthlyReport": "月度報告",
+        "toast.monthlyReportPlaceholder": "月度報告開發中，敬請期待",
         "home.coach.dismiss": "知道了",
         "home.coach.grade.body": "先選一下年級，我才能給你合適的練習。",
         "home.coach.grade.cta": "去選年級",
@@ -10486,6 +10511,8 @@
         "home.btn.backHome": "Home",
         "home.btn.settings": "Settings",
         "home.btn.dailyTasks": "Daily tasks",
+        "home.btn.monthlyReport": "Monthly report",
+        "toast.monthlyReportPlaceholder": "Monthly report is coming soon",
         "home.coach.dismiss": "Got it",
         "home.coach.grade.body": "Pick a grade first so I can suggest the right practice.",
         "home.coach.grade.cta": "Choose grade",
@@ -11273,6 +11300,7 @@
       setTextById("group-title-special", "home.group.special");
       setTextById("group-title-number-sense", "home.group.numberSense");
       setTextById("group-title-tools", "home.group.tools");
+      syncMonthlyReportEntryVisibility();
       setHomeModeLabel("mode-level", "home.mode.level");
       setHomeModeLabel("mode-practice", "home.mode.training");
       setHomeModeLabel("mode-survival", "home.mode.survival");
@@ -17921,6 +17949,8 @@
       if (globalBackHomeBtn) globalBackHomeBtn.addEventListener("click", globalBackToHome);
       const homeDailyTaskBtn = document.getElementById("home-daily-task-btn");
       if (homeDailyTaskBtn) homeDailyTaskBtn.addEventListener("click", handleDailyTaskEntryClick);
+      const homeMonthlyReportBtn = document.getElementById("home-monthly-report-btn");
+      if (homeMonthlyReportBtn) homeMonthlyReportBtn.addEventListener("click", handleMonthlyReportEntryClick);
       const homeCoachCta = document.getElementById("home-coach-float-cta");
       if (homeCoachCta) homeCoachCta.addEventListener("click", handleHomeCoachCta);
       const homeCoachDismiss = document.getElementById("home-coach-float-dismiss");
