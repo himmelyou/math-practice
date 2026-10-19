@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.25：闯关合格线取历史最高与热图连续 95% 顶的 max，不就低。
- * 黄橙洞分加剩余步×10。准度任务本局 ≥95%。不整单重排。
+ * 练习建议 v0.26：速度任务达标线改为本局均速 ≤ 开单基线（不再 ×0.92）。
+ * 对照 timePct 步长为 0。闯关合格线 max 等同 v0.25。不整单重排。
  */
 (function (root) {
-  var RULE_VERSION = "0.25-provisional";
+  var RULE_VERSION = "0.26-provisional";
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -24,9 +24,9 @@
   var HOLE_FOUNDATION_STEP = 10;
   /** Q6 已废：准度不再小步。常量仅兼容旧输出字段。 */
   var ACC_STEP = 0.015;
-  /** Q7：速度小步：任务窗均速 ≤ 基线 × 此系数；对照 timePct −10 */
-  var SPEED_RATIO = 0.92;
-  var SPEED_TIME_PCT_STEP = 10;
+  /** Q7：速度任务：本局均速 ≤ 基线 × 此系数；对照 timePct − 步长（现为达均速） */
+  var SPEED_RATIO = 1;
+  var SPEED_TIME_PCT_STEP = 0;
   /** 成功验收最少样本 */
   var MIN_SUCCESS_GAMES = 2;
   var MIN_SUCCESS_ITEMS = 20;
@@ -793,14 +793,12 @@
       if (baseP != null && baseP + 1e-9 >= HEAT_P_YELLOW) {
         t.successKind = "speed_step";
         t.targetP = null;
-        if (t.targetAvgSec == null) {
-          var spdT = applySpeedTargets({
-            avgSec: t.baseline && t.baseline.avgSec,
-            timePct: t.baseline && t.baseline.timePct,
-          });
-          t.targetTimePct = spdT.targetTimePct;
-          t.targetAvgSec = spdT.targetAvgSec;
-        }
+        var spdT = applySpeedTargets({
+          avgSec: t.baseline && t.baseline.avgSec,
+          timePct: t.baseline && t.baseline.timePct,
+        });
+        t.targetTimePct = spdT.targetTimePct;
+        if (spdT.targetAvgSec != null) t.targetAvgSec = spdT.targetAvgSec;
         return;
       }
       t.successKind = "acc_step";
@@ -1628,7 +1626,7 @@
       var tp = task.targetTimePct != null ? Math.round(task.targetTimePct) : null;
       return (
         "成功：本局均速 ≤ " +
-        (sec != null ? sec + "s" : "开单均速的 92%") +
+        (sec != null ? sec + "s" : "开单均速") +
         "，且本局准度 ≥ " +
         pctText(HEAT_P_YELLOW) +
         (tp != null ? "（对照 timePct→" + tp + "）" : "")
@@ -1675,7 +1673,7 @@
     }
     if (task.successKind === "speed_step") {
       var sec = roundSec(task.targetAvgSec);
-      return "均速迈一小步" + (sec != null ? "（≤" + sec + "s）" : "") + "，且准≥" + pctText(HEAT_P_YELLOW);
+      return "达到均速" + (sec != null ? "（≤" + sec + "s）" : "") + "，且准≥" + pctText(HEAT_P_YELLOW);
     }
     return "本局准度 ≥" + pctText(HEAT_P_YELLOW) + " 即成功";
   }
@@ -1844,7 +1842,7 @@
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：历史最高与热图连续准≥95%顶取 max（不计分位）；目标 Ln 须通过 Ln。无历史且 L1 不够 95% 时目标仍是 L1。不因热图变差把目标降到低于历史",
       "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
-      "Q7 速度小步暂定本局均速 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且本局准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%。训练成功按本局判，不再多局平均",
+      "Q7 速度任务：本局均速 ≤ 基线 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且本局准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%。训练成功按本局判，不再多局平均",
       "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
       "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
       "Q10 一条队列：未完成最多 " +
