@@ -1840,7 +1840,7 @@ function createRankingLookupContext(req) {
         const u = userByName[payload.username];
         rankingFullList = !!(u && u.isTester === true);
       }
-    } catch (e) {
+  } catch (e) {
       rankingFullList = false;
     }
   }
@@ -2891,8 +2891,8 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     // 增量维护连击：放弃局（comboOnly）也计入
     bumpUserComboFromAttempts(u, runEntry.attempts);
     if (!comboOnly) {
-      u.lastGameTs = runEntry.ts;
-      u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+    u.lastGameTs = runEntry.ts;
+    u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
       achievementEngine.bumpAchievementStatsFromRun(u, runEntry);
       // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
       bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));

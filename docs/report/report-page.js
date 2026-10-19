@@ -1545,17 +1545,17 @@
             }
           }
           if (needSort) {
-            runs.sort(function (a, b) {
-              return (b.ts || 0) - (a.ts || 0);
-            });
+        runs.sort(function (a, b) {
+          return (b.ts || 0) - (a.ts || 0);
+        });
           }
         }
         state.runs = runs;
         state.userDetail = data && data.user ? data.user : null;
         state.statsBuiltFor = '';
-        state.agg = null;
+          state.agg = null;
         state.aggByCategory = {};
-        state.chartModel = null;
+          state.chartModel = null;
         state.heat = null;
         state.heatByCategory = {};
         state.practiceAdvice = null;
@@ -1580,7 +1580,7 @@
             if (state.selectedUsername !== u) return;
             if (activeTabId() === 'stats') {
               ensureStudentStatsBuilt();
-              renderStatsPanel();
+        renderStatsPanel();
               redrawAllStatsCharts();
             }
             return ok;
@@ -2115,7 +2115,7 @@
             (w.levelIndex != null && Number.isFinite(Number(w.levelIndex))
               ? ' · L' + (Number(w.levelIndex) + 1)
               : '');
-          return (
+    return (
             '<li class="jml-wrong-item">' +
             '<div class="expr">' +
             escapeHtml(prompt || '（无题干）') +
@@ -3374,7 +3374,7 @@
         })
         .catch(function () {
           /* loadUserList 已 showGlobalError */
-        });
+      });
     },
   };
 })();

@@ -669,9 +669,16 @@
     .group-head {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
       margin: 0 0 10px;
       padding: 0 4px;
+    }
+    .group-head-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
     }
     .group-head-icon {
       flex-shrink: 0;
@@ -684,6 +691,15 @@
       color: #546e7a;
       font-size: 0.9375rem;
       letter-spacing: 0.02em;
+    }
+    #home-monthly-report-btn {
+      flex-shrink: 0;
+      font-size: 0.8125rem;
+      padding: 4px 10px;
+      min-height: 28px;
+    }
+    #home-monthly-report-btn[hidden] {
+      display: none !important;
     }
     .group-rules { display: none; }
     .group-rule { display: none; }
