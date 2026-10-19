@@ -2627,7 +2627,8 @@
       box-sizing: border-box;
     }
     .stats-heatmap-scroll {
-      flex: 1;
+      /* 按内容高度；窗口不够时再缩小并内部滚动，避免高屏把折线撑到最底 */
+      flex: 0 1 auto;
       min-height: 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
