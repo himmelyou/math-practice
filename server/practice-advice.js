@@ -45,7 +45,7 @@
   var STORE_FULL_HISTORY = true;
   /** 冲榜闯关：每关按 10 题均速加总，再乘开销；预估须 ≤ 纪录 × 此系数 */
   var SCAN_CLEAR_ITEMS = 10;
-  var SCAN_CLEAR_OVERHEAD = 1.2;
+  var SCAN_CLEAR_OVERHEAD = 1.1;
   var SCAN_CLEAR_IMPROVE = 0.85;
   var MAX_EVENTS = 40;
   var PLAY_MODES = {
@@ -412,7 +412,9 @@
       copy:
         "预估全通 " +
         formatAdviceClock(estimateSec) +
-        "（每关10题×1.2）" +
+        "（每关10题×" +
+        SCAN_CLEAR_OVERHEAD +
+        "）" +
         (recordSec != null
           ? " · 纪录 " +
             formatAdviceClock(recordSec) +
