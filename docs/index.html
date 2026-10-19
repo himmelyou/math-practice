@@ -2430,9 +2430,10 @@
       line-height: 1.15;
       color: rgba(96, 125, 139, 0.85);
     }
-
-    .home-section.hidden + .app-home-version {
-      display: none;
+    /* 版本号属于首页：钉在 home-section 底部，随首页一起显隐 */
+    .home-section > .app-home-version {
+      margin-top: auto;
+      padding-bottom: 2px;
     }
 
     .home-total-score {
@@ -4547,6 +4548,8 @@
           </div>
         </section>
       </div>
+      <p class="app-home-version" id="app-home-version"></p>
+      <script>if (window.applyJmlAppVersionText) window.applyJmlAppVersionText();</script>
     </section>
     <aside
       class="home-coach-float"
@@ -4564,8 +4567,6 @@
         </button>
       </div>
     </aside>
-    <p class="app-home-version" id="app-home-version"></p>
-    <script>if (window.applyJmlAppVersionText) window.applyJmlAppVersionText();</script>
 
     <section class="daily-task-section" id="daily-task-section" style="display:none;" hidden>
       <div class="daily-task-header">
@@ -8872,8 +8873,7 @@
       const app = document.getElementById("app-view");
       const homeSection = document.getElementById("home-section");
       const header = app ? app.querySelector(".app-header") : null;
-      const version = document.getElementById("app-home-version");
-      if (!app || !homeSection || !header || !version) return;
+      if (!app || !homeSection || !header) return;
       if (app.style.display === "none" || homeSection.classList.contains("hidden")) {
         clearHomeTopBreathe();
         return;
@@ -8888,8 +8888,8 @@
       const available = app.clientHeight;
       const padBottom = parseFloat(getComputedStyle(app).paddingBottom) || 4;
       const homeMarginTop = parseFloat(getComputedStyle(homeSection).marginTop) || 0;
-      const contentH =
-        header.offsetHeight + homeMarginTop + homeSection.offsetHeight + version.offsetHeight;
+      /* 版本号已在 home-section 内，offsetHeight 已含版本 */
+      const contentH = header.offsetHeight + homeMarginTop + homeSection.offsetHeight;
       const slack =
         available - HOME_TOP_BREATHE_BASE_PX - padBottom - contentH - HOME_TOP_BREATHE_SAFETY_PX;
 
