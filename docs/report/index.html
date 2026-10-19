@@ -17,7 +17,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>学员数据 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css?v=2" />
-  <link rel="stylesheet" href="report-page.css?v=55" />
+  <link rel="stylesheet" href="report-page.css?v=56" />
 </head>
 <body>
   <div id="report-gate-root"></div>
@@ -68,6 +68,7 @@
         <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
         <button type="button" class="jml-tab" data-tab="div-wrong" role="tab">整除错题本</button>
         <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
+        <button type="button" class="jml-tab" data-tab="monthly-report" role="tab">月度报告</button>
         <button type="button" class="jml-tab" data-tab="train-debug" role="tab">训练选关Debug</button>
       </div>
 
@@ -92,8 +93,28 @@
       <div id="panel-stats" class="jml-tab-panel hidden" data-panel="stats" role="tabpanel">
         <div id="jml-report-stats-body"></div>
       </div>
+      <div id="panel-monthly-report" class="jml-tab-panel hidden" data-panel="monthly-report" role="tabpanel">
+        <div id="jml-report-monthly-body"></div>
+      </div>
       <div id="panel-train-debug" class="jml-tab-panel hidden" data-panel="train-debug" role="tabpanel">
         <div id="jml-report-train-debug-body"></div>
+      </div>
+
+      <div id="jml-monthly-report-view-overlay" class="jml-monthly-report-overlay" hidden>
+        <div class="jml-monthly-report-dialog" role="dialog" aria-modal="true" aria-labelledby="jml-monthly-report-view-title">
+          <div class="jml-monthly-report-dialog-head">
+            <h3 id="jml-monthly-report-view-title">月度报告</h3>
+            <button type="button" class="jml-btn" id="jml-monthly-report-view-close">关闭</button>
+          </div>
+          <p class="jml-monthly-report-view-status" id="jml-monthly-report-view-status"></p>
+          <div class="jml-monthly-report-view-preview">
+            <img id="jml-monthly-report-view-img" alt="" />
+          </div>
+          <div class="jml-monthly-report-view-actions">
+            <button type="button" class="jml-btn" id="jml-monthly-report-view-regen" hidden>重新生成</button>
+            <button type="button" class="jml-btn" id="jml-monthly-report-view-download">下载</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -109,10 +130,11 @@
   </script>
   <script src="../shared/admin-auth.js?v=21"></script>
   <script src="../shared/stats-i18n-pack.js?v=77"></script>
+  <script src="../shared/monthly-report-fake.js?v=1"></script>
   <script src="../stats-aggregate-browser.js?v=53"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=96"></script>
+  <script src="report-page.js?v=97"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

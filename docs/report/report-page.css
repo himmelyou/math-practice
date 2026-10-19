@@ -999,6 +999,134 @@
   font-size: 14px;
 }
 
+.jml-monthly-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.jml-monthly-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #cfd8dc;
+  border-radius: 10px;
+  background: #fff;
+}
+.jml-monthly-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.jml-monthly-link {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: #1565c0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  word-break: break-all;
+}
+.jml-monthly-link:hover {
+  color: #0d47a1;
+}
+.jml-monthly-meta {
+  font-size: 12px;
+  color: #78909c;
+}
+.jml-monthly-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.jml-monthly-badge--unread {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+.jml-monthly-badge--read {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.jml-monthly-badge--missing {
+  background: #eceff1;
+  color: #607d8b;
+}
+.jml-monthly-report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.jml-monthly-report-overlay[hidden] {
+  display: none !important;
+}
+.jml-monthly-report-dialog {
+  width: min(480px, 96vw);
+  max-height: min(92vh, 920px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.22);
+}
+.jml-monthly-report-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.jml-monthly-report-dialog-head h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1565c0;
+}
+.jml-monthly-report-view-status {
+  margin: 0;
+  font-size: 13px;
+  color: #78909c;
+  min-height: 1.2em;
+}
+.jml-monthly-report-view-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid #cfd8dc;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px;
+}
+.jml-monthly-report-view-preview img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  background: #fff;
+}
+.jml-monthly-report-view-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .jml-train-debug {
   display: flex;
   flex-direction: column;

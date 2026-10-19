@@ -1,5 +1,5 @@
 /**
- * 学员数据页：挑战记录 / 错题本 / 数据分析
+ * 学员数据页：挑战记录 / 错题本 / 数据分析 / 月度报告
  */
 (function () {
   var LEVEL_NAMES = [
@@ -152,6 +152,17 @@
     serverTrainingPick: null,
     /** 小数/平方数/整除下一关（admin category-next-levels） */
     serverCategoryNext: null,
+    monthlyReports: [],
+    monthlyReportsLatest: '',
+    monthlyReportsError: '',
+    monthlyReportsLoading: false,
+    monthlyView: {
+      monthKey: '',
+      fileName: '',
+      dataUrl: '',
+      canForce: false,
+      busy: false,
+    },
   };
 
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
@@ -217,6 +228,10 @@
     }
     if (tab === 'train-debug') {
       if (state.selectedUsername) void loadTrainDebug(false);
+      return;
+    }
+    if (tab === 'monthly-report') {
+      if (state.selectedUsername) void loadMonthlyReports();
       return;
     }
     if (tab === 'overview') {
@@ -797,6 +812,9 @@
     if (next === 'task-history') {
       renderTaskHistoryPanel();
     }
+    if (next === 'monthly-report') {
+      void loadMonthlyReports();
+    }
   }
 
   function redrawAllStatsCharts() {
@@ -1251,13 +1269,233 @@
     state.practiceAdvice = null;
     state.practiceAdviceError = '';
     state.practiceAdviceLoading = false;
+    state.monthlyReports = [];
+    state.monthlyReportsLatest = '';
+    state.monthlyReportsError = '';
+    state.monthlyReportsLoading = false;
+    closeMonthlyReportView();
     renderRunsTable();
     renderTaskHistoryPanel();
     renderWrongBook();
     renderExpandWrongBook();
     renderDivisibilityWrongBook();
     renderStatsPanel();
+    renderMonthlyReportPanel();
     renderTrainDebugPlaceholder('请先选择学员');
+  }
+
+  function monthlyBadgeHtml(row) {
+    if (!row || !row.generated) {
+      return '<span class="jml-monthly-badge jml-monthly-badge--missing">未生成</span>';
+    }
+    if (row.read) {
+      return '<span class="jml-monthly-badge jml-monthly-badge--read">已读</span>';
+    }
+    return '<span class="jml-monthly-badge jml-monthly-badge--unread">未读</span>';
+  }
+
+  function renderMonthlyReportPanel() {
+    var el = document.getElementById('jml-report-monthly-body');
+    if (!el) return;
+    if (!state.selectedUsername) {
+      el.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
+      return;
+    }
+    if (state.monthlyReportsLoading && !state.monthlyReports.length) {
+      el.innerHTML = '<div class="jml-report-empty">月度报告加载中…</div>';
+      return;
+    }
+    if (state.monthlyReportsError && !state.monthlyReports.length) {
+      el.innerHTML =
+        '<div class="jml-report-empty">' + escapeHtml(state.monthlyReportsError) + '</div>';
+      return;
+    }
+    var rows = Array.isArray(state.monthlyReports) ? state.monthlyReports : [];
+    if (!rows.length) {
+      el.innerHTML = '<div class="jml-report-empty">暂无月度报告</div>';
+      return;
+    }
+    var html =
+      '<p class="jml-train-debug-hint">按月份倒序；点击标题查看（未生成则先画假数据并落盘）。管理端预览不计学员已读。仅上一完整月可强制重生。</p>' +
+      '<div class="jml-monthly-list">';
+    rows.forEach(function (row) {
+      var title = row.fileName || row.monthKey || '—';
+      var meta = row.generated
+        ? row.monthKey + (row.readAt ? ' · 学员已读' : ' · 学员未读')
+        : row.monthKey + ' · 点击生成';
+      html +=
+        '<div class="jml-monthly-row">' +
+        '<div class="jml-monthly-row-main">' +
+        '<button type="button" class="jml-monthly-link" data-monthly-open="' +
+        escapeHtml(row.monthKey) +
+        '">' +
+        escapeHtml(title) +
+        '</button>' +
+        '<div class="jml-monthly-meta">' +
+        escapeHtml(meta) +
+        '</div></div>' +
+        monthlyBadgeHtml(row) +
+        '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  function loadMonthlyReports() {
+    if (!state.selectedUsername) {
+      renderMonthlyReportPanel();
+      return Promise.resolve();
+    }
+    var u = state.selectedUsername;
+    state.monthlyReportsLoading = true;
+    state.monthlyReportsError = '';
+    renderMonthlyReportPanel();
+    return apiFetch('/api/admin/user/' + encodeURIComponent(u) + '/monthly-reports')
+      .then(function (data) {
+        if (state.selectedUsername !== u) return;
+        state.monthlyReportsLoading = false;
+        state.monthlyReports = Array.isArray(data.reports) ? data.reports : [];
+        state.monthlyReportsLatest = data.latestClosedMonthKey || '';
+        state.monthlyReportsError = '';
+        renderMonthlyReportPanel();
+      })
+      .catch(function (e) {
+        if (state.selectedUsername !== u) return;
+        state.monthlyReportsLoading = false;
+        state.monthlyReports = [];
+        state.monthlyReportsError = (e && e.message) || '月度报告加载失败';
+        renderMonthlyReportPanel();
+      });
+  }
+
+  function closeMonthlyReportView() {
+    var overlay = document.getElementById('jml-monthly-report-view-overlay');
+    if (overlay) overlay.hidden = true;
+    state.monthlyView.monthKey = '';
+    state.monthlyView.fileName = '';
+    state.monthlyView.dataUrl = '';
+    state.monthlyView.canForce = false;
+    state.monthlyView.busy = false;
+  }
+
+  function paintMonthlyReportView() {
+    var title = document.getElementById('jml-monthly-report-view-title');
+    var status = document.getElementById('jml-monthly-report-view-status');
+    var img = document.getElementById('jml-monthly-report-view-img');
+    var regen = document.getElementById('jml-monthly-report-view-regen');
+    if (title) title.textContent = state.monthlyView.fileName || '月度报告';
+    if (status) {
+      status.textContent = state.monthlyView.monthKey
+        ? state.monthlyView.monthKey + '（管理端预览不计已读）'
+        : '';
+    }
+    if (img) {
+      img.src = state.monthlyView.dataUrl || '';
+      img.alt = state.monthlyView.fileName || '';
+    }
+    if (regen) regen.hidden = !state.monthlyView.canForce;
+  }
+
+  function ensureMonthlyReportForAdmin(monthKey, force) {
+    var Fake = window.JmlMonthlyReportFake;
+    if (!Fake || typeof Fake.renderFakeReportPng !== 'function') {
+      return Promise.reject(new Error('假报告生成器未加载'));
+    }
+    var u = state.selectedUsername;
+    if (!u) return Promise.reject(new Error('未选择学员'));
+    var statusEl = document.getElementById('jml-monthly-report-view-status');
+    function setStatus(msg) {
+      if (statusEl) statusEl.textContent = msg || '';
+    }
+    if (!force) {
+      return apiFetch(
+        '/api/admin/user/' +
+          encodeURIComponent(u) +
+          '/monthly-reports/' +
+          encodeURIComponent(monthKey) +
+          '/image'
+      )
+        .then(function (imgData) {
+          state.monthlyView.dataUrl = 'data:image/png;base64,' + imgData.imageBase64;
+          state.monthlyView.fileName = imgData.fileName || Fake.displayFileName(u, monthKey);
+          state.monthlyView.monthKey = monthKey;
+          state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+          return { created: false };
+        })
+        .catch(function () {
+          setStatus('正在生成报告…');
+          return Fake.renderFakeReportPng(u, monthKey).then(function (rendered) {
+            return apiFetch(
+              '/api/admin/user/' +
+                encodeURIComponent(u) +
+                '/monthly-reports/' +
+                encodeURIComponent(monthKey),
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
+                  force: false,
+                }),
+              }
+            ).then(function () {
+              state.monthlyView.dataUrl = rendered.dataUrl;
+              state.monthlyView.fileName = rendered.fileName;
+              state.monthlyView.monthKey = monthKey;
+              state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+              return { created: true };
+            });
+          });
+        });
+    }
+    setStatus('正在重新生成…');
+    return Fake.renderFakeReportPng(u, monthKey).then(function (rendered) {
+      return apiFetch(
+        '/api/admin/user/' +
+          encodeURIComponent(u) +
+          '/monthly-reports/' +
+          encodeURIComponent(monthKey),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
+            force: true,
+          }),
+        }
+      ).then(function () {
+        state.monthlyView.dataUrl = rendered.dataUrl;
+        state.monthlyView.fileName = rendered.fileName;
+        state.monthlyView.monthKey = monthKey;
+        state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+        return { created: true };
+      });
+    });
+  }
+
+  function openMonthlyReportView(monthKey) {
+    if (!monthKey || !state.selectedUsername || state.monthlyView.busy) return;
+    var overlay = document.getElementById('jml-monthly-report-view-overlay');
+    if (overlay) overlay.hidden = false;
+    state.monthlyView.busy = true;
+    state.monthlyView.monthKey = monthKey;
+    state.monthlyView.fileName = '';
+    state.monthlyView.dataUrl = '';
+    state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+    paintMonthlyReportView();
+    var statusEl = document.getElementById('jml-monthly-report-view-status');
+    if (statusEl) statusEl.textContent = '加载中…';
+    ensureMonthlyReportForAdmin(monthKey, false)
+      .then(function () {
+        paintMonthlyReportView();
+        return loadMonthlyReports();
+      })
+      .catch(function (e) {
+        if (statusEl) statusEl.textContent = (e && e.message) || '加载失败';
+      })
+      .then(function () {
+        state.monthlyView.busy = false;
+      });
   }
 
   function loadLevelCohort() {
@@ -1633,6 +1871,8 @@
           void fetchAndRenderTrainDebug();
         } else if (activeTabId() === 'task-history') {
           renderTaskHistoryPanel();
+        } else if (activeTabId() === 'monthly-report') {
+          void loadMonthlyReports();
         } else {
           var statsWrap = document.getElementById('jml-report-stats-body');
           if (statsWrap) {
@@ -1640,6 +1880,11 @@
               '<div class="jml-report-empty">切换到「数据分析」时再计算热图与图表</div>';
           }
           renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取服务器选关');
+          var monthlyWrap = document.getElementById('jml-report-monthly-body');
+          if (monthlyWrap) {
+            monthlyWrap.innerHTML =
+              '<div class="jml-report-empty">切换到「月度报告」时再加载列表</div>';
+          }
         }
       })
       .catch(function (e) {
@@ -3065,6 +3310,60 @@
             window.prompt('复制以下 JSON', text);
           }
         }
+      });
+    }
+    var monthlyBody = document.getElementById('jml-report-monthly-body');
+    if (monthlyBody && !monthlyBody.dataset.monthlyBound) {
+      monthlyBody.dataset.monthlyBound = '1';
+      monthlyBody.addEventListener('click', function (ev) {
+        var btn = ev.target && ev.target.closest ? ev.target.closest('[data-monthly-open]') : null;
+        if (!btn || !monthlyBody.contains(btn)) return;
+        openMonthlyReportView(btn.getAttribute('data-monthly-open') || '');
+      });
+    }
+    var monthlyClose = document.getElementById('jml-monthly-report-view-close');
+    if (monthlyClose && !monthlyClose.dataset.bound) {
+      monthlyClose.dataset.bound = '1';
+      monthlyClose.addEventListener('click', closeMonthlyReportView);
+    }
+    var monthlyOverlay = document.getElementById('jml-monthly-report-view-overlay');
+    if (monthlyOverlay && !monthlyOverlay.dataset.bound) {
+      monthlyOverlay.dataset.bound = '1';
+      monthlyOverlay.addEventListener('click', function (ev) {
+        if (ev.target === monthlyOverlay) closeMonthlyReportView();
+      });
+    }
+    var monthlyDownload = document.getElementById('jml-monthly-report-view-download');
+    if (monthlyDownload && !monthlyDownload.dataset.bound) {
+      monthlyDownload.dataset.bound = '1';
+      monthlyDownload.addEventListener('click', function () {
+        if (!state.monthlyView.dataUrl) return;
+        var a = document.createElement('a');
+        a.href = state.monthlyView.dataUrl;
+        a.download = state.monthlyView.fileName || 'monthly-report.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+    }
+    var monthlyRegen = document.getElementById('jml-monthly-report-view-regen');
+    if (monthlyRegen && !monthlyRegen.dataset.bound) {
+      monthlyRegen.dataset.bound = '1';
+      monthlyRegen.addEventListener('click', function () {
+        if (!state.monthlyView.canForce || !state.monthlyView.monthKey || state.monthlyView.busy) return;
+        state.monthlyView.busy = true;
+        ensureMonthlyReportForAdmin(state.monthlyView.monthKey, true)
+          .then(function () {
+            paintMonthlyReportView();
+            return loadMonthlyReports();
+          })
+          .catch(function (e) {
+            var status = document.getElementById('jml-monthly-report-view-status');
+            if (status) status.textContent = (e && e.message) || '重新生成失败';
+          })
+          .then(function () {
+            state.monthlyView.busy = false;
+          });
       });
     }
     var overviewBody = document.getElementById('jml-report-overview-body');

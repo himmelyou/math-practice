@@ -703,6 +703,59 @@
     #home-monthly-report-btn[hidden] {
       display: none !important;
     }
+    .monthly-report-modal {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 16px 14px;
+      width: min(420px, 94vw);
+      max-height: min(92vh, 900px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+    }
+    .monthly-report-modal h3 {
+      margin: 0;
+      font-size: 1rem;
+      color: #1a3f8f;
+    }
+    .monthly-report-modal-status {
+      margin: 0;
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+    .monthly-report-modal-preview {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 10px;
+      background: #f8fafc;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 8px;
+    }
+    .monthly-report-modal-preview img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 6px;
+      background: #fff;
+    }
+    .monthly-report-modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .monthly-report-modal-actions .login-btn {
+      margin: 0;
+      min-width: 0;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
     .group-rules { display: none; }
     .group-rule { display: none; }
     .mode-list {
@@ -5619,6 +5672,21 @@
     </div>
   </div>
 
+  <div id="monthly-report-modal-overlay" class="change-password-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="monthly-report-modal-title">
+    <div class="monthly-report-modal">
+      <h3 id="monthly-report-modal-title">月度报告</h3>
+      <p class="monthly-report-modal-status" id="monthly-report-modal-status"></p>
+      <div class="monthly-report-modal-preview">
+        <img id="monthly-report-modal-img" alt="" />
+      </div>
+      <div class="monthly-report-modal-actions">
+        <button type="button" class="login-btn btn-secondary" id="monthly-report-close-btn">关闭</button>
+        <button type="button" class="login-btn btn-secondary" id="monthly-report-regen-btn" hidden>重新生成</button>
+        <button type="button" class="login-btn" id="monthly-report-download-btn">下载</button>
+      </div>
+    </div>
+  </div>
+
   <div id="game-guide-modal-overlay" class="change-password-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="game-guide-modal-title">
     <div class="change-password-modal game-guide-modal">
       <div class="game-guide-modal-head">
@@ -5661,6 +5729,7 @@
   <script src="shared/factors-multiples-questions.js?v=3"></script>
   <script src="shared/decimal-questions.js?v=51"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
+  <script src="shared/monthly-report-fake.js?v=1"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
   <script src="divisibility-page.js?v=20"></script>
@@ -8882,9 +8951,172 @@
       }
     }
 
-    function handleMonthlyReportEntryClick() {
+    let monthlyReportModalState = {
+      monthKey: "",
+      fileName: "",
+      dataUrl: "",
+      busy: false,
+    };
+
+    function setMonthlyReportModalStatus(text) {
+      const el = document.getElementById("monthly-report-modal-status");
+      if (el) el.textContent = text || "";
+    }
+
+    function syncMonthlyReportModalI18n() {
+      setTextById("monthly-report-modal-title", "monthlyReport.modalTitle");
+      setTextById("monthly-report-close-btn", "monthlyReport.close");
+      setTextById("monthly-report-download-btn", "monthlyReport.download");
+      setTextById("monthly-report-regen-btn", "monthlyReport.regen");
+    }
+
+    function closeMonthlyReportModal() {
+      const overlay = document.getElementById("monthly-report-modal-overlay");
+      if (overlay) overlay.classList.remove("active");
+    }
+
+    function openMonthlyReportModalShell() {
+      syncMonthlyReportModalI18n();
+      const overlay = document.getElementById("monthly-report-modal-overlay");
+      const img = document.getElementById("monthly-report-modal-img");
+      const regen = document.getElementById("monthly-report-regen-btn");
+      if (img) {
+        img.removeAttribute("src");
+        img.alt = "";
+      }
+      if (regen) regen.hidden = true;
+      setMonthlyReportModalStatus(t("monthlyReport.loading"));
+      if (overlay) overlay.classList.add("active");
+    }
+
+    async function monthlyReportApi(path, options) {
+      const base = getApiBase();
+      if (!base) throw new Error("no_api");
+      const name = loadCurrentUsername();
+      if (!name) throw new Error("no_user");
+      const opts = options || {};
+      const headers = Object.assign({}, getAuthHeaders(), opts.headers || {});
+      if (opts.json) {
+        headers["Content-Type"] = "application/json";
+      }
+      const res = await fetch(base + "/api/user/" + encodeURIComponent(name) + path, {
+        credentials: "include",
+        method: opts.method || "GET",
+        headers: headers,
+        body: opts.json ? JSON.stringify(opts.json) : undefined,
+      });
+      const data = await res.json().catch(function () {
+        return null;
+      });
+      if (!res.ok || !data || data.ok === false) {
+        throw new Error((data && data.error) || res.statusText || "request_failed");
+      }
+      return data;
+    }
+
+    async function ensureMonthlyReportImage(force) {
+      const Fake = window.JmlMonthlyReportFake;
+      if (!Fake || typeof Fake.renderFakeReportPng !== "function") {
+        throw new Error("fake_renderer_missing");
+      }
+      const name = loadCurrentUsername();
+      const meta = await monthlyReportApi("/monthly-report/current");
+      const monthKey = meta.monthKey;
+      const report = meta.report || {};
+      monthlyReportModalState.monthKey = monthKey;
+      monthlyReportModalState.fileName = report.fileName || Fake.displayFileName(name, monthKey);
+
+      if (report.generated && !force) {
+        const imgData = await monthlyReportApi("/monthly-report/" + encodeURIComponent(monthKey) + "/image");
+        monthlyReportModalState.dataUrl = "data:image/png;base64," + imgData.imageBase64;
+        monthlyReportModalState.fileName = imgData.fileName || monthlyReportModalState.fileName;
+        return { monthKey: monthKey, report: report, created: false };
+      }
+
+      setMonthlyReportModalStatus(t("monthlyReport.generating"));
+      const rendered = await Fake.renderFakeReportPng(name, monthKey);
+      const saved = await monthlyReportApi("/monthly-report/current", {
+        method: "POST",
+        json: {
+          monthKey: monthKey,
+          imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
+          force: !!force,
+        },
+      });
+      monthlyReportModalState.dataUrl = rendered.dataUrl;
+      monthlyReportModalState.fileName = rendered.fileName || monthlyReportModalState.fileName;
+      return { monthKey: monthKey, report: saved.report || report, created: true };
+    }
+
+    async function markMonthlyReportRead() {
+      try {
+        await monthlyReportApi("/monthly-report/current/read", { method: "POST", json: {} });
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    function paintMonthlyReportModalImage() {
+      const img = document.getElementById("monthly-report-modal-img");
+      const regen = document.getElementById("monthly-report-regen-btn");
+      if (img && monthlyReportModalState.dataUrl) {
+        img.src = monthlyReportModalState.dataUrl;
+        img.alt = monthlyReportModalState.fileName || t("monthlyReport.modalTitle");
+      }
+      if (regen) regen.hidden = !isTesterUser();
+      const label = monthlyReportModalState.monthKey
+        ? t("monthlyReport.ready").replace("{month}", monthlyReportModalState.monthKey)
+        : t("monthlyReport.modalTitle");
+      setMonthlyReportModalStatus(label);
+    }
+
+    async function handleMonthlyReportEntryClick() {
       if (!isTesterUser()) return;
-      showToast(t("toast.monthlyReportPlaceholder"));
+      if (isGuestMode || !loadCurrentUsername()) {
+        showToast(t("toast.guestNeedLogin"));
+        return;
+      }
+      if (monthlyReportModalState.busy) return;
+      monthlyReportModalState.busy = true;
+      openMonthlyReportModalShell();
+      try {
+        await ensureMonthlyReportImage(false);
+        paintMonthlyReportModalImage();
+        await markMonthlyReportRead();
+      } catch (e) {
+        console.warn("monthly report", e);
+        setMonthlyReportModalStatus(t("monthlyReport.fail"));
+        showToast(t("monthlyReport.fail"));
+      } finally {
+        monthlyReportModalState.busy = false;
+      }
+    }
+
+    async function handleMonthlyReportRegenClick() {
+      if (!isTesterUser() || monthlyReportModalState.busy) return;
+      monthlyReportModalState.busy = true;
+      setMonthlyReportModalStatus(t("monthlyReport.generating"));
+      try {
+        await ensureMonthlyReportImage(true);
+        paintMonthlyReportModalImage();
+        showToast(t("monthlyReport.regenOk"));
+      } catch (e) {
+        console.warn("monthly report regen", e);
+        setMonthlyReportModalStatus(t("monthlyReport.fail"));
+        showToast(t("monthlyReport.fail"));
+      } finally {
+        monthlyReportModalState.busy = false;
+      }
+    }
+
+    function handleMonthlyReportDownloadClick() {
+      if (!monthlyReportModalState.dataUrl) return;
+      const a = document.createElement("a");
+      a.href = monthlyReportModalState.dataUrl;
+      a.download = monthlyReportModalState.fileName || "monthly-report.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
 
     /** 成就墙：登录学员与游客首页均显示入口（游客点击需登录）。 */
@@ -9995,6 +10227,15 @@
         "home.btn.dailyTasks": "每日任務",
         "home.btn.monthlyReport": "月度報告",
         "toast.monthlyReportPlaceholder": "月度報告開發中，敬請期待",
+        "monthlyReport.modalTitle": "月度報告",
+        "monthlyReport.close": "關閉",
+        "monthlyReport.download": "下載",
+        "monthlyReport.regen": "重新生成",
+        "monthlyReport.loading": "載入中…",
+        "monthlyReport.generating": "正在生成報告…",
+        "monthlyReport.ready": "{month}報告",
+        "monthlyReport.fail": "報告載入失敗，請稍後再試",
+        "monthlyReport.regenOk": "已重新生成",
         "home.coach.dismiss": "知道了",
         "home.coach.grade.body": "先選一下年級，我才能給你合適的練習。",
         "home.coach.grade.cta": "去選年級",
@@ -10513,6 +10754,15 @@
         "home.btn.dailyTasks": "Daily tasks",
         "home.btn.monthlyReport": "Monthly report",
         "toast.monthlyReportPlaceholder": "Monthly report is coming soon",
+        "monthlyReport.modalTitle": "Monthly report",
+        "monthlyReport.close": "Close",
+        "monthlyReport.download": "Download",
+        "monthlyReport.regen": "Regenerate",
+        "monthlyReport.loading": "Loading…",
+        "monthlyReport.generating": "Generating report…",
+        "monthlyReport.ready": "{month} report",
+        "monthlyReport.fail": "Could not load the report. Please try again.",
+        "monthlyReport.regenOk": "Report regenerated",
         "home.coach.dismiss": "Got it",
         "home.coach.grade.body": "Pick a grade first so I can suggest the right practice.",
         "home.coach.grade.cta": "Choose grade",
@@ -11301,6 +11551,7 @@
       setTextById("group-title-number-sense", "home.group.numberSense");
       setTextById("group-title-tools", "home.group.tools");
       syncMonthlyReportEntryVisibility();
+      syncMonthlyReportModalI18n();
       setHomeModeLabel("mode-level", "home.mode.level");
       setHomeModeLabel("mode-practice", "home.mode.training");
       setHomeModeLabel("mode-survival", "home.mode.survival");
@@ -17951,6 +18202,30 @@
       if (homeDailyTaskBtn) homeDailyTaskBtn.addEventListener("click", handleDailyTaskEntryClick);
       const homeMonthlyReportBtn = document.getElementById("home-monthly-report-btn");
       if (homeMonthlyReportBtn) homeMonthlyReportBtn.addEventListener("click", handleMonthlyReportEntryClick);
+      const monthlyReportCloseBtn = document.getElementById("monthly-report-close-btn");
+      if (monthlyReportCloseBtn) monthlyReportCloseBtn.addEventListener("click", closeMonthlyReportModal);
+      const monthlyReportDownloadBtn = document.getElementById("monthly-report-download-btn");
+      if (monthlyReportDownloadBtn) monthlyReportDownloadBtn.addEventListener("click", handleMonthlyReportDownloadClick);
+      const monthlyReportRegenBtn = document.getElementById("monthly-report-regen-btn");
+      if (monthlyReportRegenBtn) monthlyReportRegenBtn.addEventListener("click", handleMonthlyReportRegenClick);
+      const monthlyReportOverlay = document.getElementById("monthly-report-modal-overlay");
+      if (monthlyReportOverlay) {
+        monthlyReportOverlay.addEventListener("click", function (e) {
+          if (e.target === monthlyReportOverlay) closeMonthlyReportModal();
+        });
+      }
+      const monthlyReportCloseBtn = document.getElementById("monthly-report-close-btn");
+      if (monthlyReportCloseBtn) monthlyReportCloseBtn.addEventListener("click", closeMonthlyReportModal);
+      const monthlyReportDownloadBtn = document.getElementById("monthly-report-download-btn");
+      if (monthlyReportDownloadBtn) monthlyReportDownloadBtn.addEventListener("click", handleMonthlyReportDownloadClick);
+      const monthlyReportRegenBtn = document.getElementById("monthly-report-regen-btn");
+      if (monthlyReportRegenBtn) monthlyReportRegenBtn.addEventListener("click", handleMonthlyReportRegenClick);
+      const monthlyReportOverlay = document.getElementById("monthly-report-modal-overlay");
+      if (monthlyReportOverlay) {
+        monthlyReportOverlay.addEventListener("click", function (e) {
+          if (e.target === monthlyReportOverlay) closeMonthlyReportModal();
+        });
+      }
       const homeCoachCta = document.getElementById("home-coach-float-cta");
       if (homeCoachCta) homeCoachCta.addEventListener("click", handleHomeCoachCta);
       const homeCoachDismiss = document.getElementById("home-coach-float-dismiss");

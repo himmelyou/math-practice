@@ -33,6 +33,7 @@ const {
 } = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
 const { createPracticePlanStore } = require("./practice-plan-store");
+const { createMonthlyReportStore } = require("./monthly-report-store");
 const practicePlanService = require("./practice-plan-service");
 const {
   DIVISIBILITY_HEATMAP_LEVEL_COUNT,
@@ -401,6 +402,11 @@ const runsStore = createRunsStore({
   clearJsonCacheFor,
 });
 const practicePlanStore = createPracticePlanStore({
+  dataDir: DATA_DIR,
+  readJson,
+  writeJson,
+});
+const monthlyReportStore = createMonthlyReportStore({
   dataDir: DATA_DIR,
   readJson,
   writeJson,
@@ -2607,6 +2613,163 @@ app.post("/api/admin/user/:username/practice-plan", (req, res) => {
     return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
   }
   return res.json(adminPracticePlanPayload(out.advice));
+});
+
+function parsePngBase64(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return null;
+  const idx = s.indexOf("base64,");
+  if (idx >= 0) s = s.slice(idx + 7);
+  try {
+    const buf = Buffer.from(s, "base64");
+    if (!buf.length || buf.length > 8 * 1024 * 1024) return null;
+    if (buf[0] !== 0x89 || buf[1] !== 0x50) return null;
+    return buf;
+  } catch (e) {
+    return null;
+  }
+}
+
+function monthlyReportPublicEntry(username, monthKey) {
+  return monthlyReportStore.statusFor(username, monthKey);
+}
+
+/** 学员：上一完整月报告元信息 */
+app.get("/api/user/:username/monthly-report/current", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const monthKey = monthlyReportStore.latestClosedMonthKey();
+  if (!monthKey) {
+    return res.status(500).json({ ok: false, error: "无法解析报告月份" });
+  }
+  return res.json({
+    ok: true,
+    monthKey,
+    monthLabelZh: monthlyReportStore.monthLabelZh(monthKey),
+    report: monthlyReportPublicEntry(username, monthKey),
+  });
+});
+
+/** 学员：上传/生成当前月报告图（假数据阶段由客户端画布上传） */
+app.post("/api/user/:username/monthly-report/current", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const monthKey = monthlyReportStore.latestClosedMonthKey();
+  const force = !!(req.body && req.body.force);
+  const bodyMonth = req.body && req.body.monthKey ? String(req.body.monthKey) : "";
+  if (bodyMonth && bodyMonth !== monthKey) {
+    return res.status(400).json({ ok: false, error: "学员端只能生成上一完整月报告", monthKey });
+  }
+  const buf = parsePngBase64(req.body && (req.body.imageBase64 || req.body.dataUrl));
+  if (!buf) {
+    return res.status(400).json({ ok: false, error: "缺少有效 PNG" });
+  }
+  const saved = monthlyReportStore.saveImage(username, monthKey, buf, { force });
+  if (!saved.ok) {
+    return res.status(400).json({ ok: false, error: saved.error || "保存失败", latestClosedMonthKey: saved.latestClosedMonthKey });
+  }
+  return res.json({
+    ok: true,
+    existed: !!saved.existed,
+    monthKey,
+    report: monthlyReportPublicEntry(username, monthKey),
+  });
+});
+
+/** 学员：标记当前月报告已读 */
+app.post("/api/user/:username/monthly-report/current/read", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const monthKey = monthlyReportStore.latestClosedMonthKey();
+  const out = monthlyReportStore.markRead(username, monthKey);
+  if (!out.ok) {
+    return res.status(400).json({ ok: false, error: out.error || "标记失败" });
+  }
+  return res.json({ ok: true, report: monthlyReportPublicEntry(username, monthKey) });
+});
+
+/** 学员：获取某月报告 PNG（base64） */
+app.get("/api/user/:username/monthly-report/:monthKey/image", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username, monthKey } = req.params;
+  const latest = monthlyReportStore.latestClosedMonthKey();
+  if (String(monthKey) !== latest) {
+    return res.status(403).json({ ok: false, error: "学员端仅可查看上一完整月报告" });
+  }
+  const buf = monthlyReportStore.readImageBuffer(username, monthKey);
+  if (!buf) {
+    return res.status(404).json({ ok: false, error: "报告尚未生成" });
+  }
+  return res.json({
+    ok: true,
+    monthKey,
+    fileName: monthlyReportStore.displayFileName(username, monthKey),
+    contentType: "image/png",
+    imageBase64: buf.toString("base64"),
+  });
+});
+
+/** 管理员：月报列表（新月在上；含未生成的上一完整月） */
+app.get("/api/admin/user/:username/monthly-reports", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const latest = monthlyReportStore.latestClosedMonthKey();
+  return res.json({
+    ok: true,
+    username,
+    latestClosedMonthKey: latest,
+    reports: monthlyReportStore.listForAdmin(username),
+  });
+});
+
+/** 管理员：保存某月报告图（可强制重生仅限上一完整月） */
+app.post("/api/admin/user/:username/monthly-reports/:monthKey", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username, monthKey } = req.params;
+  if (!monthlyReportStore.isValidMonthKey(monthKey)) {
+    return res.status(400).json({ ok: false, error: "无效月份" });
+  }
+  const latest = monthlyReportStore.latestClosedMonthKey();
+  if (String(monthKey) > latest) {
+    return res.status(400).json({ ok: false, error: "不能生成未结束月份的报告", latestClosedMonthKey: latest });
+  }
+  const force = !!(req.body && req.body.force);
+  const buf = parsePngBase64(req.body && (req.body.imageBase64 || req.body.dataUrl));
+  if (!buf) {
+    return res.status(400).json({ ok: false, error: "缺少有效 PNG" });
+  }
+  const saved = monthlyReportStore.saveImage(username, monthKey, buf, { force });
+  if (!saved.ok) {
+    return res.status(400).json({
+      ok: false,
+      error: saved.error || "保存失败",
+      latestClosedMonthKey: saved.latestClosedMonthKey,
+    });
+  }
+  return res.json({
+    ok: true,
+    existed: !!saved.existed,
+    report: monthlyReportPublicEntry(username, monthKey),
+  });
+});
+
+/** 管理员：获取某月报告图（不算学员已读） */
+app.get("/api/admin/user/:username/monthly-reports/:monthKey/image", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username, monthKey } = req.params;
+  const buf = monthlyReportStore.readImageBuffer(username, monthKey);
+  if (!buf) {
+    return res.status(404).json({ ok: false, error: "报告尚未生成" });
+  }
+  return res.json({
+    ok: true,
+    monthKey,
+    fileName: monthlyReportStore.displayFileName(username, monthKey),
+    contentType: "image/png",
+    imageBase64: buf.toString("base64"),
+  });
 });
 
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
