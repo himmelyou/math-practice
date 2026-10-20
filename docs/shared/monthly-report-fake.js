@@ -173,72 +173,174 @@
     ctx.closePath();
   }
 
-  function drawSectionTitleCompact(ctx, y, zh, en) {
-    ctx.fillStyle = "#0f3d7a";
-    ctx.font = "bold 18px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(zh, 40, y);
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "12px 'Segoe UI', sans-serif";
-    var zhW = ctx.measureText(zh).width;
-    ctx.fillText(en, 40 + zhW + 10, y);
-    return y + 28;
-  }
+  /**
+   * 月报画布：固定栅格 + y 只增；先算高度再绘制。
+   * 字号按朋友圈阅读设计：720 宽图在手机上约缩到一半，
+   * 画布字号 ≈ 屏幕目标字号 × 1.85（正文目标约 15–17px → 画布 28–32）。
+   */
+  var RPT = {
+    W: 720,
+    PAD: 36,
+    GAP: 20,
+    HEADER: 148,
+    SECTION_GAP: 22,
+    TITLE_H: 42,
+    LINE_H: 40,
+    STAT_H: 56,
+    LEGEND_H: 32,
+    PIE: 188,
+    FOOTER: 44,
+    SHORT_LEN: 14,
+    COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#64748b"],
+    FONT: {
+      brand: 34,
+      nick: 28,
+      title: 36,
+      titleEn: 22,
+      section: 32,
+      subhead: 26,
+      body: 28,
+      label: 24,
+      stat: 44,
+      caption: 22,
+      footer: 20,
+    },
+  };
 
-  function drawLine(ctx, y, W) {
-    ctx.strokeStyle = "rgba(148,163,184,0.35)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(40, y);
-    ctx.lineTo((W || 720) - 40, y);
-    ctx.stroke();
-    return y + 14;
+  function font(weight, sizePx) {
+    return (
+      (weight ? weight + " " : "") +
+      sizePx +
+      "px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
+    );
   }
 
   function ellipsize(ctx, text, maxW) {
     var s = String(text || "");
     if (ctx.measureText(s).width <= maxW) return s;
-    while (s.length > 1 && ctx.measureText(s + "…").width > maxW) {
-      s = s.slice(0, -1);
-    }
+    while (s.length > 1 && ctx.measureText(s + "…").width > maxW) s = s.slice(0, -1);
     return s + "…";
   }
 
-  /** 短文案两列；任一项过长则整段单列 */
-  function shouldTwoCol(items, maxLen) {
+  function useTwoCol(items) {
     if (!items || items.length < 2) return false;
-    var lim = maxLen != null ? maxLen : 18;
     for (var i = 0; i < items.length; i++) {
-      if (String(items[i] || "").length > lim) return false;
+      if (String(items[i] || "").length > RPT.SHORT_LEN) return false;
     }
     return true;
   }
 
-  function estimateHeight(data) {
-    var mixN = (data.habit && data.habit.mix && data.habit.mix.length) || 0;
-    var chN = (data.milestones && data.milestones.changesZh && data.milestones.changesZh.length) || 0;
-    if (chN === 0) chN = 1;
-    var topN = (data.progress && data.progress.top && data.progress.top.length) || 0;
-    if (topN === 0) topN = 1;
-    var mixRows = Math.ceil(mixN / 2) || 0;
-    var chRows = shouldTwoCol(data.milestones && data.milestones.changesZh, 20)
-      ? Math.ceil(chN / 2)
-      : chN;
-    var topRows = shouldTwoCol(
-      (data.progress && data.progress.top ? data.progress.top : []).map(function (r) {
-        return r.zh;
-      }),
-      16
-    )
-      ? Math.ceil(topN / 2)
-      : topN;
-    var h = 150 + 50 + mixRows * 40 + 40 + chRows * 26 + 36 + topRows * 28 + 56;
-    return Math.max(640, Math.min(1280, h));
+  function rowsForList(n, twoCol) {
+    if (n <= 0) return 1;
+    return twoCol ? Math.ceil(n / 2) : n;
   }
 
   function publicDownloadSlug(data) {
     var nick = String((data && data.nickname) || "").trim();
-    if (nick) return safeUserSlug(nick);
-    return "report";
+    return nick ? safeUserSlug(nick) : "report";
+  }
+
+  function planReportHeight(data) {
+    var habit = data.habit || {};
+    var mix = Array.isArray(habit.mix) ? habit.mix : [];
+    var leftH = (RPT.STAT_H + 10) * 2;
+    if (mix.length) leftH += 28 + mix.length * RPT.LEGEND_H;
+    else leftH += RPT.STAT_H;
+    var rightH = RPT.PIE + 36;
+    var aBody = Math.max(leftH, rightH);
+    var changes = (data.milestones && data.milestones.changesZh) || [];
+    var chN = changes.length || 1;
+    var chRows = rowsForList(chN, useTwoCol(changes));
+    var top = (data.progress && data.progress.top) || [];
+    var topLabels = top.map(function (r) {
+      return r && r.zh ? r.zh : "";
+    });
+    var topN = top.length || 1;
+    var topRows = rowsForList(topN, useTwoCol(topLabels));
+    var h =
+      RPT.HEADER +
+      RPT.SECTION_GAP +
+      RPT.TITLE_H +
+      aBody +
+      RPT.SECTION_GAP +
+      RPT.TITLE_H +
+      RPT.LINE_H +
+      chRows * RPT.LINE_H +
+      10 +
+      RPT.LINE_H +
+      topRows * RPT.LINE_H +
+      RPT.FOOTER +
+      RPT.PAD;
+    return Math.max(720, Math.min(1400, Math.ceil(h)));
+  }
+
+  function drawDivider(ctx, y) {
+    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(RPT.PAD, y);
+    ctx.lineTo(RPT.W - RPT.PAD, y);
+    ctx.stroke();
+    return y + RPT.SECTION_GAP;
+  }
+
+  function drawSectionTitle(ctx, y, zh) {
+    ctx.fillStyle = "#0f3d7a";
+    ctx.font = font("bold", RPT.FONT.section);
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(zh, RPT.PAD, y + 28);
+    return y + RPT.TITLE_H;
+  }
+
+  function drawPie(ctx, cx, cy, radius, mix) {
+    var total = 0;
+    mix.forEach(function (m) {
+      total += Math.max(0, Number(m.pct) || 0);
+    });
+    if (!(total > 0)) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fill();
+      return;
+    }
+    var start = -Math.PI / 2;
+    mix.forEach(function (m, i) {
+      var slice = ((Math.max(0, Number(m.pct) || 0) / total) * Math.PI * 2);
+      if (slice <= 0) return;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, start, start + slice);
+      ctx.closePath();
+      ctx.fillStyle = RPT.COLORS[i % RPT.COLORS.length];
+      ctx.fill();
+      start += slice;
+    });
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.42, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+  }
+
+  /** 短列表：两列；否则单列。返回新的 y（内容底边） */
+  function drawBulletGrid(ctx, y, items, emptyText) {
+    var list = items && items.length ? items : [emptyText || "—"];
+    var two = items && items.length ? useTwoCol(list) : false;
+    var innerW = RPT.W - RPT.PAD * 2;
+    var colW = two ? (innerW - RPT.GAP) / 2 : innerW;
+    var i = 0;
+    while (i < list.length) {
+      var cols = two ? 2 : 1;
+      for (var c = 0; c < cols && i < list.length; c += 1, i += 1) {
+        var x = RPT.PAD + c * (colW + RPT.GAP);
+        ctx.fillStyle = "#1e293b";
+        ctx.font = font("", RPT.FONT.body);
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(ellipsize(ctx, "· " + list[i], colW), x, y + 28);
+      }
+      y += RPT.LINE_H;
+    }
+    return y;
   }
 
   /**
@@ -250,178 +352,141 @@
     }
     var monthKey = data.monthKey;
     var nickname = String(data.nickname || "").trim();
-    var W = 720;
-    var H = estimateHeight(data);
+    var W = RPT.W;
+    var H = planReportHeight(data);
     var canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     var ctx = canvas.getContext("2d");
     if (!ctx) return Promise.reject(new Error("canvas_unsupported"));
 
+    // 背景
     var grad = ctx.createLinearGradient(0, 0, 0, H);
     grad.addColorStop(0, "#f0f6ff");
-    grad.addColorStop(0.35, "#ffffff");
+    grad.addColorStop(0.4, "#ffffff");
     grad.addColorStop(1, "#f8fafc");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
-
-    roundRect(ctx, 20, 20, W - 40, H - 40, 16);
+    roundRect(ctx, 16, 16, W - 32, H - 32, 14);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = "rgba(37,99,235,0.18)";
+    ctx.strokeStyle = "rgba(37,99,235,0.16)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // 左上品牌+标题；右上仅昵称（无昵称不显示，绝不回退用户名）
+    // —— 页眉：左品牌/标题，右昵称 ——
+    var F = RPT.FONT;
+    ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#1a3f8f";
-    ctx.font = "bold 22px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("Jarvis Math Lab", 40, 58);
+    ctx.font = font("bold", F.brand);
+    ctx.fillText("Jarvis Math Lab", RPT.PAD, 58);
     if (nickname) {
       ctx.fillStyle = "#334155";
-      ctx.font = "bold 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.font = font("bold", F.nick);
       var nickDraw = ellipsize(ctx, nickname, 220);
-      var nickW = ctx.measureText(nickDraw).width;
-      ctx.fillText(nickDraw, W - 40 - nickW, 58);
+      ctx.fillText(nickDraw, W - RPT.PAD - ctx.measureText(nickDraw).width, 58);
     }
     ctx.fillStyle = "#0f172a";
-    ctx.font = "bold 20px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", 40, 90);
+    ctx.font = font("bold", F.title);
+    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", RPT.PAD, 104);
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "12px 'Segoe UI', sans-serif";
-    ctx.fillText(data.titleEn || monthLabelEn(monthKey), 40, 112);
+    ctx.font = font("", F.titleEn);
+    ctx.fillText(data.titleEn || monthLabelEn(monthKey), RPT.PAD, 134);
 
-    var y = 128;
-    y = drawLine(ctx, y, W);
+    var y = RPT.HEADER;
+    y = drawDivider(ctx, y);
 
-    y = drawSectionTitleCompact(ctx, y, "A. 本月练了多少", "Practice volume");
+    // —— A：左竖排数据 + 右饼图 ——
+    y = drawSectionTitle(ctx, y, "A. 本月练了多少");
+    var aTop = y;
     var habit = data.habit || {};
     var activeDays = habit.activeDays != null ? habit.activeDays : 0;
     var runCount = habit.runs != null ? habit.runs : 0;
-    var volZh = "有练 " + activeDays + " 天 · 共 " + runCount + " 局";
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(volZh, 40, y);
-    var volW = ctx.measureText(volZh).width;
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = "12px 'Segoe UI', sans-serif";
-    ctx.fillText(activeDays + " days · " + runCount + " runs", 40 + volW + 12, y);
-    y += 26;
-
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
-    var colGap = 16;
-    var colW = (W - 80 - colGap) / 2;
+    var leftW = Math.floor((W - RPT.PAD * 2 - RPT.GAP) * 0.48);
+    var rightX = RPT.PAD + leftW + RPT.GAP;
+    var rightW = W - RPT.PAD - rightX;
+
+    var ly = aTop;
+    function drawStat(label, value) {
+      ctx.fillStyle = "#64748b";
+      ctx.font = font("", F.label);
+      ctx.fillText(label, RPT.PAD, ly + 20);
+      ctx.fillStyle = "#0f172a";
+      ctx.font = font("bold", F.stat);
+      ctx.fillText(String(value), RPT.PAD, ly + 52);
+      ly += RPT.STAT_H + 10;
+    }
+    drawStat("练习天数", activeDays);
+    drawStat("练习局数", runCount);
+
     if (mix.length) {
-      var mi = 0;
-      while (mi < mix.length) {
-        for (var c = 0; c < 2 && mi < mix.length; c += 1, mi += 1) {
-          var row = mix[mi];
-          var x0 = 40 + c * (colW + colGap);
-          ctx.fillStyle = "#1e293b";
-          ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-          ctx.fillText(ellipsize(ctx, row.zh, colW - 44), x0, y);
-          ctx.fillStyle = "#1a3f8f";
-          ctx.font = "bold 13px 'Segoe UI', sans-serif";
-          var pct = (row.pct != null ? row.pct : 0) + "%";
-          ctx.fillText(pct, x0 + colW - ctx.measureText(pct).width, y);
-          var barY = y + 6;
-          ctx.fillStyle = "#e2e8f0";
-          roundRect(ctx, x0, barY, colW, 5, 3);
-          ctx.fill();
-          ctx.fillStyle = "#3b82f6";
-          roundRect(ctx, x0, barY, Math.max(3, (colW * (row.pct || 0)) / 100), 5, 3);
-          ctx.fill();
-        }
-        y += 34;
-      }
-    } else {
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("本月暂无练习记录", 40, y);
-      y += 22;
-    }
-
-    y = drawLine(ctx, y + 4, W);
-    y = drawSectionTitleCompact(ctx, y, "B. 本月进步了什么", "Progress");
-
-    ctx.fillStyle = "#334155";
-    ctx.font = "bold 13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("进度变化", 40, y);
-    y += 22;
-    var changesZh = (data.milestones && data.milestones.changesZh) || [];
-    if (!changesZh.length) {
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("本月暂无进度变化", 40, y);
-      y += 22;
-    } else if (shouldTwoCol(changesZh, 20)) {
-      var ci = 0;
-      while (ci < changesZh.length) {
-        for (var cc = 0; cc < 2 && ci < changesZh.length; cc += 1, ci += 1) {
-          var cx = 40 + cc * (colW + colGap);
-          ctx.fillStyle = "#1e293b";
-          ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-          ctx.fillText(ellipsize(ctx, "· " + changesZh[ci], colW), cx, y);
-        }
-        y += 22;
-      }
-    } else {
-      changesZh.forEach(function (zh) {
+      ctx.fillStyle = "#64748b";
+      ctx.font = font("", F.label);
+      ctx.fillText("类别占比", RPT.PAD, ly + 18);
+      ly += 28;
+      mix.forEach(function (m, i) {
+        var sw = 14;
+        ctx.fillStyle = RPT.COLORS[i % RPT.COLORS.length];
+        roundRect(ctx, RPT.PAD, ly + 4, sw, sw, 3);
+        ctx.fill();
         ctx.fillStyle = "#1e293b";
-        ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-        ctx.fillText(ellipsize(ctx, "· " + zh, W - 80), 40, y);
-        y += 22;
+        ctx.font = font("", F.body);
+        var label = (m.zh || "") + " " + (m.pct != null ? m.pct : 0) + "%";
+        ctx.fillText(ellipsize(ctx, label, leftW - 24), RPT.PAD + sw + 8, ly + 18);
+        ly += RPT.LEGEND_H;
       });
+    } else {
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = font("", F.body);
+      ctx.fillText("本月暂无练习记录", RPT.PAD, ly + 22);
+      ly += RPT.STAT_H;
     }
 
+    var pieR = RPT.PIE / 2;
+    var pieCx = rightX + rightW / 2;
+    var pieCy = aTop + pieR + 6;
+    drawPie(ctx, pieCx, pieCy, pieR, mix);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = font("", F.caption);
+    var pieCap = "练习构成";
+    ctx.fillText(pieCap, pieCx - ctx.measureText(pieCap).width / 2, pieCy + pieR + 26);
+
+    var aBottom = Math.max(ly, pieCy + pieR + 36);
+    y = aBottom;
+    y = drawDivider(ctx, y);
+
+    // —— B：进度变化（短则两列）+ 热图 ——
+    y = drawSectionTitle(ctx, y, "B. 本月进步了什么");
+    ctx.fillStyle = "#475569";
+    ctx.font = font("bold", F.subhead);
+    ctx.fillText("进度变化", RPT.PAD, y + 24);
+    y += RPT.LINE_H;
+    var changesZh = (data.milestones && data.milestones.changesZh) || [];
+    y = drawBulletGrid(ctx, y, changesZh, "本月暂无进度变化");
+
+    y += 10;
     var improvedCells =
       data.progress && data.progress.improvedCells != null ? data.progress.improvedCells : 0;
-    y += 4;
-    ctx.fillStyle = "#334155";
-    ctx.font = "bold 13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("热图进步 · " + improvedCells + " 格", 40, y);
-    y += 22;
-
+    ctx.fillStyle = "#475569";
+    ctx.font = font("bold", F.subhead);
+    ctx.fillText("热图进步 · " + improvedCells + " 格", RPT.PAD, y + 24);
+    y += RPT.LINE_H;
     var top = (data.progress && Array.isArray(data.progress.top) && data.progress.top) || [];
-    var topZh = top.map(function (r) {
-      return r.zh || "";
+    var topLines = top.map(function (r) {
+      var tag = r.kind === "acc" ? "准度" : "速度";
+      return tag + " · " + (r.zh || "");
     });
-    if (!top.length) {
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("暂无明显进步格", 40, y);
-      y += 22;
-    } else if (shouldTwoCol(topZh, 16)) {
-      var ti = 0;
-      while (ti < top.length) {
-        for (var tc = 0; tc < 2 && ti < top.length; tc += 1, ti += 1) {
-          var tx = 40 + tc * (colW + colGap);
-          var trow = top[ti];
-          var tag = trow.kind === "acc" ? "准" : "速";
-          ctx.fillStyle = trow.kind === "acc" ? "#166534" : "#1d4ed8";
-          ctx.font = "bold 11px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-          ctx.fillText(tag, tx, y);
-          ctx.fillStyle = "#1e293b";
-          ctx.font = "12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-          ctx.fillText(ellipsize(ctx, trow.zh, colW - 22), tx + 18, y);
-        }
-        y += 24;
-      }
-    } else {
-      top.forEach(function (trow, idx) {
-        ctx.fillStyle = "#1e293b";
-        ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-        ctx.fillText(ellipsize(ctx, idx + 1 + ". " + trow.zh, W - 80), 40, y);
-        y += 22;
-      });
-    }
+    y = drawBulletGrid(ctx, y, topLines, "暂无明显进步格");
 
-    y = Math.max(y + 12, H - 48);
+    y += 12;
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "11px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), 40, y);
+    ctx.font = font("", F.footer);
+    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), RPT.PAD, y + 18);
     if (data.inProgress || data.adminOnlyPreview) {
+      var note = "管理端预览 · 学员不可见";
       ctx.fillStyle = "#b45309";
-      ctx.fillText("管理端预览 · 学员不可见", W - 40 - ctx.measureText("管理端预览 · 学员不可见").width, y);
+      ctx.fillText(note, W - RPT.PAD - ctx.measureText(note).width, y + 18);
     }
 
     var slug = publicDownloadSlug(data);
