@@ -434,6 +434,13 @@ const monthlyReportBuilder = createMonthlyReportBuilder({
       mode: normalizeRunMode(r.mode),
     }));
   },
+  getUserNickname: function (username) {
+    const data = readJson(USERS_FILE, { users: [] });
+    const u = (Array.isArray(data.users) ? data.users : []).find(
+      (x) => x && x.username === username
+    );
+    return u && typeof u.nickname === "string" ? u.nickname.trim() : "";
+  },
   cohortsByCategory: function () {
     return cohortsByCategoryForHeatmap();
   },

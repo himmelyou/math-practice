@@ -173,24 +173,44 @@
     ctx.closePath();
   }
 
-  function drawSectionTitle(ctx, y, zh, en) {
+  function drawSectionTitleCompact(ctx, y, zh, en) {
     ctx.fillStyle = "#0f3d7a";
-    ctx.font = "bold 22px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(zh, 48, y);
-    ctx.fillStyle = "#64748b";
-    ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(en, 48, y + 22);
-    return y + 48;
+    ctx.font = "bold 18px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(zh, 40, y);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "12px 'Segoe UI', sans-serif";
+    var zhW = ctx.measureText(zh).width;
+    ctx.fillText(en, 40 + zhW + 10, y);
+    return y + 28;
   }
 
-  function drawLine(ctx, y) {
+  function drawLine(ctx, y, W) {
     ctx.strokeStyle = "rgba(148,163,184,0.35)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(48, y);
-    ctx.lineTo(672, y);
+    ctx.moveTo(40, y);
+    ctx.lineTo((W || 720) - 40, y);
     ctx.stroke();
-    return y + 20;
+    return y + 14;
+  }
+
+  function ellipsize(ctx, text, maxW) {
+    var s = String(text || "");
+    if (ctx.measureText(s).width <= maxW) return s;
+    while (s.length > 1 && ctx.measureText(s + "…").width > maxW) {
+      s = s.slice(0, -1);
+    }
+    return s + "…";
+  }
+
+  /** 短文案两列；任一项过长则整段单列 */
+  function shouldTwoCol(items, maxLen) {
+    if (!items || items.length < 2) return false;
+    var lim = maxLen != null ? maxLen : 18;
+    for (var i = 0; i < items.length; i++) {
+      if (String(items[i] || "").length > lim) return false;
+    }
+    return true;
   }
 
   function estimateHeight(data) {
@@ -199,8 +219,26 @@
     if (chN === 0) chN = 1;
     var topN = (data.progress && data.progress.top && data.progress.top.length) || 0;
     if (topN === 0) topN = 1;
-    var h = 220 + 120 + mixN * 36 + 80 + chN * 40 + 70 + topN * 48 + 100;
-    return Math.max(900, Math.min(2200, h));
+    var mixRows = Math.ceil(mixN / 2) || 0;
+    var chRows = shouldTwoCol(data.milestones && data.milestones.changesZh, 20)
+      ? Math.ceil(chN / 2)
+      : chN;
+    var topRows = shouldTwoCol(
+      (data.progress && data.progress.top ? data.progress.top : []).map(function (r) {
+        return r.zh;
+      }),
+      16
+    )
+      ? Math.ceil(topN / 2)
+      : topN;
+    var h = 150 + 50 + mixRows * 40 + 40 + chRows * 26 + 36 + topRows * 28 + 56;
+    return Math.max(640, Math.min(1280, h));
+  }
+
+  function publicDownloadSlug(data) {
+    var nick = String((data && data.nickname) || "").trim();
+    if (nick) return safeUserSlug(nick);
+    return "report";
   }
 
   /**
@@ -210,8 +248,8 @@
     if (!data || !data.monthKey) {
       return Promise.reject(new Error("missing_report_data"));
     }
-    var username = data.username || "";
     var monthKey = data.monthKey;
+    var nickname = String(data.nickname || "").trim();
     var W = 720;
     var H = estimateHeight(data);
     var canvas = document.createElement("canvas");
@@ -227,161 +265,168 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    roundRect(ctx, 24, 24, W - 48, H - 48, 18);
+    roundRect(ctx, 20, 20, W - 40, H - 40, 16);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
     ctx.strokeStyle = "rgba(37,99,235,0.18)";
     ctx.lineWidth = 2;
     ctx.stroke();
 
+    // 左上品牌+标题；右上仅昵称（无昵称不显示，绝不回退用户名）
     ctx.fillStyle = "#1a3f8f";
-    ctx.font = "bold 28px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("Jarvis Math Lab", 48, 78);
-    ctx.fillStyle = "#334155";
-    ctx.font = "bold 24px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", 48, 118);
-    ctx.fillStyle = "#64748b";
-    ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText(data.titleEn || "Monthly Learning Report · " + monthLabelEn(monthKey), 48, 142);
-    ctx.fillText("学员 / Student：" + username, 48, 168);
+    ctx.font = "bold 22px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText("Jarvis Math Lab", 40, 58);
+    if (nickname) {
+      ctx.fillStyle = "#334155";
+      ctx.font = "bold 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      var nickDraw = ellipsize(ctx, nickname, 220);
+      var nickW = ctx.measureText(nickDraw).width;
+      ctx.fillText(nickDraw, W - 40 - nickW, 58);
+    }
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "bold 20px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", 40, 90);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "12px 'Segoe UI', sans-serif";
+    ctx.fillText(data.titleEn || monthLabelEn(monthKey), 40, 112);
 
-    var y = 196;
-    y = drawLine(ctx, y);
+    var y = 128;
+    y = drawLine(ctx, y, W);
 
-    y = drawSectionTitle(ctx, y, "A. 本月练了多少", "A. Practice volume");
+    y = drawSectionTitleCompact(ctx, y, "A. 本月练了多少", "Practice volume");
     var habit = data.habit || {};
     var activeDays = habit.activeDays != null ? habit.activeDays : 0;
     var runCount = habit.runs != null ? habit.runs : 0;
+    var volZh = "有练 " + activeDays + " 天 · 共 " + runCount + " 局";
     ctx.fillStyle = "#0f172a";
-    ctx.font = "17px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("有练 " + activeDays + " 天 · 共 " + runCount + " 局", 48, y);
-    y += 24;
-    ctx.fillStyle = "#64748b";
-    ctx.font = "14px 'Segoe UI', sans-serif";
-    ctx.fillText(activeDays + " active days · " + runCount + " runs", 48, y);
-    y += 32;
+    ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText(volZh, 40, y);
+    var volW = ctx.measureText(volZh).width;
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "12px 'Segoe UI', sans-serif";
+    ctx.fillText(activeDays + " days · " + runCount + " runs", 40 + volW + 12, y);
+    y += 26;
 
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
+    var colGap = 16;
+    var colW = (W - 80 - colGap) / 2;
     if (mix.length) {
-      ctx.fillStyle = "#334155";
-      ctx.font = "bold 15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("能力类别占比 / Mix by skill", 48, y);
-      y += 22;
-      mix.forEach(function (row) {
-        ctx.fillStyle = "#1e293b";
-        ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-        ctx.fillText(row.zh + " / " + row.en, 56, y);
-        ctx.fillStyle = "#1a3f8f";
-        ctx.font = "bold 15px 'Segoe UI', sans-serif";
-        ctx.fillText(row.pct + "%", 560, y);
-        var barX = 56;
-        var barY = y + 8;
-        var barW = 520;
-        ctx.fillStyle = "#e2e8f0";
-        roundRect(ctx, barX, barY, barW, 8, 4);
-        ctx.fill();
-        ctx.fillStyle = "#3b82f6";
-        roundRect(ctx, barX, barY, Math.max(4, (barW * (row.pct || 0)) / 100), 8, 4);
-        ctx.fill();
-        y += 36;
-      });
+      var mi = 0;
+      while (mi < mix.length) {
+        for (var c = 0; c < 2 && mi < mix.length; c += 1, mi += 1) {
+          var row = mix[mi];
+          var x0 = 40 + c * (colW + colGap);
+          ctx.fillStyle = "#1e293b";
+          ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+          ctx.fillText(ellipsize(ctx, row.zh, colW - 44), x0, y);
+          ctx.fillStyle = "#1a3f8f";
+          ctx.font = "bold 13px 'Segoe UI', sans-serif";
+          var pct = (row.pct != null ? row.pct : 0) + "%";
+          ctx.fillText(pct, x0 + colW - ctx.measureText(pct).width, y);
+          var barY = y + 6;
+          ctx.fillStyle = "#e2e8f0";
+          roundRect(ctx, x0, barY, colW, 5, 3);
+          ctx.fill();
+          ctx.fillStyle = "#3b82f6";
+          roundRect(ctx, x0, barY, Math.max(3, (colW * (row.pct || 0)) / 100), 5, 3);
+          ctx.fill();
+        }
+        y += 34;
+      }
     } else {
-      ctx.fillStyle = "#64748b";
-      ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("本月暂无练习记录 / No practice this month", 48, y);
-      y += 28;
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.fillText("本月暂无练习记录", 40, y);
+      y += 22;
     }
 
-    y += 8;
-    y = drawLine(ctx, y);
-    y = drawSectionTitle(ctx, y, "B. 本月进步了什么", "B. Progress highlights");
+    y = drawLine(ctx, y + 4, W);
+    y = drawSectionTitleCompact(ctx, y, "B. 本月进步了什么", "Progress");
 
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "bold 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("进度变化（仅列出有变化） / Progress changes", 48, y);
-    y += 24;
+    ctx.fillStyle = "#334155";
+    ctx.font = "bold 13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText("进度变化", 40, y);
+    y += 22;
     var changesZh = (data.milestones && data.milestones.changesZh) || [];
-    var changesEn = (data.milestones && data.milestones.changesEn) || [];
     if (!changesZh.length) {
-      ctx.fillStyle = "#64748b";
-      ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("· 本月暂无进度变化", 56, y);
-      y += 18;
-      ctx.fillText("  No progress changes this month", 56, y);
-      y += 28;
-    } else {
-      changesZh.forEach(function (zh, i) {
-        ctx.fillStyle = "#1e293b";
-        ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-        ctx.fillText("· " + zh, 56, y);
-        y += 18;
-        ctx.fillStyle = "#64748b";
-        ctx.font = "13px 'Segoe UI', sans-serif";
-        var en = changesEn[i] || "";
-        if (en) {
-          ctx.fillText("  " + en, 56, y);
-          y += 22;
-        } else {
-          y += 4;
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.fillText("本月暂无进度变化", 40, y);
+      y += 22;
+    } else if (shouldTwoCol(changesZh, 20)) {
+      var ci = 0;
+      while (ci < changesZh.length) {
+        for (var cc = 0; cc < 2 && ci < changesZh.length; cc += 1, ci += 1) {
+          var cx = 40 + cc * (colW + colGap);
+          ctx.fillStyle = "#1e293b";
+          ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+          ctx.fillText(ellipsize(ctx, "· " + changesZh[ci], colW), cx, y);
         }
+        y += 22;
+      }
+    } else {
+      changesZh.forEach(function (zh) {
+        ctx.fillStyle = "#1e293b";
+        ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+        ctx.fillText(ellipsize(ctx, "· " + zh, W - 80), 40, y);
+        y += 22;
       });
     }
 
     var improvedCells =
       data.progress && data.progress.improvedCells != null ? data.progress.improvedCells : 0;
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "bold 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("热图单元进步 / Heatmap cells improved：共 " + improvedCells + " 格", 48, y);
-    y += 20;
-    ctx.fillStyle = "#64748b";
-    ctx.font = "13px 'Segoe UI', sans-serif";
-    ctx.fillText(improvedCells + " cells improved vs prior snapshot", 48, y);
-    y += 28;
+    y += 4;
+    ctx.fillStyle = "#334155";
+    ctx.font = "bold 13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText("热图进步 · " + improvedCells + " 格", 40, y);
+    y += 22;
 
     var top = (data.progress && Array.isArray(data.progress.top) && data.progress.top) || [];
-    if (top.length) {
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "bold 15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("进步最大的项目 / Top improvements", 48, y);
-      y += 26;
-      top.forEach(function (row, idx) {
-        var tag = row.kind === "acc" ? "准度" : "速度";
-        var tagEn = row.kind === "acc" ? "ACC" : "SPD";
-        roundRect(ctx, 48, y - 14, 44, 20, 6);
-        ctx.fillStyle = row.kind === "acc" ? "#dcfce7" : "#dbeafe";
-        ctx.fill();
-        ctx.fillStyle = row.kind === "acc" ? "#166534" : "#1d4ed8";
-        ctx.font = "bold 11px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-        ctx.fillText(tag, 56, y);
-        ctx.fillStyle = "#1e293b";
-        ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-        ctx.fillText(idx + 1 + ". " + row.zh, 100, y);
-        y += 20;
-        ctx.fillStyle = "#64748b";
-        ctx.font = "13px 'Segoe UI', sans-serif";
-        ctx.fillText("   [" + tagEn + "] " + row.en, 100, y);
-        y += 28;
-      });
+    var topZh = top.map(function (r) {
+      return r.zh || "";
+    });
+    if (!top.length) {
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.fillText("暂无明显进步格", 40, y);
+      y += 22;
+    } else if (shouldTwoCol(topZh, 16)) {
+      var ti = 0;
+      while (ti < top.length) {
+        for (var tc = 0; tc < 2 && ti < top.length; tc += 1, ti += 1) {
+          var tx = 40 + tc * (colW + colGap);
+          var trow = top[ti];
+          var tag = trow.kind === "acc" ? "准" : "速";
+          ctx.fillStyle = trow.kind === "acc" ? "#166534" : "#1d4ed8";
+          ctx.font = "bold 11px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+          ctx.fillText(tag, tx, y);
+          ctx.fillStyle = "#1e293b";
+          ctx.font = "12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+          ctx.fillText(ellipsize(ctx, trow.zh, colW - 22), tx + 18, y);
+        }
+        y += 24;
+      }
     } else {
-      ctx.fillStyle = "#64748b";
-      ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("本月热图暂无明显进步格 / No notable heatmap gains", 48, y);
-      y += 28;
+      top.forEach(function (trow, idx) {
+        ctx.fillStyle = "#1e293b";
+        ctx.font = "13px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+        ctx.fillText(ellipsize(ctx, idx + 1 + ". " + trow.zh, W - 80), 40, y);
+        y += 22;
+      });
     }
 
-    y = Math.max(y + 16, H - 70);
+    y = Math.max(y + 12, H - 48);
     ctx.fillStyle = "#94a3b8";
-    ctx.font = "12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), 48, y);
+    ctx.font = "11px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), 40, y);
     if (data.inProgress || data.adminOnlyPreview) {
-      y += 18;
       ctx.fillStyle = "#b45309";
-      ctx.font = "12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("管理端进行中预览 · 学员不可见 / Admin live preview only", 48, y);
+      ctx.fillText("管理端预览 · 学员不可见", W - 40 - ctx.measureText("管理端预览 · 学员不可见").width, y);
     }
 
-    var title = displayTitle(username, monthKey);
-    var dlName = downloadFileName(username, monthKey);
+    var slug = publicDownloadSlug(data);
+    var title = slug + "_" + monthLabelZh(monthKey) + "_月度报告.png";
+    var dlName = slug + "_" + String(monthKey || "report") + ".png";
     return new Promise(function (resolve, reject) {
       canvas.toBlob(function (blob) {
         if (!blob) {
@@ -402,9 +447,9 @@
   }
 
   /** @deprecated 无数据时不可用；请用 renderReportPng(data) */
-  function renderFakeReportPng(username, monthKey) {
+  function renderFakeReportPng(_username, monthKey) {
     return renderReportPng({
-      username: username,
+      nickname: "",
       monthKey: monthKey,
       titleZh: monthLabelZh(monthKey) + "学习月报",
       titleEn: "Monthly Learning Report · " + monthLabelEn(monthKey),

@@ -367,9 +367,11 @@ function buildMonthlyReportPayload(opts) {
   const changes = buildProgressChanges(priorProgress, current.progress || {});
   const heatDiff = buildHeatmapDiff(priorHeat, current.heatmap || {});
 
+  const nicknameRaw = opts.nickname != null ? String(opts.nickname).trim() : "";
   return {
     ok: true,
-    username: username,
+    /** 公开展示名；空则画布不显示名字。不回传 username，避免登录名公开 */
+    nickname: nicknameRaw,
     monthKey: monthKey,
     titleZh: monthLabelZh(monthKey) + "学习月报",
     titleEn: "Monthly Learning Report · " + monthLabelEn(monthKey),
@@ -398,6 +400,7 @@ function createMonthlyReportBuilder(deps) {
   deps = deps || {};
   const snapshotStore = deps.snapshotStore;
   const getUserRuns = deps.getUserRuns;
+  const getUserNickname = deps.getUserNickname;
   const cohortsByCategory = deps.cohortsByCategory;
 
   function buildForUser(username, monthKey) {
@@ -410,8 +413,11 @@ function createMonthlyReportBuilder(deps) {
     const priorMonthKey = snapshotStore ? snapshotStore.findPriorMonthKey(name, monthKey) : null;
     const priorSnap = priorMonthKey && snapshotStore ? snapshotStore.getMonth(name, priorMonthKey) : null;
     const cohorts = typeof cohortsByCategory === "function" ? cohortsByCategory() : {};
+    const nickname =
+      typeof getUserNickname === "function" ? String(getUserNickname(name) || "").trim() : "";
     return buildMonthlyReportPayload({
       username: name,
+      nickname: nickname,
       monthKey: monthKey,
       runs: runs,
       currentSnap: currentSnap,
