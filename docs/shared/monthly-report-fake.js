@@ -187,15 +187,14 @@
     TITLE_H: 36,
     TITLE_PAD_BOTTOM: 16,
     SUB_H: 30,
-    LINE_H: 36,
-    STAT_BLOCK: 48,
+    LINE_H: 34,
+    STAT_BLOCK: 56,
     STAT_GAP: 16,
     STAT_COL_GAP: 16,
     PIE: 164,
     LEGEND_ROW: 24,
     LEGEND_GAP: 10,
     FOOTER: 40,
-    SHORT_LEN: 22,
     ACCENT: "#2563eb",
     COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#94a3b8"],
     FONT: {
@@ -206,7 +205,8 @@
       section: 26,
       subhead: 22,
       body: 22,
-      label: 16,
+      bullet: 20,
+      label: 17,
       stat: 26,
       legend: 17,
       footer: 16,
@@ -228,17 +228,9 @@
     return s + "…";
   }
 
-  function useTwoCol(items) {
-    if (!items || items.length < 2) return false;
-    for (var i = 0; i < items.length; i++) {
-      if (String(items[i] || "").length > RPT.SHORT_LEN) return false;
-    }
-    return true;
-  }
-
-  function rowsForList(n, twoCol) {
+  function rowsForList(n) {
     if (n <= 0) return 1;
-    return twoCol ? Math.ceil(n / 2) : n;
+    return n;
   }
 
   function publicDownloadSlug(data) {
@@ -257,12 +249,9 @@
     var aBody = Math.max(leftH, rightH);
     var changes =
       (data.milestones && (data.milestones.breakthroughsZh || data.milestones.changesZh)) || [];
-    var chRows = rowsForList(changes.length || 1, useTwoCol(changes));
+    var chRows = rowsForList(changes.length || 1);
     var top = (data.progress && data.progress.top) || [];
-    var topLabels = top.map(function (r) {
-      return r && r.zh ? r.zh : "";
-    });
-    var topRows = rowsForList(top.length || 1, useTwoCol(topLabels));
+    var topRows = rowsForList(top.length || 1);
     var h =
       RPT.HEADER +
       RPT.SECTION_GAP +
@@ -392,24 +381,18 @@
 
   function drawBulletGrid(ctx, y, items, emptyText) {
     var list = items && items.length ? items : [emptyText || "—"];
-    var two = items && items.length ? useTwoCol(list) : false;
-    var innerW = RPT.W - RPT.PAD * 2;
-    var colW = two ? (innerW - RPT.GAP) / 2 : innerW;
-    var i = 0;
-    while (i < list.length) {
-      var cols = two ? 2 : 1;
-      for (var c = 0; c < cols && i < list.length; c += 1, i += 1) {
-        var x = RPT.PAD + c * (colW + RPT.GAP);
-        drawTextWithNumberHighlight(
-          ctx,
-          "· " + list[i],
-          x,
-          y + 24,
-          colW,
-          "#1e293b",
-          RPT.ACCENT
-        );
-      }
+    var colW = RPT.W - RPT.PAD * 2;
+    for (var i = 0; i < list.length; i += 1) {
+      drawTextWithNumberHighlight(
+        ctx,
+        "· " + list[i],
+        RPT.PAD,
+        y + 22,
+        colW,
+        "#1e293b",
+        RPT.ACCENT,
+        RPT.FONT.bullet
+      );
       y += RPT.LINE_H;
     }
     return y;
@@ -492,7 +475,7 @@
       ctx.fillText(label, x, yy + 14);
       ctx.fillStyle = RPT.ACCENT;
       ctx.font = font("bold", F.stat);
-      ctx.fillText(ellipsize(ctx, String(value), statColW), x, yy + 40);
+      ctx.fillText(ellipsize(ctx, String(value), statColW), x, yy + 48);
     }
     // 顺序：天数、时长 / 局数、任务
     drawStatAt(0, 0, "练习天数", activeDays);
