@@ -188,13 +188,15 @@
     TITLE_PAD_BOTTOM: 16,
     SUB_H: 30,
     LINE_H: 36,
-    STAT_BLOCK: 52,
-    STAT_GAP: 14,
+    STAT_BLOCK: 48,
+    STAT_GAP: 16,
+    STAT_COL_GAP: 16,
     PIE: 164,
     LEGEND_ROW: 24,
     LEGEND_GAP: 10,
     FOOTER: 40,
-    SHORT_LEN: 16,
+    SHORT_LEN: 22,
+    ACCENT: "#2563eb",
     COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#94a3b8"],
     FONT: {
       brand: 26,
@@ -204,8 +206,8 @@
       section: 26,
       subhead: 22,
       body: 22,
-      label: 18,
-      stat: 32,
+      label: 16,
+      stat: 26,
       legend: 17,
       footer: 16,
     },
@@ -247,13 +249,14 @@
   function planReportHeight(data) {
     var habit = data.habit || {};
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
-    var leftH = RPT.STAT_BLOCK * 4 + RPT.STAT_GAP * 3;
+    var leftH = RPT.STAT_BLOCK * 2 + RPT.STAT_GAP; // 2×2 两行
     var legendH = mix.length
       ? Math.max(RPT.PIE, mix.length * RPT.LEGEND_ROW)
       : RPT.PIE;
     var rightH = legendH + 8;
     var aBody = Math.max(leftH, rightH);
-    var changes = (data.milestones && data.milestones.changesZh) || [];
+    var changes =
+      (data.milestones && (data.milestones.breakthroughsZh || data.milestones.changesZh)) || [];
     var chRows = rowsForList(changes.length || 1, useTwoCol(changes));
     var top = (data.progress && data.progress.top) || [];
     var topLabels = top.map(function (r) {
@@ -353,6 +356,40 @@
     });
   }
 
+  /** 将文案中的数据数字用强调色分段绘制 */
+  function drawTextWithNumberHighlight(ctx, text, x, baselineY, maxW, baseColor, accentColor, fontSize, baseWeight) {
+    var size = fontSize != null ? fontSize : RPT.FONT.body;
+    var weight = baseWeight || "";
+    var full = String(text || "");
+    ctx.font = font(weight, size);
+    ctx.textBaseline = "alphabetic";
+    var clipped = ellipsize(ctx, full, maxW);
+    var re = /(\d+(?:\.\d+)?%|\d+小时(?:\d+分)?(?:\d+秒)?|\d+分\d+秒|\d+分钟|\d+秒|\d+)/g;
+    var last = 0;
+    var m;
+    var cx = x;
+    while ((m = re.exec(clipped)) != null) {
+      var before = clipped.slice(last, m.index);
+      if (before) {
+        ctx.fillStyle = baseColor;
+        ctx.font = font(weight, size);
+        ctx.fillText(before, cx, baselineY);
+        cx += ctx.measureText(before).width;
+      }
+      ctx.fillStyle = accentColor;
+      ctx.font = font("bold", size);
+      ctx.fillText(m[0], cx, baselineY);
+      cx += ctx.measureText(m[0]).width;
+      last = m.index + m[0].length;
+    }
+    var rest = clipped.slice(last);
+    if (rest) {
+      ctx.fillStyle = baseColor;
+      ctx.font = font(weight, size);
+      ctx.fillText(rest, cx, baselineY);
+    }
+  }
+
   function drawBulletGrid(ctx, y, items, emptyText) {
     var list = items && items.length ? items : [emptyText || "—"];
     var two = items && items.length ? useTwoCol(list) : false;
@@ -363,10 +400,15 @@
       var cols = two ? 2 : 1;
       for (var c = 0; c < cols && i < list.length; c += 1, i += 1) {
         var x = RPT.PAD + c * (colW + RPT.GAP);
-        ctx.fillStyle = "#1e293b";
-        ctx.font = font("", RPT.FONT.body);
-        ctx.textBaseline = "alphabetic";
-        ctx.fillText(ellipsize(ctx, "· " + list[i], colW), x, y + 24);
+        drawTextWithNumberHighlight(
+          ctx,
+          "· " + list[i],
+          x,
+          y + 24,
+          colW,
+          "#1e293b",
+          RPT.ACCENT
+        );
       }
       y += RPT.LINE_H;
     }
@@ -422,7 +464,7 @@
     var y = RPT.HEADER;
     y = drawDivider(ctx, y);
 
-    // A：左统计 · 右饼图+图例
+    // A：左 2×2 统计 · 右饼图+图例
     y = drawSectionTitle(ctx, y, "A. 本月练习统计");
     var aTop = y;
     var habit = data.habit || {};
@@ -432,28 +474,33 @@
     var durationLabel = habit.durationLabel || "0秒";
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
 
-    var ly = aTop;
-    function drawStat(label, value) {
-      ctx.fillStyle = "#64748b";
-      ctx.font = font("", F.label);
-      ctx.fillText(label, RPT.PAD, ly + 16);
-      ctx.fillStyle = "#0f172a";
-      ctx.font = font("bold", F.stat);
-      ctx.fillText(String(value), RPT.PAD, ly + 44);
-      ly += RPT.STAT_BLOCK + RPT.STAT_GAP;
-    }
-    drawStat("练习天数", activeDays);
-    drawStat("练习局数", runCount);
-    drawStat("完成任务", tasksDone);
-    drawStat("练习时长", durationLabel);
-    var leftBottom = ly - RPT.STAT_GAP;
-
-    // 右区：图例贴右缘，饼图在其左侧
+    // 右区先定位，再算左栏可用宽度
     var legendW = 148;
     var pieR = RPT.PIE / 2;
     var legendX = W - RPT.PAD - legendW;
     var pieCx = legendX - RPT.LEGEND_GAP - pieR;
     var pieCy = aTop + pieR;
+    var leftPanelW = Math.max(200, pieCx - pieR - RPT.GAP - RPT.PAD);
+    var statColW = (leftPanelW - RPT.STAT_COL_GAP) / 2;
+
+    function drawStatAt(col, row, label, value) {
+      var x = RPT.PAD + col * (statColW + RPT.STAT_COL_GAP);
+      var yy = aTop + row * (RPT.STAT_BLOCK + RPT.STAT_GAP);
+      ctx.fillStyle = "#64748b";
+      ctx.font = font("", F.label);
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(label, x, yy + 14);
+      ctx.fillStyle = RPT.ACCENT;
+      ctx.font = font("bold", F.stat);
+      ctx.fillText(ellipsize(ctx, String(value), statColW), x, yy + 40);
+    }
+    // 顺序：天数、时长 / 局数、任务
+    drawStatAt(0, 0, "练习天数", activeDays);
+    drawStatAt(1, 0, "练习时长", durationLabel);
+    drawStatAt(0, 1, "完成局数", runCount);
+    drawStatAt(1, 1, "完成任务", tasksDone);
+    var leftBottom = aTop + RPT.STAT_BLOCK * 2 + RPT.STAT_GAP;
+
     drawPie(ctx, pieCx, pieCy, pieR, mix);
     drawPieLegend(ctx, legendX, aTop, RPT.PIE, mix);
 
@@ -473,9 +520,17 @@
     y += 12;
     var improvedCells =
       data.progress && data.progress.improvedCells != null ? data.progress.improvedCells : 0;
-    ctx.fillStyle = "#64748b";
-    ctx.font = font("bold", F.subhead);
-    ctx.fillText("热图进步（本月共有 " + improvedCells + " 项热图取得进步）", RPT.PAD, y + 20);
+    drawTextWithNumberHighlight(
+      ctx,
+      "热图进步（本月共有 " + improvedCells + " 项热图取得进步）",
+      RPT.PAD,
+      y + 20,
+      W - RPT.PAD * 2,
+      "#64748b",
+      RPT.ACCENT,
+      F.subhead,
+      "bold"
+    );
     y += RPT.SUB_H;
     var top = (data.progress && Array.isArray(data.progress.top) && data.progress.top) || [];
     var topLines = top.map(function (r) {

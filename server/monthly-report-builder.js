@@ -278,15 +278,29 @@ function buildBreakthroughs(priorProgress, currentProgress) {
     if (markRank(b) < markRank(a)) return; // 回退不写进「突破」
 
     if (b.stage === "timed") {
-      const t = formatCompactRunTime(b.timeSec);
-      if (a.stage !== "timed") {
-        if (meta.key === "prime") out.push({ zh: "质数达人上榜，最佳用时 " + t });
-        else if (meta.key === "level") out.push({ zh: "闯关通关，最佳用时 " + t });
-        else if (meta.key === "survival") out.push({ zh: "生存通关，最佳用时 " + t });
-        else if (meta.key === "divisibility") out.push({ zh: "整除零错通关，最佳用时 " + t });
-        else out.push({ zh: meta.zh + "刷新最佳用时 " + t });
+      const shortened =
+        a.stage === "timed" &&
+        a.timeSec != null &&
+        b.timeSec != null &&
+        b.timeSec < a.timeSec
+          ? formatDurationZh(a.timeSec - b.timeSec)
+          : "";
+      if (shortened) {
+        if (meta.key === "level") out.push({ zh: "闯关用时缩短了 " + shortened });
+        else if (meta.key === "survival") out.push({ zh: "生存用时缩短了 " + shortened });
+        else if (meta.key === "prime") out.push({ zh: "质数用时缩短了 " + shortened });
+        else if (meta.key === "divisibility") out.push({ zh: "整除用时缩短了 " + shortened });
+        else out.push({ zh: meta.zh + "用时缩短了 " + shortened });
+      } else if (meta.key === "level") {
+        out.push({ zh: "闯关通关" });
+      } else if (meta.key === "survival") {
+        out.push({ zh: "生存通关" });
+      } else if (meta.key === "prime") {
+        out.push({ zh: "质数达人上榜" });
+      } else if (meta.key === "divisibility") {
+        out.push({ zh: "整除零错通关" });
       } else {
-        out.push({ zh: meta.zh + "刷新最佳用时至 " + t });
+        out.push({ zh: meta.zh + "通关" });
       }
       return;
     }
