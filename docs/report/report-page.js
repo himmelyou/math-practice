@@ -156,6 +156,9 @@
     monthlyReportsLatest: '',
     monthlyReportsError: '',
     monthlyReportsLoading: false,
+    monthlySnapshots: [],
+    monthlySnapshotsError: '',
+    monthlySnapshotDetail: null,
     monthlyView: {
       monthKey: '',
       fileName: '',
@@ -1274,6 +1277,9 @@
     state.monthlyReportsLatest = '';
     state.monthlyReportsError = '';
     state.monthlyReportsLoading = false;
+    state.monthlySnapshots = [];
+    state.monthlySnapshotsError = '';
+    state.monthlySnapshotDetail = null;
     closeMonthlyReportView();
     renderRunsTable();
     renderTaskHistoryPanel();
@@ -1295,6 +1301,13 @@
     return '<span class="jml-monthly-badge jml-monthly-badge--unread">未读</span>';
   }
 
+  function formatSnapTs(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return '—';
+    return formatDateTime(ts);
+  }
+
   function renderMonthlyReportPanel() {
     var el = document.getElementById('jml-report-monthly-body');
     if (!el) return;
@@ -1302,44 +1315,141 @@
       el.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
       return;
     }
+    var html = '';
+    html +=
+      '<h3 class="jml-advice-title" style="margin:0 0 8px;">月度报告图</h3>' +
+      '<p class="jml-train-debug-hint">按月份倒序；点击标题查看（未生成则先画假数据并落盘）。管理端预览不计学员已读。仅上一完整月可强制重生。</p>';
     if (state.monthlyReportsLoading && !state.monthlyReports.length) {
-      el.innerHTML = '<div class="jml-report-empty">月度报告加载中…</div>';
-      return;
-    }
-    if (state.monthlyReportsError && !state.monthlyReports.length) {
-      el.innerHTML =
-        '<div class="jml-report-empty">' + escapeHtml(state.monthlyReportsError) + '</div>';
-      return;
-    }
-    var rows = Array.isArray(state.monthlyReports) ? state.monthlyReports : [];
-    if (!rows.length) {
-      el.innerHTML = '<div class="jml-report-empty">暂无月度报告</div>';
-      return;
-    }
-    var html =
-      '<p class="jml-train-debug-hint">按月份倒序；点击标题查看（未生成则先画假数据并落盘）。管理端预览不计学员已读。仅上一完整月可强制重生。</p>' +
-      '<div class="jml-monthly-list">';
-    rows.forEach(function (row) {
-      var title = row.fileName || row.monthKey || '—';
-      var meta = row.generated
-        ? row.monthKey + (row.readAt ? ' · 学员已读' : ' · 学员未读')
-        : row.monthKey + ' · 点击生成';
+      html += '<div class="jml-report-empty">月度报告加载中…</div>';
+    } else if (state.monthlyReportsError && !state.monthlyReports.length) {
       html +=
-        '<div class="jml-monthly-row">' +
-        '<div class="jml-monthly-row-main">' +
-        '<button type="button" class="jml-monthly-link" data-monthly-open="' +
-        escapeHtml(row.monthKey) +
-        '">' +
-        escapeHtml(title) +
-        '</button>' +
-        '<div class="jml-monthly-meta">' +
-        escapeHtml(meta) +
-        '</div></div>' +
-        monthlyBadgeHtml(row) +
-        '</div>';
-    });
-    html += '</div>';
+        '<div class="jml-report-empty">' + escapeHtml(state.monthlyReportsError) + '</div>';
+    } else {
+      var rows = Array.isArray(state.monthlyReports) ? state.monthlyReports : [];
+      if (!rows.length) {
+        html += '<div class="jml-report-empty">暂无月度报告行（上一完整月会在打开本页时出现）</div>';
+      } else {
+        html += '<div class="jml-monthly-list">';
+        rows.forEach(function (row) {
+          var title = row.fileName || row.monthKey || '—';
+          var meta = row.generated
+            ? row.monthKey + (row.readAt ? ' · 学员已读' : ' · 学员未读')
+            : row.monthKey + ' · 点击生成';
+          html +=
+            '<div class="jml-monthly-row">' +
+            '<div class="jml-monthly-row-main">' +
+            '<button type="button" class="jml-monthly-link" data-monthly-open="' +
+            escapeHtml(row.monthKey) +
+            '">' +
+            escapeHtml(title) +
+            '</button>' +
+            '<div class="jml-monthly-meta">' +
+            escapeHtml(meta) +
+            '</div></div>' +
+            monthlyBadgeHtml(row) +
+            '</div>';
+        });
+        html += '</div>';
+      }
+    }
+
+    html +=
+      '<h3 class="jml-advice-title" style="margin:20px 0 8px;">能力快照（局后写入）</h3>' +
+      '<p class="jml-train-debug-hint">每局结束后覆盖写入当月行（热图 slim cells + 解锁水位）。口径=当月最后一局后的状态。点击月份查看摘要。</p>';
+    if (state.monthlySnapshotsError) {
+      html +=
+        '<div class="jml-report-empty">' + escapeHtml(state.monthlySnapshotsError) + '</div>';
+    } else {
+      var snaps = Array.isArray(state.monthlySnapshots) ? state.monthlySnapshots : [];
+      if (!snaps.length) {
+        html +=
+          '<div class="jml-report-empty">尚无快照。该学员完成一局并成功上传后，这里会出现当月行。</div>';
+      } else {
+        html += '<div class="jml-monthly-list">';
+        snaps.forEach(function (row) {
+          html +=
+            '<div class="jml-monthly-row">' +
+            '<div class="jml-monthly-row-main">' +
+            '<button type="button" class="jml-monthly-link" data-monthly-snap="' +
+            escapeHtml(row.monthKey) +
+            '">' +
+            escapeHtml(row.monthKey) +
+            '</button>' +
+            '<div class="jml-monthly-meta">更新 ' +
+            escapeHtml(formatSnapTs(row.updatedAt)) +
+            ' · 末局 ' +
+            escapeHtml(formatSnapTs(row.lastRunTs)) +
+            '</div></div>' +
+            '<span class="jml-monthly-badge jml-monthly-badge--read">有数据</span>' +
+            '</div>';
+        });
+        html += '</div>';
+      }
+    }
+
+    if (state.monthlySnapshotDetail && state.monthlySnapshotDetail.monthKey) {
+      var d = state.monthlySnapshotDetail;
+      html +=
+        '<div class="jml-train-debug-card" style="margin-top:12px;">' +
+        '<h3>快照 ' +
+        escapeHtml(d.monthKey) +
+        '</h3>' +
+        '<div class="meta">updatedAt=' +
+        escapeHtml(formatSnapTs(d.updatedAt)) +
+        ' · lastRunTs=' +
+        escapeHtml(formatSnapTs(d.lastRunTs)) +
+        '</div>' +
+        '<pre class="jml-train-debug-pre" style="max-height:320px;overflow:auto;">' +
+        escapeHtml(
+          JSON.stringify(
+            {
+              progress: d.progress,
+              categorySummary: d.categorySummary,
+              heatmapSample: d.heatmap,
+            },
+            null,
+            2
+          )
+        ) +
+        '</pre></div>';
+    }
+
     el.innerHTML = html;
+  }
+
+  function loadMonthlySnapshots() {
+    if (!state.selectedUsername) return Promise.resolve();
+    var u = state.selectedUsername;
+    return apiFetch('/api/admin/user/' + encodeURIComponent(u) + '/monthly-snapshots')
+      .then(function (data) {
+        if (state.selectedUsername !== u) return;
+        state.monthlySnapshots = Array.isArray(data.months) ? data.months : [];
+        state.monthlySnapshotsError = '';
+      })
+      .catch(function (e) {
+        if (state.selectedUsername !== u) return;
+        state.monthlySnapshots = [];
+        state.monthlySnapshotsError = (e && e.message) || '能力快照加载失败';
+      });
+  }
+
+  function loadMonthlySnapshotDetail(monthKey) {
+    if (!state.selectedUsername || !monthKey) return Promise.resolve();
+    var u = state.selectedUsername;
+    return apiFetch(
+      '/api/admin/user/' +
+        encodeURIComponent(u) +
+        '/monthly-snapshots/' +
+        encodeURIComponent(monthKey)
+    )
+      .then(function (data) {
+        if (state.selectedUsername !== u) return;
+        state.monthlySnapshotDetail = data;
+        renderMonthlyReportPanel();
+      })
+      .catch(function (e) {
+        window.alert((e && e.message) || '快照详情加载失败');
+      });
   }
 
   function loadMonthlyReports() {
@@ -1350,23 +1460,27 @@
     var u = state.selectedUsername;
     state.monthlyReportsLoading = true;
     state.monthlyReportsError = '';
+    state.monthlySnapshotDetail = null;
     renderMonthlyReportPanel();
-    return apiFetch('/api/admin/user/' + encodeURIComponent(u) + '/monthly-reports')
-      .then(function (data) {
-        if (state.selectedUsername !== u) return;
-        state.monthlyReportsLoading = false;
-        state.monthlyReports = Array.isArray(data.reports) ? data.reports : [];
-        state.monthlyReportsLatest = data.latestClosedMonthKey || '';
-        state.monthlyReportsError = '';
-        renderMonthlyReportPanel();
-      })
-      .catch(function (e) {
-        if (state.selectedUsername !== u) return;
-        state.monthlyReportsLoading = false;
-        state.monthlyReports = [];
-        state.monthlyReportsError = (e && e.message) || '月度报告加载失败';
-        renderMonthlyReportPanel();
-      });
+    return Promise.all([
+      apiFetch('/api/admin/user/' + encodeURIComponent(u) + '/monthly-reports')
+        .then(function (data) {
+          if (state.selectedUsername !== u) return;
+          state.monthlyReports = Array.isArray(data.reports) ? data.reports : [];
+          state.monthlyReportsLatest = data.latestClosedMonthKey || '';
+          state.monthlyReportsError = '';
+        })
+        .catch(function (e) {
+          if (state.selectedUsername !== u) return;
+          state.monthlyReports = [];
+          state.monthlyReportsError = (e && e.message) || '月度报告加载失败';
+        }),
+      loadMonthlySnapshots(),
+    ]).then(function () {
+      if (state.selectedUsername !== u) return;
+      state.monthlyReportsLoading = false;
+      renderMonthlyReportPanel();
+    });
   }
 
   function closeMonthlyReportView() {
@@ -3324,9 +3438,17 @@
     if (monthlyBody && !monthlyBody.dataset.monthlyBound) {
       monthlyBody.dataset.monthlyBound = '1';
       monthlyBody.addEventListener('click', function (ev) {
-        var btn = ev.target && ev.target.closest ? ev.target.closest('[data-monthly-open]') : null;
-        if (!btn || !monthlyBody.contains(btn)) return;
-        openMonthlyReportView(btn.getAttribute('data-monthly-open') || '');
+        var openBtn =
+          ev.target && ev.target.closest ? ev.target.closest('[data-monthly-open]') : null;
+        if (openBtn && monthlyBody.contains(openBtn)) {
+          openMonthlyReportView(openBtn.getAttribute('data-monthly-open') || '');
+          return;
+        }
+        var snapBtn =
+          ev.target && ev.target.closest ? ev.target.closest('[data-monthly-snap]') : null;
+        if (snapBtn && monthlyBody.contains(snapBtn)) {
+          void loadMonthlySnapshotDetail(snapBtn.getAttribute('data-monthly-snap') || '');
+        }
       });
     }
     var monthlyClose = document.getElementById('jml-monthly-report-view-close');

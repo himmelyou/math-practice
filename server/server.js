@@ -34,6 +34,8 @@ const {
 const { createRunsStore } = require("./runs-store");
 const { createPracticePlanStore } = require("./practice-plan-store");
 const { createMonthlyReportStore } = require("./monthly-report-store");
+const { createMonthlySnapshotStore } = require("./monthly-snapshot-store");
+const { createMonthlySnapshotWriter } = require("./monthly-snapshot");
 const practicePlanService = require("./practice-plan-service");
 const {
   DIVISIBILITY_HEATMAP_LEVEL_COUNT,
@@ -410,6 +412,18 @@ const monthlyReportStore = createMonthlyReportStore({
   dataDir: DATA_DIR,
   readJson,
   writeJson,
+});
+const monthlySnapshotStore = createMonthlySnapshotStore({
+  dataDir: DATA_DIR,
+  readJson,
+  writeJson,
+});
+const monthlySnapshotWriter = createMonthlySnapshotWriter({
+  store: monthlySnapshotStore,
+  // 惰性：cohortsByCategoryForHeatmap 在下方才声明
+  cohortsByCategory: function () {
+    return cohortsByCategoryForHeatmap();
+  },
 });
 try {
   const syncResult = runsStore.syncFromLegacy({ force: false });
@@ -2774,6 +2788,56 @@ app.get("/api/admin/user/:username/monthly-reports/:monthKey/image", (req, res) 
   });
 });
 
+/** 管理员：按月能力快照列表（局后写入，只读核对） */
+app.get("/api/admin/user/:username/monthly-snapshots", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  return res.json({
+    ok: true,
+    username,
+    months: monthlySnapshotStore.listMonths(username),
+  });
+});
+
+/** 管理员：某月能力快照详情 */
+app.get("/api/admin/user/:username/monthly-snapshots/:monthKey", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username, monthKey } = req.params;
+  if (!monthlySnapshotStore.isValidMonthKey(monthKey)) {
+    return res.status(400).json({ ok: false, error: "无效月份" });
+  }
+  const row = monthlySnapshotStore.getMonth(username, monthKey);
+  if (!row) {
+    return res.status(404).json({ ok: false, error: "该月尚无快照（需有局写入后才会生成）" });
+  }
+  const heat = row.heatmap || {};
+  const catSummary = Object.keys(heat).map(function (catId) {
+    const cells = heat[catId] && Array.isArray(heat[catId].cells) ? heat[catId].cells : [];
+    const active = cells.filter(function (c) {
+      return c && c.active;
+    }).length;
+    return {
+      categoryId: catId,
+      cellCount: cells.length,
+      activeCount: active,
+    };
+  });
+  return res.json({
+    ok: true,
+    username,
+    monthKey,
+    updatedAt: row.updatedAt || null,
+    lastRunTs: row.lastRunTs || null,
+    progress: row.progress || {},
+    categorySummary: catSummary,
+    heatmap: heat,
+  });
+});
+
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
 app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -3177,6 +3241,22 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       newlyUnlocked = evalResult.newlyUnlocked || [];
       achievementEngine.sanitizeEquippedBadges(u, catalog);
       writeJson(USERS_FILE, userData);
+    }
+    if (!comboOnly) {
+      try {
+        const runsForSnap = allRunsAfterWrite || runsStore.getUserRuns(username);
+        monthlySnapshotWriter.upsertAfterRun({
+          username,
+          user: u,
+          runs: runsForSnap.map((r) => ({
+            ...r,
+            mode: normalizeRunMode(r.mode),
+          })),
+          runTs: runEntry.ts,
+        });
+      } catch (e) {
+        console.warn("[monthly-snapshot]", username, e && e.message ? e.message : e);
+      }
     }
     const sync = buildRunSyncForStudent(u, runEntry.mode);
     if (newlyUnlocked.length) sync.newAchievements = newlyUnlocked;
