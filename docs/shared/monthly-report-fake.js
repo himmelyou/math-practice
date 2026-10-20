@@ -464,7 +464,7 @@
     ctx.fillText(brand, W - RPT.PAD - ctx.measureText(brand).width, 52);
     ctx.fillStyle = "#0f172a";
     ctx.font = font("bold", F.title);
-    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", RPT.PAD, 88);
+    ctx.fillText(data.titleZh || "数感练习月报（" + monthLabelZh(monthKey) + "）", RPT.PAD, 88);
     ctx.fillStyle = "#94a3b8";
     ctx.font = font("", F.titleEn);
     ctx.fillText(data.titleEn || monthLabelEn(monthKey), RPT.PAD, 112);
@@ -582,7 +582,7 @@
     return renderReportPng({
       nickname: "",
       monthKey: monthKey,
-      titleZh: monthLabelZh(monthKey) + "学习月报",
+      titleZh: "数感练习月报（" + monthLabelZh(monthKey) + "）",
       titleEn: "Monthly Learning Report · " + monthLabelEn(monthKey),
       habit: { activeDays: 0, runs: 0, mix: [] },
       milestones: { changesZh: [], changesEn: [] },

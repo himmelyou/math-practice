@@ -501,7 +501,7 @@ function buildMonthlyReportPayload(opts) {
     ok: true,
     nickname: nicknameRaw,
     monthKey: monthKey,
-    titleZh: monthLabelZh(monthKey) + "学习月报",
+    titleZh: "数感练习月报（" + monthLabelZh(monthKey) + "）",
     titleEn: "Monthly Learning Report · " + monthLabelEn(monthKey),
     baselineMonthKey: opts.priorMonthKey || null,
     currentSynthesized: !!current.synthesized,
