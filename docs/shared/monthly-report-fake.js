@@ -174,36 +174,40 @@
   }
 
   /**
-   * 月报画布：固定栅格 + y 只增；先算高度再绘制。
-   * 字号按朋友圈阅读设计：720 宽图在手机上约缩到一半，
-   * 画布字号 ≈ 屏幕目标字号 × 1.85（正文目标约 15–17px → 画布 28–32）。
+   * 月报画布（朋友圈向）：信息少、留白够；字号阶梯 + 行距绑定。
+   * A：左仅天数/局数；右饼图 + 旁侧小字图例（不占左栏）。
+   * 不展示用户名；右上仅昵称（可空）。
    */
   var RPT = {
     W: 720,
-    PAD: 36,
-    GAP: 20,
-    HEADER: 148,
-    SECTION_GAP: 22,
-    TITLE_H: 42,
-    LINE_H: 40,
-    STAT_H: 56,
-    LEGEND_H: 32,
-    PIE: 188,
-    FOOTER: 44,
-    SHORT_LEN: 14,
-    COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#64748b"],
+    PAD: 40,
+    GAP: 24,
+    HEADER: 118,
+    SECTION_GAP: 30,
+    TITLE_H: 36,
+    TITLE_PAD_BOTTOM: 16,
+    SUB_H: 30,
+    LINE_H: 36,
+    STAT_BLOCK: 64,
+    STAT_GAP: 22,
+    PIE: 164,
+    LEGEND_ROW: 24,
+    LEGEND_GAP: 10,
+    FOOTER: 40,
+    SHORT_LEN: 16,
+    COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#94a3b8"],
     FONT: {
-      brand: 34,
-      nick: 28,
-      title: 36,
-      titleEn: 22,
-      section: 32,
-      subhead: 26,
-      body: 28,
-      label: 24,
-      stat: 44,
-      caption: 22,
-      footer: 20,
+      brand: 26,
+      nick: 22,
+      title: 30,
+      titleEn: 18,
+      section: 26,
+      subhead: 22,
+      body: 22,
+      label: 20,
+      stat: 38,
+      legend: 17,
+      footer: 16,
     },
   };
 
@@ -243,39 +247,40 @@
   function planReportHeight(data) {
     var habit = data.habit || {};
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
-    var leftH = (RPT.STAT_H + 10) * 2;
-    if (mix.length) leftH += 28 + mix.length * RPT.LEGEND_H;
-    else leftH += RPT.STAT_H;
-    var rightH = RPT.PIE + 36;
+    var leftH = RPT.STAT_BLOCK * 2 + RPT.STAT_GAP;
+    var legendH = mix.length
+      ? Math.max(RPT.PIE, mix.length * RPT.LEGEND_ROW)
+      : RPT.PIE;
+    var rightH = legendH + 8;
     var aBody = Math.max(leftH, rightH);
     var changes = (data.milestones && data.milestones.changesZh) || [];
-    var chN = changes.length || 1;
-    var chRows = rowsForList(chN, useTwoCol(changes));
+    var chRows = rowsForList(changes.length || 1, useTwoCol(changes));
     var top = (data.progress && data.progress.top) || [];
     var topLabels = top.map(function (r) {
       return r && r.zh ? r.zh : "";
     });
-    var topN = top.length || 1;
-    var topRows = rowsForList(topN, useTwoCol(topLabels));
+    var topRows = rowsForList(top.length || 1, useTwoCol(topLabels));
     var h =
       RPT.HEADER +
       RPT.SECTION_GAP +
       RPT.TITLE_H +
+      RPT.TITLE_PAD_BOTTOM +
       aBody +
       RPT.SECTION_GAP +
       RPT.TITLE_H +
-      RPT.LINE_H +
+      RPT.TITLE_PAD_BOTTOM +
+      RPT.SUB_H +
       chRows * RPT.LINE_H +
-      10 +
-      RPT.LINE_H +
+      12 +
+      RPT.SUB_H +
       topRows * RPT.LINE_H +
       RPT.FOOTER +
       RPT.PAD;
-    return Math.max(720, Math.min(1400, Math.ceil(h)));
+    return Math.max(640, Math.min(1280, Math.ceil(h)));
   }
 
   function drawDivider(ctx, y) {
-    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.strokeStyle = "rgba(148,163,184,0.32)";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(RPT.PAD, y);
@@ -288,8 +293,8 @@
     ctx.fillStyle = "#0f3d7a";
     ctx.font = font("bold", RPT.FONT.section);
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(zh, RPT.PAD, y + 28);
-    return y + RPT.TITLE_H;
+    ctx.fillText(zh, RPT.PAD, y + 22);
+    return y + RPT.TITLE_H + RPT.TITLE_PAD_BOTTOM;
   }
 
   function drawPie(ctx, cx, cy, radius, mix) {
@@ -306,7 +311,7 @@
     }
     var start = -Math.PI / 2;
     mix.forEach(function (m, i) {
-      var slice = ((Math.max(0, Number(m.pct) || 0) / total) * Math.PI * 2);
+      var slice = (Math.max(0, Number(m.pct) || 0) / total) * Math.PI * 2;
       if (slice <= 0) return;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -317,12 +322,37 @@
       start += slice;
     });
     ctx.beginPath();
-    ctx.arc(cx, cy, radius * 0.42, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius * 0.45, 0, Math.PI * 2);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
   }
 
-  /** 短列表：两列；否则单列。返回新的 y（内容底边） */
+  /** 饼图右侧小字图例 */
+  function drawPieLegend(ctx, x, topY, maxH, mix) {
+    var F = RPT.FONT;
+    if (!mix.length) {
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = font("", F.legend);
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText("暂无分类", x, topY + 16);
+      return;
+    }
+    var blockH = mix.length * RPT.LEGEND_ROW;
+    var y0 = topY + Math.max(0, (maxH - blockH) / 2);
+    mix.forEach(function (m, i) {
+      var rowY = y0 + i * RPT.LEGEND_ROW;
+      var sw = 9;
+      ctx.fillStyle = RPT.COLORS[i % RPT.COLORS.length];
+      roundRect(ctx, x, rowY + 4, sw, sw, 2);
+      ctx.fill();
+      ctx.fillStyle = "#475569";
+      ctx.font = font("", F.legend);
+      ctx.textBaseline = "alphabetic";
+      var text = (m.zh || "") + " " + (m.pct != null ? m.pct : 0) + "%";
+      ctx.fillText(ellipsize(ctx, text, 150), x + sw + 6, rowY + 13);
+    });
+  }
+
   function drawBulletGrid(ctx, y, items, emptyText) {
     var list = items && items.length ? items : [emptyText || "—"];
     var two = items && items.length ? useTwoCol(list) : false;
@@ -336,16 +366,13 @@
         ctx.fillStyle = "#1e293b";
         ctx.font = font("", RPT.FONT.body);
         ctx.textBaseline = "alphabetic";
-        ctx.fillText(ellipsize(ctx, "· " + list[i], colW), x, y + 28);
+        ctx.fillText(ellipsize(ctx, "· " + list[i], colW), x, y + 24);
       }
       y += RPT.LINE_H;
     }
     return y;
   }
 
-  /**
-   * @param {object} data 服务端 buildForUser 返回的 payload
-   */
   function renderReportPng(data) {
     if (!data || !data.monthKey) {
       return Promise.reject(new Error("missing_report_data"));
@@ -360,118 +387,91 @@
     var ctx = canvas.getContext("2d");
     if (!ctx) return Promise.reject(new Error("canvas_unsupported"));
 
-    // 背景
+    var F = RPT.FONT;
     var grad = ctx.createLinearGradient(0, 0, 0, H);
     grad.addColorStop(0, "#f0f6ff");
-    grad.addColorStop(0.4, "#ffffff");
+    grad.addColorStop(0.45, "#ffffff");
     grad.addColorStop(1, "#f8fafc");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
-    roundRect(ctx, 16, 16, W - 32, H - 32, 14);
+    roundRect(ctx, 14, 14, W - 28, H - 28, 14);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
-    ctx.strokeStyle = "rgba(37,99,235,0.16)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(37,99,235,0.14)";
+    ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // —— 页眉：左品牌/标题，右昵称 ——
-    var F = RPT.FONT;
+    // 页眉
     ctx.textBaseline = "alphabetic";
     ctx.fillStyle = "#1a3f8f";
     ctx.font = font("bold", F.brand);
-    ctx.fillText("Jarvis Math Lab", RPT.PAD, 58);
+    ctx.fillText("Jarvis Math Lab", RPT.PAD, 52);
     if (nickname) {
-      ctx.fillStyle = "#334155";
+      ctx.fillStyle = "#475569";
       ctx.font = font("bold", F.nick);
-      var nickDraw = ellipsize(ctx, nickname, 220);
-      ctx.fillText(nickDraw, W - RPT.PAD - ctx.measureText(nickDraw).width, 58);
+      var nickDraw = ellipsize(ctx, nickname, 200);
+      ctx.fillText(nickDraw, W - RPT.PAD - ctx.measureText(nickDraw).width, 52);
     }
     ctx.fillStyle = "#0f172a";
     ctx.font = font("bold", F.title);
-    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", RPT.PAD, 104);
+    ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", RPT.PAD, 88);
     ctx.fillStyle = "#94a3b8";
     ctx.font = font("", F.titleEn);
-    ctx.fillText(data.titleEn || monthLabelEn(monthKey), RPT.PAD, 134);
+    ctx.fillText(data.titleEn || monthLabelEn(monthKey), RPT.PAD, 112);
 
     var y = RPT.HEADER;
     y = drawDivider(ctx, y);
 
-    // —— A：左竖排数据 + 右饼图 ——
+    // A：左统计 · 右饼图+图例
     y = drawSectionTitle(ctx, y, "A. 本月练了多少");
     var aTop = y;
     var habit = data.habit || {};
     var activeDays = habit.activeDays != null ? habit.activeDays : 0;
     var runCount = habit.runs != null ? habit.runs : 0;
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
-    var leftW = Math.floor((W - RPT.PAD * 2 - RPT.GAP) * 0.48);
-    var rightX = RPT.PAD + leftW + RPT.GAP;
-    var rightW = W - RPT.PAD - rightX;
 
     var ly = aTop;
     function drawStat(label, value) {
       ctx.fillStyle = "#64748b";
       ctx.font = font("", F.label);
-      ctx.fillText(label, RPT.PAD, ly + 20);
+      ctx.fillText(label, RPT.PAD, ly + 18);
       ctx.fillStyle = "#0f172a";
       ctx.font = font("bold", F.stat);
       ctx.fillText(String(value), RPT.PAD, ly + 52);
-      ly += RPT.STAT_H + 10;
+      ly += RPT.STAT_BLOCK + RPT.STAT_GAP;
     }
     drawStat("练习天数", activeDays);
     drawStat("练习局数", runCount);
+    var leftBottom = ly - RPT.STAT_GAP;
 
-    if (mix.length) {
-      ctx.fillStyle = "#64748b";
-      ctx.font = font("", F.label);
-      ctx.fillText("类别占比", RPT.PAD, ly + 18);
-      ly += 28;
-      mix.forEach(function (m, i) {
-        var sw = 14;
-        ctx.fillStyle = RPT.COLORS[i % RPT.COLORS.length];
-        roundRect(ctx, RPT.PAD, ly + 4, sw, sw, 3);
-        ctx.fill();
-        ctx.fillStyle = "#1e293b";
-        ctx.font = font("", F.body);
-        var label = (m.zh || "") + " " + (m.pct != null ? m.pct : 0) + "%";
-        ctx.fillText(ellipsize(ctx, label, leftW - 24), RPT.PAD + sw + 8, ly + 18);
-        ly += RPT.LEGEND_H;
-      });
-    } else {
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = font("", F.body);
-      ctx.fillText("本月暂无练习记录", RPT.PAD, ly + 22);
-      ly += RPT.STAT_H;
-    }
-
+    // 右区：图例贴右缘，饼图在其左侧
+    var legendW = 148;
     var pieR = RPT.PIE / 2;
-    var pieCx = rightX + rightW / 2;
-    var pieCy = aTop + pieR + 6;
+    var legendX = W - RPT.PAD - legendW;
+    var pieCx = legendX - RPT.LEGEND_GAP - pieR;
+    var pieCy = aTop + pieR;
     drawPie(ctx, pieCx, pieCy, pieR, mix);
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = font("", F.caption);
-    var pieCap = "练习构成";
-    ctx.fillText(pieCap, pieCx - ctx.measureText(pieCap).width / 2, pieCy + pieR + 26);
+    drawPieLegend(ctx, legendX, aTop, RPT.PIE, mix);
 
-    var aBottom = Math.max(ly, pieCy + pieR + 36);
-    y = aBottom;
+    y = Math.max(leftBottom, aTop + RPT.PIE) + 4;
     y = drawDivider(ctx, y);
 
-    // —— B：进度变化（短则两列）+ 热图 ——
+    // B
     y = drawSectionTitle(ctx, y, "B. 本月进步了什么");
-    ctx.fillStyle = "#475569";
+    ctx.fillStyle = "#64748b";
     ctx.font = font("bold", F.subhead);
-    ctx.fillText("进度变化", RPT.PAD, y + 24);
-    y += RPT.LINE_H;
+    ctx.fillText("进度变化", RPT.PAD, y + 20);
+    y += RPT.SUB_H;
     var changesZh = (data.milestones && data.milestones.changesZh) || [];
     y = drawBulletGrid(ctx, y, changesZh, "本月暂无进度变化");
 
-    y += 10;
+    y += 12;
     var improvedCells =
       data.progress && data.progress.improvedCells != null ? data.progress.improvedCells : 0;
-    ctx.fillStyle = "#475569";
+    ctx.fillStyle = "#64748b";
     ctx.font = font("bold", F.subhead);
-    ctx.fillText("热图进步 · " + improvedCells + " 格", RPT.PAD, y + 24);
-    y += RPT.LINE_H;
+    ctx.fillText("热图进步 · " + improvedCells + " 格", RPT.PAD, y + 20);
+    y += RPT.SUB_H;
     var top = (data.progress && Array.isArray(data.progress.top) && data.progress.top) || [];
     var topLines = top.map(function (r) {
       var tag = r.kind === "acc" ? "准度" : "速度";
@@ -479,14 +479,14 @@
     });
     y = drawBulletGrid(ctx, y, topLines, "暂无明显进步格");
 
-    y += 12;
+    y += 14;
     ctx.fillStyle = "#94a3b8";
     ctx.font = font("", F.footer);
-    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), RPT.PAD, y + 18);
+    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), RPT.PAD, y + 16);
     if (data.inProgress || data.adminOnlyPreview) {
       var note = "管理端预览 · 学员不可见";
       ctx.fillStyle = "#b45309";
-      ctx.fillText(note, W - RPT.PAD - ctx.measureText(note).width, y + 18);
+      ctx.fillText(note, W - RPT.PAD - ctx.measureText(note).width, y + 16);
     }
 
     var slug = publicDownloadSlug(data);
