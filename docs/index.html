@@ -4560,7 +4560,7 @@
             <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-factors-multiples">
               <img class="home-mode-icon" src="assets/home/ic_challenge_3.png" width="28" height="28" alt="" />
               <span class="home-mode-label">因数倍数</span>
-              <span class="home-mode-badge" aria-label="新功能">新</span>
+              <span class="home-mode-badge jml-new-badge" data-new-feature="factors-multiples" hidden aria-hidden="true" aria-label="新功能">新</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
             </button>
           </div>
@@ -5729,11 +5729,11 @@
   <script src="shared/factors-multiples-questions.js?v=3"></script>
   <script src="shared/decimal-questions.js?v=51"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
-  <script src="shared/monthly-report-fake.js?v=1"></script>
+  <script src="shared/monthly-report-fake.js?v=2"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
   <script src="divisibility-page.js?v=20"></script>
-  <script src="factors-multiples-page.js?v=5"></script>
+  <script src="factors-multiples-page.js?v=6"></script>
   <script src="decimal-page.js?v=21"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -6513,6 +6513,7 @@
           if (data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
           return Math.floor(Number(data.levelIndex));
         },
+        markNewFeatureSeen: markNewFeatureSeen,
       });
     }
 
@@ -7449,10 +7450,62 @@
     }
 
     const HOME_COACH_DISMISS_KEY = "jml_home_coach_dismiss_v1";
+    const NEW_FEATURE_SEEN_KEY = "jml_new_feature_seen_v1";
     let homeCoachRenderSeq = 0;
     let homeCoachActiveKind = "";
     let homeCoachRunsCache = null;
     let homeCoachRunsCacheUser = "";
+
+    /** 按账户记录：{ [username]: { [featureId]: true } } */
+    function readNewFeatureSeenMap() {
+      try {
+        const raw = localStorage.getItem(NEW_FEATURE_SEEN_KEY);
+        const data = raw ? JSON.parse(raw) : null;
+        return data && typeof data === "object" ? data : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function writeNewFeatureSeenMap(map) {
+      try {
+        localStorage.setItem(NEW_FEATURE_SEEN_KEY, JSON.stringify(map || {}));
+      } catch (e) {}
+    }
+
+    function isNewFeatureSeen(featureId) {
+      const name = loadCurrentUsername();
+      if (!name || !featureId) return true;
+      const map = readNewFeatureSeenMap();
+      const userMap = map[name] && typeof map[name] === "object" ? map[name] : null;
+      return !!(userMap && userMap[featureId]);
+    }
+
+    function markNewFeatureSeen(featureId) {
+      const name = loadCurrentUsername();
+      if (!name || !featureId || isGuestMode) return;
+      const map = readNewFeatureSeenMap();
+      if (!map[name] || typeof map[name] !== "object") map[name] = {};
+      if (map[name][featureId]) return;
+      map[name][featureId] = true;
+      writeNewFeatureSeenMap(map);
+      refreshNewFeatureBadges();
+    }
+
+    function refreshNewFeatureBadges() {
+      const name = !isGuestMode ? loadCurrentUsername() : "";
+      const map = readNewFeatureSeenMap();
+      const userMap =
+        name && map[name] && typeof map[name] === "object" ? map[name] : null;
+      const badgeText = t("home.badge.new");
+      document.querySelectorAll("[data-new-feature]").forEach(function (el) {
+        const id = el.getAttribute("data-new-feature");
+        const show = !!(name && id && !(userMap && userMap[id]));
+        el.hidden = !show;
+        el.setAttribute("aria-hidden", show ? "false" : "true");
+        if (badgeText) el.textContent = badgeText;
+      });
+    }
 
     function hideHomeCoachFloat() {
       const el = document.getElementById("home-coach-float");
@@ -8954,6 +9007,7 @@
     let monthlyReportModalState = {
       monthKey: "",
       fileName: "",
+      downloadFileName: "",
       dataUrl: "",
       busy: false,
     };
@@ -9024,12 +9078,17 @@
       const monthKey = meta.monthKey;
       const report = meta.report || {};
       monthlyReportModalState.monthKey = monthKey;
-      monthlyReportModalState.fileName = report.fileName || Fake.displayFileName(name, monthKey);
+      monthlyReportModalState.fileName =
+        report.fileName || Fake.displayTitle(name, monthKey) || Fake.displayFileName(name, monthKey);
+      monthlyReportModalState.downloadFileName =
+        report.downloadFileName || Fake.downloadFileName(name, monthKey);
 
       if (report.generated && !force) {
         const imgData = await monthlyReportApi("/monthly-report/" + encodeURIComponent(monthKey) + "/image");
         monthlyReportModalState.dataUrl = "data:image/png;base64," + imgData.imageBase64;
         monthlyReportModalState.fileName = imgData.fileName || monthlyReportModalState.fileName;
+        monthlyReportModalState.downloadFileName =
+          imgData.downloadFileName || monthlyReportModalState.downloadFileName;
         return { monthKey: monthKey, report: report, created: false };
       }
 
@@ -9044,7 +9103,10 @@
         },
       });
       monthlyReportModalState.dataUrl = rendered.dataUrl;
-      monthlyReportModalState.fileName = rendered.fileName || monthlyReportModalState.fileName;
+      monthlyReportModalState.fileName =
+        rendered.displayTitle || rendered.fileName || monthlyReportModalState.fileName;
+      monthlyReportModalState.downloadFileName =
+        rendered.downloadFileName || monthlyReportModalState.downloadFileName;
       return { monthKey: monthKey, report: saved.report || report, created: true };
     }
 
@@ -9111,9 +9173,19 @@
 
     function handleMonthlyReportDownloadClick() {
       if (!monthlyReportModalState.dataUrl) return;
+      const Fake = window.JmlMonthlyReportFake;
+      const name =
+        monthlyReportModalState.downloadFileName ||
+        (Fake && typeof Fake.downloadFileName === "function"
+          ? Fake.downloadFileName(loadCurrentUsername(), monthlyReportModalState.monthKey)
+          : "monthly-report.png");
+      if (Fake && typeof Fake.triggerPngDownload === "function") {
+        Fake.triggerPngDownload(monthlyReportModalState.dataUrl, name);
+        return;
+      }
       const a = document.createElement("a");
       a.href = monthlyReportModalState.dataUrl;
-      a.download = monthlyReportModalState.fileName || "monthly-report.png";
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -10218,6 +10290,7 @@
         "expand.level.L4": "±A±B(C±D)；僅 x（可有 x²）；A、C 可首項負號；乘在括號前的 B 為常數或一次項。",
         "expand.level.L5": "(A±B)(C±D) 兩括號相乘；FOIL 展開四項（AC→AD→BC→BD）；僅 x，可有 x²。",
         "home.mode.soonBadge": "未開放",
+        "home.badge.new": "新",
         "home.avatar.title": "頭像（佔位）",
         "home.avatar.placeholderLetter": "頭",
         "home.playerLevel.badge": "Lv.{level}",
@@ -10745,6 +10818,7 @@
         "expand.level.L4": "±A±B(C±D); x only (x² possible); leading minus on A or C; B is a constant or x term.",
         "expand.level.L5": "(A±B)(C±D); FOIL to four terms (AC→AD→BC→BD); x only; x² possible.",
         "home.mode.soonBadge": "Soon",
+        "home.badge.new": "New",
         "home.avatar.title": "Avatar (placeholder)",
         "home.avatar.placeholderLetter": "Me",
         "home.playerLevel.badge": "Lv.{level}",
@@ -11566,6 +11640,7 @@
       setHomeModeLabel("mode-stats", "home.mode.stats");
       setHomeModeLabel("mode-ranking", "home.mode.ranking");
       setHomeModeLabel("mode-achievement-wall", "home.mode.achievementWall");
+      refreshNewFeatureBadges();
       applyHomeCoachFloatI18n();
 
       setTextById("ranking-title-main", "ranking.title");
@@ -14249,6 +14324,7 @@
       updateSurvivalButtonLabel();
       updateTrainingButtonLabel();
       updateWrongbookBadge();
+      refreshNewFeatureBadges();
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
       applyAchievementWallHomeMode();

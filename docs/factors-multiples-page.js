@@ -1028,6 +1028,9 @@
       deps.showToast(t("toast.guestNeedLogin"));
       return;
     }
+    if (typeof deps.markNewFeatureSeen === "function") {
+      deps.markNewFeatureSeen("factors-multiples");
+    }
     deps.setGameMode("factorsMultiples");
     showFactorsMultiplesSection();
   }
@@ -1089,6 +1092,9 @@
     const current = d.current ? cloneJson(d.current) : null;
     if (!deck || !deck.length || !current) return false;
 
+    if (typeof deps.markNewFeatureSeen === "function") {
+      deps.markNewFeatureSeen("factors-multiples");
+    }
     deps.setGameMode("factorsMultiples");
     showFactorsMultiplesSectionShellOnly();
     fmLevel = Math.max(0, Math.min(fmMaxLevel(), Math.floor(Number(d.level) || 0)));

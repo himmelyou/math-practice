@@ -26,8 +26,74 @@
     return names[Number(monthKey.slice(5, 7)) - 1] + " " + monthKey.slice(0, 4);
   }
 
-  function displayFileName(username, monthKey) {
+  /** 列表展示用（可含中文） */
+  function displayTitle(username, monthKey) {
     return String(username || "") + "_" + monthLabelZh(monthKey) + "_月度报告.png";
+  }
+
+  function safeUserSlug(username) {
+    var s = String(username || "").trim();
+    var ascii = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+    if (ascii) return ascii.slice(0, 64);
+    var hex = "";
+    try {
+      for (var i = 0; i < s.length && hex.length < 16; i += 1) {
+        hex += s.charCodeAt(i).toString(16);
+      }
+    } catch (e) {
+      hex = String(Date.now());
+    }
+    return "user_" + hex.slice(0, 16);
+  }
+
+  /** 浏览器下载用英文安全名 */
+  function downloadFileName(username, monthKey) {
+    return safeUserSlug(username) + "_" + String(monthKey || "report") + ".png";
+  }
+
+  /** @deprecated 等同 displayTitle */
+  function displayFileName(username, monthKey) {
+    return displayTitle(username, monthKey);
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    var str = String(dataUrl || "");
+    var m = /^data:([^;]+);base64,(.+)$/.exec(str);
+    if (!m) return null;
+    var bin = atob(m[2]);
+    var arr = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i += 1) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: m[1] || "image/png" });
+  }
+
+  /** 惯用：Blob + object URL 触发下载 */
+  function triggerPngDownload(source, fileName) {
+    var name = String(fileName || "monthly-report.png").replace(/[\\/:*?"<>|]+/g, "_");
+    if (!/\.png$/i.test(name)) name += ".png";
+    var blob = null;
+    if (source && typeof source === "object" && typeof source.size === "number") {
+      blob = source;
+    } else if (typeof source === "string" && source.indexOf("base64,") >= 0) {
+      blob = dataUrlToBlob(source);
+    } else if (typeof source === "string" && source.length) {
+      blob = dataUrlToBlob("data:image/png;base64," + source);
+    }
+    if (!blob) return false;
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      try {
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        /* ignore */
+      }
+    }, 2000);
+    return true;
   }
 
   /** 杜撰内容：正式版替换为真实汇总 */
@@ -268,7 +334,8 @@
     ctx.fillText(data.noteZh, 48, y);
     ctx.fillText(data.noteEn, 48, y + 18);
 
-    var fileName = displayFileName(username, monthKey);
+    var title = displayTitle(username, monthKey);
+    var dlName = downloadFileName(username, monthKey);
     return new Promise(function (resolve, reject) {
       canvas.toBlob(function (blob) {
         if (!blob) {
@@ -278,7 +345,9 @@
         resolve({
           dataUrl: canvas.toDataURL("image/png"),
           blob: blob,
-          fileName: fileName,
+          fileName: title,
+          displayTitle: title,
+          downloadFileName: dlName,
           width: W,
           height: H,
         });
@@ -294,9 +363,14 @@
   global.JmlMonthlyReportFake = {
     monthLabelZh: monthLabelZh,
     monthLabelEn: monthLabelEn,
+    displayTitle: displayTitle,
     displayFileName: displayFileName,
+    downloadFileName: downloadFileName,
+    safeUserSlug: safeUserSlug,
     buildFakePayload: buildFakePayload,
     renderFakeReportPng: renderFakeReportPng,
     dataUrlToBase64: dataUrlToBase64,
+    dataUrlToBlob: dataUrlToBlob,
+    triggerPngDownload: triggerPngDownload,
   };
 })(typeof window !== "undefined" ? window : globalThis);

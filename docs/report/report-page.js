@@ -159,6 +159,7 @@
     monthlyView: {
       monthKey: '',
       fileName: '',
+      downloadFileName: '',
       dataUrl: '',
       canForce: false,
       busy: false,
@@ -1373,6 +1374,7 @@
     if (overlay) overlay.hidden = true;
     state.monthlyView.monthKey = '';
     state.monthlyView.fileName = '';
+    state.monthlyView.downloadFileName = '';
     state.monthlyView.dataUrl = '';
     state.monthlyView.canForce = false;
     state.monthlyView.busy = false;
@@ -1417,7 +1419,10 @@
       )
         .then(function (imgData) {
           state.monthlyView.dataUrl = 'data:image/png;base64,' + imgData.imageBase64;
-          state.monthlyView.fileName = imgData.fileName || Fake.displayFileName(u, monthKey);
+          state.monthlyView.fileName =
+            imgData.fileName || Fake.displayTitle(u, monthKey) || Fake.displayFileName(u, monthKey);
+          state.monthlyView.downloadFileName =
+            imgData.downloadFileName || Fake.downloadFileName(u, monthKey);
           state.monthlyView.monthKey = monthKey;
           state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
           return { created: false };
@@ -1440,7 +1445,8 @@
               }
             ).then(function () {
               state.monthlyView.dataUrl = rendered.dataUrl;
-              state.monthlyView.fileName = rendered.fileName;
+              state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
+              state.monthlyView.downloadFileName = rendered.downloadFileName;
               state.monthlyView.monthKey = monthKey;
               state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
               return { created: true };
@@ -1465,7 +1471,8 @@
         }
       ).then(function () {
         state.monthlyView.dataUrl = rendered.dataUrl;
-        state.monthlyView.fileName = rendered.fileName;
+        state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
+        state.monthlyView.downloadFileName = rendered.downloadFileName;
         state.monthlyView.monthKey = monthKey;
         state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
         return { created: true };
@@ -1480,6 +1487,7 @@
     state.monthlyView.busy = true;
     state.monthlyView.monthKey = monthKey;
     state.monthlyView.fileName = '';
+    state.monthlyView.downloadFileName = '';
     state.monthlyView.dataUrl = '';
     state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
     paintMonthlyReportView();
@@ -3338,9 +3346,19 @@
       monthlyDownload.dataset.bound = '1';
       monthlyDownload.addEventListener('click', function () {
         if (!state.monthlyView.dataUrl) return;
+        var Fake = window.JmlMonthlyReportFake;
+        var name =
+          state.monthlyView.downloadFileName ||
+          (Fake && typeof Fake.downloadFileName === 'function'
+            ? Fake.downloadFileName(state.selectedUsername, state.monthlyView.monthKey)
+            : 'monthly-report.png');
+        if (Fake && typeof Fake.triggerPngDownload === 'function') {
+          Fake.triggerPngDownload(state.monthlyView.dataUrl, name);
+          return;
+        }
         var a = document.createElement('a');
         a.href = state.monthlyView.dataUrl;
-        a.download = state.monthlyView.fileName || 'monthly-report.png';
+        a.download = name;
         document.body.appendChild(a);
         a.click();
         a.remove();

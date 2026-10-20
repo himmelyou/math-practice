@@ -73,8 +73,32 @@ function createMonthlyReportStore(opts) {
     return y + "年" + m + "月";
   }
 
-  function displayFileName(username, monthKey) {
+  /** 列表展示用（可含中文） */
+  function displayTitle(username, monthKey) {
     return String(username || "") + "_" + monthLabelZh(monthKey) + "_月度报告.png";
+  }
+
+  /** 下载 / 对外英文安全名；磁盘仍为 userDir/YYYY-MM.png */
+  function safeUserSlug(username) {
+    const s = String(username || "").trim();
+    const ascii = s.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+    if (ascii) return ascii.slice(0, 64);
+    let hex = "";
+    try {
+      hex = Buffer.from(s, "utf8").toString("hex").slice(0, 16);
+    } catch (e) {
+      hex = String(Date.now());
+    }
+    return "user_" + hex;
+  }
+
+  function downloadFileName(username, monthKey) {
+    return safeUserSlug(username) + "_" + String(monthKey || "report") + ".png";
+  }
+
+  /** @deprecated 兼容旧字段名，等同 displayTitle */
+  function displayFileName(username, monthKey) {
+    return displayTitle(username, monthKey);
   }
 
   function emptyMeta(username) {
@@ -149,7 +173,8 @@ function createMonthlyReportStore(opts) {
     fs.writeFileSync(imagePath(name, monthKey), pngBuffer);
     const entry = {
       monthKey: monthKey,
-      fileName: displayFileName(name, monthKey),
+      fileName: displayTitle(name, monthKey),
+      downloadFileName: downloadFileName(name, monthKey),
       generatedAt: Date.now(),
       readAt: existing && existing.readAt ? existing.readAt : null,
       fake: true,
@@ -182,7 +207,8 @@ function createMonthlyReportStore(opts) {
     const generated = !!(entry && hasImage(name, monthKey));
     return {
       monthKey: monthKey,
-      fileName: displayFileName(name, monthKey),
+      fileName: displayTitle(name, monthKey),
+      downloadFileName: downloadFileName(name, monthKey),
       generated: generated,
       read: !!(generated && entry && entry.readAt),
       readAt: generated && entry ? entry.readAt || null : null,
@@ -212,7 +238,10 @@ function createMonthlyReportStore(opts) {
     latestClosedMonthKey,
     isValidMonthKey,
     monthLabelZh,
+    displayTitle,
     displayFileName,
+    downloadFileName,
+    safeUserSlug,
     getMeta,
     hasImage,
     readImageBuffer,

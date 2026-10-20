@@ -2699,7 +2699,8 @@ app.get("/api/user/:username/monthly-report/:monthKey/image", requireStudentAuth
   return res.json({
     ok: true,
     monthKey,
-    fileName: monthlyReportStore.displayFileName(username, monthKey),
+    fileName: monthlyReportStore.displayTitle(username, monthKey),
+    downloadFileName: monthlyReportStore.downloadFileName(username, monthKey),
     contentType: "image/png",
     imageBase64: buf.toString("base64"),
   });
@@ -2766,7 +2767,8 @@ app.get("/api/admin/user/:username/monthly-reports/:monthKey/image", (req, res) 
   return res.json({
     ok: true,
     monthKey,
-    fileName: monthlyReportStore.displayFileName(username, monthKey),
+    fileName: monthlyReportStore.displayTitle(username, monthKey),
+    downloadFileName: monthlyReportStore.downloadFileName(username, monthKey),
     contentType: "image/png",
     imageBase64: buf.toString("base64"),
   });
