@@ -18214,18 +18214,6 @@
           if (e.target === monthlyReportOverlay) closeMonthlyReportModal();
         });
       }
-      const monthlyReportCloseBtn = document.getElementById("monthly-report-close-btn");
-      if (monthlyReportCloseBtn) monthlyReportCloseBtn.addEventListener("click", closeMonthlyReportModal);
-      const monthlyReportDownloadBtn = document.getElementById("monthly-report-download-btn");
-      if (monthlyReportDownloadBtn) monthlyReportDownloadBtn.addEventListener("click", handleMonthlyReportDownloadClick);
-      const monthlyReportRegenBtn = document.getElementById("monthly-report-regen-btn");
-      if (monthlyReportRegenBtn) monthlyReportRegenBtn.addEventListener("click", handleMonthlyReportRegenClick);
-      const monthlyReportOverlay = document.getElementById("monthly-report-modal-overlay");
-      if (monthlyReportOverlay) {
-        monthlyReportOverlay.addEventListener("click", function (e) {
-          if (e.target === monthlyReportOverlay) closeMonthlyReportModal();
-        });
-      }
       const homeCoachCta = document.getElementById("home-coach-float-cta");
       if (homeCoachCta) homeCoachCta.addEventListener("click", handleHomeCoachCta);
       const homeCoachDismiss = document.getElementById("home-coach-float-dismiss");
