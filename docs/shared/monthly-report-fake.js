@@ -188,8 +188,8 @@
     TITLE_PAD_BOTTOM: 16,
     SUB_H: 30,
     LINE_H: 36,
-    STAT_BLOCK: 64,
-    STAT_GAP: 22,
+    STAT_BLOCK: 52,
+    STAT_GAP: 14,
     PIE: 164,
     LEGEND_ROW: 24,
     LEGEND_GAP: 10,
@@ -204,8 +204,8 @@
       section: 26,
       subhead: 22,
       body: 22,
-      label: 20,
-      stat: 38,
+      label: 18,
+      stat: 32,
       legend: 17,
       footer: 16,
     },
@@ -247,7 +247,7 @@
   function planReportHeight(data) {
     var habit = data.habit || {};
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
-    var leftH = RPT.STAT_BLOCK * 2 + RPT.STAT_GAP;
+    var leftH = RPT.STAT_BLOCK * 4 + RPT.STAT_GAP * 3;
     var legendH = mix.length
       ? Math.max(RPT.PIE, mix.length * RPT.LEGEND_ROW)
       : RPT.PIE;
@@ -423,25 +423,29 @@
     y = drawDivider(ctx, y);
 
     // A：左统计 · 右饼图+图例
-    y = drawSectionTitle(ctx, y, "A. 本月练了多少");
+    y = drawSectionTitle(ctx, y, "A. 本月练习统计");
     var aTop = y;
     var habit = data.habit || {};
     var activeDays = habit.activeDays != null ? habit.activeDays : 0;
     var runCount = habit.runs != null ? habit.runs : 0;
+    var tasksDone = habit.tasksDone != null ? habit.tasksDone : 0;
+    var durationLabel = habit.durationLabel || "0秒";
     var mix = Array.isArray(habit.mix) ? habit.mix : [];
 
     var ly = aTop;
     function drawStat(label, value) {
       ctx.fillStyle = "#64748b";
       ctx.font = font("", F.label);
-      ctx.fillText(label, RPT.PAD, ly + 18);
+      ctx.fillText(label, RPT.PAD, ly + 16);
       ctx.fillStyle = "#0f172a";
       ctx.font = font("bold", F.stat);
-      ctx.fillText(String(value), RPT.PAD, ly + 52);
+      ctx.fillText(String(value), RPT.PAD, ly + 44);
       ly += RPT.STAT_BLOCK + RPT.STAT_GAP;
     }
     drawStat("练习天数", activeDays);
     drawStat("练习局数", runCount);
+    drawStat("完成任务", tasksDone);
+    drawStat("练习时长", durationLabel);
     var leftBottom = ly - RPT.STAT_GAP;
 
     // 右区：图例贴右缘，饼图在其左侧
@@ -457,27 +461,27 @@
     y = drawDivider(ctx, y);
 
     // B
-    y = drawSectionTitle(ctx, y, "B. 本月进步了什么");
+    y = drawSectionTitle(ctx, y, "B. 本月进度总结");
     ctx.fillStyle = "#64748b";
     ctx.font = font("bold", F.subhead);
-    ctx.fillText("进度变化", RPT.PAD, y + 20);
+    ctx.fillText("新的突破", RPT.PAD, y + 20);
     y += RPT.SUB_H;
-    var changesZh = (data.milestones && data.milestones.changesZh) || [];
-    y = drawBulletGrid(ctx, y, changesZh, "本月暂无进度变化");
+    var breakthroughs =
+      (data.milestones && (data.milestones.breakthroughsZh || data.milestones.changesZh)) || [];
+    y = drawBulletGrid(ctx, y, breakthroughs, "本月暂无新的突破");
 
     y += 12;
     var improvedCells =
       data.progress && data.progress.improvedCells != null ? data.progress.improvedCells : 0;
     ctx.fillStyle = "#64748b";
     ctx.font = font("bold", F.subhead);
-    ctx.fillText("热图进步 · " + improvedCells + " 格", RPT.PAD, y + 20);
+    ctx.fillText("热图进步（本月共有 " + improvedCells + " 项热图取得进步）", RPT.PAD, y + 20);
     y += RPT.SUB_H;
     var top = (data.progress && Array.isArray(data.progress.top) && data.progress.top) || [];
     var topLines = top.map(function (r) {
-      var tag = r.kind === "acc" ? "准度" : "速度";
-      return tag + " · " + (r.zh || "");
+      return r.zh || "";
     });
-    y = drawBulletGrid(ctx, y, topLines, "暂无明显进步格");
+    y = drawBulletGrid(ctx, y, topLines, "暂无明显热图进步");
 
     y += 14;
     ctx.fillStyle = "#94a3b8";

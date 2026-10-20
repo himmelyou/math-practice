@@ -441,6 +441,9 @@ const monthlyReportBuilder = createMonthlyReportBuilder({
     );
     return u && typeof u.nickname === "string" ? u.nickname.trim() : "";
   },
+  getTasksDoneInMonth: function (username, monthKey) {
+    return practicePlanStore.historyCountInMonth(username, monthKey);
+  },
   cohortsByCategory: function () {
     return cohortsByCategoryForHeatmap();
   },

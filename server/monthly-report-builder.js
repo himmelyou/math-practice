@@ -9,14 +9,14 @@ const {
 } = require("./monthly-snapshot");
 
 const PROGRESS_MODES = [
-  { key: "level", zh: "闯关", en: "Challenge" },
-  { key: "survival", zh: "生存", en: "Survival" },
-  { key: "prime", zh: "质数", en: "Primes" },
-  { key: "perfectSquare", zh: "平方数", en: "Squares" },
-  { key: "divisibility", zh: "整除", en: "Divisibility" },
-  { key: "factorsMultiples", zh: "因数倍数", en: "Factors & multiples" },
-  { key: "decimal", zh: "小数", en: "Decimals" },
-  { key: "expandBrackets", zh: "拆括号", en: "Expand brackets" },
+  { key: "level", zh: "闯关", unlockOrdinal: true },
+  { key: "survival", zh: "生存", unlockOrdinal: true },
+  { key: "prime", zh: "质数", timedOnly: true },
+  { key: "perfectSquare", zh: "平方数", unlockOrdinal: true },
+  { key: "divisibility", zh: "整除", unlockOrdinal: true },
+  { key: "factorsMultiples", zh: "因数倍数", unlockOrdinal: true },
+  { key: "decimal", zh: "小数", unlockOrdinal: true },
+  { key: "expandBrackets", zh: "拆括号", unlockOrdinal: true },
 ];
 
 const MIX_BUCKETS = [
@@ -28,13 +28,47 @@ const MIX_BUCKETS = [
   { id: "other", zh: "其他", en: "Other", modes: null },
 ];
 
-const HEAT_CAT_META = {
-  arithmetic: { zh: "四则", en: "Arithmetic", prefix: "L" },
-  perfectSquare: { zh: "平方", en: "Squares", prefix: "L" },
-  divisibility: { zh: "整除", en: "Divisibility", prefix: "Z" },
-  factorsMultiples: { zh: "因倍", en: "Factors", prefix: "Y" },
-  decimal: { zh: "小数", en: "Decimals", prefix: "D" },
+/** 热图/突破用等级短名（与学员端文案对齐，去掉「第 n 级 ·」前缀后展示） */
+const HEAT_LEVEL_NAMES = {
+  arithmetic: [
+    "一位数加法入门",
+    "一位数加法进阶",
+    "一位数加减混合",
+    "两位数加减基础",
+    "两位数加一位数/整十数",
+    "两位数减一位数/整十数",
+    "两位数加两位数（进位）",
+    "两位数减两位数（退位）",
+    "两位数加减混合",
+    "乘法口诀基础",
+    "两位除一位整除",
+    "两位数加两位数（结果超100）",
+    "两位乘一位",
+    "两位乘一位的逆运算",
+    "不带括号的四则运算",
+    "带括号的四则运算",
+  ],
+  perfectSquare: ["2～11 的平方", "2～20 的平方", "2～30 的平方", "2/3/5 质因数的幂"],
+  divisibility: ["2 与 5 的整除", "3 与 9 的整除", "4 与 8 的整除", "6 与 12 的整除"],
+  factorsMultiples: [
+    "因数",
+    "倍数",
+    "最大公因数 · 入门",
+    "最小公倍数 · 入门",
+    "最大公因数 · 进阶",
+    "最小公倍数 · 进阶",
+  ],
+  decimal: [
+    "一位小数与整数混合加减",
+    "一位与两位小数混合加减",
+    "乘或除以 10ⁿ",
+    "小数乘除一位整数",
+    "单位分数与小数互化",
+    "小数乘除小数",
+  ],
 };
+
+const EXPAND_LEVEL_NAMES = ["入门", "进阶", "提高", "综合", "挑战"];
 
 function normalizeMode(mode) {
   return String(mode || "")
@@ -68,23 +102,6 @@ function markLabel(m) {
   return "—";
 }
 
-function markLabelEn(m) {
-  const mark = asMark(m);
-  if (mark.stage === "none") return "—";
-  if (mark.stage === "cleared") return "cleared";
-  if (mark.stage === "timed" && mark.timeSec != null) {
-    const s = mark.timeSec;
-    if (s < 60) return s + "s";
-    const mm = Math.floor(s / 60);
-    const r = s % 60;
-    return r > 0 ? mm + "m " + r + "s" : mm + "m";
-  }
-  if (mark.label && /^[LDZY]\d+$/.test(mark.label)) return mark.label;
-  if (mark.stage === "climbing" && mark.levelIndex != null) return "L" + (mark.levelIndex + 1);
-  return mark.label || "—";
-}
-
-/** 可比较排序键：越大越好（timed 用负秒数） */
 function markRank(m) {
   const mark = asMark(m);
   if (mark.stage === "none") return 0;
@@ -145,6 +162,25 @@ function monthLabelEn(monthKey) {
   return names[Number(monthKey.slice(5, 7)) - 1] + " " + monthKey.slice(0, 4);
 }
 
+function formatDurationZh(totalSec) {
+  const s = Math.max(0, Math.floor(Number(totalSec) || 0));
+  if (s < 60) return s + "秒";
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m < 60) return r > 0 ? m + "分" + r + "秒" : m + "分钟";
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm > 0 ? h + "小时" + mm + "分" : h + "小时";
+}
+
+function formatCompactRunTime(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r > 0 ? m + "m " + r + "s" : m + "m";
+}
+
 function mixBucketId(mode) {
   const m = normalizeMode(mode);
   for (let i = 0; i < MIX_BUCKETS.length; i++) {
@@ -154,13 +190,15 @@ function mixBucketId(mode) {
   return "other";
 }
 
-function buildHabit(runsInMonth) {
+function buildHabit(runsInMonth, opts) {
+  opts = opts || {};
   const daySet = Object.create(null);
   const counts = Object.create(null);
   MIX_BUCKETS.forEach(function (b) {
     counts[b.id] = 0;
   });
   let runs = 0;
+  let durationSec = 0;
   (runsInMonth || []).forEach(function (r) {
     if (!r || r.comboOnly === true) return;
     runs += 1;
@@ -168,6 +206,8 @@ function buildHabit(runsInMonth) {
     if (day) daySet[day] = true;
     const id = mixBucketId(r.mode);
     counts[id] = (counts[id] || 0) + 1;
+    const sec = Number(r.survivalTimeSec) || 0;
+    if (sec > 0) durationSec += sec;
   });
   const activeDays = Object.keys(daySet).length;
   const mix = [];
@@ -183,29 +223,92 @@ function buildHabit(runsInMonth) {
       });
     });
   }
-  return { activeDays: activeDays, runs: runs, mix: mix };
+  const tasksDone = Math.max(0, Math.floor(Number(opts.tasksDone) || 0));
+  return {
+    activeDays: activeDays,
+    runs: runs,
+    tasksDone: tasksDone,
+    durationSec: durationSec,
+    durationLabel: formatDurationZh(durationSec),
+    mix: mix,
+  };
 }
 
-function buildProgressChanges(priorProgress, currentProgress) {
+function levelNameForMode(modeKey, levelIndex) {
+  const li = Math.max(0, Math.floor(Number(levelIndex) || 0));
+  if (modeKey === "level" || modeKey === "survival") {
+    return HEAT_LEVEL_NAMES.arithmetic[li] || "";
+  }
+  if (modeKey === "perfectSquare") return HEAT_LEVEL_NAMES.perfectSquare[li] || "";
+  if (modeKey === "divisibility") return HEAT_LEVEL_NAMES.divisibility[li] || "";
+  if (modeKey === "factorsMultiples") return HEAT_LEVEL_NAMES.factorsMultiples[li] || "";
+  if (modeKey === "decimal") return HEAT_LEVEL_NAMES.decimal[li] || "";
+  if (modeKey === "expandBrackets") return EXPAND_LEVEL_NAMES[li] || "";
+  return "";
+}
+
+function cleanLevelTitle(name) {
+  return String(name || "")
+    .replace(/^第\s*\d+\s*级\s*·\s*/, "")
+    .replace(/^Y\d+\s*·\s*/, "")
+    .replace(/^Z\d+\s*·\s*/, "")
+    .replace(/^D\d+\s*·\s*/, "")
+    .replace(/^L\d+\s*·\s*/, "")
+    .replace(/\s*·\s*/g, "")
+    .trim();
+}
+
+function heatCellTitle(catId, levelIndex) {
+  const names = HEAT_LEVEL_NAMES[catId];
+  const li = Math.max(0, Math.floor(Number(levelIndex) || 0));
+  if (names && names[li]) return cleanLevelTitle(names[li]);
+  const prefix = catId === "decimal" ? "小数" : catId === "divisibility" ? "整除" : "";
+  return prefix + "第" + (li + 1) + "级";
+}
+
+/** 「新的突破」说明句（仅进步/变化项） */
+function buildBreakthroughs(priorProgress, currentProgress) {
   const prior = priorProgress && typeof priorProgress === "object" ? priorProgress : {};
   const cur = currentProgress && typeof currentProgress === "object" ? currentProgress : {};
-  const changes = [];
+  const out = [];
   PROGRESS_MODES.forEach(function (meta) {
     const a = asMark(prior[meta.key]);
     const b = asMark(cur[meta.key]);
     if (!marksDiffer(a, b)) return;
-    if (markRank(b) < markRank(a) && a.stage !== "none") {
-      // 偶发回退（重建口径差）仍展示，便于核对
+    if (markRank(b) < markRank(a)) return; // 回退不写进「突破」
+
+    if (b.stage === "timed") {
+      const t = formatCompactRunTime(b.timeSec);
+      if (a.stage !== "timed") {
+        if (meta.key === "prime") out.push({ zh: "质数达人上榜，最佳用时 " + t });
+        else if (meta.key === "level") out.push({ zh: "闯关通关，最佳用时 " + t });
+        else if (meta.key === "survival") out.push({ zh: "生存通关，最佳用时 " + t });
+        else if (meta.key === "divisibility") out.push({ zh: "整除零错通关，最佳用时 " + t });
+        else out.push({ zh: meta.zh + "刷新最佳用时 " + t });
+      } else {
+        out.push({ zh: meta.zh + "刷新最佳用时至 " + t });
+      }
+      return;
     }
-    changes.push({
-      key: meta.key,
-      zh: meta.zh + "：" + markLabel(a) + " → " + markLabel(b),
-      en: meta.en + ": " + markLabelEn(a) + " → " + markLabelEn(b),
-      from: a,
-      to: b,
-    });
+    if (b.stage === "cleared") {
+      out.push({ zh: meta.zh + "通关" });
+      return;
+    }
+    if (b.stage === "climbing" && b.levelIndex != null) {
+      const ord = b.levelIndex + 1;
+      const title = cleanLevelTitle(levelNameForMode(meta.key, b.levelIndex));
+      if (meta.unlockOrdinal) {
+        out.push({
+          zh: title
+            ? meta.zh + "解锁第" + ord + "级：" + title
+            : meta.zh + "解锁第" + ord + "级",
+        });
+      } else {
+        out.push({ zh: meta.zh + "推进至第" + ord + "级" });
+      }
+    }
   });
-  return changes;
+  return out;
 }
 
 function cellMap(heatmap) {
@@ -223,68 +326,89 @@ function cellMap(heatmap) {
   return map;
 }
 
-function levelTag(catId, levelIndex) {
-  const meta = HEAT_CAT_META[catId] || { zh: catId, en: catId, prefix: "L" };
-  return {
-    zh: meta.zh + " " + meta.prefix + (levelIndex + 1),
-    en: meta.en + " " + meta.prefix + (levelIndex + 1),
-  };
+function cellIsAccurate(c) {
+  return !!(c && (c.accurate === true || (c.p != null && Number(c.p) >= 0.95)));
 }
 
+function cellHasSample(c) {
+  return !!(c && c.active && Math.max(0, Math.floor(Number(c.n) || 0)) > 0);
+}
+
+function cellAvgSec(c) {
+  if (!c) return null;
+  const a = Number(c.avgSec);
+  if (Number.isFinite(a) && a > 0) return a;
+  const ln = Number(c.meanLnCorrect);
+  if (Number.isFinite(ln)) {
+    const sec = Math.exp(ln) / 1000;
+    if (Number.isFinite(sec) && sec > 0) return sec;
+  }
+  return null;
+}
+
+function formatPct1(p) {
+  const n = Number(p);
+  if (!Number.isFinite(n)) return null;
+  const pct = n <= 1 ? n * 100 : n;
+  return (Math.round(pct * 10) / 10).toFixed(1).replace(/\.0$/, "");
+}
+
+/**
+ * 热图进步：
+ * - 准确率：上月末已有样本且未达标 → 本月末达标（首次从无样本到达标不算）
+ * - 速度：两端均达标，用均速算提升百分比；排序用该百分比
+ */
 function buildHeatmapDiff(priorHeat, currentHeat) {
   const prev = cellMap(priorHeat);
   const cur = cellMap(currentHeat);
   const improved = [];
+
   Object.keys(cur).forEach(function (key) {
     const c = cur[key];
     const p = prev[key];
     const parts = key.split(":");
     const catId = parts[0];
     const li = Math.max(0, Math.floor(Number(parts[1]) || 0));
-    const tag = levelTag(catId, li);
+    const title = heatCellTitle(catId, li);
+    const nowAcc = cellIsAccurate(c);
+    const wasAcc = cellIsAccurate(p);
+    const priorSample = cellHasSample(p);
 
-    const wasAcc = !!(p && (p.accurate === true || (p.p != null && Number(p.p) >= 0.95)));
-    const nowAcc = !!(c.accurate === true || (c.p != null && Number(c.p) >= 0.95));
-    const wasFluent = !!(p && p.fluent === true);
-    const nowFluent = c.fluent === true;
-
-    if (!wasAcc && nowAcc) {
+    if (priorSample && !wasAcc && nowAcc) {
+      const pctStr = formatPct1(c.p);
       improved.push({
         kind: "acc",
-        score: 100 + (nowFluent ? 20 : 0),
-        zh: tag.zh + "：准确率达到掌握线",
-        en: tag.en + ": reached accuracy mastery",
+        score: 1000 + (Number(c.p) || 0) * 100,
+        zh: title + "：准确率达到 " + (pctStr != null ? pctStr + "%" : "掌握线"),
       });
       return;
     }
-    if (wasAcc && !wasFluent && nowFluent) {
-      improved.push({
-        kind: "acc",
-        score: 80,
-        zh: tag.zh + "：达到流畅",
-        en: tag.en + ": became fluent",
-      });
-      return;
-    }
-    if (nowAcc && p && c.meanLnCorrect != null && p.meanLnCorrect != null) {
-      const dLn = Number(p.meanLnCorrect) - Number(c.meanLnCorrect);
-      if (dLn > 0.05) {
-        improved.push({
-          kind: "speed",
-          score: 40 + Math.min(40, dLn * 20),
-          zh: tag.zh + "：准度保持，速度提升",
-          en: tag.en + ": stayed accurate, faster",
-        });
+
+    if (nowAcc && wasAcc && priorSample) {
+      const oldSec = cellAvgSec(p);
+      const newSec = cellAvgSec(c);
+      if (oldSec != null && newSec != null && oldSec > newSec && oldSec > 0) {
+        const speedPct = ((oldSec - newSec) / oldSec) * 100;
+        if (speedPct >= 3) {
+          const pctShow = Math.round(speedPct);
+          improved.push({
+            kind: "speed",
+            score: speedPct,
+            speedPct: speedPct,
+            zh: title + "：速度提升 " + pctShow + "%",
+          });
+        }
       }
     }
   });
+
   improved.sort(function (a, b) {
     return b.score - a.score;
   });
   return {
     improvedCells: improved.length,
     top: improved.slice(0, 3).map(function (row) {
-      return { kind: row.kind, zh: row.zh, en: row.en };
+      return { kind: row.kind, zh: row.zh };
     }),
   };
 }
@@ -337,16 +461,6 @@ function synthesizeSnap(runs, monthKey, cohortsByCategory) {
   };
 }
 
-/**
- * @param {object} opts
- * @param {string} opts.username
- * @param {string} opts.monthKey
- * @param {array} opts.runs
- * @param {object|null} opts.currentSnap
- * @param {object|null} opts.priorSnap
- * @param {string|null} opts.priorMonthKey
- * @param {object} [opts.cohortsByCategory]
- */
 function buildMonthlyReportPayload(opts) {
   opts = opts || {};
   const username = String(opts.username || "");
@@ -358,19 +472,19 @@ function buildMonthlyReportPayload(opts) {
   if (!current || !current.progress) {
     current = synthesizeSnap(runs, monthKey, cohorts);
   }
-  const prior =
-    opts.priorSnap && typeof opts.priorSnap === "object" ? opts.priorSnap : null;
+  const prior = opts.priorSnap && typeof opts.priorSnap === "object" ? opts.priorSnap : null;
   const priorProgress = prior && prior.progress ? prior.progress : {};
   const priorHeat = prior && prior.heatmap ? prior.heatmap : {};
 
-  const habit = buildHabit(runsInMonth(runs, monthKey));
-  const changes = buildProgressChanges(priorProgress, current.progress || {});
+  const habit = buildHabit(runsInMonth(runs, monthKey), {
+    tasksDone: opts.tasksDone,
+  });
+  const breakthroughs = buildBreakthroughs(priorProgress, current.progress || {});
   const heatDiff = buildHeatmapDiff(priorHeat, current.heatmap || {});
 
   const nicknameRaw = opts.nickname != null ? String(opts.nickname).trim() : "";
   return {
     ok: true,
-    /** 公开展示名；空则画布不显示名字。不回传 username，避免登录名公开 */
     nickname: nicknameRaw,
     monthKey: monthKey,
     titleZh: monthLabelZh(monthKey) + "学习月报",
@@ -379,13 +493,14 @@ function buildMonthlyReportPayload(opts) {
     currentSynthesized: !!current.synthesized,
     habit: habit,
     milestones: {
-      changesZh: changes.map(function (c) {
-        return c.zh;
+      breakthroughsZh: breakthroughs.map(function (b) {
+        return b.zh;
       }),
-      changesEn: changes.map(function (c) {
-        return c.en;
+      breakthroughs: breakthroughs,
+      /** 兼容旧画布字段 */
+      changesZh: breakthroughs.map(function (b) {
+        return b.zh;
       }),
-      changes: changes,
     },
     progress: {
       improvedCells: heatDiff.improvedCells,
@@ -401,6 +516,7 @@ function createMonthlyReportBuilder(deps) {
   const snapshotStore = deps.snapshotStore;
   const getUserRuns = deps.getUserRuns;
   const getUserNickname = deps.getUserNickname;
+  const getTasksDoneInMonth = deps.getTasksDoneInMonth;
   const cohortsByCategory = deps.cohortsByCategory;
 
   function buildForUser(username, monthKey) {
@@ -415,6 +531,8 @@ function createMonthlyReportBuilder(deps) {
     const cohorts = typeof cohortsByCategory === "function" ? cohortsByCategory() : {};
     const nickname =
       typeof getUserNickname === "function" ? String(getUserNickname(name) || "").trim() : "";
+    const tasksDone =
+      typeof getTasksDoneInMonth === "function" ? getTasksDoneInMonth(name, monthKey) : 0;
     return buildMonthlyReportPayload({
       username: name,
       nickname: nickname,
@@ -424,6 +542,7 @@ function createMonthlyReportBuilder(deps) {
       priorSnap: priorSnap,
       priorMonthKey: priorMonthKey,
       cohortsByCategory: cohorts,
+      tasksDone: tasksDone,
     });
   }
 
@@ -434,7 +553,7 @@ module.exports = {
   createMonthlyReportBuilder,
   buildMonthlyReportPayload,
   buildHabit,
-  buildProgressChanges,
+  buildBreakthroughs,
   buildHeatmapDiff,
   PROGRESS_MODES,
 };
