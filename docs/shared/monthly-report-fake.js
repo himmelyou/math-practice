@@ -353,12 +353,30 @@
     ctx.font = font(weight, size);
     ctx.textBaseline = "alphabetic";
     var clipped = ellipsize(ctx, full, maxW);
-    var re = /(\d+(?:\.\d+)?%|\d+小时(?:\d+分)?(?:\d+秒)?|\d+分\d+秒|\d+分钟|\d+秒|\d+)/g;
+    // 只标指标：百分比/时长/第N级/共有N项；不扫标题里的裸数字（如「结果超100」「2~11」）
+    var re =
+      /(\d+(?:\.\d+)?%|\d+小时(?:\d+分)?(?:\d+秒)?|\d+分\d+秒|\d+分钟|\d+秒|第\d+级|共有\s*\d+)/g;
     var last = 0;
     var m;
     var cx = x;
     while ((m = re.exec(clipped)) != null) {
-      var before = clipped.slice(last, m.index);
+      var raw = m[0];
+      var hiStart = m.index;
+      var hiText = raw;
+      // 「共有 13」只高亮数字部分
+      var gongyou = /^共有\s*/.exec(raw);
+      if (gongyou) {
+        hiStart += gongyou[0].length;
+        hiText = raw.slice(gongyou[0].length);
+      } else {
+        // 「第1级」只高亮中间数字
+        var diJi = /^第(\d+)级$/.exec(raw);
+        if (diJi) {
+          hiStart += 1;
+          hiText = diJi[1];
+        }
+      }
+      var before = clipped.slice(last, hiStart);
       if (before) {
         ctx.fillStyle = baseColor;
         ctx.font = font(weight, size);
@@ -367,9 +385,16 @@
       }
       ctx.fillStyle = accentColor;
       ctx.font = font("bold", size);
-      ctx.fillText(m[0], cx, baselineY);
-      cx += ctx.measureText(m[0]).width;
-      last = m.index + m[0].length;
+      ctx.fillText(hiText, cx, baselineY);
+      cx += ctx.measureText(hiText).width;
+      last = m.index + raw.length;
+      var afterHi = clipped.slice(hiStart + hiText.length, last);
+      if (afterHi) {
+        ctx.fillStyle = baseColor;
+        ctx.font = font(weight, size);
+        ctx.fillText(afterHi, cx, baselineY);
+        cx += ctx.measureText(afterHi).width;
+      }
     }
     var rest = clipped.slice(last);
     if (rest) {
