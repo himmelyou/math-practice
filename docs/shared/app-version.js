@@ -4,7 +4,7 @@
 (function (g) {
   g.JML_APP_VERSION = "v1.7.60";
   g.JML_BUILD_ID = "20261020a";
-  g.JML_CACHE_TAG = "132";
+  g.JML_CACHE_TAG = "133";
   g.JML_ADMIN_STATIC_REV = "52";
 
   /** 尽早写入登录/首页版本，避免 HTML 占位旧号闪一下 */
