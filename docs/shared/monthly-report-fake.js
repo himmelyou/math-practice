@@ -426,17 +426,17 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 页眉
+    // 页眉：左昵称 · 右品牌（同字号）
     ctx.textBaseline = "alphabetic";
-    ctx.fillStyle = "#1a3f8f";
     ctx.font = font("bold", F.brand);
-    ctx.fillText("Jarvis Math Lab", RPT.PAD, 52);
     if (nickname) {
       ctx.fillStyle = "#475569";
-      ctx.font = font("bold", F.nick);
-      var nickDraw = ellipsize(ctx, nickname, 200);
-      ctx.fillText(nickDraw, W - RPT.PAD - ctx.measureText(nickDraw).width, 52);
+      var nickDraw = ellipsize(ctx, nickname, W * 0.45);
+      ctx.fillText(nickDraw, RPT.PAD, 52);
     }
+    ctx.fillStyle = "#1a3f8f";
+    var brand = "Jarvis Math Lab";
+    ctx.fillText(brand, W - RPT.PAD - ctx.measureText(brand).width, 52);
     ctx.fillStyle = "#0f172a";
     ctx.font = font("bold", F.title);
     ctx.fillText(data.titleZh || monthLabelZh(monthKey) + "学习月报", RPT.PAD, 88);
@@ -462,7 +462,8 @@
     var pieR = RPT.PIE / 2;
     var legendX = W - RPT.PAD - legendW;
     var pieCx = legendX - RPT.LEGEND_GAP - pieR;
-    var pieCy = aTop + pieR;
+    var pieLift = 14; // 饼图/图例相对左栏略上移
+    var pieCy = aTop + pieR - pieLift;
     var leftPanelW = Math.max(200, pieCx - pieR - RPT.GAP - RPT.PAD);
     var statColW = (leftPanelW - RPT.STAT_COL_GAP) / 2;
 
@@ -485,7 +486,7 @@
     var leftBottom = aTop + RPT.STAT_BLOCK * 2 + RPT.STAT_GAP;
 
     drawPie(ctx, pieCx, pieCy, pieR, mix);
-    drawPieLegend(ctx, legendX, aTop, RPT.PIE, mix);
+    drawPieLegend(ctx, legendX, aTop - pieLift, RPT.PIE, mix);
 
     y = Math.max(leftBottom, aTop + RPT.PIE) + 4;
     y = drawDivider(ctx, y);
@@ -521,13 +522,11 @@
     });
     y = drawBulletGrid(ctx, y, topLines, "暂无明显热图进步");
 
-    y += 14;
-    ctx.fillStyle = "#94a3b8";
-    ctx.font = font("", F.footer);
-    ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), RPT.PAD, y + 16);
     if (data.inProgress || data.adminOnlyPreview) {
+      y += 14;
       var note = "管理端预览 · 学员不可见";
       ctx.fillStyle = "#b45309";
+      ctx.font = font("", F.footer);
       ctx.fillText(note, W - RPT.PAD - ctx.measureText(note).width, y + 16);
     }
 

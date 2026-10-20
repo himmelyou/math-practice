@@ -2911,23 +2911,24 @@ app.get("/api/admin/user/:username/monthly-snapshots/:monthKey", (req, res) => {
 });
 
 /**
- * 管理员：用现有 runs 重建测试员月度能力快照（与局后单类写入同一套算法）。
- * 仅 isTester===true；progress 按各月末局 asOf 从 runs 倒推（对齐概览水位）。
+ * 管理员：用现有 runs 重建月度能力快照（与局后单类写入同一套算法）。
+ * 全体有用户名的账号；progress 按各月末局 asOf 从 runs 倒推（对齐概览水位）。
+ * 路径名保留 -testers 以兼容旧管理端；行为已放开为全员。
  */
 app.post("/api/admin/maintenance/rebuild-monthly-snapshots-testers", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const usersData = readJson(USERS_FILE, { users: [] });
-  const testers = (Array.isArray(usersData.users) ? usersData.users : []).filter(
-    (u) => u && u.isTester === true && u.username
+  const targets = (Array.isArray(usersData.users) ? usersData.users : []).filter(
+    (u) => u && u.username
   );
   const results = [];
   let monthsWritten = 0;
   let categoryWrites = 0;
   const allErrors = [];
 
-  testers.forEach((u) => {
+  targets.forEach((u) => {
     const name = String(u.username);
     const runs = runsStore.getUserRuns(name).map((r) => ({
       ...r,
@@ -2953,12 +2954,13 @@ app.post("/api/admin/maintenance/rebuild-monthly-snapshots-testers", (req, res) 
 
   return res.json({
     ok: true,
-    testersScanned: testers.length,
+    usersScanned: targets.length,
+    testersScanned: targets.length, // 兼容旧前端字段名
     monthsWritten,
     categoryWrites,
     users: results,
     errors: allErrors,
-    note: "progress 为概览同口径水位（闯关/生存/质数/平方/整除/因倍/小数/拆括号）；按月末 asOf 从 runs 倒推",
+    note: "progress 为概览同口径水位（闯关/生存/质数/平方/整除/因倍/小数/拆括号）；按月末 asOf 从 runs 倒推；已覆盖全体学员",
   });
 });
 

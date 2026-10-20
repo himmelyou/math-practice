@@ -3824,7 +3824,7 @@
         if (rebuildTesterSnaps.disabled) return;
         if (
           !window.confirm(
-            '仅重建 isTester 账号的月度能力快照。\n\n' +
+            '将重建全体学员的月度能力快照（覆盖已有快照）。\n\n' +
               '热图：每月每类取末局，用截至该时刻的 runs 重算并覆盖。\n' +
               'progress：按该月末局 asOf 从 runs 倒推概览同口径水位（闯关/生存用时与最高关、质数/整除零错用时、各模式阶梯进度）。\n\n确认执行？'
           )
@@ -3855,10 +3855,11 @@
                 );
               })
               .join('\n');
+            var scanned = d.usersScanned != null ? d.usersScanned : d.testersScanned || 0;
             window.alert(
               '重建完成\n' +
-                '测试员数：' +
-                (d.testersScanned || 0) +
+                '学员数：' +
+                scanned +
                 '\n写入月行：' +
                 (d.monthsWritten || 0) +
                 '\n类别块：' +
