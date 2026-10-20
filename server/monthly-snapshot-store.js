@@ -90,11 +90,27 @@ function createMonthlySnapshotStore(opts) {
     const doc = get(name);
     const prev = doc.months[monthKey] && typeof doc.months[monthKey] === "object" ? doc.months[monthKey] : {};
     const now = Date.now();
+    const prevHeat =
+      prev.heatmap && typeof prev.heatmap === "object" ? prev.heatmap : {};
+    let nextHeat = prevHeat;
+    if (payload.replaceHeatmap === true) {
+      nextHeat =
+        payload.heatmapPatch && typeof payload.heatmapPatch === "object"
+          ? payload.heatmapPatch
+          : payload.heatmap && typeof payload.heatmap === "object"
+            ? payload.heatmap
+            : {};
+    } else if (payload.heatmapPatch && typeof payload.heatmapPatch === "object") {
+      nextHeat = Object.assign({}, prevHeat, payload.heatmapPatch);
+    } else if (payload.heatmap && typeof payload.heatmap === "object") {
+      // 兼容旧调用：整表覆盖
+      nextHeat = payload.heatmap;
+    }
     doc.months[monthKey] = {
       monthKey: monthKey,
       updatedAt: now,
       lastRunTs: payload.lastRunTs != null ? Number(payload.lastRunTs) || now : now,
-      heatmap: payload.heatmap && typeof payload.heatmap === "object" ? payload.heatmap : prev.heatmap || {},
+      heatmap: nextHeat,
       progress: payload.progress && typeof payload.progress === "object" ? payload.progress : prev.progress || {},
       v: 1,
     };

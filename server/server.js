@@ -2838,6 +2838,58 @@ app.get("/api/admin/user/:username/monthly-snapshots/:monthKey", (req, res) => {
   });
 });
 
+/**
+ * 管理员：用现有 runs 重建测试员月度能力快照（与局后单类写入同一套算法）。
+ * 仅 isTester===true；progress 取当前用户文档（历史水位近似）。
+ */
+app.post("/api/admin/maintenance/rebuild-monthly-snapshots-testers", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const testers = (Array.isArray(usersData.users) ? usersData.users : []).filter(
+    (u) => u && u.isTester === true && u.username
+  );
+  const results = [];
+  let monthsWritten = 0;
+  let categoryWrites = 0;
+  const allErrors = [];
+
+  testers.forEach((u) => {
+    const name = String(u.username);
+    const runs = runsStore.getUserRuns(name).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const out = monthlySnapshotWriter.rebuildUserFromRuns({
+      username: name,
+      user: u,
+      runs: runs,
+    });
+    monthsWritten += out.monthsWritten || 0;
+    categoryWrites += out.categoryWrites || 0;
+    if (Array.isArray(out.errors) && out.errors.length) {
+      allErrors.push({ username: name, errors: out.errors });
+    }
+    results.push({
+      username: name,
+      monthsWritten: out.monthsWritten || 0,
+      categoryWrites: out.categoryWrites || 0,
+      ok: out.ok !== false,
+    });
+  });
+
+  return res.json({
+    ok: true,
+    testersScanned: testers.length,
+    monthsWritten,
+    categoryWrites,
+    users: results,
+    errors: allErrors,
+    note: "progress 字段为重建时用户当前水位，非历史还原",
+  });
+});
+
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
 app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -3248,6 +3300,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
         monthlySnapshotWriter.upsertAfterRun({
           username,
           user: u,
+          mode: runEntry.mode,
           runs: runsForSnap.map((r) => ({
             ...r,
             mode: normalizeRunMode(r.mode),

@@ -1355,7 +1355,7 @@
 
     html +=
       '<h3 class="jml-advice-title" style="margin:20px 0 8px;">能力快照（局后写入）</h3>' +
-      '<p class="jml-train-debug-hint">每局结束后覆盖写入当月行（热图 slim cells + 解锁水位）。口径=当月最后一局后的状态。点击月份查看摘要。</p>';
+      '<p class="jml-train-debug-hint">每局结束后只重算本局所属热图类别并合并进当月行（其它类别保留）；同时刷新解锁水位。拆括号/质数合数等无热图类别则只更新水位。点击月份查看摘要。</p>';
     if (state.monthlySnapshotsError) {
       html +=
         '<div class="jml-report-empty">' + escapeHtml(state.monthlySnapshotsError) + '</div>';
@@ -3776,6 +3776,70 @@
           .finally(function () {
             backfillRunSpeed.disabled = false;
             backfillRunSpeed.textContent = prevLabel;
+          });
+      });
+    }
+    var rebuildTesterSnaps = document.getElementById('jml-rebuild-tester-snapshots-btn');
+    if (rebuildTesterSnaps) {
+      rebuildTesterSnaps.addEventListener('click', function () {
+        if (rebuildTesterSnaps.disabled) return;
+        if (
+          !window.confirm(
+            '仅重建 isTester 账号的月度能力快照。\n\n' +
+              '算法与局后写入相同：每月每类取末局时间，用截至该时刻的 runs 重算该类热图并覆盖写入。\n' +
+              'progress（解锁水位）为当前用户文档，非历史还原。\n\n确认执行？'
+          )
+        ) {
+          return;
+        }
+        rebuildTesterSnaps.disabled = true;
+        var prevLabel = rebuildTesterSnaps.textContent;
+        rebuildTesterSnaps.textContent = '重建中…';
+        apiFetch('/api/admin/maintenance/rebuild-monthly-snapshots-testers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        })
+          .then(function (d) {
+            if (!d || d.ok !== true) {
+              window.alert('重建失败：' + ((d && d.error) || '返回异常'));
+              return;
+            }
+            var lines = (d.users || [])
+              .map(function (u) {
+                return (
+                  (u.username || '?') +
+                  '：月 ' +
+                  (u.monthsWritten || 0) +
+                  ' / 类写入 ' +
+                  (u.categoryWrites || 0)
+                );
+              })
+              .join('\n');
+            window.alert(
+              '重建完成\n' +
+                '测试员数：' +
+                (d.testersScanned || 0) +
+                '\n写入月行：' +
+                (d.monthsWritten || 0) +
+                '\n类别块：' +
+                (d.categoryWrites || 0) +
+                (d.note ? '\n\n' + d.note : '') +
+                (lines ? '\n\n' + lines : '') +
+                (d.errors && d.errors.length
+                  ? '\n\n部分错误：' + JSON.stringify(d.errors).slice(0, 400)
+                  : '')
+            );
+            if (activeTabId() === 'monthly-report' && state.selectedUsername) {
+              return loadMonthlyReports();
+            }
+          })
+          .catch(function (e) {
+            window.alert('重建失败：' + (e.message || String(e)));
+          })
+          .finally(function () {
+            rebuildTesterSnaps.disabled = false;
+            rebuildTesterSnaps.textContent = prevLabel;
           });
       });
     }
