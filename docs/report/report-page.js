@@ -1563,8 +1563,14 @@
           }
         ).then(function () {
           state.monthlyView.dataUrl = rendered.dataUrl;
-          state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
-          state.monthlyView.downloadFileName = rendered.downloadFileName;
+          // 管理端展示/下载始终用学员用户名，不用昵称 slug
+          state.monthlyView.fileName =
+            Fake.displayTitle(u, monthKey) ||
+            Fake.displayFileName(u, monthKey) ||
+            rendered.displayTitle ||
+            rendered.fileName;
+          state.monthlyView.downloadFileName =
+            Fake.downloadFileName(u, monthKey) || rendered.downloadFileName;
           state.monthlyView.monthKey = monthKey;
           state.monthlyView.canForce = canForceMonthlyReport(monthKey);
           return { created: true };

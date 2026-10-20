@@ -5729,7 +5729,7 @@
   <script src="shared/factors-multiples-questions.js?v=3"></script>
   <script src="shared/decimal-questions.js?v=51"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
-  <script src="shared/monthly-report-fake.js?v=19"></script>
+  <script src="shared/monthly-report-fake.js?v=20"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
   <script src="divisibility-page.js?v=20"></script>
@@ -9106,11 +9106,19 @@
         },
       });
       monthlyReportModalState.dataUrl = rendered.dataUrl;
+      var savedReport = saved.report || report;
       monthlyReportModalState.fileName =
-        rendered.displayTitle || rendered.fileName || monthlyReportModalState.fileName;
+        (savedReport && savedReport.fileName) ||
+        Fake.displayTitle(name, monthKey) ||
+        rendered.displayTitle ||
+        rendered.fileName ||
+        monthlyReportModalState.fileName;
       monthlyReportModalState.downloadFileName =
-        rendered.downloadFileName || monthlyReportModalState.downloadFileName;
-      return { monthKey: monthKey, report: saved.report || report, created: true };
+        (savedReport && savedReport.downloadFileName) ||
+        Fake.downloadFileName(name, monthKey) ||
+        rendered.downloadFileName ||
+        monthlyReportModalState.downloadFileName;
+      return { monthKey: monthKey, report: savedReport, created: true };
     }
 
     async function markMonthlyReportRead() {

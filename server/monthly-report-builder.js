@@ -547,6 +547,8 @@ function buildMonthlyReportPayload(opts) {
   const nicknameRaw = opts.nickname != null ? String(opts.nickname).trim() : "";
   return {
     ok: true,
+    /** 仅用于下载/管理端文件名；画布不展示用户名 */
+    username: username,
     nickname: nicknameRaw,
     monthKey: monthKey,
     titleZh: "数感练习月报（" + monthLabelZh(monthKey) + "）",

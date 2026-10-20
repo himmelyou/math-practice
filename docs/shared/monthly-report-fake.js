@@ -233,9 +233,16 @@
     return n;
   }
 
+  /** 文件名优先用户名（管理端/下载可读）；勿用中文昵称以免变成 user_hex */
   function publicDownloadSlug(data) {
+    var user = String((data && data.username) || "").trim();
+    if (user) return safeUserSlug(user);
     var nick = String((data && data.nickname) || "").trim();
-    return nick ? safeUserSlug(nick) : "report";
+    if (nick) {
+      var ascii = nick.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+      if (ascii) return ascii.slice(0, 64);
+    }
+    return "report";
   }
 
   function planReportHeight(data) {
