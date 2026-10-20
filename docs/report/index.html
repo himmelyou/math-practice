@@ -28,7 +28,7 @@
         <a class="jml-toolbar-link" href="../admin/index.html">后台管理</a>
         <button type="button" class="jml-btn" id="jml-cohort-rebuild-btn" title="全量重扫 runs 并写入四则+小数+平方数+整除常模快照（与定时过期逻辑相同）">刷新全体常模</button>
         <button type="button" class="jml-btn jml-btn-warn" id="jml-backfill-run-speed-btn" title="临时：按 attempts 重算并写回 runAvgSec（仅答对；训练+小数+平方+整除Z1–4；不含开局加权速；用后删除）">回填本局均速</button>
-        <button type="button" class="jml-btn jml-btn-warn" id="jml-rebuild-tester-snapshots-btn" title="仅测试员：用现有 runs 按「每月每类末局」重建能力快照（与局后写入同算法；覆盖其快照；progress 为当前水位）">重建测试员快照</button>
+        <button type="button" class="jml-btn jml-btn-warn" id="jml-rebuild-tester-snapshots-btn" title="仅测试员：按每月末局重建热图与概览同口径 progress（从 runs 倒推；覆盖其快照）">重建测试员快照</button>
         <button type="button" class="jml-btn" id="jml-report-lang-btn" aria-label="Switch language">English</button>
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
@@ -131,11 +131,11 @@
   </script>
   <script src="../shared/admin-auth.js?v=21"></script>
   <script src="../shared/stats-i18n-pack.js?v=77"></script>
-  <script src="../shared/monthly-report-fake.js?v=2"></script>
+  <script src="../shared/monthly-report-fake.js?v=3"></script>
   <script src="../stats-aggregate-browser.js?v=53"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=99"></script>
+  <script src="report-page.js?v=100"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

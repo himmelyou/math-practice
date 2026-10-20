@@ -2840,7 +2840,7 @@ app.get("/api/admin/user/:username/monthly-snapshots/:monthKey", (req, res) => {
 
 /**
  * 管理员：用现有 runs 重建测试员月度能力快照（与局后单类写入同一套算法）。
- * 仅 isTester===true；progress 取当前用户文档（历史水位近似）。
+ * 仅 isTester===true；progress 按各月末局 asOf 从 runs 倒推（对齐概览水位）。
  */
 app.post("/api/admin/maintenance/rebuild-monthly-snapshots-testers", (req, res) => {
   if (!checkAdminPin(req)) {
@@ -2886,7 +2886,7 @@ app.post("/api/admin/maintenance/rebuild-monthly-snapshots-testers", (req, res) 
     categoryWrites,
     users: results,
     errors: allErrors,
-    note: "progress 字段为重建时用户当前水位，非历史还原",
+    note: "progress 为概览同口径水位（闯关/生存/质数/平方/整除/因倍/小数/拆括号）；按月末 asOf 从 runs 倒推",
   });
 });
 

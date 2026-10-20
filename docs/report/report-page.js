@@ -1355,7 +1355,7 @@
 
     html +=
       '<h3 class="jml-advice-title" style="margin:20px 0 8px;">能力快照（局后写入）</h3>' +
-      '<p class="jml-train-debug-hint">每局结束后只重算本局所属热图类别并合并进当月行（其它类别保留）；同时刷新解锁水位。拆括号/质数合数等无热图类别则只更新水位。点击月份查看摘要。</p>';
+      '<p class="jml-train-debug-hint">每局结束后只重算本局所属热图类别并合并；同时按概览口径刷新 progress（闯关/生存/质数/平方/整除/因倍/小数/拆括号；不含训练熟悉格数与徽章）。点击月份查看摘要。</p>';
     if (state.monthlySnapshotsError) {
       html +=
         '<div class="jml-report-empty">' + escapeHtml(state.monthlySnapshotsError) + '</div>';
@@ -3786,8 +3786,8 @@
         if (
           !window.confirm(
             '仅重建 isTester 账号的月度能力快照。\n\n' +
-              '算法与局后写入相同：每月每类取末局时间，用截至该时刻的 runs 重算该类热图并覆盖写入。\n' +
-              'progress（解锁水位）为当前用户文档，非历史还原。\n\n确认执行？'
+              '热图：每月每类取末局，用截至该时刻的 runs 重算并覆盖。\n' +
+              'progress：按该月末局 asOf 从 runs 倒推概览同口径水位（闯关/生存用时与最高关、质数/整除零错用时、各模式阶梯进度）。\n\n确认执行？'
           )
         ) {
           return;

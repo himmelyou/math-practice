@@ -117,10 +117,14 @@
         ],
       },
       milestones: {
-        unlocksZh: ["训练解锁至 L9", "平方数解锁至 L3", "小数解锁至 D4"],
-        unlocksEn: ["Training unlocked to L9", "Squares unlocked to L3", "Decimals unlocked to D4"],
-        badgesZh: ["连续练习 7 天", "任务达人铜牌"],
-        badgesEn: ["7-day practice streak", "Task Master (Bronze)"],
+        /** 仅有变化的项目（正式版由快照差分生成；不含徽章、不含训练熟悉格数） */
+        changesZh: ["闯关：L8 → L12", "生存：通关 → 3m 12s", "小数：D3 → D5", "整除：Z2 → 通关"],
+        changesEn: [
+          "Challenge: L8 → L12",
+          "Survival: cleared → 3m 12s",
+          "Decimals: D3 → D5",
+          "Divisibility: Z2 → cleared",
+        ],
       },
       progress: {
         improvedCells: 6,
@@ -265,32 +269,22 @@
 
     ctx.fillStyle = "#0f172a";
     ctx.font = "bold 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("新解锁 / New unlocks", 48, y);
+    ctx.fillText("进度变化（仅列出有变化） / Progress changes", 48, y);
     y += 24;
-    data.milestones.unlocksZh.forEach(function (zh, i) {
+    (data.milestones.changesZh || []).forEach(function (zh, i) {
       ctx.fillStyle = "#1e293b";
       ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
       ctx.fillText("· " + zh, 56, y);
       y += 18;
       ctx.fillStyle = "#64748b";
       ctx.font = "13px 'Segoe UI', sans-serif";
-      ctx.fillText("  " + data.milestones.unlocksEn[i], 56, y);
-      y += 22;
-    });
-
-    ctx.fillStyle = "#0f172a";
-    ctx.font = "bold 16px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-    ctx.fillText("新徽章 / New badges", 48, y);
-    y += 24;
-    data.milestones.badgesZh.forEach(function (zh, i) {
-      ctx.fillStyle = "#1e293b";
-      ctx.font = "15px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
-      ctx.fillText("· " + zh, 56, y);
-      y += 18;
-      ctx.fillStyle = "#64748b";
-      ctx.font = "13px 'Segoe UI', sans-serif";
-      ctx.fillText("  " + data.milestones.badgesEn[i], 56, y);
-      y += 22;
+      var en = (data.milestones.changesEn || [])[i] || "";
+      if (en) {
+        ctx.fillText("  " + en, 56, y);
+        y += 22;
+      } else {
+        y += 4;
+      }
     });
 
     ctx.fillStyle = "#0f172a";
