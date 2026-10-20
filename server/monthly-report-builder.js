@@ -360,11 +360,11 @@ function cellAvgSec(c) {
   return null;
 }
 
+/** p 为 [0,1] 比例；显示 = round(p×100, 1) */
 function formatPct1(p) {
   const n = Number(p);
   if (!Number.isFinite(n)) return null;
-  const pct = n <= 1 ? n * 100 : n;
-  return (Math.round(pct * 10) / 10).toFixed(1).replace(/\.0$/, "");
+  return (Math.round(n * 1000) / 10).toFixed(1).replace(/\.0$/, "");
 }
 
 /**
