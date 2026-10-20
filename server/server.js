@@ -34,6 +34,7 @@ const {
 const { createRunsStore } = require("./runs-store");
 const { createPracticePlanStore } = require("./practice-plan-store");
 const { createMonthlyReportStore } = require("./monthly-report-store");
+const { createMonthlyReportBuilder } = require("./monthly-report-builder");
 const { createMonthlySnapshotStore } = require("./monthly-snapshot-store");
 const { createMonthlySnapshotWriter } = require("./monthly-snapshot");
 const practicePlanService = require("./practice-plan-service");
@@ -421,6 +422,18 @@ const monthlySnapshotStore = createMonthlySnapshotStore({
 const monthlySnapshotWriter = createMonthlySnapshotWriter({
   store: monthlySnapshotStore,
   // 惰性：cohortsByCategoryForHeatmap 在下方才声明
+  cohortsByCategory: function () {
+    return cohortsByCategoryForHeatmap();
+  },
+});
+const monthlyReportBuilder = createMonthlyReportBuilder({
+  snapshotStore: monthlySnapshotStore,
+  getUserRuns: function (username) {
+    return runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+  },
   cohortsByCategory: function () {
     return cohortsByCategoryForHeatmap();
   },
@@ -2663,7 +2676,21 @@ app.get("/api/user/:username/monthly-report/current", requireStudentAuth, ensure
   });
 });
 
-/** 学员：上传/生成当前月报告图（假数据阶段由客户端画布上传） */
+/** 学员：上一完整月报告数据（真汇总，供画布渲染） */
+app.get("/api/user/:username/monthly-report/current/data", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const monthKey = monthlyReportStore.latestClosedMonthKey();
+  if (!monthKey) {
+    return res.status(500).json({ ok: false, error: "无法解析报告月份" });
+  }
+  const payload = monthlyReportBuilder.buildForUser(username, monthKey);
+  if (!payload || payload.ok === false) {
+    return res.status(400).json({ ok: false, error: (payload && payload.error) || "汇总失败" });
+  }
+  return res.json(payload);
+});
+
+/** 学员：上传/生成当前月报告图（客户端按真数据画布上传） */
 app.post("/api/user/:username/monthly-report/current", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const monthKey = monthlyReportStore.latestClosedMonthKey();
@@ -2733,6 +2760,26 @@ app.get("/api/admin/user/:username/monthly-reports", (req, res) => {
     latestClosedMonthKey: latest,
     reports: monthlyReportStore.listForAdmin(username),
   });
+});
+
+/** 管理员：某月报告真数据汇总 */
+app.get("/api/admin/user/:username/monthly-reports/:monthKey/data", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username, monthKey } = req.params;
+  if (!monthlyReportStore.isValidMonthKey(monthKey)) {
+    return res.status(400).json({ ok: false, error: "无效月份" });
+  }
+  const latest = monthlyReportStore.latestClosedMonthKey();
+  if (String(monthKey) > latest) {
+    return res.status(400).json({ ok: false, error: "不能汇总未结束月份", latestClosedMonthKey: latest });
+  }
+  const payload = monthlyReportBuilder.buildForUser(username, monthKey);
+  if (!payload || payload.ok === false) {
+    return res.status(400).json({ ok: false, error: (payload && payload.error) || "汇总失败" });
+  }
+  return res.json(payload);
 });
 
 /** 管理员：保存某月报告图（可强制重生仅限上一完整月） */

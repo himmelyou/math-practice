@@ -1318,7 +1318,7 @@
     var html = '';
     html +=
       '<h3 class="jml-advice-title" style="margin:0 0 8px;">月度报告图</h3>' +
-      '<p class="jml-train-debug-hint">按月份倒序；点击标题查看（未生成则先画假数据并落盘）。管理端预览不计学员已读。仅上一完整月可强制重生。</p>';
+      '<p class="jml-train-debug-hint">按月份倒序；点击标题查看（未生成则按真数据汇总画布并落盘）。管理端预览不计学员已读。仅上一完整月可强制重生。</p>';
     if (state.monthlyReportsLoading && !state.monthlyReports.length) {
       html += '<div class="jml-report-empty">月度报告加载中…</div>';
     } else if (state.monthlyReportsError && !state.monthlyReports.length) {
@@ -1512,10 +1512,46 @@
     if (regen) regen.hidden = !state.monthlyView.canForce;
   }
 
+  function renderAndSaveMonthlyReport(monthKey, force) {
+    var Fake = window.JmlMonthlyReportFake;
+    var u = state.selectedUsername;
+    return apiFetch(
+      '/api/admin/user/' +
+        encodeURIComponent(u) +
+        '/monthly-reports/' +
+        encodeURIComponent(monthKey) +
+        '/data'
+    ).then(function (payload) {
+      return Fake.renderReportPng(payload).then(function (rendered) {
+        return apiFetch(
+          '/api/admin/user/' +
+            encodeURIComponent(u) +
+            '/monthly-reports/' +
+            encodeURIComponent(monthKey),
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
+              force: !!force,
+            }),
+          }
+        ).then(function () {
+          state.monthlyView.dataUrl = rendered.dataUrl;
+          state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
+          state.monthlyView.downloadFileName = rendered.downloadFileName;
+          state.monthlyView.monthKey = monthKey;
+          state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+          return { created: true };
+        });
+      });
+    });
+  }
+
   function ensureMonthlyReportForAdmin(monthKey, force) {
     var Fake = window.JmlMonthlyReportFake;
-    if (!Fake || typeof Fake.renderFakeReportPng !== 'function') {
-      return Promise.reject(new Error('假报告生成器未加载'));
+    if (!Fake || typeof Fake.renderReportPng !== 'function') {
+      return Promise.reject(new Error('月报画布未加载'));
     }
     var u = state.selectedUsername;
     if (!u) return Promise.reject(new Error('未选择学员'));
@@ -1543,55 +1579,11 @@
         })
         .catch(function () {
           setStatus('正在生成报告…');
-          return Fake.renderFakeReportPng(u, monthKey).then(function (rendered) {
-            return apiFetch(
-              '/api/admin/user/' +
-                encodeURIComponent(u) +
-                '/monthly-reports/' +
-                encodeURIComponent(monthKey),
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
-                  force: false,
-                }),
-              }
-            ).then(function () {
-              state.monthlyView.dataUrl = rendered.dataUrl;
-              state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
-              state.monthlyView.downloadFileName = rendered.downloadFileName;
-              state.monthlyView.monthKey = monthKey;
-              state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
-              return { created: true };
-            });
-          });
+          return renderAndSaveMonthlyReport(monthKey, false);
         });
     }
     setStatus('正在重新生成…');
-    return Fake.renderFakeReportPng(u, monthKey).then(function (rendered) {
-      return apiFetch(
-        '/api/admin/user/' +
-          encodeURIComponent(u) +
-          '/monthly-reports/' +
-          encodeURIComponent(monthKey),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
-            force: true,
-          }),
-        }
-      ).then(function () {
-        state.monthlyView.dataUrl = rendered.dataUrl;
-        state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
-        state.monthlyView.downloadFileName = rendered.downloadFileName;
-        state.monthlyView.monthKey = monthKey;
-        state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
-        return { created: true };
-      });
-    });
+    return renderAndSaveMonthlyReport(monthKey, true);
   }
 
   function openMonthlyReportView(monthKey) {
@@ -3474,16 +3466,35 @@
           (Fake && typeof Fake.downloadFileName === 'function'
             ? Fake.downloadFileName(state.selectedUsername, state.monthlyView.monthKey)
             : 'monthly-report.png');
+        function fallbackA() {
+          var a = document.createElement('a');
+          a.href = state.monthlyView.dataUrl;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        }
+        if (Fake && typeof Fake.saveOrSharePng === 'function') {
+          Fake.saveOrSharePng(state.monthlyView.dataUrl, name)
+            .then(function (result) {
+              if (result && result.aborted) return;
+              if (result && result.method === 'download' && result.ok) {
+                if (result.fallback || result.mobileWithoutShare) {
+                  window.alert('也可长按上方图片，选择存到相册');
+                }
+              }
+            })
+            .catch(function () {
+              if (Fake.triggerPngDownload) Fake.triggerPngDownload(state.monthlyView.dataUrl, name);
+              else fallbackA();
+            });
+          return;
+        }
         if (Fake && typeof Fake.triggerPngDownload === 'function') {
           Fake.triggerPngDownload(state.monthlyView.dataUrl, name);
           return;
         }
-        var a = document.createElement('a');
-        a.href = state.monthlyView.dataUrl;
-        a.download = name;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        fallbackA();
       });
     }
     var monthlyRegen = document.getElementById('jml-monthly-report-view-regen');

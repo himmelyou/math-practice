@@ -5682,7 +5682,7 @@
       <div class="monthly-report-modal-actions">
         <button type="button" class="login-btn btn-secondary" id="monthly-report-close-btn">关闭</button>
         <button type="button" class="login-btn btn-secondary" id="monthly-report-regen-btn" hidden>重新生成</button>
-        <button type="button" class="login-btn" id="monthly-report-download-btn">下载</button>
+        <button type="button" class="login-btn" id="monthly-report-download-btn">保存图片</button>
       </div>
     </div>
   </div>
@@ -5729,7 +5729,7 @@
   <script src="shared/factors-multiples-questions.js?v=3"></script>
   <script src="shared/decimal-questions.js?v=51"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
-  <script src="shared/monthly-report-fake.js?v=3"></script>
+  <script src="shared/monthly-report-fake.js?v=5"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
   <script src="divisibility-page.js?v=20"></script>
@@ -9070,8 +9070,8 @@
 
     async function ensureMonthlyReportImage(force) {
       const Fake = window.JmlMonthlyReportFake;
-      if (!Fake || typeof Fake.renderFakeReportPng !== "function") {
-        throw new Error("fake_renderer_missing");
+      if (!Fake || typeof Fake.renderReportPng !== "function") {
+        throw new Error("report_renderer_missing");
       }
       const name = loadCurrentUsername();
       const meta = await monthlyReportApi("/monthly-report/current");
@@ -9093,7 +9093,8 @@
       }
 
       setMonthlyReportModalStatus(t("monthlyReport.generating"));
-      const rendered = await Fake.renderFakeReportPng(name, monthKey);
+      const payload = await monthlyReportApi("/monthly-report/current/data");
+      const rendered = await Fake.renderReportPng(payload);
       const saved = await monthlyReportApi("/monthly-report/current", {
         method: "POST",
         json: {
@@ -9171,7 +9172,7 @@
       }
     }
 
-    function handleMonthlyReportDownloadClick() {
+    async function handleMonthlyReportDownloadClick() {
       if (!monthlyReportModalState.dataUrl) return;
       const Fake = window.JmlMonthlyReportFake;
       const name =
@@ -9179,6 +9180,23 @@
         (Fake && typeof Fake.downloadFileName === "function"
           ? Fake.downloadFileName(loadCurrentUsername(), monthlyReportModalState.monthKey)
           : "monthly-report.png");
+      if (Fake && typeof Fake.saveOrSharePng === "function") {
+        try {
+          const result = await Fake.saveOrSharePng(monthlyReportModalState.dataUrl, name);
+          if (result && result.aborted) return;
+          if (result && result.method === "share" && result.ok) return;
+          if (result && result.method === "download" && result.ok) {
+            if (result.fallback || result.mobileWithoutShare) {
+              showToast(t("monthlyReport.saveHintLongPress"));
+            }
+          }
+        } catch (e) {
+          console.warn("monthly report save", e);
+          if (Fake.triggerPngDownload) Fake.triggerPngDownload(monthlyReportModalState.dataUrl, name);
+          showToast(t("monthlyReport.saveHintLongPress"));
+        }
+        return;
+      }
       if (Fake && typeof Fake.triggerPngDownload === "function") {
         Fake.triggerPngDownload(monthlyReportModalState.dataUrl, name);
         return;
@@ -10302,13 +10320,15 @@
         "toast.monthlyReportPlaceholder": "月度報告開發中，敬請期待",
         "monthlyReport.modalTitle": "月度報告",
         "monthlyReport.close": "關閉",
-        "monthlyReport.download": "下載",
+        "monthlyReport.download": "保存圖片",
         "monthlyReport.regen": "重新生成",
         "monthlyReport.loading": "載入中…",
         "monthlyReport.generating": "正在生成報告…",
         "monthlyReport.ready": "{month}報告",
         "monthlyReport.fail": "報告載入失敗，請稍後再試",
         "monthlyReport.regenOk": "已重新生成",
+        "monthlyReport.saveHintLongPress": "也可長按上方圖片，選擇存到相冊",
+        "monthlyReport.saveOkDownload": "已開始下載",
         "home.coach.dismiss": "知道了",
         "home.coach.grade.body": "先選一下年級，我才能給你合適的練習。",
         "home.coach.grade.cta": "去選年級",
@@ -10830,13 +10850,15 @@
         "toast.monthlyReportPlaceholder": "Monthly report is coming soon",
         "monthlyReport.modalTitle": "Monthly report",
         "monthlyReport.close": "Close",
-        "monthlyReport.download": "Download",
+        "monthlyReport.download": "Save image",
         "monthlyReport.regen": "Regenerate",
         "monthlyReport.loading": "Loading…",
         "monthlyReport.generating": "Generating report…",
         "monthlyReport.ready": "{month} report",
         "monthlyReport.fail": "Could not load the report. Please try again.",
         "monthlyReport.regenOk": "Report regenerated",
+        "monthlyReport.saveHintLongPress": "Or long-press the image above to save to Photos",
+        "monthlyReport.saveOkDownload": "Download started",
         "home.coach.dismiss": "Got it",
         "home.coach.grade.body": "Pick a grade first so I can suggest the right practice.",
         "home.coach.grade.cta": "Choose grade",

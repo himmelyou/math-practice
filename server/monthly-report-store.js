@@ -177,7 +177,7 @@ function createMonthlyReportStore(opts) {
       downloadFileName: downloadFileName(name, monthKey),
       generatedAt: Date.now(),
       readAt: existing && existing.readAt ? existing.readAt : null,
-      fake: true,
+      fake: optsSave.fake === true,
     };
     meta.reports[monthKey] = entry;
     setMeta(name, meta);
