@@ -52,6 +52,11 @@ function createMonthlyReportStore(opts) {
     return day ? day.slice(0, 7) : "";
   }
 
+  /** 当前上海自然月 YYYY-MM */
+  function currentMonthKey(nowTs) {
+    return chinaMonthKeyFromTs(nowTs != null ? nowTs : Date.now());
+  }
+
   /** 上一完整自然月（上海） */
   function latestClosedMonthKey(nowTs) {
     const day = chinaDayFromTs(nowTs != null ? nowTs : Date.now());
@@ -60,6 +65,13 @@ function createMonthlyReportStore(opts) {
     const m = Number(day.slice(5, 7));
     if (m <= 1) return y - 1 + "-12";
     return y + "-" + String(m - 1).padStart(2, "0");
+  }
+
+  /** 管理端可预览/生成：已结束月或当月；不可未来月 */
+  function isAdminReportableMonth(monthKey, nowTs) {
+    if (!isValidMonthKey(monthKey)) return false;
+    const current = currentMonthKey(nowTs);
+    return !!current && String(monthKey) <= current;
   }
 
   function isValidMonthKey(monthKey) {
@@ -153,7 +165,11 @@ function createMonthlyReportStore(opts) {
       return { ok: false, error: "invalid_args" };
     }
     const latest = latestClosedMonthKey();
+    const current = currentMonthKey();
     const force = !!optsSave.force;
+    if (!isAdminReportableMonth(monthKey)) {
+      return { ok: false, error: "future_month", currentMonthKey: current, latestClosedMonthKey: latest };
+    }
     const meta = getMeta(name);
     const existing = meta.reports[monthKey];
     if (existing && hasImage(name, monthKey) && !force) {
@@ -164,8 +180,14 @@ function createMonthlyReportStore(opts) {
         entry: existing,
       };
     }
-    if (force && monthKey !== latest) {
-      return { ok: false, error: "force_only_latest_closed", latestClosedMonthKey: latest };
+    // 强制重生：上一完整月或当月（管理端实时预览）
+    if (force && monthKey !== latest && monthKey !== current) {
+      return {
+        ok: false,
+        error: "force_only_closed_or_current",
+        latestClosedMonthKey: latest,
+        currentMonthKey: current,
+      };
     }
     ensureRoot();
     const dir = userImageDir(name);
@@ -205,6 +227,9 @@ function createMonthlyReportStore(opts) {
     const meta = getMeta(name);
     const entry = meta.reports[monthKey] || null;
     const generated = !!(entry && hasImage(name, monthKey));
+    const current = currentMonthKey();
+    const latest = latestClosedMonthKey();
+    const inProgress = !!current && monthKey === current;
     return {
       monthKey: monthKey,
       fileName: displayTitle(name, monthKey),
@@ -213,17 +238,22 @@ function createMonthlyReportStore(opts) {
       read: !!(generated && entry && entry.readAt),
       readAt: generated && entry ? entry.readAt || null : null,
       generatedAt: generated && entry ? entry.generatedAt || null : null,
-      canForceRegenerate: monthKey === latestClosedMonthKey(),
+      canForceRegenerate: monthKey === latest || inProgress,
+      inProgress: inProgress,
+      adminOnly: inProgress,
+      studentVisible: !inProgress && monthKey <= latest,
     };
   }
 
-  /** 管理端列表：已存月份 + 始终包含上一完整月 */
+  /** 管理端列表：已存月份 + 上一完整月 + 当月（学员不可见） */
   function listForAdmin(username) {
     const name = String(username || "");
     const meta = getMeta(name);
     const latest = latestClosedMonthKey();
+    const current = currentMonthKey();
     const keys = Object.keys(meta.reports || {});
     if (latest && keys.indexOf(latest) < 0) keys.push(latest);
+    if (current && keys.indexOf(current) < 0) keys.push(current);
     keys.sort(function (a, b) {
       return a < b ? 1 : a > b ? -1 : 0;
     });
@@ -235,7 +265,9 @@ function createMonthlyReportStore(opts) {
   return {
     chinaDayFromTs,
     chinaMonthKeyFromTs,
+    currentMonthKey,
     latestClosedMonthKey,
+    isAdminReportableMonth,
     isValidMonthKey,
     monthLabelZh,
     displayTitle,

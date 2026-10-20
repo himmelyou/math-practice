@@ -2754,15 +2754,17 @@ app.get("/api/admin/user/:username/monthly-reports", (req, res) => {
   }
   const { username } = req.params;
   const latest = monthlyReportStore.latestClosedMonthKey();
+  const current = monthlyReportStore.currentMonthKey();
   return res.json({
     ok: true,
     username,
     latestClosedMonthKey: latest,
+    currentMonthKey: current,
     reports: monthlyReportStore.listForAdmin(username),
   });
 });
 
-/** 管理员：某月报告真数据汇总 */
+/** 管理员：某月报告真数据汇总（含当月实时预览，学员不可见） */
 app.get("/api/admin/user/:username/monthly-reports/:monthKey/data", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
@@ -2771,18 +2773,26 @@ app.get("/api/admin/user/:username/monthly-reports/:monthKey/data", (req, res) =
   if (!monthlyReportStore.isValidMonthKey(monthKey)) {
     return res.status(400).json({ ok: false, error: "无效月份" });
   }
-  const latest = monthlyReportStore.latestClosedMonthKey();
-  if (String(monthKey) > latest) {
-    return res.status(400).json({ ok: false, error: "不能汇总未结束月份", latestClosedMonthKey: latest });
+  if (!monthlyReportStore.isAdminReportableMonth(monthKey)) {
+    return res.status(400).json({
+      ok: false,
+      error: "不能汇总未来月份",
+      currentMonthKey: monthlyReportStore.currentMonthKey(),
+      latestClosedMonthKey: monthlyReportStore.latestClosedMonthKey(),
+    });
   }
   const payload = monthlyReportBuilder.buildForUser(username, monthKey);
   if (!payload || payload.ok === false) {
     return res.status(400).json({ ok: false, error: (payload && payload.error) || "汇总失败" });
   }
+  if (monthKey === monthlyReportStore.currentMonthKey()) {
+    payload.adminOnlyPreview = true;
+    payload.inProgress = true;
+  }
   return res.json(payload);
 });
 
-/** 管理员：保存某月报告图（可强制重生仅限上一完整月） */
+/** 管理员：保存某月报告图（上一完整月或当月预览可强制重生） */
 app.post("/api/admin/user/:username/monthly-reports/:monthKey", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
@@ -2791,9 +2801,13 @@ app.post("/api/admin/user/:username/monthly-reports/:monthKey", (req, res) => {
   if (!monthlyReportStore.isValidMonthKey(monthKey)) {
     return res.status(400).json({ ok: false, error: "无效月份" });
   }
-  const latest = monthlyReportStore.latestClosedMonthKey();
-  if (String(monthKey) > latest) {
-    return res.status(400).json({ ok: false, error: "不能生成未结束月份的报告", latestClosedMonthKey: latest });
+  if (!monthlyReportStore.isAdminReportableMonth(monthKey)) {
+    return res.status(400).json({
+      ok: false,
+      error: "不能生成未来月份的报告",
+      currentMonthKey: monthlyReportStore.currentMonthKey(),
+      latestClosedMonthKey: monthlyReportStore.latestClosedMonthKey(),
+    });
   }
   const force = !!(req.body && req.body.force);
   const buf = parsePngBase64(req.body && (req.body.imageBase64 || req.body.dataUrl));
@@ -2806,6 +2820,7 @@ app.post("/api/admin/user/:username/monthly-reports/:monthKey", (req, res) => {
       ok: false,
       error: saved.error || "保存失败",
       latestClosedMonthKey: saved.latestClosedMonthKey,
+      currentMonthKey: saved.currentMonthKey,
     });
   }
   return res.json({

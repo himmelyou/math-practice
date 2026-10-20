@@ -154,6 +154,7 @@
     serverCategoryNext: null,
     monthlyReports: [],
     monthlyReportsLatest: '',
+    monthlyReportsCurrent: '',
     monthlyReportsError: '',
     monthlyReportsLoading: false,
     monthlySnapshots: [],
@@ -1275,6 +1276,7 @@
     state.practiceAdviceLoading = false;
     state.monthlyReports = [];
     state.monthlyReportsLatest = '';
+    state.monthlyReportsCurrent = '';
     state.monthlyReportsError = '';
     state.monthlyReportsLoading = false;
     state.monthlySnapshots = [];
@@ -1291,7 +1293,20 @@
     renderTrainDebugPlaceholder('请先选择学员');
   }
 
+  function isAdminInProgressMonth(monthKey) {
+    return !!(monthKey && state.monthlyReportsCurrent && monthKey === state.monthlyReportsCurrent);
+  }
+
+  function canForceMonthlyReport(monthKey) {
+    if (!monthKey) return false;
+    if (monthKey === state.monthlyReportsLatest) return true;
+    return isAdminInProgressMonth(monthKey);
+  }
+
   function monthlyBadgeHtml(row) {
+    if (row && (row.inProgress || row.adminOnly || isAdminInProgressMonth(row.monthKey))) {
+      return '<span class="jml-monthly-badge jml-monthly-badge--unread">进行中·仅管理</span>';
+    }
     if (!row || !row.generated) {
       return '<span class="jml-monthly-badge jml-monthly-badge--missing">未生成</span>';
     }
@@ -1318,7 +1333,7 @@
     var html = '';
     html +=
       '<h3 class="jml-advice-title" style="margin:0 0 8px;">月度报告图</h3>' +
-      '<p class="jml-train-debug-hint">按月份倒序；点击标题查看（未生成则按真数据汇总画布并落盘）。管理端预览不计学员已读。仅上一完整月可强制重生。</p>';
+      '<p class="jml-train-debug-hint">按月份倒序；含当月「进行中·仅管理」预览（相对上月末水位，学员端不可见；每次打开现算）。正式月未生成则汇总画布落盘；上一完整月与当月可强制重生。</p>';
     if (state.monthlyReportsLoading && !state.monthlyReports.length) {
       html += '<div class="jml-report-empty">月度报告加载中…</div>';
     } else if (state.monthlyReportsError && !state.monthlyReports.length) {
@@ -1327,14 +1342,18 @@
     } else {
       var rows = Array.isArray(state.monthlyReports) ? state.monthlyReports : [];
       if (!rows.length) {
-        html += '<div class="jml-report-empty">暂无月度报告行（上一完整月会在打开本页时出现）</div>';
+        html +=
+          '<div class="jml-report-empty">暂无月度报告行（上一完整月与当月预览会在打开本页时出现）</div>';
       } else {
         html += '<div class="jml-monthly-list">';
         rows.forEach(function (row) {
           var title = row.fileName || row.monthKey || '—';
-          var meta = row.generated
-            ? row.monthKey + (row.readAt ? ' · 学员已读' : ' · 学员未读')
-            : row.monthKey + ' · 点击生成';
+          var live = !!(row.inProgress || row.adminOnly || isAdminInProgressMonth(row.monthKey));
+          var meta = live
+            ? row.monthKey + ' · 管理端实时预览（学员不可见）'
+            : row.generated
+              ? row.monthKey + (row.readAt ? ' · 学员已读' : ' · 学员未读')
+              : row.monthKey + ' · 点击生成';
           html +=
             '<div class="jml-monthly-row">' +
             '<div class="jml-monthly-row-main">' +
@@ -1468,6 +1487,7 @@
           if (state.selectedUsername !== u) return;
           state.monthlyReports = Array.isArray(data.reports) ? data.reports : [];
           state.monthlyReportsLatest = data.latestClosedMonthKey || '';
+          state.monthlyReportsCurrent = data.currentMonthKey || '';
           state.monthlyReportsError = '';
         })
         .catch(function (e) {
@@ -1501,9 +1521,14 @@
     var regen = document.getElementById('jml-monthly-report-view-regen');
     if (title) title.textContent = state.monthlyView.fileName || '月度报告';
     if (status) {
-      status.textContent = state.monthlyView.monthKey
-        ? state.monthlyView.monthKey + '（管理端预览不计已读）'
-        : '';
+      if (!state.monthlyView.monthKey) {
+        status.textContent = '';
+      } else if (isAdminInProgressMonth(state.monthlyView.monthKey)) {
+        status.textContent =
+          state.monthlyView.monthKey + ' · 进行中预览（学员不可见；相对上月末）';
+      } else {
+        status.textContent = state.monthlyView.monthKey + '（管理端预览不计已读）';
+      }
     }
     if (img) {
       img.src = state.monthlyView.dataUrl || '';
@@ -1541,7 +1566,7 @@
           state.monthlyView.fileName = rendered.displayTitle || rendered.fileName;
           state.monthlyView.downloadFileName = rendered.downloadFileName;
           state.monthlyView.monthKey = monthKey;
-          state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+          state.monthlyView.canForce = canForceMonthlyReport(monthKey);
           return { created: true };
         });
       });
@@ -1559,7 +1584,10 @@
     function setStatus(msg) {
       if (statusEl) statusEl.textContent = msg || '';
     }
-    if (!force) {
+    // 当月预览：始终现算，避免缓存旧图
+    var live = isAdminInProgressMonth(monthKey);
+    var wantForce = !!force || live;
+    if (!wantForce) {
       return apiFetch(
         '/api/admin/user/' +
           encodeURIComponent(u) +
@@ -1574,7 +1602,7 @@
           state.monthlyView.downloadFileName =
             imgData.downloadFileName || Fake.downloadFileName(u, monthKey);
           state.monthlyView.monthKey = monthKey;
-          state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+          state.monthlyView.canForce = canForceMonthlyReport(monthKey);
           return { created: false };
         })
         .catch(function () {
@@ -1582,7 +1610,7 @@
           return renderAndSaveMonthlyReport(monthKey, false);
         });
     }
-    setStatus('正在重新生成…');
+    setStatus(live ? '正在汇总当月实时数据…' : '正在重新生成…');
     return renderAndSaveMonthlyReport(monthKey, true);
   }
 
@@ -1595,7 +1623,7 @@
     state.monthlyView.fileName = '';
     state.monthlyView.downloadFileName = '';
     state.monthlyView.dataUrl = '';
-    state.monthlyView.canForce = monthKey === state.monthlyReportsLatest;
+    state.monthlyView.canForce = canForceMonthlyReport(monthKey);
     paintMonthlyReportView();
     var statusEl = document.getElementById('jml-monthly-report-view-status');
     if (statusEl) statusEl.textContent = '加载中…';

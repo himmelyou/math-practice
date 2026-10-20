@@ -373,6 +373,12 @@
     ctx.fillStyle = "#94a3b8";
     ctx.font = "12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
     ctx.fillText("Jarvis Math Lab · " + monthLabelZh(monthKey), 48, y);
+    if (data.inProgress || data.adminOnlyPreview) {
+      y += 18;
+      ctx.fillStyle = "#b45309";
+      ctx.font = "12px 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif";
+      ctx.fillText("管理端进行中预览 · 学员不可见 / Admin live preview only", 48, y);
+    }
 
     var title = displayTitle(username, monthKey);
     var dlName = downloadFileName(username, monthKey);
