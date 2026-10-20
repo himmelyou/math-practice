@@ -367,10 +367,25 @@ function formatPct1(p) {
   return (Math.round(n * 1000) / 10).toFixed(1).replace(/\.0$/, "");
 }
 
+/** 热图栏目难度：高 → 低（家长展示优先难栏目） */
+const HEAT_CAT_DIFFICULTY = [
+  "decimal",
+  "factorsMultiples",
+  "divisibility",
+  "perfectSquare",
+  "arithmetic",
+];
+
+function heatCatRank(catId) {
+  const i = HEAT_CAT_DIFFICULTY.indexOf(catId);
+  return i >= 0 ? i : HEAT_CAT_DIFFICULTY.length;
+}
+
 /**
  * 热图进步：
  * - 准确率：上月末已有样本且未达标 → 本月末达标（首次从无样本到达标不算）
- * - 速度：两端均达标，用均速算提升百分比；排序用该百分比
+ * - 速度：两端均达标，均速提升 ≥3%
+ * - 展示：五栏目各取有进步的最高等级（最多 5）；不足 3 且总数 ≥3 时按难度从剩余补到 3
  */
 function buildHeatmapDiff(priorHeat, currentHeat) {
   const prev = cellMap(priorHeat);
@@ -391,8 +406,10 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
     if (priorSample && !wasAcc && nowAcc) {
       const pctStr = formatPct1(c.p);
       improved.push({
+        key: key,
+        catId: catId,
+        levelIndex: li,
         kind: "acc",
-        score: 1000 + (Number(c.p) || 0) * 100,
         zh: title + "：准确率达到 " + (pctStr != null ? pctStr + "%" : "掌握线"),
       });
       return;
@@ -406,9 +423,10 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
         if (speedPct >= 3) {
           const pctShow = Math.round(speedPct);
           improved.push({
+            key: key,
+            catId: catId,
+            levelIndex: li,
             kind: "speed",
-            score: speedPct,
-            speedPct: speedPct,
             zh: title + "：速度提升 " + pctShow + "%",
           });
         }
@@ -416,12 +434,42 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
     }
   });
 
-  improved.sort(function (a, b) {
-    return b.score - a.score;
+  // 主选：每栏目取等级最高的一条，按栏目难度排序
+  const pickedKeys = Object.create(null);
+  const primary = [];
+  HEAT_CAT_DIFFICULTY.forEach(function (catId) {
+    let best = null;
+    improved.forEach(function (row) {
+      if (row.catId !== catId) return;
+      if (!best || row.levelIndex > best.levelIndex) best = row;
+    });
+    if (best) {
+      primary.push(best);
+      pickedKeys[best.key] = true;
+    }
   });
+
+  const selected = primary.slice();
+  // 补足到 3：总数够且主选不足时，从剩余按难度补
+  if (selected.length < 3 && improved.length >= 3) {
+    const rest = improved
+      .filter(function (row) {
+        return !pickedKeys[row.key];
+      })
+      .sort(function (a, b) {
+        const cr = heatCatRank(a.catId) - heatCatRank(b.catId);
+        if (cr !== 0) return cr;
+        return b.levelIndex - a.levelIndex;
+      });
+    for (let i = 0; i < rest.length && selected.length < 3; i += 1) {
+      selected.push(rest[i]);
+      pickedKeys[rest[i].key] = true;
+    }
+  }
+
   return {
     improvedCells: improved.length,
-    top: improved.slice(0, 3).map(function (row) {
+    top: selected.map(function (row) {
       return { kind: row.kind, zh: row.zh };
     }),
   };

@@ -8997,7 +8997,9 @@
     function syncMonthlyReportEntryVisibility() {
       const btn = document.getElementById("home-monthly-report-btn");
       if (!btn) return;
-      btn.hidden = !isTesterUser();
+      // 已登录学员可见（游客隐藏）
+      const show = !isGuestMode && !!loadCurrentUsername();
+      btn.hidden = !show;
       if (!btn.hidden) {
         setTextById("home-monthly-report-btn-label", "home.btn.monthlyReport");
         btn.setAttribute("aria-label", t("home.btn.monthlyReport"));
@@ -9126,7 +9128,7 @@
         img.src = monthlyReportModalState.dataUrl;
         img.alt = monthlyReportModalState.fileName || t("monthlyReport.modalTitle");
       }
-      if (regen) regen.hidden = !isTesterUser();
+      if (regen) regen.hidden = false;
       const label = monthlyReportModalState.monthKey
         ? t("monthlyReport.ready").replace("{month}", monthlyReportModalState.monthKey)
         : t("monthlyReport.modalTitle");
@@ -9134,7 +9136,6 @@
     }
 
     async function handleMonthlyReportEntryClick() {
-      if (!isTesterUser()) return;
       if (isGuestMode || !loadCurrentUsername()) {
         showToast(t("toast.guestNeedLogin"));
         return;
@@ -9156,7 +9157,7 @@
     }
 
     async function handleMonthlyReportRegenClick() {
-      if (!isTesterUser() || monthlyReportModalState.busy) return;
+      if (isGuestMode || !loadCurrentUsername() || monthlyReportModalState.busy) return;
       monthlyReportModalState.busy = true;
       setMonthlyReportModalStatus(t("monthlyReport.generating"));
       try {
