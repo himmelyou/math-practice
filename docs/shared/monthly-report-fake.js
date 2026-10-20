@@ -182,7 +182,7 @@
     W: 720,
     PAD: 40,
     GAP: 24,
-    HEADER: 118,
+    HEADER: 134,
     SECTION_GAP: 30,
     TITLE_H: 36,
     TITLE_PAD_BOTTOM: 16,
@@ -199,9 +199,9 @@
     COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#94a3b8"],
     FONT: {
       brand: 26,
-      nick: 22,
-      title: 30,
-      titleEn: 18,
+      nick: 19,
+      title: 28,
+      titleEn: 17,
       section: 26,
       subhead: 22,
       body: 22,
@@ -451,23 +451,24 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 页眉：左昵称 · 右品牌（同字号）
+    // 页眉：左昵称（署名）· 右品牌；标题区加大行距
     ctx.textBaseline = "alphabetic";
-    ctx.font = font("bold", F.brand);
     if (nickname) {
-      ctx.fillStyle = "#475569";
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = font("", F.nick);
       var nickDraw = ellipsize(ctx, nickname, W * 0.45);
-      ctx.fillText(nickDraw, RPT.PAD, 52);
+      ctx.fillText(nickDraw, RPT.PAD, 48);
     }
     ctx.fillStyle = "#1a3f8f";
+    ctx.font = font("bold", F.brand);
     var brand = "Jarvis Math Lab";
-    ctx.fillText(brand, W - RPT.PAD - ctx.measureText(brand).width, 52);
+    ctx.fillText(brand, W - RPT.PAD - ctx.measureText(brand).width, 48);
     ctx.fillStyle = "#0f172a";
     ctx.font = font("bold", F.title);
-    ctx.fillText(data.titleZh || "数感练习月报（" + monthLabelZh(monthKey) + "）", RPT.PAD, 88);
+    ctx.fillText(data.titleZh || "数感练习月报（" + monthLabelZh(monthKey) + "）", RPT.PAD, 92);
     ctx.fillStyle = "#94a3b8";
     ctx.font = font("", F.titleEn);
-    ctx.fillText(data.titleEn || monthLabelEn(monthKey), RPT.PAD, 112);
+    ctx.fillText(data.titleEn || monthLabelEn(monthKey), RPT.PAD, 122);
 
     var y = RPT.HEADER;
     y = drawDivider(ctx, y);
