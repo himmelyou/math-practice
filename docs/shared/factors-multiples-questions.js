@@ -6,16 +6,16 @@
  * Y2：哪个是 f 的倍数？正解 N；假选项 w=k·f±m（m 按质数/10≥20/5/2/3 分档；
  *      k 在 {N/f−1,N/f,N/f+1} 去 1 后随机；f<w≤100）。
  * Y3/Y4 入门共用牌库：2≤a<b≤30 且 min(a,b)/gcd≤5；三层 1:2:3；Y3 问 g，Y4 问 L。
- * Y5/Y6 进阶共用牌库：2≤a<b≤99 且 min(a,b)/gcd≤11；三层 1:2:3；Y5 问 g，Y6 问 L。
+ * Y5/Y6 进阶共用牌库：2≤a<b≤60 且 min(a,b)/gcd≤10；三层 1:2:3；Y5 问 g，Y6 问 L。
  */
 (function (global) {
   var QUESTIONS_PER_RUN = 24;
   var Y2_M_MAX = 100;
   var INTRO_B_MAX = 30;
-  var ADV_B_MAX = 99;
+  var ADV_B_MAX = 60;
   /** 入门/进阶：较小约化因子 min/g 上限（L = max × (min/g)） */
   var INTRO_COFACTOR_MAX = 5;
-  var ADV_COFACTOR_MAX = 11;
+  var ADV_COFACTOR_MAX = 10;
   var LEVEL_COUNT = 6;
 
   var LEVEL_DEFS = [
