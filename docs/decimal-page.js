@@ -644,8 +644,13 @@
   async function applyRecommendedLevelOnPrestart() {
     const seq = ++decRecommendSeq;
     let lv = null;
+    const pin = typeof window !== "undefined" ? window.jmlDailyTaskPin : null;
+    if (pin && pin.mode === "decimal" && pin.levelIndex != null && Number.isFinite(Number(pin.levelIndex))) {
+      lv = Math.max(0, Math.min(decMaxLevel(), Math.floor(Number(pin.levelIndex))));
+      window.jmlDailyTaskPin = null;
+    }
     try {
-      lv = await resolveDecimalRecommendedLevel();
+      if (lv == null) lv = await resolveDecimalRecommendedLevel();
     } catch (e) {
       console.warn("小数选关失败", e);
       return;

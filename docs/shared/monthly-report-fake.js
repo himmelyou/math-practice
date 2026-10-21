@@ -468,7 +468,7 @@
     }
     ctx.fillStyle = "#1a3f8f";
     ctx.font = font("bold", F.brand);
-    var brand = "Jarvis Math Lab";
+    var brand = "ADS Math Lab";
     ctx.fillText(brand, W - RPT.PAD - ctx.measureText(brand).width, 48);
     ctx.fillStyle = "#0f172a";
     ctx.font = font("bold", F.title);

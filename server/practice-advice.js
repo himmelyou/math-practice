@@ -1,9 +1,15 @@
 /**
- * 练习建议 v0.26：速度任务达标线改为本局均速 ≤ 开单基线（不再 ×0.92）。
- * 对照 timePct 步长为 0。闯关合格线 max 等同 v0.25。不整单重排。
+ * 练习建议 v0.29：多模式入队（错题/特殊/小数槽位与全局优先级）。
+ * v0.28：超前黄橙进队须准≥95%。
  */
 (function (root) {
-  var RULE_VERSION = "0.26-provisional";
+  var RULE_VERSION = "0.29-provisional";
+  var Modes = null;
+  try {
+    if (typeof require === "function") Modes = require("./practice-advice-modes");
+  } catch (eModes) {
+    Modes = null;
+  }
   var LEVEL_COUNT = 16;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -56,6 +62,7 @@
     perfectsquare: true,
     expandbrackets: true,
     divisibility: true,
+    factorsmultiples: true,
     primecomposite: true,
   };
 
@@ -643,6 +650,10 @@
       schoolHoles: rows.filter(function (r) {
         return inSchoolPrior(r.prior) && (r.stage === "weak" || r.stage === "shaky");
       }),
+      /** 超前黄橙且准≥95%（已会偏慢）；仅校内全绿时进五格（见 uniqueSeeds） */
+      aheadHoles: rows.filter(function (r) {
+        return aheadHoleEligible(r);
+      }),
       aheadNoData: rows.filter(function (r) {
         return r.prior === "ahead" && r.stage === "no_data";
       }),
@@ -656,6 +667,261 @@
         return inSchoolPrior(r.prior) && r.stage === "mastered";
       }),
     };
+  }
+
+  /**
+   * 超前洞进队条件：已有数据的黄橙，且热图准度 ≥95%。
+   * 准度不够 = 自己先学，不进任务要求。
+   */
+  function aheadHoleEligible(row) {
+    if (!row || row.prior !== "ahead") return false;
+    if (row.stage !== "weak" && row.stage !== "shaky") return false;
+    if (row.p == null || !Number.isFinite(Number(row.p))) return false;
+    return Number(row.p) + 1e-9 >= HEAT_P_YELLOW;
+  }
+
+  /** 校内已激活全绿时，可把符合条件的超前黄橙进队。 */
+  function canScheduleAheadHoles(rows) {
+    return schoolActivatedReady(rows || []);
+  }
+
+  function modePriorToSchool(prior) {
+    return prior === "learned" || prior === "current";
+  }
+
+  function buildGenericRows(grade, cells, modeId, levelCount, labelFn, priorFn) {
+    var rows = [];
+    var nLevels = levelCount > 0 ? levelCount : LEVEL_COUNT;
+    for (var i = 0; i < nLevels; i += 1) {
+      var cell = getCell(cells, i);
+      var prior = priorFn(grade, i);
+      if (prior === "blocked") prior = "ahead";
+      var n = cell && Number.isFinite(Number(cell.n)) ? Number(cell.n) : 0;
+      var p = cell && cell.p != null && Number.isFinite(Number(cell.p)) ? Number(cell.p) : null;
+      var row = {
+        modeId: modeId || "training",
+        levelIndex: i,
+        L: i + 1,
+        levelLabel: labelFn(i),
+        prior: prior,
+        priorLabel: PRIOR_LABEL[prior] || prior,
+        stage: classifyStage(cell, prior),
+        n: n,
+        p: p,
+        pPct: pctText(p),
+        tooSlow: !!(cell && cell.tooSlow),
+        fluent: !!(cell && cell.fluent),
+        band: heatBand(cell),
+        timePct: cell && cell.timePct != null && Number.isFinite(Number(cell.timePct)) ? Number(cell.timePct) : null,
+        avgSec: avgSecFromCell(cell),
+        meanLnCorrect:
+          cell && cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))
+            ? Number(cell.meanLnCorrect)
+            : null,
+      };
+      row.stageLabel =
+        row.stage === "weak"
+          ? "弱"
+          : row.stage === "shaky"
+            ? "不熟"
+            : row.stage === "thin"
+              ? "样本薄"
+              : row.stage === "mastered"
+                ? "会了"
+                : "无数据";
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  function buildModePack(modeId, grade, cells, opts) {
+    opts = opts || {};
+    if (!Modes || !Modes.MODE_META[modeId]) return null;
+    if (!Modes.modeAllowed(modeId, grade)) return null;
+    var meta = Modes.MODE_META[modeId];
+    if (meta.singlePool) {
+      var cleared = opts.primeCleared === true;
+      var played = opts.primePlayed === true || cleared;
+      var prior = Modes.modeCurriculumPrior(modeId, grade, 0);
+      if (prior === "blocked") return null;
+      var stage = cleared ? "mastered" : played ? "shaky" : "no_data";
+      var row = {
+        modeId: modeId,
+        levelIndex: 0,
+        L: 1,
+        levelLabel: meta.label,
+        prior: prior === "blocked" ? "ahead" : prior,
+        priorLabel: PRIOR_LABEL[prior] || prior,
+        stage: stage,
+        n: played || cleared ? 20 : 0,
+        p: cleared ? 1 : played ? 0.9 : null,
+        pPct: cleared ? "100%" : played ? "90%" : "—",
+        tooSlow: false,
+        fluent: cleared,
+        band: cleared ? "fluent" : played ? "yellow" : "inactive",
+        timePct: cleared ? 30 : played ? 60 : null,
+        avgSec: null,
+        meanLnCorrect: null,
+        stageLabel: cleared ? "会了" : played ? "不熟" : "无数据",
+      };
+      var rows = [row];
+      return {
+        modeId: modeId,
+        meta: meta,
+        rows: rows,
+        schoolHoles: !cleared && played ? [row] : [],
+        aheadHoles: [],
+        openRow: !cleared && !played ? row : null,
+        fillers: [],
+      };
+    }
+    var rows = buildGenericRows(
+      grade,
+      cells || [],
+      modeId,
+      meta.levelCount,
+      function (i) {
+        return Modes.modeLevelLabel(modeId, i);
+      },
+      function (g, i) {
+        var pr = Modes.modeCurriculumPrior(modeId, g, i);
+        return pr === "blocked" ? "ahead" : pr;
+      }
+    );
+    rows.forEach(function (r) {
+      var raw = Modes.modeCurriculumPrior(modeId, grade, r.levelIndex);
+      if (raw === "blocked") {
+        r.prior = "ahead";
+        r.blocked = true;
+      }
+    });
+    var schoolHoles = rows.filter(function (r) {
+      return !r.blocked && modePriorToSchool(r.prior) && (r.stage === "weak" || r.stage === "shaky");
+    });
+    var aheadHoles = rows.filter(function (r) {
+      return !r.blocked && aheadHoleEligible(r);
+    });
+    var openRow = null;
+    if (schoolActivatedReady(rows.filter(function (r) {
+      return !r.blocked && modePriorToSchool(r.prior);
+    })) || !rows.some(function (r) {
+      return !r.blocked && modePriorToSchool(r.prior) && r.stage !== "no_data";
+    })) {
+      var best = null;
+      rows.forEach(function (r) {
+        if (r.blocked || !modePriorToSchool(r.prior) || r.stage !== "no_data") return;
+        if (!best || r.levelIndex < best.levelIndex) best = r;
+      });
+      openRow = best;
+    }
+    if (openRow && !canScheduleOpenNewForMode(rows)) openRow = null;
+    var fillers = rows
+      .filter(function (r) {
+        return !r.blocked && fillerScore(r) > 0;
+      })
+      .slice()
+      .sort(function (a, b) {
+        return fillerScore(b) - fillerScore(a);
+      });
+    return {
+      modeId: modeId,
+      meta: meta,
+      rows: rows,
+      schoolHoles: schoolHoles,
+      aheadHoles: canScheduleAheadHoles(rows) ? aheadHoles : [],
+      openRow: openRow,
+      fillers: fillers,
+    };
+  }
+
+  function canScheduleOpenNewForMode(rows) {
+    var schoolRows = (rows || []).filter(function (r) {
+      return !r.blocked && modePriorToSchool(r.prior);
+    });
+    if (!(schoolRows || []).some(function (r) {
+      return r && r.stage && r.stage !== "no_data";
+    })) {
+      return !!nextOpenableModeRow(rows);
+    }
+    return schoolActivatedReady(schoolRows) && !!nextOpenableModeRow(rows);
+  }
+
+  function nextOpenableModeRow(rows) {
+    var best = null;
+    (rows || []).forEach(function (r) {
+      if (!r || r.blocked || !modePriorToSchool(r.prior) || r.stage !== "no_data") return;
+      if (!best || r.levelIndex < best.levelIndex) best = r;
+    });
+    return best;
+  }
+
+  function packHasSuitable(pack) {
+    if (!pack) return false;
+    return !!(
+      (pack.schoolHoles && pack.schoolHoles.length) ||
+      pack.openRow ||
+      (pack.aheadHoles && pack.aheadHoles.length) ||
+      (pack.fillers && pack.fillers.length)
+    );
+  }
+
+  function pickFromPack(pack, cooldownSeq) {
+    if (!pack) return null;
+    function okKey(seed) {
+      var k = seedKey(seed);
+      if (cooldownSeq && keyTooSoon(k, cooldownSeq)) return false;
+      return true;
+    }
+    var holes = sortHolesWorstFirst(pack.schoolHoles || []);
+    var i;
+    for (i = 0; i < holes.length; i += 1) {
+      var s0 = { kind: "mode", modeId: pack.modeId, row: holes[i] };
+      if (okKey(s0)) return s0;
+    }
+    if (pack.openRow) {
+      var s1 = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
+      if (okKey(s1)) return s1;
+    }
+    var ahead = sortHolesWorstFirst(pack.aheadHoles || []);
+    for (i = 0; i < ahead.length; i += 1) {
+      var s2 = { kind: "mode", modeId: pack.modeId, row: ahead[i] };
+      if (okKey(s2)) return s2;
+    }
+    for (i = 0; i < (pack.fillers || []).length; i += 1) {
+      var s3 = { kind: "mode", modeId: pack.modeId, row: pack.fillers[i] };
+      if (okKey(s3)) return s3;
+    }
+    return null;
+  }
+
+  function pickSpecialReserve(ctx, cooldownSeq) {
+    if (!Modes) return null;
+    var order = Modes.SPECIAL_ORDER;
+    var tiers = ["hole", "open", "ahead", "fill"];
+    var t;
+    var m;
+    for (t = 0; t < tiers.length; t += 1) {
+      for (m = 0; m < order.length; m += 1) {
+        var pack = ctx.modePacks && ctx.modePacks[order[m]];
+        if (!pack) continue;
+        var seed = null;
+        if (tiers[t] === "hole" && pack.schoolHoles && pack.schoolHoles.length) {
+          seed = { kind: "mode", modeId: pack.modeId, row: sortHolesWorstFirst(pack.schoolHoles)[0] };
+        } else if (tiers[t] === "open" && pack.openRow) {
+          seed = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
+        } else if (tiers[t] === "ahead" && pack.aheadHoles && pack.aheadHoles.length) {
+          seed = { kind: "mode", modeId: pack.modeId, row: sortHolesWorstFirst(pack.aheadHoles)[0] };
+        } else if (tiers[t] === "fill" && pack.fillers && pack.fillers.length) {
+          seed = { kind: "mode", modeId: pack.modeId, row: pack.fillers[0] };
+        }
+        if (seed && !(cooldownSeq && keyTooSoon(seedKey(seed), cooldownSeq))) return seed;
+      }
+    }
+    return null;
+  }
+
+  function pickDecimalReserve(ctx, cooldownSeq) {
+    return pickFromPack(ctx.modePacks && ctx.modePacks.decimal, cooldownSeq);
   }
 
   /** 已学/同步里已激活的关全部热图绿（无黄橙）。无已激活时视为可开第一档。 */
@@ -912,55 +1178,136 @@
     return applyScanFields(task, scan);
   }
 
+  function listOtherModeSeeds(ctx, tier) {
+    var out = [];
+    if (!Modes || !ctx.modePacks) return out;
+    var ids = Modes.SPECIAL_ORDER.concat(["decimal"]);
+    var i;
+    for (i = 0; i < ids.length; i += 1) {
+      var pack = ctx.modePacks[ids[i]];
+      if (!pack) continue;
+      if (tier === "hole") {
+        sortHolesWorstFirst(pack.schoolHoles || []).forEach(function (r) {
+          out.push({ kind: "mode", modeId: pack.modeId, row: r });
+        });
+      } else if (tier === "open" && pack.openRow) {
+        out.push({ kind: "mode_open", modeId: pack.modeId, row: pack.openRow });
+      } else if (tier === "ahead") {
+        sortHolesWorstFirst(pack.aheadHoles || []).forEach(function (r) {
+          out.push({ kind: "mode", modeId: pack.modeId, row: r });
+        });
+      } else if (tier === "fill") {
+        (pack.fillers || []).forEach(function (r) {
+          out.push({ kind: "mode", modeId: pack.modeId, row: r });
+        });
+      }
+    }
+    return out;
+  }
+
   function uniqueSeeds(ctx) {
+    var budget =
+      Modes && typeof Modes.slotBudget === "function"
+        ? Modes.slotBudget(ctx.grade)
+        : { arith: INCOMPLETE_SIZE, special: 0, decimal: 0 };
     var seeds = [];
     var used = {};
-    function tryAdd(seed) {
+    var arithUsed = 0;
+    var specialPlaced = false;
+    var decimalPlaced = false;
+    var cooldownHint = ctx._cooldownSeq || [];
+
+    function isArithSeed(seed) {
+      return seed.kind === "training" || seed.kind === "open" || seed.kind === "scan" || seed.kind === "wrongbook";
+    }
+    function isSpecialSeed(seed) {
+      return (
+        (seed.kind === "mode" || seed.kind === "mode_open") &&
+        seed.modeId &&
+        seed.modeId !== "decimal"
+      );
+    }
+    function isDecimalSeed(seed) {
+      return (seed.kind === "mode" || seed.kind === "mode_open") && seed.modeId === "decimal";
+    }
+    function tryAdd(seed, force) {
+      if (!seed) return false;
+      if (seeds.length >= INCOMPLETE_SIZE) return false;
       var k = seedKey(seed);
-      if (used[k]) return;
+      if (used[k]) return false;
+      var arith = isArithSeed(seed);
+      if (!force && arith && arithUsed >= budget.arith) return false;
       used[k] = true;
       seeds.push(seed);
+      if (arith) arithUsed += 1;
+      if (isSpecialSeed(seed)) specialPlaced = true;
+      if (isDecimalSeed(seed)) decimalPlaced = true;
+      return true;
     }
-    var holes = sortHolesWorstFirst(ctx.schoolHoles);
+
+    var reservedSpecial =
+      budget.special > 0 ? pickSpecialReserve(ctx, cooldownHint) : null;
+    var reservedDecimal =
+      budget.decimal > 0 ? pickDecimalReserve(ctx, cooldownHint) : null;
+
+    var stream = [];
+    if (ctx.wrongbookNeeded) stream.push({ kind: "wrongbook" });
+
+    var holes = sortHolesWorstFirst(ctx.schoolHoles || []);
     var primary = ctx.primaryRow;
-    if (ctx.profile.id === "skill_gaps") {
-      if (!holes.length && primary && (primary.stage === "weak" || primary.stage === "shaky")) {
+    if (ctx.profile && ctx.profile.id === "skill_gaps") {
+      if (
+        !holes.length &&
+        primary &&
+        (primary.stage === "weak" || primary.stage === "shaky") &&
+        (inSchoolPrior(primary.prior) || aheadHoleEligible(primary))
+      ) {
         holes = [primary];
       }
     }
     var needScan = scanIsNeeded(ctx);
     var n = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : 0;
+
     if (heatmapIsEmpty(ctx.rows)) {
-      if (needScan) tryAdd({ kind: "scan", scan: ctx.scan });
-      return seeds;
-    }
-    if (needScan && isRetryClearScan(ctx)) {
-      if (holes.length) {
-        tryAdd({ kind: "training", row: holes[0] });
-        tryAdd({ kind: "scan", scan: ctx.scan });
-        holes.slice(1).forEach(function (r) {
-          tryAdd({ kind: "training", row: r });
-        });
-      } else {
-        tryAdd({ kind: "scan", scan: ctx.scan });
-      }
+      if (needScan) stream.push({ kind: "scan", scan: ctx.scan });
+    } else if (needScan && isRetryClearScan(ctx)) {
+      if (holes.length) stream.push({ kind: "training", row: holes[0] });
+      stream.push({ kind: "scan", scan: ctx.scan });
+      holes.slice(1).forEach(function (r) {
+        stream.push({ kind: "training", row: r });
+      });
     } else if (needScan) {
       holes.forEach(function (r) {
-        if (r.levelIndex <= n) tryAdd({ kind: "training", row: r });
+        if (r.levelIndex <= n) stream.push({ kind: "training", row: r });
       });
-      tryAdd({ kind: "scan", scan: ctx.scan });
+      stream.push({ kind: "scan", scan: ctx.scan });
       holes.forEach(function (r) {
-        if (r.levelIndex > n) tryAdd({ kind: "training", row: r });
+        if (r.levelIndex > n) stream.push({ kind: "training", row: r });
       });
     } else {
       holes.forEach(function (r) {
-        tryAdd({ kind: "training", row: r });
+        stream.push({ kind: "training", row: r });
       });
     }
     if (canScheduleOpenNew(ctx.rows || [])) {
-      tryAdd({ kind: "open", row: nextOpenableRow(ctx.rows) });
+      var openR = nextOpenableRow(ctx.rows);
+      if (openR) stream.push({ kind: "open", row: openR });
     }
-    var fillers = (ctx.rows || [])
+    if (canScheduleAheadHoles(ctx.rows || [])) {
+      sortHolesWorstFirst(ctx.aheadHoles || []).forEach(function (r) {
+        stream.push({ kind: "training", row: r });
+      });
+    }
+    listOtherModeSeeds(ctx, "hole").forEach(function (s) {
+      stream.push(s);
+    });
+    listOtherModeSeeds(ctx, "open").forEach(function (s) {
+      stream.push(s);
+    });
+    listOtherModeSeeds(ctx, "ahead").forEach(function (s) {
+      stream.push(s);
+    });
+    var arithFillers = (ctx.rows || [])
       .filter(function (r) {
         return fillerScore(r) > 0;
       })
@@ -968,22 +1315,56 @@
       .sort(function (a, b) {
         return fillerScore(b) - fillerScore(a);
       });
-    fillers.forEach(function (r) {
-      tryAdd({ kind: "training", row: r });
+    arithFillers.forEach(function (r) {
+      stream.push({ kind: "training", row: r });
     });
+    listOtherModeSeeds(ctx, "fill").forEach(function (s) {
+      stream.push(s);
+    });
+
+    function reserveRoomLeft() {
+      var need = 0;
+      if (reservedSpecial && !specialPlaced) need += 1;
+      if (reservedDecimal && !decimalPlaced) need += 1;
+      return need;
+    }
+
+    stream.forEach(function (seed) {
+      if (seeds.length >= INCOMPLETE_SIZE) return;
+      var room = INCOMPLETE_SIZE - seeds.length;
+      var need = reserveRoomLeft();
+      var isRes =
+        (reservedSpecial && seedKey(seed) === seedKey(reservedSpecial)) ||
+        (reservedDecimal && seedKey(seed) === seedKey(reservedDecimal));
+      if (need > 0 && room <= need && !isRes) return;
+      tryAdd(seed, false);
+    });
+
+    if (reservedSpecial && !specialPlaced) tryAdd(reservedSpecial, true);
+    if (reservedDecimal && !decimalPlaced) tryAdd(reservedDecimal, true);
+
     return seeds;
   }
 
   function seedIsNeeded(seed, ctx) {
+    if (seed.kind === "wrongbook") {
+      return !!(ctx && (ctx.wrongbookNeeded || ctx.wrongbookSticky));
+    }
     if (seed.kind === "scan") return scanIsNeeded(ctx);
     if (seed.kind === "open") {
       var openRow = seed.row;
       if (!openRow || openRow.stage !== "no_data") return false;
       return canScheduleOpenNew(ctx.rows || []);
     }
+    if (seed.kind === "mode_open") {
+      return !!(seed.row && seed.row.stage === "no_data");
+    }
     var row = seed.row;
     if (!row) return false;
-    if (row.stage === "weak" || row.stage === "shaky") return true;
+    if (row.stage === "weak" || row.stage === "shaky") {
+      if (row.prior === "ahead") return aheadHoleEligible(row);
+      return true;
+    }
     return fillerScore(row) > 0;
   }
 
@@ -1074,7 +1455,10 @@
     }
     if (si < 0) return list;
     var scan = list.splice(si, 1)[0];
-    var hasHole = !!(ctx && ctx.schoolHoles && ctx.schoolHoles.length);
+    var hasSchoolHole = !!(ctx && ctx.schoolHoles && ctx.schoolHoles.length);
+    var hasAheadHole =
+      !!(ctx && ctx.aheadHoles && ctx.aheadHoles.length) && canScheduleAheadHoles(ctx.rows || []);
+    var hasHole = hasSchoolHole || hasAheadHole;
     if (!hasHole) return [scan].concat(list);
     var at = Math.min(1, list.length);
     list.splice(at, 0, scan);
@@ -1094,17 +1478,29 @@
     var done = trimDone(cooldownTasks(plan));
     var next = openTasks(plan).filter(function (t) {
       if (keepExisting) return true;
+      if (t && t.action === "wrongbook") {
+        return !!(ctx.wrongbookNeeded || ctx.wrongbookSticky || (ctx.wrongAnswersVisible || 0) > 0);
+      }
       if (isScanTask(t) && !scanIsNeeded(ctx)) return false;
       if (t.successKind !== "open_activate") return true;
-      var row = rowByLevel(ctx.rows || [], t.levelIndex);
-      if (!row || row.stage !== "no_data") return false;
-      return canScheduleOpenNew(ctx.rows || []);
+      if (t.action === "training") {
+        var row = rowByLevel(ctx.rows || [], t.levelIndex);
+        if (!row || row.stage !== "no_data") return false;
+        return canScheduleOpenNew(ctx.rows || []);
+      }
+      return true;
     });
     if (!keepExisting && ctx.scan) {
       next.forEach(function (t) {
         if (isScanTask(t)) applyScanFields(t, ctx.scan);
       });
     }
+    var stickyWrong = next.some(function (t) {
+      return t && t.action === "wrongbook";
+    });
+    ctx.wrongbookSticky = stickyWrong;
+    ctx._cooldownSeq = done.concat(next);
+    plan._adviceCtx = ctx;
     var needed = uniqueSeeds(ctx).filter(function (s) {
       return seedIsNeeded(s, ctx);
     });
@@ -1135,12 +1531,113 @@
   }
 
   function seedKey(seed) {
-    return seed.kind === "scan" ? "level" : taskKey("training", seed.row.levelIndex);
+    if (!seed) return "";
+    if (seed.kind === "scan") return "level";
+    if (seed.kind === "wrongbook") return "wrongbook";
+    if (seed.kind === "mode" || seed.kind === "mode_open") {
+      return taskKey(seed.modeId || "mode", seed.row && seed.row.levelIndex);
+    }
+    return taskKey("training", seed.row && seed.row.levelIndex);
+  }
+
+  function makeWrongbookTask(plan, ctx) {
+    var n = ctx && ctx.wrongAnswersVisible != null ? Number(ctx.wrongAnswersVisible) : 0;
+    return {
+      id: nextTaskId(plan),
+      key: "wrongbook",
+      action: "wrongbook",
+      mode: "wrongbook",
+      levelIndex: null,
+      levelLabel: "错题本",
+      status: "pending",
+      successKind: "wrongbook_clear",
+      baseline: {
+        p: null,
+        timePct: null,
+        n: n,
+        tooSlow: false,
+        avgSec: null,
+        stageLabel: "",
+        priorLabel: "",
+      },
+      targetP: null,
+      targetTimePct: null,
+      targetAvgSec: null,
+      scanLevelIndex: null,
+      scanLevelLabel: "",
+      failMaxGamesPerDay: 9999,
+      failMaxPracticeDays: 9999,
+      window: emptyPlanWindow(),
+      closedAt: null,
+      closeReason: "",
+      title: "错题本（四则）",
+      detail: "可练错题 " + n + " 道；本模式全对清空才算完成，错一题则错题仍在。无失败次数限制",
+    };
+  }
+
+  function makeModeTask(plan, seed) {
+    var row = seed.row;
+    var modeId = seed.modeId;
+    var meta = Modes && Modes.MODE_META[modeId] ? Modes.MODE_META[modeId] : null;
+    var isOpen = seed.kind === "mode_open";
+    var kind = isOpen ? "open_activate" : successKindForRow(row);
+    var targetP = null;
+    var targetTimePct = null;
+    var targetAvgSec = null;
+    if (!isOpen && kind !== "speed_step") targetP = HEAT_P_YELLOW;
+    if (!isOpen && kind === "speed_step") {
+      var spdT = applySpeedTargets(row);
+      targetTimePct = spdT.targetTimePct;
+      targetAvgSec = spdT.targetAvgSec;
+    }
+    var title =
+      (meta ? meta.label : modeId) +
+      (row.levelLabel && !(meta && meta.singlePool) ? " " + row.levelLabel : "") +
+      (isOpen ? "（开新关）" : "");
+    return {
+      id: nextTaskId(plan),
+      key: taskKey(modeId, row.levelIndex),
+      action: modeId,
+      mode: meta ? meta.playMode : modeId,
+      levelIndex: row.levelIndex,
+      levelLabel: row.levelLabel,
+      status: "pending",
+      successKind: kind,
+      baseline: {
+        p: row.p,
+        timePct: row.timePct,
+        n: row.n,
+        tooSlow: !!row.tooSlow,
+        avgSec: row.avgSec,
+        stageLabel: row.stageLabel,
+        priorLabel: row.priorLabel,
+      },
+      targetP: targetP,
+      targetTimePct: targetTimePct,
+      targetAvgSec: targetAvgSec,
+      scanLevelIndex: null,
+      scanLevelLabel: "",
+      failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
+      failMaxPracticeDays: FAIL_PRACTICE_DAYS,
+      window: emptyPlanWindow(),
+      closedAt: null,
+      closeReason: "",
+      title: title,
+      detail:
+        (row.priorLabel || "") +
+        " · " +
+        row.stageLabel +
+        (isOpen
+          ? "；打满 " + MIN_OPEN_GAMES + " 局或 " + MIN_SUCCESS_ITEMS + " 题即激活"
+          : " 准" + row.pPct + " n=" + row.n),
+    };
   }
 
   function seedToTask(plan, seed) {
     if (seed.kind === "scan") return makeScanTask(plan, seed.scan);
     if (seed.kind === "open") return makeOpenTask(plan, seed.row);
+    if (seed.kind === "wrongbook") return makeWrongbookTask(plan, plan._adviceCtx || {});
+    if (seed.kind === "mode" || seed.kind === "mode_open") return makeModeTask(plan, seed);
     return makeTrainingTask(plan, seed.row);
   }
 
@@ -1261,6 +1758,7 @@
 
   function runMatchesTask(run, task) {
     if (!task || !isPlayRun(run)) return false;
+    if (task.action === "wrongbook") return false;
     var mode = normalizeRunMode(run.mode);
     if (task.action === "training") {
       if (mode !== "training") return false;
@@ -1268,7 +1766,20 @@
       return lv != null && lv === task.levelIndex;
     }
     if (task.action === "level") return mode === "level";
-    return false;
+    if (task.action === "primeComposite") {
+      return mode === "primecomposite";
+    }
+    var want = normalizeRunMode(task.mode || task.action);
+    if (mode !== want) return false;
+    if (task.levelIndex == null) return true;
+    var runLv =
+      run.levelIndex != null && Number.isFinite(Number(run.levelIndex))
+        ? Math.floor(Number(run.levelIndex))
+        : trainingLevelIndex(run);
+    if (runLv == null && run.startLevel != null && Number.isFinite(Number(run.startLevel))) {
+      runLv = Math.floor(Number(run.startLevel));
+    }
+    return runLv != null && runLv === task.levelIndex;
   }
 
   function sampleOk(task) {
@@ -1298,7 +1809,16 @@
   }
 
   function evaluateSuccess(task, run, stats) {
-    stats = stats || summarizeRun(run, task.action === "training" ? task.levelIndex : null);
+    if (task.successKind === "wrongbook_clear") return false;
+    if (task.action === "primeComposite") {
+      return !!(run && (run.cleared === true || run.perfect === true));
+    }
+    var sumLv =
+      task.action === "training" ||
+      (Modes && Modes.MODE_META && Modes.MODE_META[task.action] && !Modes.MODE_META[task.action].singlePool)
+        ? task.levelIndex
+        : null;
+    stats = stats || summarizeRun(run, sumLv);
     if (task.successKind === "level_reach") {
       return passedScanTarget(run, task.scanLevelIndex);
     }
@@ -1314,6 +1834,7 @@
   }
 
   function evaluateFail(task) {
+    if (task && task.successKind === "wrongbook_clear") return "";
     var w = task.window || emptyPlanWindow();
     var days = Object.keys(w.gamesByDay || {}).filter(function (d) {
       return (w.gamesByDay[d] || 0) > 0;
@@ -1327,9 +1848,33 @@
     return "";
   }
 
+  function settleWrongbookTasks(plan, ctx, nowTs, lastFollow) {
+    var open = openTasks(plan);
+    var i;
+    for (i = 0; i < open.length; i += 1) {
+      var t = open[i];
+      if (!t || t.action !== "wrongbook") continue;
+      if ((ctx.wrongAnswersVisible || 0) > 0) continue;
+      pushEvent(plan, "follow", (t.title || "错题本") + " 成功（已清空）", nowTs);
+      if (lastFollow) {
+        lastFollow.kind = "success";
+        lastFollow.taskId = t.id || "";
+      }
+      closeTask(plan, t, "success", "success", nowTs);
+      replan(plan, ctx, t, "success", nowTs);
+      return true;
+    }
+    return false;
+  }
+
   function applyFollow(task, run) {
     var day = chinaDateKeyFromTs(runTs(run));
-    var stats = summarizeRun(run, task.action === "training" ? task.levelIndex : null);
+    var sumLv =
+      task.action === "training" ||
+      (Modes && Modes.MODE_META && Modes.MODE_META[task.action] && !Modes.MODE_META[task.action].singlePool)
+        ? task.levelIndex
+        : null;
+    var stats = summarizeRun(run, sumLv);
     if (task.successKind === "speed_step") captureBaselineAvgSec(task, run);
     if (!task.window) task.window = emptyPlanWindow();
     var w = task.window;
@@ -1543,6 +2088,9 @@
     activateFirst(plan.tasks);
     normalizeOpenTrainingGoals(plan);
     normalizeOpenScanGoals(plan, ctx);
+    if (settleWrongbookTasks(plan, ctx, nowTs, lastFollow)) {
+      rebuilt = true;
+    }
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
     var incoming = (runs || [])
       .filter(isPlayRun)
@@ -1605,6 +2153,12 @@
 
   function successCopy(task) {
     if (!task) return "";
+    if (task.successKind === "wrongbook_clear") {
+      return "成功：错题本本局全对并清空可练错题";
+    }
+    if (task.action === "primeComposite") {
+      return "成功：本局质数合数通关";
+    }
     if (task.successKind === "level_reach") {
       var lab = task.scanLevelLabel || levelLabel(task.scanLevelIndex);
       if (task.scanLevelIndex >= LEVEL_COUNT - 1) {
@@ -1640,6 +2194,9 @@
   }
 
   function failCopy(task) {
+    if (task && task.successKind === "wrongbook_clear") {
+      return "错题任务无失败次数限制：未全对清空则继续留在未完成";
+    }
     var g = (task && task.failMaxGamesPerDay) || FAIL_GAMES_PER_DAY;
     var d = (task && task.failMaxPracticeDays) || FAIL_PRACTICE_DAYS;
     return "失败：当天打满 " + g + " 局仍未达标则换项；连续 " + d + " 个有练日未达标则进入冷却窗";
@@ -1664,6 +2221,8 @@
   }
 
   function untilCopy(task) {
+    if (task.successKind === "wrongbook_clear") return "错题本全对清空即成功";
+    if (task.action === "primeComposite") return "质数合数通关即成功";
     if (task.successKind === "level_reach") {
       if (task.scanKind === "retry_clear") return "通关 L16 即成功";
       return "通过 " + (task.scanLevelLabel || "") + " 即成功；在该关出局不算";
@@ -1690,6 +2249,7 @@
 
   function tileLabel(t) {
     if (!t) return "";
+    if (t.action === "wrongbook") return "错题";
     if (t.action === "level") return t.scanKind === "retry_clear" ? "冲榜" : "闯关";
     if (t.successKind === "open_activate") return "开" + (t.levelLabel || "");
     return t.levelLabel || t.title || "";
@@ -1697,6 +2257,8 @@
 
   function tileGoal(t) {
     if (!t) return "";
+    if (t.successKind === "wrongbook_clear") return "全对清空";
+    if (t.action === "primeComposite") return "通关";
     if (t.successKind === "level_reach") {
       if (t.scanKind === "retry_clear") return "通关L16";
       return t.scanLevelLabel ? "过" + t.scanLevelLabel : "过关";
@@ -1783,6 +2345,17 @@
     });
   }
 
+  function detectPrimeFlags(runs) {
+    var played = false;
+    var cleared = false;
+    (runs || []).forEach(function (r) {
+      if (normalizeRunMode(r && r.mode) !== "primecomposite") return;
+      played = true;
+      if (r.cleared === true || r.perfect === true) cleared = true;
+    });
+    return { played: played, cleared: cleared };
+  }
+
   function buildAdviceContext(opts) {
     opts = opts || {};
     var rows = buildRows(opts.grade, opts.cells);
@@ -1807,6 +2380,25 @@
       groups.aheadThin,
       groups.schoolMastered
     );
+    var wrongVisible =
+      opts.wrongAnswersVisible != null && Number.isFinite(Number(opts.wrongAnswersVisible))
+        ? Math.max(0, Math.floor(Number(opts.wrongAnswersVisible)))
+        : 0;
+    var wrongMin = Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30;
+    var modeCells = opts.modeCells && typeof opts.modeCells === "object" ? opts.modeCells : {};
+    var primeFlags = detectPrimeFlags(opts.runs);
+    var modePacks = {};
+    if (Modes) {
+      ["decimal", "perfectSquare", "divisibility", "factorsMultiples"].forEach(function (id) {
+        var pack = buildModePack(id, opts.grade, modeCells[id] || [], {});
+        if (pack) modePacks[id] = pack;
+      });
+      var primePack = buildModePack("primeComposite", opts.grade, [], {
+        primePlayed: primeFlags.played,
+        primeCleared: primeFlags.cleared,
+      });
+      if (primePack) modePacks.primeComposite = primePack;
+    }
     return {
       grade: opts.grade,
       rows: rows,
@@ -1814,6 +2406,7 @@
       scan: scan,
       hasClearedLevel: opts.hasClearedLevel === true,
       schoolHoles: groups.schoolHoles,
+      aheadHoles: groups.aheadHoles,
       aheadNoData: groups.aheadNoData,
       aheadMastered: groups.aheadMastered,
       aheadThin: groups.aheadThin,
@@ -1823,6 +2416,11 @@
       alternatives: picked.alternatives,
       retryClear: retry,
       clearEstimate: clearEstimate,
+      wrongAnswersVisible: wrongVisible,
+      wrongbookNeeded: wrongVisible >= wrongMin,
+      wrongbookSticky: false,
+      modePacks: modePacks,
+      slotBudget: Modes ? Modes.slotBudget(opts.grade) : { arith: 5, special: 0, decimal: 0 },
     };
   }
 
@@ -1838,7 +2436,7 @@
     var reasons = [];
     var unresolved = [
       "Q1 超前「会了」暂定 n≥" + AHEAD_MASTERED_N,
-      "Q2 已学/同步黄橙暂定永远压过超前",
+      "Q2 已学/同步黄橙永远压过超前；校内全绿后仅准≥95% 的超前黄橙（已会偏慢）可进五格",
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：历史最高与热图连续准≥95%顶取 max（不计分位）；目标 Ln 须通过 Ln。无历史且 L1 不够 95% 时目标仍是 L1。不因热图变差把目标降到低于历史",
       "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
@@ -1865,7 +2463,7 @@
         "。洞分=档位+准度差+timePct+剩余步×" +
         HOLE_FOUNDATION_STEP +
         "（准度不合格时更先补靠前档）",
-      "Q14 已激活校内全绿才开一档已学/同步空关；热图全空只排闯关、不开新关；闯关留下数据即当老关；超前无数据不开",
+      "Q14 已激活校内全绿才开一档已学/同步空关；其后可排准≥95% 的超前黄橙；多模式同此。Q17 错题≥30；三年级特殊硬留1；四年级再留小数1；生存/拆括号不进",
       "Q15 底板型已通关：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +
@@ -1925,7 +2523,9 @@
         )
       );
     }
+    var schoolReady = canScheduleAheadHoles(ctx.rows || []);
     ctx.aheadThin.forEach(function (r) {
+      if (schoolReady && aheadHoleEligible(r)) return;
       ctx.alternatives.push({
         action: "training",
         levelIndex: r.levelIndex,
@@ -1947,6 +2547,20 @@
           "school_all_green_open",
           "校内已激活全绿，安排开新关 " + (openRow ? openRow.levelLabel : ""),
           "Q14：超前无数据仍不开；闯关留下数据即当老关"
+        )
+      );
+    }
+    if (schoolReady && ctx.aheadHoles && ctx.aheadHoles.length) {
+      var aheadHole = pickWorstHole(ctx.aheadHoles);
+      reasons.push(
+        reason(
+          "R-ahead-hole",
+          "school_green_ahead_hole",
+          "校内已激活全绿，超前已会偏慢可进队 " +
+            (aheadHole
+              ? aheadHole.levelLabel + " · " + aheadHole.stageLabel + " 准" + aheadHole.pPct
+              : ""),
+          "Q14：超前须准≥95% 才进任务；准度不够先自学；空关不开；不抬档案年级"
         )
       );
     }
@@ -2067,6 +2681,9 @@
         Q13_holeFoundationStep: HOLE_FOUNDATION_STEP,
         Q13_heatPctPlus1: HEAT_PCT_PLUS1,
         Q14_openWhenSchoolGreen: true,
+        Q14_aheadHolesWhenSchoolGreen: true,
+        Q17_wrongbookMin: Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30,
+        Q17_multiModeSlots: true,
         Q15_retryClearImprove: SCAN_CLEAR_IMPROVE,
         Q15_retryClearItems: SCAN_CLEAR_ITEMS,
         Q15_retryClearOverhead: SCAN_CLEAR_OVERHEAD,
@@ -2105,6 +2722,8 @@
     nextOpenableRow: nextOpenableRow,
     heatmapIsEmpty: heatmapIsEmpty,
     canScheduleOpenNew: canScheduleOpenNew,
+    canScheduleAheadHoles: canScheduleAheadHoles,
+    aheadHoleEligible: aheadHoleEligible,
     resolveScanTarget: resolveScanTarget,
     passedScanTarget: passedScanTarget,
     estimateClearSec: estimateClearSec,
@@ -2114,6 +2733,7 @@
     historyToClientList: historyToClientList,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,
+    Modes: Modes,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = api;

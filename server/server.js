@@ -835,6 +835,7 @@ function computePracticePlanForUsername(username, opts) {
   }
   const heatPayload = buildHeatmapPayloadForUsername(username);
   const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
+  const modeCells = practicePlanService.modeCellsFromHeatmapPayload(heatPayload);
   let systemPick = null;
   if (opts.includeSystemPick) {
     try {
@@ -858,6 +859,9 @@ function computePracticePlanForUsername(username, opts) {
       user,
       runs,
       cells,
+      modeCells,
+      wrongAnswersVisible: visibleWrongAnswers(user).length,
+      heatmapPayload: heatPayload,
       store: practicePlanStore,
       resetIncomplete: opts.resetIncomplete === true,
       snapshot: opts.snapshot === true,

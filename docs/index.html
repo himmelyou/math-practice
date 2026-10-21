@@ -5687,7 +5687,7 @@
   <script src="shared/factors-multiples-questions.js?v=3"></script>
   <script src="shared/decimal-questions.js?v=51"></script>
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
-  <script src="shared/monthly-report-fake.js?v=20"></script>
+  <script src="shared/monthly-report-fake.js?v=21"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
   <script src="divisibility-page.js?v=21"></script>
@@ -7167,6 +7167,28 @@
         showGameSection();
         return;
       }
+      if (step.action === "wrongbook") {
+        if (typeof handleModeWrongbook === "function") handleModeWrongbook();
+        else if (typeof showWrongbookView === "function") void showWrongbookView();
+        return;
+      }
+      if (step.action === "primeComposite") {
+        if (!gatePendingRunDraft()) return;
+        showPrimeCompositePlaceholder();
+        return;
+      }
+      if (step.action === "decimal" || step.action === "perfectSquare" || step.action === "divisibility" || step.action === "factorsMultiples") {
+        if (!gatePendingRunDraft()) return;
+        window.jmlDailyTaskPin = {
+          mode: step.action,
+          levelIndex: step.levelIndex != null ? Number(step.levelIndex) : null,
+        };
+        if (step.action === "decimal" && window.JmlDecimalPage) JmlDecimalPage.handleModeDecimal();
+        else if (step.action === "perfectSquare" && window.JmlPerfectSquarePage) JmlPerfectSquarePage.handleModePerfectSquare();
+        else if (step.action === "divisibility" && window.JmlDivisibilityPage) JmlDivisibilityPage.handleModeDivisibility();
+        else if (step.action === "factorsMultiples" && window.JmlFactorsMultiplesPage) JmlFactorsMultiplesPage.handleModeFactorsMultiples();
+        return;
+      }
       gameMode = "training";
       pinTrainingLevelFromDailyTask();
       writeGameSubtitleForMode("training");
@@ -7185,6 +7207,11 @@
 
     function dailyTaskKindLabel(step) {
       if (!step) return "";
+      if (step.action === "wrongbook") return step.title || "错题本";
+      if (step.action === "primeComposite") return step.title || "质数合数";
+      if (step.action === "decimal" || step.action === "perfectSquare" || step.action === "divisibility" || step.action === "factorsMultiples") {
+        return step.title || step.levelLabel || step.action;
+      }
       if (step.action === "level") {
         return step.scanKind === "retry_clear" ? t("dailyTasks.label.retryClear") : t("dailyTasks.label.level");
       }
@@ -13760,6 +13787,11 @@
               }
             } catch (e) {
               console.warn("清空错题本失败", e);
+            }
+            try {
+              await loadDailyTaskAdvice();
+            } catch (e2) {
+              /* 错题任务跟局：清空后刷新任务单 */
             }
           }
           showHome();

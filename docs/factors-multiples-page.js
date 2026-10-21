@@ -506,8 +506,13 @@
   async function applyRecommendedLevelOnPrestart() {
     const seq = ++fmRecommendSeq;
     let lv = null;
+    const pin = typeof window !== "undefined" ? window.jmlDailyTaskPin : null;
+    if (pin && pin.mode === "factorsMultiples" && pin.levelIndex != null && Number.isFinite(Number(pin.levelIndex))) {
+      lv = Math.max(0, Math.min(fmMaxLevel(), Math.floor(Number(pin.levelIndex))));
+      window.jmlDailyTaskPin = null;
+    }
     try {
-      lv = await resolveFmRecommendedLevel();
+      if (lv == null) lv = await resolveFmRecommendedLevel();
     } catch (e) {
       console.warn("因数倍数选关失败", e);
       return;

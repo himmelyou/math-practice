@@ -11,6 +11,29 @@ function arithmeticCellsFromHeatmapPayload(payload) {
   return cells;
 }
 
+function modeCellsFromHeatmapPayload(payload) {
+  const by = payload && payload.byCategory && typeof payload.byCategory === "object" ? payload.byCategory : {};
+  const out = {};
+  ["decimal", "perfectSquare", "divisibility", "factorsMultiples"].forEach(function (id) {
+    const pack = by[id];
+    out[id] = pack && pack.heat && Array.isArray(pack.heat.cells) ? pack.heat.cells : [];
+  });
+  return out;
+}
+
+function visibleArithmeticWrongCount(user) {
+  if (!user) return 0;
+  if (user.wrongAnswersVisibleCount != null && Number.isFinite(Number(user.wrongAnswersVisibleCount))) {
+    return Math.max(0, Math.floor(Number(user.wrongAnswersVisibleCount)));
+  }
+  const list = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
+  const clearedBefore = Number(user.wrongAnswersClearedBeforeTs);
+  const cut = Number.isFinite(clearedBefore) && clearedBefore > 0 ? clearedBefore : 0;
+  return list.filter(function (w) {
+    return (Number(w && w.ts) || 0) > cut;
+  }).length;
+}
+
 function levelBestFromRuns(runs) {
   let best = null;
   (runs || []).forEach(function (r) {
@@ -64,6 +87,10 @@ function computePracticePlanForUser(opts) {
   const user = opts.user || {};
   const runs = Array.isArray(opts.runs) ? opts.runs : [];
   const cells = Array.isArray(opts.cells) ? opts.cells : [];
+  const modeCells =
+    opts.modeCells && typeof opts.modeCells === "object"
+      ? opts.modeCells
+      : modeCellsFromHeatmapPayload(opts.heatmapPayload || null);
   const store = opts.store;
   const stored = store && username ? store.get(username) : null;
   const savedPlan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
@@ -83,10 +110,17 @@ function computePracticePlanForUser(opts) {
       return String(r && r.mode ? r.mode : "").toLowerCase() === "level" && r.cleared === true;
     });
 
+  const wrongAnswersVisible =
+    opts.wrongAnswersVisible != null
+      ? Number(opts.wrongAnswersVisible)
+      : visibleArithmeticWrongCount(user);
+
   const advice = Advice.computePracticeAdvice({
     username: username,
     grade: user.grade != null ? user.grade : null,
     cells: cells,
+    modeCells: modeCells,
+    wrongAnswersVisible: wrongAnswersVisible,
     hasClearedLevel: hasClearedLevel,
     levelChallengeBestLevel: user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
     levelBestFromRuns: levelBestFromRuns(runs),
@@ -110,6 +144,8 @@ function computePracticePlanForUser(opts) {
 module.exports = {
   Advice,
   arithmeticCellsFromHeatmapPayload,
+  modeCellsFromHeatmapPayload,
+  visibleArithmeticWrongCount,
   computePracticePlanForUser,
   computeTrainingNextLevelForUser,
   studentPayload,

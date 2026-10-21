@@ -461,8 +461,13 @@
   async function applyRecommendedLevelOnPrestart() {
     const seq = ++divRecommendSeq;
     let lv = null;
+    const pin = typeof window !== "undefined" ? window.jmlDailyTaskPin : null;
+    if (pin && pin.mode === "divisibility" && pin.levelIndex != null && Number.isFinite(Number(pin.levelIndex))) {
+      lv = Math.max(0, Math.min(divMaxLevel(), Math.floor(Number(pin.levelIndex))));
+      window.jmlDailyTaskPin = null;
+    }
     try {
-      lv = await resolveDivisibilityRecommendedLevel();
+      if (lv == null) lv = await resolveDivisibilityRecommendedLevel();
     } catch (e) {
       console.warn("整除选关失败", e);
       return;

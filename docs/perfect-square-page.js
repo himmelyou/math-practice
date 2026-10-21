@@ -450,8 +450,13 @@
   async function applyRecommendedLevelOnPrestart() {
     const seq = ++psRecommendSeq;
     let lv = null;
+    const pin = typeof window !== "undefined" ? window.jmlDailyTaskPin : null;
+    if (pin && pin.mode === "perfectSquare" && pin.levelIndex != null && Number.isFinite(Number(pin.levelIndex))) {
+      lv = Math.max(0, Math.min(psMaxLevel(), Math.floor(Number(pin.levelIndex))));
+      window.jmlDailyTaskPin = null;
+    }
     try {
-      lv = await resolvePerfectSquareRecommendedLevel();
+      if (lv == null) lv = await resolvePerfectSquareRecommendedLevel();
     } catch (e) {
       console.warn("平方数选关失败", e);
       return;
