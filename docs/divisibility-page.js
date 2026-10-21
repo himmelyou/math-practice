@@ -544,7 +544,10 @@
     const stem =
       q.promptStem ||
       ("以下哪个整数可以被 " + (q.divisor != null ? q.divisor : "?") + " 整除？");
-    if (promptEl) promptEl.textContent = stem;
+    if (promptEl) {
+      if (typeof deps.setStemHtml === "function") deps.setStemHtml(promptEl, stem);
+      else promptEl.textContent = stem;
+    }
     const optA =
       q.optionA != null
         ? q.optionA

@@ -27,6 +27,17 @@
       --home-xp-track-width: 120px;
       --ach-cell-size: 56px;
       --ach-grid-gap: 12px;
+      /* 开局规则说明（.rule-hint）统一字号 */
+      --jml-rule-hint-size: 0.82rem;
+      --jml-rule-hint-weight: 500;
+      --jml-rule-hint-line-height: 1.35;
+      /* A 类局中题干（算式/填空） */
+      --jml-stem-size: clamp(1.25rem, 5vw, 1.75rem);
+      --jml-stem-weight: 700;
+      /* C 类提示句题干（略小于 A） */
+      --jml-prompt-stem-size: clamp(1.05rem, 4.2vw, 1.35rem);
+      /* 题干内数字高亮（中文黑、数字蓝） */
+      --jml-stem-num-color: #0d47a1;
     }
 
     * {
@@ -1929,14 +1940,26 @@
       text-align: center;
       padding: 8px 6px 4px;
     }
+    /* 题干内数字：中文走正文色，数字走蓝 */
+    .jml-stem-num {
+      color: var(--jml-stem-num-color);
+      font-variant-numeric: tabular-nums;
+    }
+    /* C 类：短句提示题干 */
+    .question-text.jml-prompt-stem {
+      font-size: var(--jml-prompt-stem-size);
+      font-weight: var(--jml-stem-weight);
+      color: var(--text-main);
+      line-height: 1.25;
+    }
     .question-text.rule-hint {
       width: 100%;
       max-width: 100%;
       box-sizing: border-box;
-      font-size: 0.82rem;
-      font-weight: 500;
+      font-size: var(--jml-rule-hint-size);
+      font-weight: var(--jml-rule-hint-weight);
       color: var(--muted);
-      line-height: 1.35;
+      line-height: var(--jml-rule-hint-line-height);
       text-align: left;
       padding: 4px 6px 0;
       white-space: pre-wrap;
@@ -1947,6 +1970,38 @@
       overflow: hidden;
       text-overflow: ellipsis;
       -webkit-line-clamp: var(--rule-hint-max-lines, 99);
+    }
+
+    /* 开局题卡 / 质数·整除·因数倍数 idle 卡：规则区布局共用（字号仅走 --jml-rule-hint-*） */
+    .game-card--prestart > .question-body > .question-text.rule-hint {
+      overflow: hidden;
+    }
+    .mode-idle-card.card {
+      height: var(--prime-card-idle-height);
+      overflow: hidden;
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mode-idle-card > .question-body {
+      flex: 1 1 auto;
+      min-height: 3.2em;
+      min-width: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .mode-idle-card > .question-body > .question-text.rule-hint {
+      flex: 1 1 auto;
+      min-height: 0;
+      margin-top: 0;
+      overflow: hidden;
+    }
+    .mode-idle-card > .answer-form {
+      flex-shrink: 0;
+      margin-top: auto;
+      align-self: stretch;
     }
     .question-text.question-refresh-hidden,
     .question-subtext.question-refresh-hidden {
@@ -3264,10 +3319,6 @@
       margin-top: 0;
     }
 
-    #game-card.game-card--prestart > .question-body > .question-text.rule-hint {
-      overflow: hidden;
-    }
-
     #game-card.game-card--prestart > .question-body > .question-subtext {
       flex-shrink: 0;
     }
@@ -3318,6 +3369,9 @@
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      font-size: var(--jml-stem-size);
+      font-weight: var(--jml-stem-weight);
+      text-align: center;
     }
 
     #game-card.game-card--playing > .question-header,
@@ -3531,10 +3585,6 @@
       margin-top: 0;
     }
 
-    .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
-      overflow: hidden;
-    }
-
     .expand-brackets-page #expand-game-card.game-card--prestart > .question-body > .question-subtext {
       flex-shrink: 0;
     }
@@ -3572,6 +3622,8 @@
       text-overflow: clip;
       line-height: 1.25;
       text-align: center;
+      font-size: var(--jml-stem-size);
+      font-weight: var(--jml-stem-weight);
     }
 
     .expand-brackets-page #expand-game-card.game-card--playing > .expand-brackets-panel {
@@ -3811,10 +3863,6 @@
       margin-top: 0;
     }
 
-    .run-mode-page .run-mode-game-card.game-card--prestart > .question-body > .question-text.rule-hint {
-      overflow: hidden;
-    }
-
     .run-mode-page .run-mode-game-card.game-card--prestart > .question-body > .question-subtext {
       flex-shrink: 0;
     }
@@ -3861,9 +3909,10 @@
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
-      font-size: clamp(1.25rem, 5vw, 1.75rem);
-      font-weight: 700;
+      font-size: var(--jml-stem-size);
+      font-weight: var(--jml-stem-weight);
       text-align: center;
+      color: var(--text-main);
     }
 
     /* D5 单位分数：竖排真分数（不用斜杠） */
@@ -3962,40 +4011,9 @@
       --prime-card-playing-height: clamp(296px, 30vh, 400px);
     }
 
-    .prime-composite-page .prime-idle-card.card {
-      height: var(--prime-card-idle-height);
-      overflow: hidden;
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
     .prime-composite-page .prime-idle-header {
       flex-shrink: 0;
       visibility: hidden;
-    }
-
-    .prime-composite-page .prime-idle-card > .question-body {
-      flex: 1 1 auto;
-      min-height: 3.2em;
-      min-width: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .prime-composite-page .prime-idle-card > .question-body > .question-text.rule-hint {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      margin-top: 0;
-    }
-
-    .prime-composite-page .prime-idle-card > .answer-form {
-      flex-shrink: 0;
-      margin-top: auto;
-      align-self: stretch;
     }
 
     /* 质数 / 整除 / 因数倍数：局中选择题卡共用（题+选项贴紧，整组垂直居中） */
@@ -4142,12 +4160,13 @@
         overscroll-behavior: contain;
       }
     }
+    /* B：先跟 A 字号字重试统一，数字保留蓝 */
     .question-text.prime-question-num {
       margin-top: 0;
-      font-size: clamp(1.6rem, 9vw, 2.6rem);
-      font-weight: 800;
+      font-size: var(--jml-stem-size);
+      font-weight: var(--jml-stem-weight);
       letter-spacing: 0.02em;
-      color: #0d47a1;
+      color: var(--jml-stem-num-color);
       line-height: 1.12;
     }
     .prime-composite-page .button-row.prime-choice-row .btn-primary {
@@ -4186,41 +4205,7 @@
       flex-direction: column;
       gap: 8px;
     }
-    .divisibility-page .div-idle-card.card {
-      height: var(--prime-card-idle-height);
-      overflow: hidden;
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .divisibility-page .div-idle-card > .question-body {
-      flex: 1 1 auto;
-      min-height: 3.2em;
-      min-width: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .divisibility-page .div-idle-card > .question-body > .question-text.rule-hint {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      margin-top: 0;
-      font-size: 0.92rem;
-      line-height: 1.35;
-    }
-    .divisibility-page .div-idle-card > .answer-form {
-      flex-shrink: 0;
-      margin-top: auto;
-      align-self: stretch;
-    }
-    .divisibility-page #div-question-prompt {
-      font-size: clamp(1.05rem, 4.2vw, 1.35rem);
-      font-weight: 700;
-      color: #0d47a1;
-      line-height: 1.25;
-    }
+    /* C 题干样式见 .jml-prompt-stem */
     .divisibility-page .button-row.div-choice-row .btn-primary {
       padding: 10px 8px;
       font-size: clamp(0.95rem, 3.8vw, 1.15rem);
@@ -4298,46 +4283,11 @@
       flex: 1 1 auto;
       min-height: 0;
     }
-    .factors-multiples-page .fm-idle-card.card {
-      height: var(--prime-card-idle-height);
-      overflow: hidden;
-      margin-top: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .factors-multiples-page .fm-idle-card > .question-body {
-      flex: 1 1 auto;
-      min-height: 3.2em;
-      min-width: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .factors-multiples-page .fm-idle-card > .question-body > .question-text.rule-hint {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: hidden;
-      margin-top: 0;
-      font-size: 0.92rem;
-      line-height: 1.35;
-    }
-    .factors-multiples-page .fm-idle-card > .answer-form {
-      flex-shrink: 0;
-      margin-top: auto;
-      align-self: stretch;
-    }
-    .factors-multiples-page #fm-question-prompt {
-      font-size: clamp(1.05rem, 4.2vw, 1.35rem);
-      font-weight: 700;
-      color: #0d47a1;
-      line-height: 1.25;
-    }
+    /* C 题干样式见 .jml-prompt-stem；A 填空跟 run-mode stem，仅放开换行 */
     .factors-multiples-page #fm-fill-question-text {
       white-space: normal;
       text-overflow: clip;
       line-height: 1.3;
-      font-size: clamp(1.05rem, 4vw, 1.45rem);
     }
     .factors-multiples-page .button-row.div-choice-row .btn-primary {
       padding: 10px 8px;
@@ -5039,7 +4989,7 @@
 
       <div class="prime-play-body" id="prime-play-body">
       <div id="prime-panel-idle" class="prime-panel-idle" style="display:none;">
-        <main class="card prime-idle-card">
+        <main class="card mode-idle-card">
           <div class="question-header prime-idle-header" aria-hidden="true">
             <div class="question-label">
               <span class="status-label">当前难度：</span>
@@ -5246,7 +5196,7 @@
 
       <div class="prime-play-body" id="div-play-body">
       <div id="div-panel-idle" class="prime-panel-idle" style="display:none;">
-        <main class="card div-idle-card">
+        <main class="card mode-idle-card">
           <div class="question-header">
             <div class="question-label">
               <span class="status-label" id="div-lbl-difficulty">难度：</span>
@@ -5277,7 +5227,7 @@
             </div>
           </div>
           <div class="choice-play-stack">
-            <div class="question-text" id="div-question-prompt">—</div>
+            <div class="question-text jml-prompt-stem" id="div-question-prompt">—</div>
             <div class="button-row div-choice-row">
               <button type="button" class="btn-primary div-choice-btn" id="div-btn-a">—</button>
               <button type="button" class="btn-primary div-choice-btn" id="div-btn-b">—</button>
@@ -5362,7 +5312,7 @@
 
       <div class="prime-play-body" id="fm-play-body">
       <div id="fm-panel-idle" class="prime-panel-idle" style="display:none;">
-        <main class="card fm-idle-card">
+        <main class="card mode-idle-card">
           <div class="question-header">
             <div class="question-label">
               <span class="status-label" id="fm-lbl-difficulty">难度：</span>
@@ -5393,7 +5343,7 @@
             </div>
           </div>
           <div class="choice-play-stack">
-            <div class="question-text" id="fm-question-prompt">—</div>
+            <div class="question-text jml-prompt-stem" id="fm-question-prompt">—</div>
             <div class="button-row div-choice-row" id="fm-choice-row">
               <button type="button" class="btn-primary div-choice-btn" id="fm-btn-a">—</button>
               <button type="button" class="btn-primary div-choice-btn" id="fm-btn-b">—</button>
@@ -5732,8 +5682,8 @@
   <script src="shared/monthly-report-fake.js?v=20"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=54"></script>
-  <script src="divisibility-page.js?v=20"></script>
-  <script src="factors-multiples-page.js?v=6"></script>
+  <script src="divisibility-page.js?v=21"></script>
+  <script src="factors-multiples-page.js?v=7"></script>
   <script src="decimal-page.js?v=21"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
@@ -6403,6 +6353,7 @@
         recordDivisibilityWrongAnswer: recordDivisibilityWrongAnswer,
         formatCompactRunTime: formatCompactRunTime,
         escapeHtml: escapeHtml,
+        setStemHtml: setStemHtml,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
         primeCompositeResetToIdle: primeCompositeResetToIdle,
         getGameMode: function () { return gameMode; },
@@ -6470,6 +6421,7 @@
         recordWrongAnswer: recordWrongAnswer,
         formatCompactRunTime: formatCompactRunTime,
         escapeHtml: escapeHtml,
+        setStemHtml: setStemHtml,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
         primeCompositeResetToIdle: primeCompositeResetToIdle,
         getGameMode: function () { return gameMode; },
@@ -9542,7 +9494,7 @@
     /** 未开局规则区：按题卡内可用高度动态行数，超出时在文末省略 */
     function syncRuleHintLineClamp(el) {
       if (!el || !el.classList.contains("rule-hint")) return;
-      const card = el.closest(".game-card--prestart, .prime-idle-card");
+      const card = el.closest(".game-card--prestart, .mode-idle-card");
       if (!card || card.offsetParent === null) return;
       const cs = getComputedStyle(el);
       let lh = parseFloat(cs.lineHeight);
@@ -9601,8 +9553,9 @@
         document.getElementById("expand-game-card"),
         document.getElementById("ps-game-card"),
         document.getElementById("dec-game-card"),
-        document.querySelector(".prime-idle-card"),
-      ].filter(Boolean);
+      ]
+        .concat(Array.prototype.slice.call(document.querySelectorAll(".mode-idle-card")))
+        .filter(Boolean);
       if (!targets.length) return;
       ruleHintResizeObserver = new ResizeObserver(function () {
         scheduleSyncAllRuleHints();
@@ -16684,6 +16637,21 @@
       const div = document.createElement("div");
       div.textContent = s;
       return div.innerHTML;
+    }
+
+    /** 题干：中文黑、数字蓝（先 escape，再包数字 span） */
+    function formatStemHtml(text) {
+      const esc = escapeHtml(text == null ? "" : String(text));
+      return esc.replace(/(\d+(?:\.\d+)?)/g, '<span class="jml-stem-num">$1</span>');
+    }
+
+    function setStemHtml(el, text) {
+      if (!el) return;
+      if (text == null || text === "") {
+        el.textContent = "";
+        return;
+      }
+      el.innerHTML = formatStemHtml(text);
     }
 
     function userEligibleForSurvivalUnlock(u) {
