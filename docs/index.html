@@ -31,6 +31,9 @@
       --jml-rule-hint-size: 0.82rem;
       --jml-rule-hint-weight: 500;
       --jml-rule-hint-line-height: 1.35;
+      /* 训练开局热图统计（与 rule-hint 互斥） */
+      --jml-brush-stat-size: 0.95rem;
+      --jml-brush-stat-weight: 600;
       /* A 类局中题干（算式/填空） */
       --jml-stem-size: clamp(1.25rem, 5vw, 1.75rem);
       --jml-stem-weight: 700;
@@ -1940,12 +1943,13 @@
       text-align: center;
       padding: 8px 6px 4px;
     }
-    /* 题干内数字：中文走正文色，数字走蓝 */
+    /* 题干内数字：中文走正文色，数字走蓝，两侧略留白 */
     .jml-stem-num {
       color: var(--jml-stem-num-color);
       font-variant-numeric: tabular-nums;
+      padding-inline: 0.14em;
     }
-    /* C 类：短句提示题干 */
+    /* C 类：短句提示题干（整除 / 因数倍数选择与填空） */
     .question-text.jml-prompt-stem {
       font-size: var(--jml-prompt-stem-size);
       font-weight: var(--jml-stem-weight);
@@ -3384,15 +3388,16 @@
       gap: 8px;
     }
 
-    .game-section.training-prestart #game-card.game-card--prestart.training-brush-prestart > .question-body {
+    /* 刷题/日任务开局样式只认卡上专用标记，避免与闯关/生存共用 training-prestart 壳时串味 */
+    #game-card.training-brush-prestart > .question-body {
       justify-content: center;
     }
 
-    .game-section.training-prestart #game-card.game-card--prestart .question-text.training-brush-stat,
-    .game-section.training-prestart #game-card.game-card--prestart .question-subtext.training-brush-stat {
+    #game-card.training-brush-prestart .question-text.training-brush-stat,
+    #game-card.training-brush-prestart .question-subtext.training-brush-stat {
       text-align: center;
-      font-size: 0.95rem;
-      font-weight: 600;
+      font-size: var(--jml-brush-stat-size);
+      font-weight: var(--jml-brush-stat-weight);
       color: #37474f;
       display: block;
       overflow: visible;
@@ -3400,17 +3405,17 @@
       line-height: 1.4;
     }
 
-    .game-section.training-prestart #game-card.game-card--prestart .question-text.training-brush-stat {
+    #game-card.training-brush-prestart .question-text.training-brush-stat {
       flex: 0 1 auto;
       margin-top: 0;
     }
 
-    .game-section.training-prestart #game-card.game-card--prestart.training-daily-task-prestart > .question-body {
+    #game-card.training-daily-task-prestart > .question-body {
       overflow: visible;
       justify-content: center;
     }
 
-    .game-section.training-prestart #game-card.training-daily-task-prestart .question-label {
+    #game-card.training-daily-task-prestart .question-label {
       white-space: normal;
       align-items: flex-start;
       flex-wrap: wrap;
@@ -3418,15 +3423,15 @@
       line-height: 1.3;
     }
 
-    .game-section.training-prestart #game-card.training-daily-task-prestart .question-label .status-value,
-    .game-section.training-prestart #game-card.training-daily-task-prestart .training-level-desc {
+    #game-card.training-daily-task-prestart .question-label .status-value,
+    #game-card.training-daily-task-prestart .training-level-desc {
       white-space: normal;
       overflow: visible;
       text-overflow: unset;
       max-width: none;
     }
 
-    .game-section.training-prestart #game-card.game-card--prestart .question-text.training-daily-task-compare {
+    #game-card.training-daily-task-prestart .question-text.training-daily-task-compare {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px 8px;
@@ -4283,11 +4288,14 @@
       flex: 1 1 auto;
       min-height: 0;
     }
-    /* C 题干样式见 .jml-prompt-stem；A 填空跟 run-mode stem，仅放开换行 */
+    /* Y3+ 填空题干并入 C：用 prompt 字号压过 run-mode 的 A stem */
     .factors-multiples-page #fm-fill-question-text {
       white-space: normal;
       text-overflow: clip;
-      line-height: 1.3;
+      font-size: var(--jml-prompt-stem-size);
+      font-weight: var(--jml-stem-weight);
+      color: var(--text-main);
+      line-height: 1.25;
     }
     .factors-multiples-page .button-row.div-choice-row .btn-primary {
       padding: 10px 8px;
@@ -5357,7 +5365,7 @@
             </div>
           </div>
           <div class="question-body">
-            <div class="question-text" id="fm-fill-question-text">—</div>
+            <div class="question-text jml-prompt-stem" id="fm-fill-question-text">—</div>
           </div>
           <form id="fm-answer-form" class="answer-form" action="javascript:void(0);">
             <div class="game-card-action-anchor">
@@ -8676,13 +8684,7 @@
         dom.answerInput.value = "";
       }
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-      const gameCard = document.getElementById("game-card");
-      if (gameCard) gameCard.classList.remove("training-brush-prestart");
-      if (dom.questionText) {
-        dom.questionText.classList.remove("training-brush-stat");
-        dom.questionText.classList.remove("rule-hint");
-      }
-      if (dom.questionSubtext) dom.questionSubtext.classList.remove("training-brush-stat");
+      clearMainPrestartQuestionChrome();
       setTrainingLevelSelectVisible(false);
     }
 
@@ -9491,6 +9493,99 @@
     let ruleHintResizeObserver = null;
     let ruleHintSyncRaf = 0;
 
+    /**
+     * 四则共用 #question-text 开局态：规则说明 / 热图统计 / 日任务对比 互斥。
+     * 各入口只调 setMainPrestartQuestion，禁止散落加减 class。
+     */
+    function clearMainPrestartQuestionChrome() {
+      const gameCard = document.getElementById("game-card");
+      if (gameCard) {
+        gameCard.classList.remove("training-brush-prestart", "training-daily-task-prestart");
+      }
+      if (dom.questionText) {
+        dom.questionText.classList.remove(
+          "rule-hint",
+          "training-brush-stat",
+          "training-daily-task-compare",
+          "question-refresh-hidden"
+        );
+        dom.questionText.style.removeProperty("--rule-hint-max-lines");
+        dom.questionText.style.webkitLineClamp = "";
+      }
+      if (dom.questionSubtext) {
+        dom.questionSubtext.classList.remove("training-brush-stat", "question-refresh-hidden");
+      }
+    }
+
+    /**
+     * @param {"ruleHint"|"brushStat"|"dailyTaskCompare"|"empty"} kind
+     * @param {{ hint?: string, mainText?: string, subText?: string, html?: string }} [payload]
+     */
+    function setMainPrestartQuestion(kind, payload) {
+      payload = payload || {};
+      clearMainPrestartQuestionChrome();
+      const gameCard = document.getElementById("game-card");
+      if (!dom.questionText) return;
+
+      if (kind === "empty") {
+        dom.questionText.textContent = "";
+        dom.questionText.style.display = "";
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = "";
+          dom.questionSubtext.style.display = "none";
+        }
+        return;
+      }
+
+      if (kind === "ruleHint") {
+        const hint = payload.hint != null ? String(payload.hint) : "";
+        dom.questionText.textContent = hint;
+        if (hint) dom.questionText.classList.add("rule-hint");
+        dom.questionText.style.display = "";
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = "";
+          dom.questionSubtext.style.display = "none";
+        }
+        scheduleSyncAllRuleHints();
+        return;
+      }
+
+      if (kind === "brushStat") {
+        if (gameCard) gameCard.classList.add("training-brush-prestart");
+        dom.questionText.textContent = payload.mainText != null ? String(payload.mainText) : "";
+        dom.questionText.classList.add("training-brush-stat");
+        dom.questionText.style.display = "";
+        if (dom.questionSubtext) {
+          const sub = payload.subText != null ? String(payload.subText) : "";
+          dom.questionSubtext.textContent = sub;
+          if (sub) {
+            dom.questionSubtext.classList.add("training-brush-stat");
+            dom.questionSubtext.style.display = "";
+          } else {
+            dom.questionSubtext.style.display = "none";
+          }
+        }
+        return;
+      }
+
+      if (kind === "dailyTaskCompare") {
+        if (gameCard) gameCard.classList.add("training-brush-prestart", "training-daily-task-prestart");
+        dom.questionText.classList.add("training-brush-stat", "training-daily-task-compare");
+        dom.questionText.style.display = "";
+        dom.questionText.innerHTML = payload.html != null ? String(payload.html) : "";
+        if (dom.questionSubtext) {
+          dom.questionSubtext.textContent = "";
+          dom.questionSubtext.style.display = "none";
+        }
+      }
+    }
+
+    function setMainPrestartRuleHintFromSubtitle() {
+      const sub = document.getElementById("game-subtitle");
+      const hint = sub ? String(sub.textContent || "").trim() : "";
+      setMainPrestartQuestion("ruleHint", { hint: hint });
+    }
+
     /** 未开局规则区：按题卡内可用高度动态行数，超出时在文末省略 */
     function syncRuleHintLineClamp(el) {
       if (!el || !el.classList.contains("rule-hint")) return;
@@ -9527,13 +9622,10 @@
     function refreshVisibleRuleHintTexts() {
       const gameCard = document.getElementById("game-card");
       if (dom.gameSection && dom.gameSection.classList.contains("visible") && gameCard && gameCard.classList.contains("game-card--prestart") && dom.questionText) {
-        if (gameMode === "training" && trainingSessionBrushMode) {
+        if (gameMode === "training") {
           syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
         } else {
-          const sub = document.getElementById("game-subtitle");
-          const hint = sub ? String(sub.textContent || "").trim() : "";
-          dom.questionText.textContent = hint || "";
-          dom.questionText.classList.toggle("rule-hint", !!hint);
+          setMainPrestartRuleHintFromSubtitle();
         }
       }
       const expandCard = document.getElementById("expand-game-card");
@@ -13102,7 +13194,7 @@
     function renderQuestion(question) {
       if (!question) return;
       dom.answerInput.value = "";
-      dom.questionText.classList.remove("rule-hint");
+      clearMainPrestartQuestionChrome();
       dom.questionText.classList.add("question-refresh-hidden");
       if (dom.questionSubtext) dom.questionSubtext.classList.add("question-refresh-hidden");
       setTimeout(function () {
@@ -13270,14 +13362,7 @@
       gameOver = false;
       isPlaying = true;
       if (dom.gameSection) dom.gameSection.classList.remove("training-prestart");
-      const gameCard = document.getElementById("game-card");
-      if (gameCard) gameCard.classList.remove("training-brush-prestart", "training-daily-task-prestart");
-      if (dom.questionText) {
-        dom.questionText.classList.remove("training-brush-stat", "training-daily-task-compare");
-      }
-      if (dom.questionSubtext) {
-        dom.questionSubtext.classList.remove("training-brush-stat");
-      }
+      clearMainPrestartQuestionChrome();
       setGameOverLayout(false);
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
       setGameCardActionSlot("input");
@@ -13338,18 +13423,7 @@
       const subtitle = document.getElementById("game-subtitle");
       if (subtitle) subtitle.style.display = "";
 
-      if (dom.questionText) {
-        const sub = document.getElementById("game-subtitle");
-        const hint = sub ? String(sub.textContent || "").trim() : "";
-        dom.questionText.textContent = hint || "";
-        dom.questionText.classList.toggle("rule-hint", !!hint);
-        dom.questionText.classList.remove("question-refresh-hidden");
-        dom.questionText.style.display = "";
-      }
-      if (dom.questionSubtext) {
-        dom.questionSubtext.textContent = "";
-        dom.questionSubtext.style.display = "none";
-      }
+      setMainPrestartRuleHintFromSubtitle();
 
       if (gameMode === "level") updateLevelStatusUI();
       else updateSurvivalStatusUI();
@@ -13362,7 +13436,6 @@
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       resetDailyTaskGameOverButtons();
       updateGlobalBackButtonState();
-      scheduleSyncAllRuleHints();
     }
 
     /** 训练模式：结算后回到开局前（规则 + 当前难度 + 开始按钮），与首次进入一致 */
@@ -16255,15 +16328,10 @@
         if (dom.expandStartRow) dom.expandStartRow.style.display = "none";
       })();
       // 开始前在题目区显示规则；开始后 renderQuestion 会覆盖为题目
-      if (dom.questionText) {
-        if (gameMode === "training") {
-          syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
-        } else {
-          const sub = document.getElementById("game-subtitle");
-          const hint = sub ? String(sub.textContent || "").trim() : "";
-          dom.questionText.textContent = hint || "";
-          dom.questionText.classList.toggle("rule-hint", !!hint);
-        }
+      if (gameMode === "training") {
+        syncTrainingPrestartQuestionArea(trainingHeatSnapshot);
+      } else if (dom.questionText) {
+        setMainPrestartRuleHintFromSubtitle();
       }
       // 进入模式时重置状态栏为新一局的初始值，避免显示上一局遗留数据
       if (gameMode === "training") {
@@ -17773,17 +17841,7 @@
     }
 
     function renderDailyTaskTrainingPreview(heat) {
-      const gameCard = document.getElementById("game-card");
       const metrics = getDailyTaskPreviewMetrics(heat);
-      if (gameCard) {
-        gameCard.classList.add("training-brush-prestart", "training-daily-task-prestart");
-      }
-      if (dom.questionSubtext) {
-        dom.questionSubtext.textContent = "";
-        dom.questionSubtext.style.display = "none";
-        dom.questionSubtext.classList.remove("training-brush-stat", "question-refresh-hidden");
-      }
-      if (!dom.questionText) return;
       const cellHtml = function (labelKey, value) {
         return (
           '<div class="dtc-cell"><span class="dtc-label">' +
@@ -17793,18 +17851,16 @@
           "</span></div>"
         );
       };
-      dom.questionText.classList.remove("rule-hint", "question-refresh-hidden");
-      dom.questionText.classList.add("training-brush-stat", "training-daily-task-compare");
-      dom.questionText.style.display = "";
-      dom.questionText.innerHTML =
-        cellHtml("dailyTasks.preview.currentAcc", metrics.curAcc) +
-        cellHtml("dailyTasks.preview.targetAcc", metrics.tgtAcc) +
-        cellHtml("dailyTasks.preview.currentSpeed", metrics.curSpd) +
-        cellHtml("dailyTasks.preview.targetSpeed", metrics.tgtSpd);
+      setMainPrestartQuestion("dailyTaskCompare", {
+        html:
+          cellHtml("dailyTasks.preview.currentAcc", metrics.curAcc) +
+          cellHtml("dailyTasks.preview.targetAcc", metrics.tgtAcc) +
+          cellHtml("dailyTasks.preview.currentSpeed", metrics.curSpd) +
+          cellHtml("dailyTasks.preview.targetSpeed", metrics.tgtSpd),
+      });
     }
 
     function syncTrainingPrestartQuestionArea(heat) {
-      const gameCard = document.getElementById("game-card");
       if (
         gameMode !== "training" ||
         isPlaying ||
@@ -17818,38 +17874,17 @@
         renderDailyTaskTrainingPreview(heat);
         return;
       }
-      if (gameCard) gameCard.classList.remove("training-daily-task-prestart");
-      dom.questionText.classList.remove("training-daily-task-compare");
       if (resolveTrainingRunBrushMode()) {
         const cell = getHeatCellForLevel(heat != null ? heat : trainingHeatSnapshot, currentLevelIndex);
         const p = cell && cell.pText != null ? String(cell.pText) : "—";
         const sec = cell && cell.avgSecText != null ? String(cell.avgSecText) : "—";
-        dom.questionText.textContent = t("stats.heat.accuracy") + " " + p;
-        dom.questionText.classList.remove("rule-hint", "question-refresh-hidden");
-        dom.questionText.classList.add("training-brush-stat");
-        dom.questionText.style.display = "";
-        if (dom.questionSubtext) {
-          dom.questionSubtext.textContent = t("stats.heat.avgTimeCorrect") + " " + sec;
-          dom.questionSubtext.classList.add("training-brush-stat");
-          dom.questionSubtext.classList.remove("question-refresh-hidden");
-          dom.questionSubtext.style.display = "";
-        }
-        if (gameCard) gameCard.classList.add("training-brush-prestart");
+        setMainPrestartQuestion("brushStat", {
+          mainText: t("stats.heat.accuracy") + " " + p,
+          subText: t("stats.heat.avgTimeCorrect") + " " + sec,
+        });
         return;
       }
-      if (gameCard) gameCard.classList.remove("training-brush-prestart");
-      const sub = document.getElementById("game-subtitle");
-      const hint = sub ? String(sub.textContent || "").trim() : "";
-      dom.questionText.textContent = hint || "";
-      dom.questionText.classList.toggle("rule-hint", !!hint);
-      dom.questionText.classList.remove("training-brush-stat");
-      dom.questionText.classList.remove("question-refresh-hidden");
-      dom.questionText.style.display = "";
-      if (dom.questionSubtext) {
-        dom.questionSubtext.textContent = "";
-        dom.questionSubtext.style.display = "none";
-        dom.questionSubtext.classList.remove("training-brush-stat");
-      }
+      setMainPrestartRuleHintFromSubtitle();
     }
 
     function setTrainingPracticeSubtitle() {
