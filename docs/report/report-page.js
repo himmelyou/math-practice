@@ -2137,15 +2137,28 @@
   function formatDailyTaskKindLabel(step) {
     if (!step) return '';
     if (step.action === 'level') {
-      return step.scanKind === 'retry_clear' ? '冲榜' : '闯关';
+      return step.scanKind === 'retry_clear' ? '冲榜闯关' : '闯关';
     }
-    if (step.successKind === 'open_activate') {
-      return '开 ' + (step.levelLabel || '');
+    if (step.action === 'wrongbook') return '错题本';
+    if (step.action === 'primeComposite') return '质数合数';
+    var modeNames = {
+      training: '四则训练',
+      decimal: '小数',
+      perfectSquare: '平方数',
+      divisibility: '整除',
+      factorsMultiples: '因数倍数',
+      expandBrackets: '拆括号',
+    };
+    var modeName = modeNames[step.action] || '';
+    if (modeName) {
+      var lv = step.levelLabel || '';
+      if (step.successKind === 'open_activate') {
+        return modeName + (lv ? ' ' + lv + '（开新关）' : '（开新关）');
+      }
+      return lv ? modeName + ' ' + lv : modeName;
     }
-    if (step.action === 'training' || step.levelLabel) {
-      return step.levelLabel ? '四则训练 ' + step.levelLabel : '四则训练';
-    }
-    return step.tileLabel || '';
+    if (step.title) return String(step.title);
+    return step.tileLabel || step.levelLabel || '';
   }
 
   function formatDailyTaskGoalText(step) {
