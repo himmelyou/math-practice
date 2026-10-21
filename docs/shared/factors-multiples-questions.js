@@ -5,15 +5,17 @@
  * Y1：哪个是 N 的因数？正解 f；假选项绕 f 邻域扩圈（奇 N±2，偶 N±1）。
  * Y2：哪个是 f 的倍数？正解 N；假选项 w=k·f±m（m 按质数/10≥20/5/2/3 分档；
  *      k 在 {N/f−1,N/f,N/f+1} 去 1 后随机；f<w≤100）。
- * Y3/Y4 入门共用牌库：2≤a<b≤30 且 lcm≤100；三层 1:2:3；Y3 问 g，Y4 问 L。
- * Y5/Y6 进阶共用牌库：2≤a<b≤99 且 lcm≤100；三层 1:2:3；Y5 问 g，Y6 问 L。
+ * Y3/Y4 入门共用牌库：2≤a<b≤30 且 min(a,b)/gcd≤5；三层 1:2:3；Y3 问 g，Y4 问 L。
+ * Y5/Y6 进阶共用牌库：2≤a<b≤99 且 min(a,b)/gcd≤11；三层 1:2:3；Y5 问 g，Y6 问 L。
  */
 (function (global) {
   var QUESTIONS_PER_RUN = 24;
   var Y2_M_MAX = 100;
-  var LCM_CAP = 100;
   var INTRO_B_MAX = 30;
   var ADV_B_MAX = 99;
+  /** 入门/进阶：较小约化因子 min/g 上限（L = max × (min/g)） */
+  var INTRO_COFACTOR_MAX = 5;
+  var ADV_COFACTOR_MAX = 11;
   var LEVEL_COUNT = 6;
 
   var LEVEL_DEFS = [
@@ -196,10 +198,13 @@
   }
 
   /**
-   * 公因数/公倍数共用数对库：2≤a<b≤bMax 且 lcm(a,b)≤LCM_CAP。
-   * 按 g 分三层。
+   * 公因数/公倍数共用数对库：2≤a<b≤bMax，按 opts 过滤后分三层。
+   * opts.lcmCap：lcm ≤ 该值；opts.maxSmallCofactor：min(a,b)/gcd ≤ 该值。
    */
-  function buildPairPools(bMax) {
+  function buildPairPools(bMax, opts) {
+    opts = opts || {};
+    var lcmCap = opts.lcmCap;
+    var maxSmallCofactor = opts.maxSmallCofactor;
     var coprime = [];
     var primeGcd = [];
     var compositeGcd = [];
@@ -207,12 +212,15 @@
     var b;
     var g;
     var L;
+    var smallCofactor;
     var item;
     for (a = 2; a <= bMax - 1; a += 1) {
       for (b = a + 1; b <= bMax; b += 1) {
         g = gcd(a, b);
         L = (a / g) * b;
-        if (L > LCM_CAP) continue;
+        smallCofactor = Math.min(a, b) / g;
+        if (lcmCap != null && L > lcmCap) continue;
+        if (maxSmallCofactor != null && smallCofactor > maxSmallCofactor) continue;
         item = { a: a, b: b, g: g, l: L };
         if (g === 1) coprime.push(item);
         else if (isPrime(g)) primeGcd.push(item);
@@ -253,8 +261,12 @@
   var SHARED_FACTOR_BY_F = SHARED_FACTOR_INDEX.byF;
   var SHARED_FACTOR_KEYS = SHARED_FACTOR_INDEX.keys;
 
-  var INTRO_POOLS = buildPairPools(INTRO_B_MAX);
-  var ADV_POOLS = buildPairPools(ADV_B_MAX);
+  var INTRO_POOLS = buildPairPools(INTRO_B_MAX, {
+    maxSmallCofactor: INTRO_COFACTOR_MAX,
+  });
+  var ADV_POOLS = buildPairPools(ADV_B_MAX, {
+    maxSmallCofactor: ADV_COFACTOR_MAX,
+  });
 
   /** 1:2:3 → 互质 : 质数GCF : 合数GCF；余数按小数部分最大优先补。 */
   function stratumCounts(total) {
@@ -540,9 +552,11 @@
     LEVEL_COUNT: LEVEL_COUNT,
     FM_MAX_LEVEL: LEVEL_COUNT - 1,
     QUESTIONS_PER_RUN: QUESTIONS_PER_RUN,
-    LCM_CAP: LCM_CAP,
     INTRO_B_MAX: INTRO_B_MAX,
     ADV_B_MAX: ADV_B_MAX,
+    INTRO_COFACTOR_MAX: INTRO_COFACTOR_MAX,
+    ADV_COFACTOR_MAX: ADV_COFACTOR_MAX,
+    buildPairPools: buildPairPools,
     SHARED_FACTOR_POOL_SIZE: SHARED_FACTOR_POOL.length,
     SHARED_FACTOR_KEY_COUNT: SHARED_FACTOR_KEYS.length,
     Y1_POOL_SIZE: Y1_POOL.length,
