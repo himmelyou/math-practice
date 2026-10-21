@@ -3092,8 +3092,8 @@
         return '<div class="jml-advice-tile jml-advice-tile--empty"></div>';
       }
       var st = step.status || 'pending';
-      var lab = step.tileLabel || step.levelLabel || '';
-      var goal = step.tileGoal || '';
+      var lab = formatDailyTaskKindLabel(step) || step.tileLabel || step.levelLabel || '';
+      var goal = formatDailyTaskGoalText(step) || step.tileGoal || '';
       var prog = step.tileProgress || '';
       var why = step.tileWhy || step.detail || '';
       return (
