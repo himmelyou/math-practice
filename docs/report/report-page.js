@@ -1333,7 +1333,7 @@
     var html = '';
     html +=
       '<h3 class="jml-advice-title" style="margin:0 0 8px;">月度报告图</h3>' +
-      '<p class="jml-train-debug-hint">按月份倒序；含当月「进行中·仅管理」预览（相对上月末水位，学员端不可见；每次打开现算）。正式月未生成则汇总画布落盘；上一完整月与当月可强制重生。</p>';
+      '<p class="jml-train-debug-hint">按月份倒序；含当月「进行中·仅管理」预览（相对上月末水位，学员端不可见；每次打开现算）。正式月未生成则汇总画布落盘；上一完整月与当月可强制重生。注册月之前不列出（无活动的注册后月份仍可出）。</p>';
     if (state.monthlyReportsLoading && !state.monthlyReports.length) {
       html += '<div class="jml-report-empty">月度报告加载中…</div>';
     } else if (state.monthlyReportsError && !state.monthlyReports.length) {
@@ -1343,7 +1343,7 @@
       var rows = Array.isArray(state.monthlyReports) ? state.monthlyReports : [];
       if (!rows.length) {
         html +=
-          '<div class="jml-report-empty">暂无月度报告行（上一完整月与当月预览会在打开本页时出现）</div>';
+          '<div class="jml-report-empty">暂无月度报告行（注册月起才会出现上一完整月与当月预览）</div>';
       } else {
         html += '<div class="jml-monthly-list">';
         rows.forEach(function (row) {

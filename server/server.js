@@ -2671,8 +2671,40 @@ function parsePngBase64(raw) {
   }
 }
 
+function resolveUserMonthlyReportEarliestMonth(username) {
+  const name = String(username || "");
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = (Array.isArray(usersData.users) ? usersData.users : []).find(
+    (u) => u && u.username === name
+  );
+  const runs = runsStore.getUserRuns(name);
+  return monthlyReportStore.resolveEarliestMonthKey({
+    createdAtMs: user && user.createdAt,
+    runs: runs,
+  });
+}
+
 function monthlyReportPublicEntry(username, monthKey) {
-  return monthlyReportStore.statusFor(username, monthKey);
+  return monthlyReportStore.statusFor(username, monthKey, {
+    earliestMonthKey: resolveUserMonthlyReportEarliestMonth(username),
+  });
+}
+
+function monthlyReportBeforeRegistrationPayload(username, monthKey, optsPayload) {
+  optsPayload = optsPayload || {};
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  const mk = monthKey || monthlyReportStore.latestClosedMonthKey();
+  return {
+    ok: optsPayload.ok !== false,
+    available: false,
+    reason: "before_registration",
+    error: "注册月之前无月度报告",
+    monthKey: mk,
+    monthLabelZh: monthlyReportStore.monthLabelZh(mk),
+    earliestMonthKey: earliest || null,
+    latestClosedMonthKey: monthlyReportStore.latestClosedMonthKey(),
+    currentMonthKey: monthlyReportStore.currentMonthKey(),
+  };
 }
 
 /** 学员：上一完整月报告元信息 */
@@ -2682,10 +2714,16 @@ app.get("/api/user/:username/monthly-report/current", requireStudentAuth, ensure
   if (!monthKey) {
     return res.status(500).json({ ok: false, error: "无法解析报告月份" });
   }
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.json(monthlyReportBeforeRegistrationPayload(username, monthKey));
+  }
   return res.json({
     ok: true,
+    available: true,
     monthKey,
     monthLabelZh: monthlyReportStore.monthLabelZh(monthKey),
+    earliestMonthKey: earliest || null,
     report: monthlyReportPublicEntry(username, monthKey),
   });
 });
@@ -2696,6 +2734,10 @@ app.get("/api/user/:username/monthly-report/current/data", requireStudentAuth, e
   const monthKey = monthlyReportStore.latestClosedMonthKey();
   if (!monthKey) {
     return res.status(500).json({ ok: false, error: "无法解析报告月份" });
+  }
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.status(400).json(monthlyReportBeforeRegistrationPayload(username, monthKey, { ok: false }));
   }
   const payload = monthlyReportBuilder.buildForUser(username, monthKey);
   if (!payload || payload.ok === false) {
@@ -2712,6 +2754,10 @@ app.post("/api/user/:username/monthly-report/current", requireStudentAuth, ensur
   const bodyMonth = req.body && req.body.monthKey ? String(req.body.monthKey) : "";
   if (bodyMonth && bodyMonth !== monthKey) {
     return res.status(400).json({ ok: false, error: "学员端只能生成上一完整月报告", monthKey });
+  }
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.status(400).json(monthlyReportBeforeRegistrationPayload(username, monthKey, { ok: false }));
   }
   const buf = parsePngBase64(req.body && (req.body.imageBase64 || req.body.dataUrl));
   if (!buf) {
@@ -2733,6 +2779,10 @@ app.post("/api/user/:username/monthly-report/current", requireStudentAuth, ensur
 app.post("/api/user/:username/monthly-report/current/read", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const monthKey = monthlyReportStore.latestClosedMonthKey();
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.status(400).json(monthlyReportBeforeRegistrationPayload(username, monthKey, { ok: false }));
+  }
   const out = monthlyReportStore.markRead(username, monthKey);
   if (!out.ok) {
     return res.status(400).json({ ok: false, error: out.error || "标记失败" });
@@ -2746,6 +2796,10 @@ app.get("/api/user/:username/monthly-report/:monthKey/image", requireStudentAuth
   const latest = monthlyReportStore.latestClosedMonthKey();
   if (String(monthKey) !== latest) {
     return res.status(403).json({ ok: false, error: "学员端仅可查看上一完整月报告" });
+  }
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.status(403).json(monthlyReportBeforeRegistrationPayload(username, monthKey, { ok: false }));
   }
   const buf = monthlyReportStore.readImageBuffer(username, monthKey);
   if (!buf) {
@@ -2761,7 +2815,7 @@ app.get("/api/user/:username/monthly-report/:monthKey/image", requireStudentAuth
   });
 });
 
-/** 管理员：月报列表（新月在上；含未生成的上一完整月） */
+/** 管理员：月报列表（新月在上；含未生成的上一完整月；注册月之前不注入） */
 app.get("/api/admin/user/:username/monthly-reports", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
@@ -2769,12 +2823,14 @@ app.get("/api/admin/user/:username/monthly-reports", (req, res) => {
   const { username } = req.params;
   const latest = monthlyReportStore.latestClosedMonthKey();
   const current = monthlyReportStore.currentMonthKey();
+  const earliestMonthKey = resolveUserMonthlyReportEarliestMonth(username);
   return res.json({
     ok: true,
     username,
     latestClosedMonthKey: latest,
     currentMonthKey: current,
-    reports: monthlyReportStore.listForAdmin(username),
+    earliestMonthKey: earliestMonthKey || null,
+    reports: monthlyReportStore.listForAdmin(username, { earliestMonthKey }),
   });
 });
 
@@ -2793,6 +2849,16 @@ app.get("/api/admin/user/:username/monthly-reports/:monthKey/data", (req, res) =
       error: "不能汇总未来月份",
       currentMonthKey: monthlyReportStore.currentMonthKey(),
       latestClosedMonthKey: monthlyReportStore.latestClosedMonthKey(),
+    });
+  }
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.status(400).json({
+      ok: false,
+      error: "注册月之前无月度报告",
+      reason: "before_registration",
+      earliestMonthKey: earliest || null,
+      monthKey,
     });
   }
   const payload = monthlyReportBuilder.buildForUser(username, monthKey);
@@ -2821,6 +2887,16 @@ app.post("/api/admin/user/:username/monthly-reports/:monthKey", (req, res) => {
       error: "不能生成未来月份的报告",
       currentMonthKey: monthlyReportStore.currentMonthKey(),
       latestClosedMonthKey: monthlyReportStore.latestClosedMonthKey(),
+    });
+  }
+  const earliest = resolveUserMonthlyReportEarliestMonth(username);
+  if (!monthlyReportStore.isEligibleMonth(monthKey, earliest)) {
+    return res.status(400).json({
+      ok: false,
+      error: "注册月之前无月度报告",
+      reason: "before_registration",
+      earliestMonthKey: earliest || null,
+      monthKey,
     });
   }
   const force = !!(req.body && req.body.force);

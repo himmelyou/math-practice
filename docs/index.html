@@ -8978,13 +8978,23 @@
     function syncMonthlyReportEntryVisibility() {
       const btn = document.getElementById("home-monthly-report-btn");
       if (!btn) return;
-      // 已登录学员可见（游客隐藏）
-      const show = !isGuestMode && !!loadCurrentUsername();
-      btn.hidden = !show;
+      // 已登录学员先露出；再异步确认上一完整月 ≥ 注册月，否则隐藏
+      const loggedIn = !isGuestMode && !!loadCurrentUsername();
+      btn.hidden = !loggedIn;
       if (!btn.hidden) {
         setTextById("home-monthly-report-btn-label", "home.btn.monthlyReport");
         btn.setAttribute("aria-label", t("home.btn.monthlyReport"));
       }
+      if (!loggedIn) return;
+      monthlyReportApi("/monthly-report/current")
+        .then(function (meta) {
+          if (!meta || meta.available === false) {
+            btn.hidden = true;
+          }
+        })
+        .catch(function () {
+          /* 网络失败时保持可见，点开再提示 */
+        });
     }
 
     let monthlyReportModalState = {
@@ -9058,6 +9068,11 @@
       }
       const name = loadCurrentUsername();
       const meta = await monthlyReportApi("/monthly-report/current");
+      if (meta && meta.available === false) {
+        const err = new Error("before_registration");
+        err.code = "before_registration";
+        throw err;
+      }
       const monthKey = meta.monthKey;
       const report = meta.report || {};
       monthlyReportModalState.monthKey = monthKey;
@@ -9138,8 +9153,15 @@
         await markMonthlyReportRead();
       } catch (e) {
         console.warn("monthly report", e);
-        setMonthlyReportModalStatus(t("monthlyReport.fail"));
-        showToast(t("monthlyReport.fail"));
+        const unavailable =
+          e && (e.code === "before_registration" || String(e.message || "") === "before_registration");
+        const msg = unavailable ? t("monthlyReport.unavailable") : t("monthlyReport.fail");
+        setMonthlyReportModalStatus(msg);
+        showToast(msg);
+        if (unavailable) {
+          const btn = document.getElementById("home-monthly-report-btn");
+          if (btn) btn.hidden = true;
+        }
       } finally {
         monthlyReportModalState.busy = false;
       }
@@ -9155,8 +9177,11 @@
         showToast(t("monthlyReport.regenOk"));
       } catch (e) {
         console.warn("monthly report regen", e);
-        setMonthlyReportModalStatus(t("monthlyReport.fail"));
-        showToast(t("monthlyReport.fail"));
+        const unavailable =
+          e && (e.code === "before_registration" || String(e.message || "") === "before_registration");
+        const msg = unavailable ? t("monthlyReport.unavailable") : t("monthlyReport.fail");
+        setMonthlyReportModalStatus(msg);
+        showToast(msg);
       } finally {
         monthlyReportModalState.busy = false;
       }
@@ -10407,6 +10432,7 @@
         "monthlyReport.generating": "正在生成報告…",
         "monthlyReport.ready": "{month}報告",
         "monthlyReport.fail": "報告載入失敗，請稍後再試",
+        "monthlyReport.unavailable": "註冊當月尚無上一月報告，下月初再來看看",
         "monthlyReport.regenOk": "已重新生成",
         "monthlyReport.saveHintLongPress": "也可長按上方圖片，選擇存到相冊",
         "monthlyReport.saveOkDownload": "已開始下載",
@@ -10937,6 +10963,7 @@
         "monthlyReport.generating": "Generating report…",
         "monthlyReport.ready": "{month} report",
         "monthlyReport.fail": "Could not load the report. Please try again.",
+        "monthlyReport.unavailable": "No prior-month report yet — check back next month.",
         "monthlyReport.regenOk": "Report regenerated",
         "monthlyReport.saveHintLongPress": "Or long-press the image above to save to Photos",
         "monthlyReport.saveOkDownload": "Download started",

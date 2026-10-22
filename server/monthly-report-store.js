@@ -78,6 +78,38 @@ function createMonthlyReportStore(opts) {
     return /^\d{4}-\d{2}$/.test(String(monthKey || ""));
   }
 
+  /**
+   * 学员可出月报的最早自然月：优先 createdAt，旧号无字段则回退首次对局日。
+   * 无注册/对局信息时返回 ""（不按注册月拦截，兼容异常账号）。
+   * @param {{ createdAtMs?: number, runs?: array }} opts
+   */
+  function resolveEarliestMonthKey(opts) {
+    opts = opts || {};
+    const c = Number(opts.createdAtMs) || 0;
+    if (c > 0) {
+      const mk = chinaMonthKeyFromTs(c);
+      return isValidMonthKey(mk) ? mk : "";
+    }
+    let minTs = 0;
+    const runs = Array.isArray(opts.runs) ? opts.runs : [];
+    for (let i = 0; i < runs.length; i += 1) {
+      const t = Number(runs[i] && runs[i].ts) || 0;
+      if (t <= 0) continue;
+      if (!minTs || t < minTs) minTs = t;
+    }
+    if (minTs <= 0) return "";
+    const mk = chinaMonthKeyFromTs(minTs);
+    return isValidMonthKey(mk) ? mk : "";
+  }
+
+  /** 该月是否 ≥ 注册月；earliest 为空则不拦 */
+  function isEligibleMonth(monthKey, earliestMonthKey) {
+    if (!isValidMonthKey(monthKey)) return false;
+    const earliest = String(earliestMonthKey || "");
+    if (!isValidMonthKey(earliest)) return true;
+    return String(monthKey) >= earliest;
+  }
+
   function monthLabelZh(monthKey) {
     if (!isValidMonthKey(monthKey)) return String(monthKey || "");
     const y = monthKey.slice(0, 4);
@@ -222,7 +254,8 @@ function createMonthlyReportStore(opts) {
     return { ok: true, entry: entry };
   }
 
-  function statusFor(username, monthKey) {
+  function statusFor(username, monthKey, optsStatus) {
+    optsStatus = optsStatus || {};
     const name = String(username || "");
     const meta = getMeta(name);
     const entry = meta.reports[monthKey] || null;
@@ -230,6 +263,7 @@ function createMonthlyReportStore(opts) {
     const current = currentMonthKey();
     const latest = latestClosedMonthKey();
     const inProgress = !!current && monthKey === current;
+    const eligible = isEligibleMonth(monthKey, optsStatus.earliestMonthKey);
     return {
       monthKey: monthKey,
       fileName: displayTitle(name, monthKey),
@@ -238,27 +272,39 @@ function createMonthlyReportStore(opts) {
       read: !!(generated && entry && entry.readAt),
       readAt: generated && entry ? entry.readAt || null : null,
       generatedAt: generated && entry ? entry.generatedAt || null : null,
-      canForceRegenerate: monthKey === latest || inProgress,
+      canForceRegenerate: eligible && (monthKey === latest || inProgress),
       inProgress: inProgress,
       adminOnly: inProgress,
-      studentVisible: !inProgress && monthKey <= latest,
+      eligible: eligible,
+      studentVisible: eligible && !inProgress && monthKey <= latest,
     };
   }
 
-  /** 管理端列表：已存月份 + 上一完整月 + 当月（学员不可见） */
-  function listForAdmin(username) {
+  /**
+   * 管理端列表：已存月份 +（≥ 注册月时）上一完整月 + 当月预览。
+   * 无活动仍可出上月；注册月之前的月份不注入。已落盘月份保留。
+   * @param {string} username
+   * @param {{ earliestMonthKey?: string }} [opts]
+   */
+  function listForAdmin(username, opts) {
+    opts = opts || {};
     const name = String(username || "");
     const meta = getMeta(name);
+    const earliest = String(opts.earliestMonthKey || "");
     const latest = latestClosedMonthKey();
     const current = currentMonthKey();
     const keys = Object.keys(meta.reports || {});
-    if (latest && keys.indexOf(latest) < 0) keys.push(latest);
-    if (current && keys.indexOf(current) < 0) keys.push(current);
+    if (latest && keys.indexOf(latest) < 0 && isEligibleMonth(latest, earliest)) {
+      keys.push(latest);
+    }
+    if (current && keys.indexOf(current) < 0 && isEligibleMonth(current, earliest)) {
+      keys.push(current);
+    }
     keys.sort(function (a, b) {
       return a < b ? 1 : a > b ? -1 : 0;
     });
     return keys.filter(isValidMonthKey).map(function (k) {
-      return statusFor(name, k);
+      return statusFor(name, k, { earliestMonthKey: earliest });
     });
   }
 
@@ -269,6 +315,8 @@ function createMonthlyReportStore(opts) {
     latestClosedMonthKey,
     isAdminReportableMonth,
     isValidMonthKey,
+    resolveEarliestMonthKey,
+    isEligibleMonth,
     monthLabelZh,
     displayTitle,
     displayFileName,
