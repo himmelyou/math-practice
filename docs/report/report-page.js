@@ -2060,7 +2060,9 @@
 
   function runShowsHeatRunSpeed(r) {
     var m = normalizeRunModeKey(r && r.mode);
-    if (m === 'training' || m === 'decimal' || m === 'perfectsquare') return true;
+    if (m === 'training' || m === 'decimal' || m === 'perfectsquare' || m === 'factorsmultiples') {
+      return true;
+    }
     if (m === 'divisibility') {
       var lv =
         r.trainingMeta && Number.isFinite(Number(r.trainingMeta.pickedLevel))
@@ -2076,7 +2078,7 @@
 
   function heatLevelCountForRun(r) {
     var m = normalizeRunModeKey(r && r.mode);
-    if (m === 'decimal') return 6;
+    if (m === 'decimal' || m === 'factorsmultiples') return 6;
     if (m === 'perfectsquare') return 4;
     if (m === 'divisibility') return 4;
     return 16;
