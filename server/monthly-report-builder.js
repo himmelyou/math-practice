@@ -545,11 +545,14 @@ function buildMonthlyReportPayload(opts) {
   const heatDiff = buildHeatmapDiff(priorHeat, current.heatmap || {});
 
   const nicknameRaw = opts.nickname != null ? String(opts.nickname).trim() : "";
+  const gradeLabel = formatGradeLabelZh(opts.grade);
   return {
     ok: true,
     /** 仅用于下载/管理端文件名；画布不展示用户名 */
     username: username,
     nickname: nicknameRaw,
+    grade: opts.grade != null && opts.grade !== "" ? Number(opts.grade) : null,
+    gradeLabel: gradeLabel,
     monthKey: monthKey,
     titleZh: "数感练习月报（" + monthLabelZh(monthKey) + "）",
     titleEn: "Monthly Learning Report · " + monthLabelEn(monthKey),
@@ -575,11 +578,22 @@ function buildMonthlyReportPayload(opts) {
   };
 }
 
+/** 0 学前 · 1–12 年级 · 13 成人；无效返回 "" */
+function formatGradeLabelZh(grade) {
+  if (grade === null || grade === undefined || grade === "") return "";
+  const n = Number(grade);
+  if (!Number.isInteger(n) || n < 0 || n > 13) return "";
+  if (n === 0) return "学前";
+  if (n === 13) return "成人";
+  return n + "年级";
+}
+
 function createMonthlyReportBuilder(deps) {
   deps = deps || {};
   const snapshotStore = deps.snapshotStore;
   const getUserRuns = deps.getUserRuns;
   const getUserNickname = deps.getUserNickname;
+  const getUserGrade = deps.getUserGrade;
   const getTasksDoneInMonth = deps.getTasksDoneInMonth;
   const cohortsByCategory = deps.cohortsByCategory;
 
@@ -595,11 +609,13 @@ function createMonthlyReportBuilder(deps) {
     const cohorts = typeof cohortsByCategory === "function" ? cohortsByCategory() : {};
     const nickname =
       typeof getUserNickname === "function" ? String(getUserNickname(name) || "").trim() : "";
+    const grade = typeof getUserGrade === "function" ? getUserGrade(name) : null;
     const tasksDone =
       typeof getTasksDoneInMonth === "function" ? getTasksDoneInMonth(name, monthKey) : 0;
     return buildMonthlyReportPayload({
       username: name,
       nickname: nickname,
+      grade: grade,
       monthKey: monthKey,
       runs: runs,
       currentSnap: currentSnap,

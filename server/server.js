@@ -441,6 +441,15 @@ const monthlyReportBuilder = createMonthlyReportBuilder({
     );
     return u && typeof u.nickname === "string" ? u.nickname.trim() : "";
   },
+  getUserGrade: function (username) {
+    const data = readJson(USERS_FILE, { users: [] });
+    const u = (Array.isArray(data.users) ? data.users : []).find(
+      (x) => x && x.username === username
+    );
+    if (!u || u.grade === null || u.grade === undefined || u.grade === "") return null;
+    const n = Number(u.grade);
+    return Number.isInteger(n) && n >= 0 && n <= 13 ? n : null;
+  },
   getTasksDoneInMonth: function (username, monthKey) {
     return practicePlanStore.historyCountInMonth(username, monthKey);
   },

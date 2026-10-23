@@ -436,6 +436,14 @@
     }
     var monthKey = data.monthKey;
     var nickname = String(data.nickname || "").trim();
+    var gradeLabel = String(data.gradeLabel || "").trim();
+    var headerLeft = nickname
+      ? gradeLabel
+        ? nickname + " (" + gradeLabel + ")"
+        : nickname
+      : gradeLabel
+        ? "(" + gradeLabel + ")"
+        : "";
     var W = RPT.W;
     var H = planReportHeight(data);
     var canvas = document.createElement("canvas");
@@ -458,12 +466,12 @@
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // 页眉：左昵称（署名）· 右品牌；标题区加大行距
+    // 页眉：左昵称(+年级) · 右品牌；标题区加大行距
     ctx.textBaseline = "alphabetic";
-    if (nickname) {
+    if (headerLeft) {
       ctx.fillStyle = "#94a3b8";
       ctx.font = font("", F.nick);
-      var nickDraw = ellipsize(ctx, nickname, W * 0.45);
+      var nickDraw = ellipsize(ctx, headerLeft, W * 0.52);
       ctx.fillText(nickDraw, RPT.PAD, 48);
     }
     ctx.fillStyle = "#1a3f8f";
