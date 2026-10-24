@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.29：多模式入队（错题/特殊/小数槽位与全局优先级）。
- * v0.28：超前黄橙进队须准≥95%。
+ * 练习建议 v0.30：特殊/小数硬留须四则 L1–L16 热图全部激活。
+ * v0.29：多模式入队（错题/特殊/小数槽位与全局优先级）。
  */
 (function (root) {
-  var RULE_VERSION = "0.29-provisional";
+  var RULE_VERSION = "0.30-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -957,6 +957,24 @@
     });
   }
 
+  /** 四则 L1–L16 热图均已激活（有数据）；特殊/小数硬留前提。 */
+  function arithHeatmapFullyUnlocked(rows) {
+    var list = rows || [];
+    if (list.length < LEVEL_COUNT) return false;
+    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+      var r = list[i];
+      if (!r || !r.stage || r.stage === "no_data") return false;
+    }
+    return true;
+  }
+
+  function resolveSlotBudget(grade, rows) {
+    if (!Modes || typeof Modes.slotBudget !== "function") {
+      return { arith: INCOMPLETE_SIZE, special: 0, decimal: 0 };
+    }
+    return Modes.slotBudget(grade, { arithFullyUnlocked: arithHeatmapFullyUnlocked(rows) });
+  }
+
   function canScheduleOpenNew(rows) {
     if (heatmapIsEmpty(rows)) return false;
     return schoolActivatedReady(rows) && !!nextOpenableRow(rows);
@@ -1206,10 +1224,7 @@
   }
 
   function uniqueSeeds(ctx) {
-    var budget =
-      Modes && typeof Modes.slotBudget === "function"
-        ? Modes.slotBudget(ctx.grade)
-        : { arith: INCOMPLETE_SIZE, special: 0, decimal: 0 };
+    var budget = resolveSlotBudget(ctx.grade, ctx.rows);
     var seeds = [];
     var used = {};
     var arithUsed = 0;
@@ -1298,15 +1313,18 @@
         stream.push({ kind: "training", row: r });
       });
     }
-    listOtherModeSeeds(ctx, "hole").forEach(function (s) {
-      stream.push(s);
-    });
-    listOtherModeSeeds(ctx, "open").forEach(function (s) {
-      stream.push(s);
-    });
-    listOtherModeSeeds(ctx, "ahead").forEach(function (s) {
-      stream.push(s);
-    });
+    var allowOtherModes = arithHeatmapFullyUnlocked(ctx.rows || []);
+    if (allowOtherModes) {
+      listOtherModeSeeds(ctx, "hole").forEach(function (s) {
+        stream.push(s);
+      });
+      listOtherModeSeeds(ctx, "open").forEach(function (s) {
+        stream.push(s);
+      });
+      listOtherModeSeeds(ctx, "ahead").forEach(function (s) {
+        stream.push(s);
+      });
+    }
     var arithFillers = (ctx.rows || [])
       .filter(function (r) {
         return fillerScore(r) > 0;
@@ -1318,9 +1336,11 @@
     arithFillers.forEach(function (r) {
       stream.push({ kind: "training", row: r });
     });
-    listOtherModeSeeds(ctx, "fill").forEach(function (s) {
-      stream.push(s);
-    });
+    if (allowOtherModes) {
+      listOtherModeSeeds(ctx, "fill").forEach(function (s) {
+        stream.push(s);
+      });
+    }
 
     function reserveRoomLeft() {
       var need = 0;
@@ -2420,7 +2440,8 @@
       wrongbookNeeded: wrongVisible >= wrongMin,
       wrongbookSticky: false,
       modePacks: modePacks,
-      slotBudget: Modes ? Modes.slotBudget(opts.grade) : { arith: 5, special: 0, decimal: 0 },
+      slotBudget: resolveSlotBudget(opts.grade, rows),
+      arithFullyUnlocked: arithHeatmapFullyUnlocked(rows),
     };
   }
 
@@ -2463,7 +2484,7 @@
         "。洞分=档位+准度差+timePct+剩余步×" +
         HOLE_FOUNDATION_STEP +
         "（准度不合格时更先补靠前档）",
-      "Q14 已激活校内全绿才开一档已学/同步空关；其后可排准≥95% 的超前黄橙；多模式同此。Q17 错题≥30；三年级特殊硬留1；四年级再留小数1；生存/拆括号不进",
+      "Q14 已激活校内全绿才开一档已学/同步空关；其后可排准≥95% 的超前黄橙；多模式同此。Q17 错题≥30；L1–L16 全激活后三年级特殊硬留1、四年级再留小数1；生存/拆括号不进",
       "Q15 底板型已通关：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +
@@ -2684,6 +2705,7 @@
         Q14_aheadHolesWhenSchoolGreen: true,
         Q17_wrongbookMin: Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30,
         Q17_multiModeSlots: true,
+        Q17_arithFullyUnlockedForReserve: true,
         Q15_retryClearImprove: SCAN_CLEAR_IMPROVE,
         Q15_retryClearItems: SCAN_CLEAR_ITEMS,
         Q15_retryClearOverhead: SCAN_CLEAR_OVERHEAD,
@@ -2721,6 +2743,7 @@
     schoolActivatedReady: schoolActivatedReady,
     nextOpenableRow: nextOpenableRow,
     heatmapIsEmpty: heatmapIsEmpty,
+    arithHeatmapFullyUnlocked: arithHeatmapFullyUnlocked,
     canScheduleOpenNew: canScheduleOpenNew,
     canScheduleAheadHoles: canScheduleAheadHoles,
     aheadHoleEligible: aheadHoleEligible,

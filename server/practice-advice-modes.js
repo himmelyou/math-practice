@@ -49,7 +49,16 @@ var MODE_META = {
 
 var WRONGBOOK_MIN = 30;
 
-function slotBudget(grade) {
+/**
+ * @param {number|string} grade
+ * @param {{ arithFullyUnlocked?: boolean }} [opts]
+ * 硬留前提：四则 L1–L16 热图全部激活；未满则不硬留（arith=5）。
+ */
+function slotBudget(grade, opts) {
+  opts = opts || {};
+  if (opts.arithFullyUnlocked !== true) {
+    return { arith: 5, special: 0, decimal: 0 };
+  }
   var g = Number(grade);
   if (!Number.isInteger(g) || g < 0) return { arith: 5, special: 0, decimal: 0 };
   if (g >= 4) return { arith: 3, special: 1, decimal: 1 };
