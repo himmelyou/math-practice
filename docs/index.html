@@ -23,6 +23,11 @@
       --game-card-playing-max: clamp(168px, 38vh, 260px);
       --game-card-playing-min: 148px;
       --expand-card-prestart-height: clamp(190px, 30vh, 240px);
+      /* 软键盘键高（矮屏 media 会覆盖） */
+      --jml-kbd-key-h: 45px;
+      --jml-kbd-gap: 6px;
+      --jml-kbd-card-pad-y: 8px;
+      --jml-kbd-card-pad-x: 10px;
       /* 首页经验条：固定宽度，避免随右侧按钮伸缩 */
       --home-xp-track-width: 120px;
       --ach-cell-size: 56px;
@@ -2330,9 +2335,9 @@
     /* 软键盘（方案B）：独立卡片，开局后替换最近记录区域 */
     .soft-kbd-card {
       margin-top: 8px;
-      padding: 8px 10px;
-      padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-      gap: 6px;
+      padding: var(--jml-kbd-card-pad-y) var(--jml-kbd-card-pad-x);
+      padding-bottom: calc(var(--jml-kbd-card-pad-y) + env(safe-area-inset-bottom, 0px));
+      gap: var(--jml-kbd-gap);
       background: #ffffff;
       border-radius: var(--border-radius);
       box-shadow: var(--shadow-soft);
@@ -2351,13 +2356,13 @@
     .soft-kbd-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
+      gap: var(--jml-kbd-gap);
     }
     .soft-kbd-key {
       border-radius: 14px;
       padding: 0;
-      height: 45px;
-      min-height: 45px;
+      height: var(--jml-kbd-key-h);
+      min-height: var(--jml-kbd-key-h);
       font-size: 0.98rem;
       font-weight: 800;
       background: #f7fbff;
@@ -2380,18 +2385,18 @@
     }
     .soft-kbd-key-spacer {
       display: block;
-      height: 45px;
-      min-height: 45px;
+      height: var(--jml-kbd-key-h);
+      min-height: var(--jml-kbd-key-h);
     }
     .soft-kbd-enter-row {
-      margin-top: 6px;
+      margin-top: var(--jml-kbd-gap);
     }
     .soft-kbd-enter {
       width: 100%;
       border-radius: 14px;
       padding: 0;
-      height: 45px;
-      min-height: 45px;
+      height: var(--jml-kbd-key-h);
+      min-height: var(--jml-kbd-key-h);
       font-size: 0.94rem;
       font-weight: 900;
       background: linear-gradient(135deg, var(--primary), var(--primary-light));
@@ -3735,21 +3740,74 @@
         --expand-card-prestart-height: clamp(130px, 28vh, 168px);
       }
 
+      :root {
+        --jml-kbd-key-h: 40px;
+        --jml-kbd-gap: 5px;
+        --jml-kbd-card-pad-y: 6px;
+        --jml-kbd-card-pad-x: 8px;
+      }
+
+    }
+
+    /* 竖屏矮高：先挤题卡/间距，再略降题干，最后降键高（≥36px） */
+    @media (max-height: 700px) and (orientation: portrait) {
+      :root {
+        --game-card-playing-min: 128px;
+        --game-card-playing-max: clamp(140px, 32svh, 220px);
+        --expand-card-prestart-height: clamp(150px, 26svh, 200px);
+        --jml-stem-size: clamp(1.15rem, 4.5vw, 1.55rem);
+        --jml-prompt-stem-size: clamp(1rem, 4vw, 1.25rem);
+        --jml-kbd-key-h: 40px;
+        --jml-kbd-gap: 5px;
+        --jml-kbd-card-pad-y: 6px;
+        --jml-kbd-card-pad-x: 8px;
+      }
+
+      .status-grid {
+        margin-top: 6px;
+        padding: 8px 10px;
+        gap: 6px 10px;
+      }
+
+      .user-bar {
+        margin-top: 4px;
+      }
+
       .soft-kbd-card {
+        margin-top: 6px;
+      }
+    }
+
+    @media (max-height: 640px) and (orientation: portrait) {
+      :root {
+        --game-card-playing-min: 118px;
+        --game-card-playing-max: clamp(128px, 28svh, 190px);
+        --expand-card-prestart-height: clamp(130px, 24svh, 170px);
+        --jml-stem-size: clamp(1.05rem, 4vw, 1.4rem);
+        --jml-prompt-stem-size: clamp(0.95rem, 3.8vw, 1.15rem);
+        --jml-kbd-key-h: 36px;
+        --jml-kbd-gap: 4px;
+        --jml-kbd-card-pad-y: 5px;
+        --jml-kbd-card-pad-x: 8px;
+      }
+
+      .status-grid {
+        margin-top: 4px;
         padding: 6px 8px;
-        padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+        gap: 4px 8px;
       }
 
-      .soft-kbd-grid {
-        gap: 5px;
+      .status-item {
+        font-size: 0.74rem;
       }
 
-      .soft-kbd-key,
+      .soft-kbd-key {
+        font-size: 0.9rem;
+      }
+
       .soft-kbd-enter {
-        height: 40px;
-        min-height: 40px;
+        font-size: 0.88rem;
       }
-
     }
 
     /* 质数合数：布局对齐 game-play-body + recent-card（与主游戏/拆括号一致） */
