@@ -101,6 +101,7 @@
     }
     if (dom().psRecentCard) dom().psRecentCard.style.display = visible ? "none" : "flex";
     if (body) body.classList.toggle("game-play-body--kbd", !!visible);
+    if (typeof global.scheduleSyncPlayCompact === "function") global.scheduleSyncPlayCompact();
   }
 
   function syncPsAnswerInputMode() {

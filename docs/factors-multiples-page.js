@@ -226,6 +226,7 @@
           dom().fmSoftKbdCard.style.display = "none";
         }
       }
+      if (typeof global.scheduleSyncPlayCompact === "function") global.scheduleSyncPlayCompact();
     }
   }
 
@@ -249,6 +250,7 @@
         dom().fmSoftKbdCard.style.display = fill ? "flex" : "none";
       }
     }
+    if (typeof global.scheduleSyncPlayCompact === "function") global.scheduleSyncPlayCompact();
     if (fill && dom().fmAnswerInput) {
       dom().fmAnswerInput.value = "";
       dom().fmAnswerInput.disabled = false;

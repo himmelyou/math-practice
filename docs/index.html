@@ -3749,65 +3749,35 @@
 
     }
 
-    /* 竖屏矮高：先挤题卡/间距，再略降题干，最后降键高（≥36px） */
-    @media (max-height: 700px) and (orientation: portrait) {
-      :root {
-        --game-card-playing-min: 128px;
-        --game-card-playing-max: clamp(140px, 32svh, 220px);
-        --expand-card-prestart-height: clamp(150px, 26svh, 200px);
-        --jml-stem-size: clamp(1.15rem, 4.5vw, 1.55rem);
-        --jml-prompt-stem-size: clamp(1rem, 4vw, 1.25rem);
-        --jml-kbd-key-h: 40px;
-        --jml-kbd-gap: 5px;
-        --jml-kbd-card-pad-y: 6px;
-        --jml-kbd-card-pad-x: 8px;
-      }
-
-      .status-grid {
-        margin-top: 6px;
-        padding: 8px 10px;
-        gap: 6px 10px;
-      }
-
-      .user-bar {
-        margin-top: 4px;
-      }
-
-      .soft-kbd-card {
-        margin-top: 6px;
-      }
+    /* 局中装不下时由 JS 加 html.jml-play-compact（不靠 max-height 猜测） */
+    html.jml-play-compact {
+      --game-card-playing-min: 118px;
+      --game-card-playing-max: clamp(128px, 28svh, 190px);
+      --expand-card-prestart-height: clamp(130px, 24svh, 170px);
+      --jml-stem-size: clamp(1.05rem, 4vw, 1.4rem);
+      --jml-prompt-stem-size: clamp(0.95rem, 3.8vw, 1.15rem);
+      --jml-kbd-key-h: 36px;
+      --jml-kbd-gap: 4px;
+      --jml-kbd-card-pad-y: 5px;
+      --jml-kbd-card-pad-x: 8px;
+      --prime-card-playing-height: clamp(240px, 34svh, 320px);
     }
-
-    @media (max-height: 640px) and (orientation: portrait) {
-      :root {
-        --game-card-playing-min: 118px;
-        --game-card-playing-max: clamp(128px, 28svh, 190px);
-        --expand-card-prestart-height: clamp(130px, 24svh, 170px);
-        --jml-stem-size: clamp(1.05rem, 4vw, 1.4rem);
-        --jml-prompt-stem-size: clamp(0.95rem, 3.8vw, 1.15rem);
-        --jml-kbd-key-h: 36px;
-        --jml-kbd-gap: 4px;
-        --jml-kbd-card-pad-y: 5px;
-        --jml-kbd-card-pad-x: 8px;
-      }
-
-      .status-grid {
-        margin-top: 4px;
-        padding: 6px 8px;
-        gap: 4px 8px;
-      }
-
-      .status-item {
-        font-size: 0.74rem;
-      }
-
-      .soft-kbd-key {
-        font-size: 0.9rem;
-      }
-
-      .soft-kbd-enter {
-        font-size: 0.88rem;
-      }
+    html.jml-play-compact .status-grid {
+      margin-top: 4px;
+      padding: 6px 8px;
+      gap: 4px 8px;
+    }
+    html.jml-play-compact .status-item {
+      font-size: 0.74rem;
+    }
+    html.jml-play-compact .soft-kbd-card {
+      margin-top: 6px;
+    }
+    html.jml-play-compact .soft-kbd-key {
+      font-size: 0.9rem;
+    }
+    html.jml-play-compact .soft-kbd-enter {
+      font-size: 0.88rem;
     }
 
     /* 质数合数：布局对齐 game-play-body + recent-card（与主游戏/拆括号一致） */
@@ -3883,6 +3853,13 @@
     .run-mode-play-body .game-play-tail {
       display: none;
       flex: 0 0 0;
+      min-height: 0;
+    }
+
+    /* 键盘局：余高垫在题卡与键盘之间（tail 须在 DOM 上位于二者之间） */
+    .run-mode-play-body.game-play-body--kbd .game-play-tail {
+      display: block;
+      flex: 1 1 auto;
       min-height: 0;
     }
 
@@ -4773,8 +4750,8 @@
         </div>
       </div>
     </section>
+    <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
     <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
-      <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
       </div>
     </div>
 
@@ -5227,8 +5204,8 @@
         </div>
       </section>
 
-      <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
       <div class="game-play-tail" id="ps-play-tail" aria-hidden="true"></div>
+      <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
       </div>
     </section>
 
@@ -5433,8 +5410,8 @@
             </div>
           </form>
         </main>
-        <section class="soft-kbd-card" id="fm-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
         <div class="game-play-tail" id="fm-play-tail" aria-hidden="true"></div>
+        <section class="soft-kbd-card" id="fm-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
       </div>
 
       <div id="fm-panel-finished" class="prime-panel-finished" style="display:none;">
@@ -5574,8 +5551,8 @@
         </div>
       </section>
 
-      <section class="soft-kbd-card" id="dec-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="decimal"></section>
       <div class="game-play-tail" id="dec-play-tail" aria-hidden="true"></div>
+      <section class="soft-kbd-card" id="dec-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="decimal"></section>
       </div>
     </section>
 
@@ -5747,10 +5724,10 @@
   <script src="shared/special-mode-run-outcome.js?v=52"></script>
   <script src="shared/monthly-report-fake.js?v=22"></script>
   <script src="achievements-client.js?v=9"></script>
-  <script src="perfect-square-page.js?v=54"></script>
+  <script src="perfect-square-page.js?v=55"></script>
   <script src="divisibility-page.js?v=21"></script>
-  <script src="factors-multiples-page.js?v=7"></script>
-  <script src="decimal-page.js?v=21"></script>
+  <script src="factors-multiples-page.js?v=8"></script>
+  <script src="decimal-page.js?v=22"></script>
   <script>
     // ====== 后台管理面板（Admin Panel）DOM ======
     // 管理面板插入到body最底部
@@ -6647,7 +6624,77 @@
       }
       if (dom.recentCard) dom.recentCard.style.display = visible ? "none" : "flex";
       if (dom.gamePlayBody) dom.gamePlayBody.classList.toggle("game-play-body--kbd", !!visible);
+      scheduleSyncPlayCompact();
     }
+
+    let playCompactRaf = 0;
+
+    /** 可见键盘局 play-body：非 spacer 子项总高是否超过容器（overflow:hidden 时 scrollHeight 不可靠） */
+    function playBodyContentOverflows(el) {
+      if (!el || el.offsetParent === null) return false;
+      const cs = getComputedStyle(el);
+      const gapRaw = cs.rowGap && cs.rowGap !== "normal" ? cs.rowGap : cs.gap;
+      const gap = parseFloat(gapRaw) || 0;
+      let total = 0;
+      let visible = 0;
+      Array.prototype.forEach.call(el.children, function (child) {
+        if (child.classList && child.classList.contains("game-play-tail")) return;
+        const childCs = getComputedStyle(child);
+        if (childCs.display === "none" || childCs.visibility === "hidden") return;
+        const mt = parseFloat(childCs.marginTop) || 0;
+        const mb = parseFloat(childCs.marginBottom) || 0;
+        total += child.getBoundingClientRect().height + mt + mb;
+        if (visible > 0) total += gap;
+        visible += 1;
+      });
+      return total > el.clientHeight + 2;
+    }
+
+    function getActiveKbdPlayBodies() {
+      const list = [];
+      const main = document.getElementById("game-play-body");
+      if (main && main.classList.contains("game-play-body--kbd")) list.push(main);
+      const ps = document.getElementById("ps-play-body");
+      if (ps && ps.classList.contains("game-play-body--kbd")) list.push(ps);
+      const dec = document.getElementById("dec-play-body");
+      if (dec && dec.classList.contains("game-play-body--kbd")) list.push(dec);
+      const fmPanel = document.getElementById("fm-panel-playing");
+      if (fmPanel && fmPanel.classList.contains("fm-panel-playing--fill") && fmPanel.offsetParent !== null) {
+        list.push(fmPanel);
+      }
+      return list;
+    }
+
+    /** 装不下才 html.jml-play-compact；刚好的机子不压缩 */
+    function syncPlayCompactLayout() {
+      const root = document.documentElement;
+      const bodies = getActiveKbdPlayBodies();
+      if (!bodies.length) {
+        root.classList.remove("jml-play-compact");
+        return;
+      }
+      root.classList.remove("jml-play-compact");
+      void root.offsetHeight;
+      let need = false;
+      for (let i = 0; i < bodies.length; i++) {
+        if (playBodyContentOverflows(bodies[i])) {
+          need = true;
+          break;
+        }
+      }
+      root.classList.toggle("jml-play-compact", need);
+    }
+
+    function scheduleSyncPlayCompact() {
+      if (playCompactRaf) cancelAnimationFrame(playCompactRaf);
+      playCompactRaf = requestAnimationFrame(function () {
+        playCompactRaf = requestAnimationFrame(function () {
+          playCompactRaf = 0;
+          syncPlayCompactLayout();
+        });
+      });
+    }
+    window.scheduleSyncPlayCompact = scheduleSyncPlayCompact;
 
     function shouldLockAnswerInputForSoftKeyboard() {
       return window.JmlSoftKeyboard
@@ -16110,6 +16157,10 @@
         requestAnimationFrame(drawStudentStatsChart);
       }
       scheduleSyncAllRuleHints();
+      scheduleSyncPlayCompact();
+    });
+    window.addEventListener("orientationchange", function () {
+      scheduleSyncPlayCompact();
     });
 
     function renderStudentStatsFromRuns(runs, cohortByCategory, heatPayloadByCategory) {
