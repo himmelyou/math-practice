@@ -3856,13 +3856,6 @@
       min-height: 0;
     }
 
-    /* 键盘局：余高垫在题卡与键盘之间（tail 须在 DOM 上位于二者之间） */
-    .run-mode-play-body.game-play-body--kbd .game-play-tail {
-      display: block;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-
     @media (max-width: 520px) {
       .run-mode-play-body {
         overflow-y: auto;
@@ -4750,8 +4743,8 @@
         </div>
       </div>
     </section>
-    <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
     <section class="soft-kbd-card" id="soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
+      <div class="game-play-tail" id="game-play-tail" aria-hidden="true"></div>
       </div>
     </div>
 
@@ -5204,8 +5197,8 @@
         </div>
       </section>
 
-      <div class="game-play-tail" id="ps-play-tail" aria-hidden="true"></div>
       <section class="soft-kbd-card" id="ps-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
+      <div class="game-play-tail" id="ps-play-tail" aria-hidden="true"></div>
       </div>
     </section>
 
@@ -5410,8 +5403,8 @@
             </div>
           </form>
         </main>
-        <div class="game-play-tail" id="fm-play-tail" aria-hidden="true"></div>
         <section class="soft-kbd-card" id="fm-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
+        <div class="game-play-tail" id="fm-play-tail" aria-hidden="true"></div>
       </div>
 
       <div id="fm-panel-finished" class="prime-panel-finished" style="display:none;">
@@ -5551,8 +5544,8 @@
         </div>
       </section>
 
-      <div class="game-play-tail" id="dec-play-tail" aria-hidden="true"></div>
       <section class="soft-kbd-card" id="dec-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="decimal"></section>
+      <div class="game-play-tail" id="dec-play-tail" aria-hidden="true"></div>
       </div>
     </section>
 
