@@ -1,9 +1,10 @@
 /**
- * 练习建议 v0.31：当日任务配额：今日结案(成功+失败)+未完成 ≤ 5，满则不补；跨日保留未完成只补新。
+ * 练习建议 v0.32：当日结案留在主列表（留牌），不进冷却、不补新；次日归档冷却后再补。
+ * v0.31：当日任务配额：今日结案(成功+失败)+未完成 ≤ 5。
  * v0.30：特殊/小数硬留须四则 L1–L16 热图全部激活。
  */
 (function (root) {
-  var RULE_VERSION = "0.31-provisional";
+  var RULE_VERSION = "0.32-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -1512,64 +1513,102 @@
     return Math.min(INCOMPLETE_SIZE, Math.max(0, DAILY_TASK_QUOTA - closed));
   }
 
+  function isTodayBoardClosed(t, dayKey) {
+    return !!(t && isCooldownTask(t) && dayKey && t.chinaDay === dayKey);
+  }
+
+  function openCountIn(list) {
+    var n = 0;
+    (list || []).forEach(function (t) {
+      if (t && (t.status === "active" || t.status === "pending")) n += 1;
+    });
+    return n;
+  }
+
+  function keepOpenTask(t, ctx, keepExisting) {
+    if (keepExisting) return true;
+    if (t && t.action === "wrongbook") {
+      return !!(ctx.wrongbookNeeded || ctx.wrongbookSticky || (ctx.wrongAnswersVisible || 0) > 0);
+    }
+    if (isScanTask(t) && !scanIsNeeded(ctx)) return false;
+    if (t.successKind !== "open_activate") return true;
+    if (t.action === "training") {
+      var row = rowByLevel(ctx.rows || [], t.levelIndex);
+      if (!row || row.stage !== "no_data") return false;
+      return canScheduleOpenNew(ctx.rows || []);
+    }
+    return true;
+  }
+
   function fillIncomplete(plan, ctx, ts, opts) {
     opts = opts || {};
     var keepExisting = opts.keepExisting === true;
     var reorderScan = opts.reorderScan === true;
-    var done = trimDone(cooldownTasks(plan));
-    var next = openTasks(plan).filter(function (t) {
-      if (keepExisting) return true;
-      if (t && t.action === "wrongbook") {
-        return !!(ctx.wrongbookNeeded || ctx.wrongbookSticky || (ctx.wrongAnswersVisible || 0) > 0);
+    var day = chinaDateKeyFromTs(ts);
+    /** 非今日结案 → 冷却归档；今日结案留在主列表（留牌）直到跨日。 */
+    var archive = [];
+    var board = [];
+    (plan.tasks || []).forEach(function (t) {
+      if (!t) return;
+      if (isCooldownTask(t)) {
+        if (isTodayBoardClosed(t, day)) board.push(t);
+        else archive.push(t);
+        return;
       }
-      if (isScanTask(t) && !scanIsNeeded(ctx)) return false;
-      if (t.successKind !== "open_activate") return true;
-      if (t.action === "training") {
-        var row = rowByLevel(ctx.rows || [], t.levelIndex);
-        if (!row || row.stage !== "no_data") return false;
-        return canScheduleOpenNew(ctx.rows || []);
-      }
-      return true;
+      if (t.status !== "active" && t.status !== "pending") return;
+      if (!keepOpenTask(t, ctx, keepExisting)) return;
+      board.push(t);
     });
+    archive = trimDone(archive);
     if (!keepExisting && ctx.scan) {
-      next.forEach(function (t) {
-        if (isScanTask(t)) applyScanFields(t, ctx.scan);
+      board.forEach(function (t) {
+        if (t && (t.status === "active" || t.status === "pending") && isScanTask(t)) {
+          applyScanFields(t, ctx.scan);
+        }
       });
     }
-    var stickyWrong = next.some(function (t) {
-      return t && t.action === "wrongbook";
+    var stickyWrong = board.some(function (t) {
+      return t && (t.status === "active" || t.status === "pending") && t.action === "wrongbook";
     });
     ctx.wrongbookSticky = stickyWrong;
-    ctx._cooldownSeq = done.concat(next);
+    ctx._cooldownSeq = archive.concat(board);
     plan._adviceCtx = ctx;
-    /** 已有未完成可超过当日剩余额度（跨日留下的）；只限制新补条数。 */
+    /** 已有未完成可超过当日剩余额度（跨日留下的）；只限制新补条数。今日留牌占配额，故满则不补。 */
     var maxOpen = maxOpenForDay(plan, ts);
     var needed = uniqueSeeds(ctx).filter(function (s) {
       return seedIsNeeded(s, ctx);
     });
     function appendFromNeeded(allowCloseRepeat) {
       needed.forEach(function (seed) {
-        if (next.length >= maxOpen) return;
+        if (openCountIn(board) >= maxOpen) return;
         var k = seedKey(seed);
         if (
-          next.some(function (t) {
-            return t.key === k;
+          board.some(function (t) {
+            return t && t.key === k;
           })
         ) {
           return;
         }
-        if (!allowCloseRepeat && keyTooSoon(k, done.concat(next))) return;
-        next.push(seedToTask(plan, seed));
+        if (!allowCloseRepeat && keyTooSoon(k, archive.concat(board))) return;
+        board.push(seedToTask(plan, seed));
       });
     }
     appendFromNeeded(false);
-    if (!next.length && maxOpen > 0) appendFromNeeded(true);
+    /** 先避开冷却间隔；仍补不满（如昨日留牌刚归档、同 key 全太近）再允许更密。 */
+    if (openCountIn(board) < maxOpen) appendFromNeeded(true);
     if (reorderScan) {
+      var todays = [];
+      var opens = [];
+      board.forEach(function (t) {
+        if (isTodayBoardClosed(t, day)) todays.push(t);
+        else opens.push(t);
+      });
       var scanN = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : null;
-      if (isRetryClearScan(ctx)) next = placeRetryScanSecond(next, ctx);
-      else next = placeScanAfterPrereqs(next, done, scanN);
+      if (isRetryClearScan(ctx)) opens = placeRetryScanSecond(opens, ctx);
+      else opens = placeScanAfterPrereqs(opens, archive.concat(todays), scanN);
+      board = todays.concat(opens);
     }
-    plan.tasks = done.concat(next);
+    plan.tasks = archive.concat(board);
     activateFirst(plan.tasks);
   }
 
@@ -2007,63 +2046,48 @@
   }
 
   function replan(plan, ctx, closedTask, reason, ts) {
-    var done = cooldownTasks(plan);
+    var day = chinaDateKeyFromTs(ts);
     if (closedTask && closedTask.status === "parked") {
-      done = done.filter(function (t) {
-        return t.id !== closedTask.id;
+      plan.tasks = (plan.tasks || []).filter(function (t) {
+        return !t || t.id !== closedTask.id;
       });
     }
-    var next = openTasks(plan).filter(function (t) {
-      return !closedTask || t.id !== closedTask.id;
-    });
     if (reason === "success" && closedTask) {
-      next = next.filter(function (t) {
-        return t.key !== closedTask.key;
-      });
       closedTask.status = "success";
-      if (closedTask.completedAt == null) {
-        closedTask.completedAt = ts;
-        closedTask.chinaDay = chinaDateKeyFromTs(ts);
-      }
-      if (
-        !done.some(function (t) {
-          return t.id === closedTask.id;
-        })
-      ) {
-        done.push(closedTask);
-      }
+      if (closedTask.completedAt == null) closedTask.completedAt = ts;
+      if (!closedTask.chinaDay) closedTask.chinaDay = day;
+      plan.tasks = (plan.tasks || []).filter(function (t) {
+        if (!t) return false;
+        if (t.id === closedTask.id) return true;
+        if ((t.status === "active" || t.status === "pending") && t.key === closedTask.key) return false;
+        return true;
+      });
       rememberSuccess(plan, closedTask);
-      done = trimDone(done);
     } else if (reason === "fail" && closedTask) {
       closedTask.status = "fail";
       closedTask.window = emptyPlanWindow();
       closedTask.completedAt = null;
-      if (!closedTask.chinaDay) closedTask.chinaDay = chinaDateKeyFromTs(ts);
-      if (
-        !done.some(function (t) {
-          return t.id === closedTask.id;
-        })
-      ) {
-        done.push(closedTask);
-      }
-      done = trimDone(done);
+      if (!closedTask.chinaDay) closedTask.chinaDay = day;
     }
-    plan.tasks = done.concat(next);
+    /** 当日留牌：结案后不补新；fill 只在跨日/开单时把空位补上。 */
     fillIncomplete(plan, ctx, ts, { keepExisting: true, reorderScan: false });
     var head = getActiveTask(plan);
     var openN = openTasks(plan).length;
-    var coolN = cooldownTasks(plan).length;
+    var boardClosed = todayClosedCount(plan, day);
+    var coolN = (plan.tasks || []).filter(function (t) {
+      return isCooldownTask(t) && t.chinaDay !== day;
+    }).length;
     pushEvent(
       plan,
       "replan",
-      (reason === "success" ? "成功后补一格" : reason === "fail" ? "失败后补一格" : "补格") +
-        "（其余未完成不动）：当前 " +
-        (head ? head.title || head.levelLabel : "无任务") +
-        "；排队 " +
+      (reason === "success" ? "成功留牌" : reason === "fail" ? "失败留牌" : "留牌") +
+        "（当日不补）：当前 " +
+        (head ? head.title || head.levelLabel : "无未完成") +
+        "；未完成 " +
         openN +
-        "/" +
-        INCOMPLETE_SIZE +
-        "；冷却窗 " +
+        " · 今日留牌 " +
+        boardClosed +
+        "；冷却归档 " +
         coolN +
         "/" +
         COMPLETED_MAX,
@@ -2492,7 +2516,7 @@
         " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
       "Q18 日配额：中国日历日「今日结案(成功+失败)+未完成」≤" +
         DAILY_TASK_QUOTA +
-        "；满则不补新。跨日未完成留下只补新；重新开单同受限",
+        "；结案当日留牌不补新，次日归档冷却后再补。跨日未完成留下；重新开单同受限",
       "Q11 同 key 默认隔 " +
         SAME_TASK_GAP +
         " 条才可再出现；冷却窗最多 " +
@@ -2648,27 +2672,40 @@
     var title = "";
     var parentCopy = "";
     var detail = "";
+    var todayKeyAdvice = chinaDateKeyFromTs(nowTs);
+    var todayBoardN = todayClosedCount(plan, todayKeyAdvice);
+    var archiveCoolN = (plan.tasks || []).filter(function (t) {
+      return isCooldownTask(t) && t.chinaDay !== todayKeyAdvice;
+    }).length;
     if (!active && !openQueue.length) {
-      title = "暂无主建议";
-      parentCopy = "热图或年级信号不足，无法按当前规则给出任务单。";
-      detail = parentCopy;
+      if (todayBoardN > 0) {
+        title = "今日任务已完成";
+        parentCopy = "今日 " + todayBoardN + " 条已留牌，明天再补新任务。";
+        detail = parentCopy;
+      } else {
+        title = "暂无主建议";
+        parentCopy = "热图或年级信号不足，无法按当前规则给出任务单。";
+        detail = parentCopy;
+      }
     } else {
-      var coolN = cooldownTasks(plan).length;
       title =
         (ctx.profile.id === "skill_gaps" ? "弱项任务单" : "平台任务单") +
         " · 未完成 " +
         openQueue.length +
+        " · 今日留牌 " +
+        todayBoardN +
         " / 冷却 " +
-        coolN;
+        archiveCoolN;
       parentCopy =
         ctx.profile.label +
-        "。未完成 1～5 对上就跟局，成功或失败都进冷却窗，缺格只补一条；首页打中名单里的关也会记尝试，当场成功称碰巧完成；放弃局整局不算；名单外才重算未完成（已有尝试的关保留）。";
+        "。未完成 1～5 对上就跟局；成功/失败当日留牌不补，次日归档后再补新；首页碰巧同一套；放弃局整局不算；名单外才重算未完成（已有尝试的关保留）。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
 
     return {
       ruleVersion: RULE_VERSION,
+      todayKey: chinaDateKeyFromTs(nowTs),
       grade: ctx.grade,
       profile: ctx.profile,
       scanTarget: ctx.scan,
@@ -2722,6 +2759,7 @@
         Q9_failPracticeDays: FAIL_PRACTICE_DAYS,
         Q10_incompleteSize: INCOMPLETE_SIZE,
         Q18_dailyTaskQuota: DAILY_TASK_QUOTA,
+        Q18_sameDayKeepClosedNoFill: true,
         Q11_sameTaskGap: SAME_TASK_GAP,
         Q11_completedMax: COMPLETED_MAX,
         Q12_foundationFastPct: FOUNDATION_FAST_PCT,

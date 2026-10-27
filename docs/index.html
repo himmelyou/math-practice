@@ -3086,6 +3086,43 @@
       background: #f7fafc;
       box-shadow: none;
     }
+    .daily-task-card--success {
+      background: #e8f5e9;
+      box-shadow: none;
+      border-color: #a5d6a7;
+    }
+    .daily-task-card--fail {
+      background: #fbe9e7;
+      box-shadow: none;
+      border-color: #ffab91;
+    }
+    .daily-task-card--success .daily-task-card-title,
+    .daily-task-card--fail .daily-task-card-title {
+      color: #455a64;
+    }
+    .daily-task-badge {
+      flex-shrink: 0;
+      min-height: 32px;
+      margin: 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1.2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      user-select: none;
+    }
+    .daily-task-badge--success {
+      background: #43a047;
+      color: #fff;
+    }
+    .daily-task-badge--fail {
+      background: #e64a19;
+      color: #fff;
+    }
     .daily-task-card-main {
       min-width: 0;
       flex: 1;
@@ -4641,6 +4678,21 @@
         <div id="daily-task-body" hidden></div>
       </div>
     </section>
+    <aside
+      class="home-coach-float"
+      id="daily-task-done-float"
+      hidden
+      role="dialog"
+      aria-live="polite"
+      aria-labelledby="daily-task-done-float-text"
+    >
+      <p class="home-coach-float-text" id="daily-task-done-float-text"></p>
+      <div class="home-coach-float-actions">
+        <button type="button" class="home-pill-btn home-pill-btn--primary home-coach-float-cta" id="daily-task-done-float-ok">
+          确认
+        </button>
+      </div>
+    </aside>
 
     <div class="game-section" id="game-section">
       <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。</p>
@@ -7295,7 +7347,52 @@
       await ensureTrainingEntryReadyAsync();
     }
 
+    function hideDailyTaskDoneFloat() {
+      const el = document.getElementById("daily-task-done-float");
+      if (el) el.hidden = true;
+    }
+
+    function isDailyTaskAllDoneToday(advice) {
+      if (!advice) return false;
+      const todayKey = advice.todayKey || "";
+      if (!todayKey) return false;
+      const queue = Array.isArray(advice.queue) ? advice.queue : [];
+      let openN = 0;
+      let todayClosedN = 0;
+      for (let i = 0; i < queue.length; i += 1) {
+        const s = queue[i];
+        if (!s) continue;
+        if (s.status === "active" || s.status === "pending") openN += 1;
+        else if (
+          (s.status === "success" || s.status === "fail") &&
+          s.chinaDay === todayKey
+        ) {
+          todayClosedN += 1;
+        }
+      }
+      return openN === 0 && todayClosedN > 0;
+    }
+
+    function paintDailyTaskDoneFloat() {
+      const el = document.getElementById("daily-task-done-float");
+      const textEl = document.getElementById("daily-task-done-float-text");
+      const okEl = document.getElementById("daily-task-done-float-ok");
+      if (!el || !textEl) return;
+      textEl.textContent = t("dailyTasks.done.body");
+      if (okEl) okEl.textContent = t("dailyTasks.done.confirm");
+      el.hidden = false;
+    }
+
+    function maybeShowDailyTaskDoneFloat(advice) {
+      if (!isDailyTaskAllDoneToday(advice)) {
+        hideDailyTaskDoneFloat();
+        return;
+      }
+      paintDailyTaskDoneFloat();
+    }
+
     function hideDailyTaskSection() {
+      hideDailyTaskDoneFloat();
       const sec = document.getElementById("daily-task-section");
       if (sec) {
         sec.style.display = "none";
@@ -7369,22 +7466,40 @@
     function dailyTaskCardHtml(step, index, opts) {
       opts = opts || {};
       const isHead = !!opts.isHead;
+      const closedOk = step && step.status === "success";
+      const closedFail = step && step.status === "fail";
       const title = opts.history
         ? dailyTaskKindLabel(step)
         : tf("dailyTasks.taskTitle", { n: index + 1, label: dailyTaskKindLabel(step) });
       const goal = dailyTaskGoalText(step);
       const prog = dailyTaskProgressText(step);
-      const startBtn = opts.history
-        ? ""
-        : '<button type="button" class="home-pill-btn home-pill-btn--primary daily-task-start" data-daily-task-start="' +
+      let actionHtml = "";
+      if (opts.history) {
+        actionHtml = "";
+      } else if (closedOk) {
+        actionHtml =
+          '<span class="daily-task-badge daily-task-badge--success" aria-disabled="true">' +
+          escapeHtml(t("dailyTasks.badge.success")) +
+          "</span>";
+      } else if (closedFail) {
+        actionHtml =
+          '<span class="daily-task-badge daily-task-badge--fail" aria-disabled="true">' +
+          escapeHtml(t("dailyTasks.badge.fail")) +
+          "</span>";
+      } else {
+        actionHtml =
+          '<button type="button" class="home-pill-btn home-pill-btn--primary daily-task-start" data-daily-task-start="' +
           escapeHtml(String(step && step.id ? step.id : "")) +
           '">' +
           escapeHtml(t("dailyTasks.start")) +
           "</button>";
+      }
       return (
         '<article class="daily-task-card' +
-        (isHead ? " daily-task-card--head" : "") +
-        (step.status === "success" ? " daily-task-card--done" : "") +
+        (isHead && !closedOk && !closedFail ? " daily-task-card--head" : "") +
+        (closedOk ? " daily-task-card--success" : "") +
+        (closedFail ? " daily-task-card--fail" : "") +
+        (opts.history ? " daily-task-card--done" : "") +
         '">' +
         '<div class="daily-task-card-main">' +
         '<div class="daily-task-card-title">' +
@@ -7393,7 +7508,7 @@
         (goal ? '<div class="daily-task-card-goal">' + escapeHtml(goal) + "</div>" : "") +
         (prog ? '<div class="daily-task-card-prog">' + escapeHtml(prog) + "</div>" : "") +
         "</div>" +
-        startBtn +
+        actionHtml +
         "</article>"
       );
     }
@@ -7404,13 +7519,36 @@
       if (!body || !status) return;
       lastDailyTaskAdvice = advice || null;
       const queue = (advice && advice.queue) || [];
-      const openSteps = queue.filter(function (s) {
-        return s.status === "active" || s.status === "pending";
+      const todayKey = (advice && advice.todayKey) || "";
+      const boardSteps = queue.filter(function (s) {
+        if (!s) return false;
+        if (s.status === "active" || s.status === "pending") return true;
+        if ((s.status === "success" || s.status === "fail") && todayKey && s.chinaDay === todayKey) {
+          return true;
+        }
+        return false;
       });
-      const doneSteps = Array.isArray(advice && advice.history) ? advice.history : [];
+      const boardIds = {};
+      boardSteps.forEach(function (s) {
+        if (s && s.id != null) boardIds[String(s.id)] = true;
+      });
+      const doneSteps = (Array.isArray(advice && advice.history) ? advice.history : []).filter(
+        function (s) {
+          if (!s) return false;
+          if (s.id != null && boardIds[String(s.id)]) return false;
+          if (todayKey && s.chinaDay === todayKey) return false;
+          return true;
+        }
+      );
       let openHtml = "";
-      openSteps.forEach(function (step, i) {
-        openHtml += dailyTaskCardHtml(step, i, { isHead: i === 0 });
+      boardSteps.forEach(function (step, i) {
+        const isHead =
+          step.status === "active" ||
+          (step.status === "pending" &&
+            !boardSteps.some(function (x, j) {
+              return j < i && (x.status === "active" || x.status === "pending");
+            }));
+        openHtml += dailyTaskCardHtml(step, i, { isHead: isHead });
       });
       let doneHtml = "";
       doneSteps.forEach(function (step, i) {
@@ -7440,6 +7578,8 @@
       const status = document.getElementById("daily-task-status");
       if (status && !status.hidden) status.textContent = t("dailyTasks.loading");
       if (lastDailyTaskAdvice) renderDailyTaskAdvice(lastDailyTaskAdvice);
+      const doneFloat = document.getElementById("daily-task-done-float");
+      if (doneFloat && !doneFloat.hidden) paintDailyTaskDoneFloat();
     }
 
     async function apiGetPracticePlan(username) {
@@ -7511,6 +7651,7 @@
         body.hidden = true;
         body.innerHTML = "";
       }
+      hideDailyTaskDoneFloat();
       try {
         const advice = await loadDailyTaskAdvice();
         if (seq !== dailyTaskRenderSeq) return;
@@ -7519,6 +7660,7 @@
           return;
         }
         renderDailyTaskAdvice(advice);
+        maybeShowDailyTaskDoneFloat(advice);
       } catch (e) {
         if (seq !== dailyTaskRenderSeq) return;
         if (status) status.textContent = t("dailyTasks.loadFail");
@@ -10556,6 +10698,10 @@
         "dailyTasks.grade.saveFail": "儲存失敗，請稍後重試。",
         "dailyTasks.taskTitle": "任務 {n} · {label}",
         "dailyTasks.start": "開始挑戰",
+        "dailyTasks.done.body": "今日任務已全部完成，明天再來吧。",
+        "dailyTasks.done.confirm": "確認",
+        "dailyTasks.badge.success": "挑戰成功",
+        "dailyTasks.badge.fail": "挑戰失敗",
         "dailyTasks.label.level": "闖關",
         "dailyTasks.label.retryClear": "衝榜",
         "dailyTasks.label.training": "四則訓練 {level}",
@@ -11087,6 +11233,10 @@
         "dailyTasks.grade.saveFail": "Save failed. Try again later.",
         "dailyTasks.taskTitle": "Task {n} · {label}",
         "dailyTasks.start": "Start",
+        "dailyTasks.done.body": "Today's tasks are all done. Come back tomorrow.",
+        "dailyTasks.done.confirm": "OK",
+        "dailyTasks.badge.success": "Cleared",
+        "dailyTasks.badge.fail": "Failed",
         "dailyTasks.label.level": "Challenge",
         "dailyTasks.label.retryClear": "Retry clear",
         "dailyTasks.label.training": "Arithmetic {level}",
@@ -18489,6 +18639,12 @@
       if (homeCoachCta) homeCoachCta.addEventListener("click", handleHomeCoachCta);
       const homeCoachDismiss = document.getElementById("home-coach-float-dismiss");
       if (homeCoachDismiss) homeCoachDismiss.addEventListener("click", dismissHomeCoachFloat);
+      const dailyTaskDoneOk = document.getElementById("daily-task-done-float-ok");
+      if (dailyTaskDoneOk) {
+        dailyTaskDoneOk.addEventListener("click", function () {
+          hideDailyTaskDoneFloat();
+        });
+      }
       const gradeNeededSelect = document.getElementById("grade-needed-select");
       if (gradeNeededSelect) {
         gradeNeededSelect.addEventListener("change", syncGradeNeededConfirmEnabled);

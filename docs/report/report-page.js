@@ -3083,12 +3083,22 @@
         );
       })
       .join('');
+    var todayKey = advice.todayKey || '';
     var openSteps = (advice.queue || []).filter(function (s) {
-      return s.status === 'active' || s.status === 'pending';
+      if (!s) return false;
+      if (s.status === 'active' || s.status === 'pending') return true;
+      if ((s.status === 'success' || s.status === 'fail') && todayKey && s.chinaDay === todayKey) {
+        return true;
+      }
+      return false;
     });
-    var doneSteps = (advice.queue || []).filter(function (s) {
-      return s.status === 'success' || s.status === 'fail';
-    }).reverse();
+    var doneSteps = (advice.queue || [])
+      .filter(function (s) {
+        if (!s || (s.status !== 'success' && s.status !== 'fail')) return false;
+        if (todayKey && s.chinaDay === todayKey) return false;
+        return true;
+      })
+      .reverse();
     function adviceTileHtml(step, empty) {
       if (empty) {
         return '<div class="jml-advice-tile jml-advice-tile--empty"></div>';
@@ -3121,9 +3131,9 @@
       return '<div class="jml-advice-tile-row">' + html + '</div>';
     }
     var queueHtml =
-      '<p class="jml-advice-subh">未完成</p>' +
+      '<p class="jml-advice-subh">今日任务（含留牌）</p>' +
       adviceTileRow(openSteps) +
-      '<p class="jml-advice-subh">冷却</p>' +
+      '<p class="jml-advice-subh">冷却归档</p>' +
       adviceTileRow(doneSteps);
     var profileLine = advice.profile
       ? '<p class="jml-advice-profile">' +
