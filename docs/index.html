@@ -3261,6 +3261,17 @@
       flex: 1;
       width: auto;
     }
+    #daily-task-settlement {
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+    }
+    #daily-task-settlement[hidden] {
+      display: none !important;
+    }
+    #daily-task-settlement .game-over-panel {
+      display: block;
+    }
 
     /* 题目区 + 键盘/记录：占满 game-section 剩余高度 */
     .game-play-body {
@@ -4693,6 +4704,35 @@
         </button>
       </div>
     </aside>
+    <div id="daily-task-settlement-park">
+      <div id="daily-task-settlement" hidden>
+        <div class="game-over-panel training-summary" id="daily-task-settlement-inner">
+          <h2 class="game-over-title" id="daily-task-settlement-title">挑战成功</h2>
+          <div class="game-over-stats-grid">
+            <p class="game-over-line">
+              <span id="daily-task-settlement-lbl-a">目标速度</span>：
+              <strong id="daily-task-settlement-val-a">—</strong>
+            </p>
+            <p class="game-over-line">
+              <span id="daily-task-settlement-lbl-b">该局速度</span>：
+              <strong id="daily-task-settlement-val-b">—</strong>
+            </p>
+            <p class="game-over-line">
+              <span id="daily-task-settlement-lbl-c">目标准确率</span>：
+              <strong id="daily-task-settlement-val-c">—</strong>
+            </p>
+            <p class="game-over-line">
+              <span id="daily-task-settlement-lbl-d">本局准确率</span>：
+              <strong id="daily-task-settlement-val-d">—</strong>
+            </p>
+          </div>
+          <div class="game-over-buttons daily-task-over-row" id="daily-task-settlement-actions">
+            <button type="button" class="btn-primary" id="daily-task-settlement-retry" style="display:none;">再试一次</button>
+            <button type="button" class="btn-primary" id="daily-task-settlement-back">回到任务列表</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="game-section" id="game-section">
       <p class="subtitle" id="game-subtitle" style="display:none;">生存挑战：L1 起步，答对 +2 秒 +5 分；5 连对升级，答错降级。</p>
@@ -6375,6 +6415,8 @@
         softKeyboardAppend: softKeyboardAppend,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
         primeCompositeResetToIdle: primeCompositeResetToIdle,
+        isDailyTaskPlay: isDailyTaskPlay,
+        finishDailyTaskSettlement: finishDailyTaskSettlement,
         getGameMode: function () { return gameMode; },
         setGameMode: function (m) { gameMode = m; },
         getIsPlaying: function () { return isPlaying; },
@@ -6444,6 +6486,8 @@
         setStemHtml: setStemHtml,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
         primeCompositeResetToIdle: primeCompositeResetToIdle,
+        isDailyTaskPlay: isDailyTaskPlay,
+        finishDailyTaskSettlement: finishDailyTaskSettlement,
         getGameMode: function () { return gameMode; },
         setGameMode: function (m) { gameMode = m; },
         getIsPlaying: function () { return isPlaying; },
@@ -6512,6 +6556,8 @@
         setStemHtml: setStemHtml,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
         primeCompositeResetToIdle: primeCompositeResetToIdle,
+        isDailyTaskPlay: isDailyTaskPlay,
+        finishDailyTaskSettlement: finishDailyTaskSettlement,
         getGameMode: function () { return gameMode; },
         setGameMode: function (m) { gameMode = m; },
         getIsPlaying: function () { return isPlaying; },
@@ -6583,6 +6629,8 @@
         softKeyboardAppend: softKeyboardAppend,
         scheduleSyncAllRuleHints: scheduleSyncAllRuleHints,
         primeCompositeResetToIdle: primeCompositeResetToIdle,
+        isDailyTaskPlay: isDailyTaskPlay,
+        finishDailyTaskSettlement: finishDailyTaskSettlement,
         getGameMode: function () { return gameMode; },
         setGameMode: function (m) { gameMode = m; },
         getIsPlaying: function () { return isPlaying; },
@@ -7111,6 +7159,9 @@
       return base;
     }
 
+    let dailyTaskSettlementHiddenEls = [];
+    let dailyTaskSettlementParkParent = null;
+
     function resetDailyTaskGameOverButtons() {
       const row = document.querySelector("#game-over-panel .game-over-buttons");
       if (row) row.classList.remove("daily-task-over-row");
@@ -7118,32 +7169,6 @@
       if (back) back.style.display = "none";
       if (dom.playAgainBtn) {
         dom.playAgainBtn.textContent = t("game.btn.playAgain");
-      }
-    }
-
-    function setDailyTaskGameOverActions(follow, abandoned) {
-      const row = document.querySelector("#game-over-panel .game-over-buttons");
-      const play = dom.playAgainBtn;
-      const back = document.getElementById("daily-task-back-btn");
-      if (!isDailyTaskPlay()) {
-        resetDailyTaskGameOverButtons();
-        if (play) play.style.display = "";
-        return;
-      }
-      if (back) {
-        back.style.display = "";
-        back.textContent = t("dailyTasks.over.backToList");
-      }
-      const canRetry = !abandoned && follow && follow.kind === "pending";
-      if (canRetry) {
-        if (play) {
-          play.style.display = "";
-          play.textContent = t("dailyTasks.over.retry");
-        }
-        if (row) row.classList.add("daily-task-over-row");
-      } else {
-        if (play) play.style.display = "none";
-        if (row) row.classList.remove("daily-task-over-row");
       }
     }
 
@@ -7158,12 +7183,12 @@
       }
     }
 
-    function summarizeDailyTaskRunAttempts(levelIndex) {
-      const attempts = Array.isArray(currentRunAttempts) ? currentRunAttempts : [];
-      let filtered = attempts;
+    function summarizeDailyTaskAttempts(attempts, levelIndex) {
+      const list = Array.isArray(attempts) ? attempts : [];
+      let filtered = list;
       if (levelIndex != null && Number.isFinite(Number(levelIndex))) {
         const lv = Math.floor(Number(levelIndex));
-        const matched = attempts.filter(function (a) {
+        const matched = list.filter(function (a) {
           return a && a.levelIndex != null && Math.floor(Number(a.levelIndex)) === lv;
         });
         if (matched.length) filtered = matched;
@@ -7186,17 +7211,45 @@
       return {
         p: n > 0 ? correct / n : null,
         avgSec: lnN > 0 ? Math.exp(lnSum / lnN) / 1000 : null,
+        n: n,
+        correct: correct,
       };
     }
 
-    function fillDailyTaskOverStats() {
+    function hideDailyTaskSettlement() {
+      const panel = document.getElementById("daily-task-settlement");
+      if (panel) {
+        panel.hidden = true;
+        const park =
+          dailyTaskSettlementParkParent || document.getElementById("daily-task-settlement-park");
+        if (park && panel.parentElement !== park) park.appendChild(panel);
+      }
+      (dailyTaskSettlementHiddenEls || []).forEach(function (el) {
+        if (!el) return;
+        if (el._dtsPrevDisplay != null) el.style.display = el._dtsPrevDisplay;
+        else el.style.removeProperty("display");
+        delete el._dtsPrevDisplay;
+      });
+      dailyTaskSettlementHiddenEls = [];
+    }
+
+    function paintDailyTaskSettlement(follow, abandoned, runStats) {
+      const panel = document.getElementById("daily-task-settlement");
+      if (!panel) return;
+      const titleEl = document.getElementById("daily-task-settlement-title");
+      const lblA = document.getElementById("daily-task-settlement-lbl-a");
+      const lblB = document.getElementById("daily-task-settlement-lbl-b");
+      const lblC = document.getElementById("daily-task-settlement-lbl-c");
+      const lblD = document.getElementById("daily-task-settlement-lbl-d");
+      const valA = document.getElementById("daily-task-settlement-val-a");
+      const valB = document.getElementById("daily-task-settlement-val-b");
+      const valC = document.getElementById("daily-task-settlement-val-c");
+      const valD = document.getElementById("daily-task-settlement-val-d");
+      const retryBtn = document.getElementById("daily-task-settlement-retry");
+      const backBtn = document.getElementById("daily-task-settlement-back");
       const dash = DAILY_TASK_METRIC_DASH;
       const kind = dailyTaskPlay && dailyTaskPlay.successKind;
-      const lv =
-        dailyTaskPlay && dailyTaskPlay.action === "training" && dailyTaskPlay.levelIndex != null
-          ? dailyTaskPlay.levelIndex
-          : null;
-      const run = summarizeDailyTaskRunAttempts(lv);
+      const stats = runStats || {};
       let tgtSpd = dash;
       let tgtAcc = dash;
       if (kind === "speed_step") {
@@ -7208,22 +7261,82 @@
       } else {
         tgtAcc = formatDailyTaskPct(DAILY_TASK_SPEED_ACC_MIN);
       }
-      const durationLabelEl = document.getElementById("game-over-duration-label");
-      const scoreLabelEl = document.getElementById("game-over-score-label");
-      const wrongLabelEl = document.getElementById("game-over-wrong-label");
-      const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
-      const durationEl = document.getElementById("game-over-duration");
-      const scoreEl = document.getElementById("game-over-score");
-      const wrongEl = document.getElementById("game-over-wrong");
-      const maxLevelEl = document.getElementById("game-over-max-level");
-      if (durationLabelEl) durationLabelEl.textContent = t("dailyTasks.over.targetSpeed");
-      if (scoreLabelEl) scoreLabelEl.textContent = t("dailyTasks.over.runSpeed");
-      if (wrongLabelEl) wrongLabelEl.textContent = t("dailyTasks.over.targetAcc");
-      if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("dailyTasks.over.runAcc");
-      if (durationEl) durationEl.textContent = tgtSpd;
-      if (scoreEl) scoreEl.textContent = formatDailyTaskSecValue(run.avgSec);
-      if (wrongEl) wrongEl.textContent = tgtAcc;
-      if (maxLevelEl) maxLevelEl.textContent = formatDailyTaskPct(run.p);
+      if (titleEl) {
+        if (abandoned) titleEl.textContent = t("game.over.abandonedTitle");
+        else if (follow && (follow.kind === "success" || follow.kind === "lucky")) {
+          titleEl.textContent = t("dailyTasks.over.success");
+        } else if (follow && follow.kind === "fail") {
+          titleEl.textContent = t("dailyTasks.over.failed");
+        } else {
+          titleEl.textContent = t("dailyTasks.over.keepTrying");
+        }
+      }
+      if (lblA) lblA.textContent = t("dailyTasks.over.targetSpeed");
+      if (lblB) lblB.textContent = t("dailyTasks.over.runSpeed");
+      if (lblC) lblC.textContent = t("dailyTasks.over.targetAcc");
+      if (lblD) lblD.textContent = t("dailyTasks.over.runAcc");
+      if (valA) valA.textContent = tgtSpd;
+      if (valB) valB.textContent = formatDailyTaskSecValue(stats.avgSec);
+      if (valC) valC.textContent = tgtAcc;
+      if (valD) valD.textContent = formatDailyTaskPct(stats.p);
+      if (backBtn) backBtn.textContent = t("dailyTasks.over.backToList");
+      const canRetry = !abandoned && follow && follow.kind === "pending";
+      if (retryBtn) {
+        retryBtn.textContent = t("dailyTasks.over.retry");
+        retryBtn.style.display = canRetry ? "" : "none";
+      }
+      panel.hidden = false;
+    }
+
+    /**
+     * 任务入口局末统一结算（B1）：跟局结果为准，不展示模式升降级文案。
+     * opts: { abandoned, attempts, mountEl, hideEls }
+     */
+    async function finishDailyTaskSettlement(opts) {
+      opts = opts || {};
+      if (!isDailyTaskPlay()) return { kind: "none" };
+      const panel = document.getElementById("daily-task-settlement");
+      if (!dailyTaskSettlementParkParent) {
+        dailyTaskSettlementParkParent = document.getElementById("daily-task-settlement-park");
+      }
+      hideDailyTaskSettlement();
+      const hideEls = Array.isArray(opts.hideEls) ? opts.hideEls : [];
+      dailyTaskSettlementHiddenEls = [];
+      hideEls.forEach(function (el) {
+        if (!el) return;
+        el._dtsPrevDisplay = el.style.display;
+        el.style.display = "none";
+        dailyTaskSettlementHiddenEls.push(el);
+      });
+      const mount = opts.mountEl || null;
+      if (panel && mount) {
+        if (panel.parentElement !== mount) {
+          mount.insertBefore(panel, mount.firstChild);
+        }
+      }
+      let follow = { kind: "none" };
+      if (opts.abandoned) {
+        follow = { kind: "none" };
+      } else {
+        follow = await syncDailyTaskFollowAfterRun();
+      }
+      let levelFilter = null;
+      if (
+        dailyTaskPlay &&
+        dailyTaskPlay.levelIndex != null &&
+        (dailyTaskPlay.action === "training" ||
+          dailyTaskPlay.action === "decimal" ||
+          dailyTaskPlay.action === "perfectSquare" ||
+          dailyTaskPlay.action === "divisibility" ||
+          dailyTaskPlay.action === "factorsMultiples")
+      ) {
+        levelFilter = dailyTaskPlay.levelIndex;
+      }
+      const runStats =
+        opts.runStats ||
+        summarizeDailyTaskAttempts(opts.attempts || currentRunAttempts, levelFilter);
+      paintDailyTaskSettlement(follow, !!opts.abandoned, runStats);
+      return follow;
     }
 
     function prepareDailyTaskOverWait() {
@@ -7236,40 +7349,27 @@
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
     }
 
-    function paintDailyTaskOverPanel(follow, abandoned) {
-      if (!dom.gameOverPanel) return;
-      setGameOverLayout(true);
-      setTrainingSummaryLayout(true);
-      setGameCardActionSlot("hidden");
-      const titleEl = document.getElementById("game-over-title");
-      if (titleEl) {
-        if (abandoned) titleEl.textContent = t("game.over.abandonedTitle");
-        else if (follow && (follow.kind === "success" || follow.kind === "lucky")) {
-          titleEl.textContent = t("dailyTasks.over.success");
-        } else {
-          titleEl.textContent = t("dailyTasks.over.keepTrying");
-        }
-      }
-      fillDailyTaskOverStats();
-      dom.gameOverPanel.style.display = "block";
-      setDailyTaskGameOverActions(follow || { kind: "none" }, abandoned);
-    }
-
     async function finishDailyTaskGameOver(abandoned) {
       if (!isDailyTaskPlay()) {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         return;
       }
-      if (abandoned) {
-        paintDailyTaskOverPanel({ kind: "none" }, true);
-        return;
-      }
-      const follow = await syncDailyTaskFollowAfterRun();
-      paintDailyTaskOverPanel(follow, false);
+      prepareDailyTaskOverWait();
+      const mount =
+        (dom.gameOverPanel && dom.gameOverPanel.parentElement) ||
+        document.getElementById("game-card");
+      await finishDailyTaskSettlement({
+        abandoned: !!abandoned,
+        attempts: currentRunAttempts,
+        mountEl: mount,
+        hideEls: dom.gameOverPanel ? [dom.gameOverPanel] : [],
+      });
     }
 
     function goDailyTaskListFromSettlement() {
+      hideDailyTaskSettlement();
       dailyTaskPlay = null;
+      window.jmlDailyTaskPin = null;
       resetDailyTaskGameOverButtons();
       if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
@@ -7278,7 +7378,41 @@
         dom.gameSection.classList.remove("visible");
         dom.gameSection.classList.remove("training-prestart");
       }
+      hidePerfectSquareSection();
+      hideDivisibilitySection();
+      hideFactorsMultiplesSection();
+      hideDecimalSection();
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
       void showDailyTaskView();
+    }
+
+    function retryDailyTaskFromSettlement() {
+      const taskId = dailyTaskPlay && dailyTaskPlay.taskId ? String(dailyTaskPlay.taskId) : "";
+      hideDailyTaskSettlement();
+      if (!taskId) {
+        goDailyTaskListFromSettlement();
+        return;
+      }
+      if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      setGameOverLayout(false);
+      if (dom.gameSection) {
+        dom.gameSection.classList.remove("visible");
+        dom.gameSection.classList.remove("training-prestart");
+      }
+      hidePerfectSquareSection();
+      hideDivisibilitySection();
+      hideFactorsMultiplesSection();
+      hideDecimalSection();
+      const primeSection = document.getElementById("prime-composite-section");
+      if (primeSection) {
+        primeSection.style.display = "none";
+        primeSection.classList.remove("visible");
+      }
+      void startDailyTaskChallenge(taskId);
     }
 
     async function startDailyTaskChallenge(taskId) {
@@ -10708,6 +10842,7 @@
         "dailyTasks.label.open": "開 {level}",
         "dailyTasks.over.success": "挑戰成功",
         "dailyTasks.over.keepTrying": "還需努力",
+        "dailyTasks.over.failed": "挑戰失敗",
         "dailyTasks.over.retry": "再試一次",
         "dailyTasks.over.backToList": "回到任務列表",
         "dailyTasks.over.targetSpeed": "目標速度",
@@ -11243,6 +11378,7 @@
         "dailyTasks.label.open": "Open {level}",
         "dailyTasks.over.success": "Challenge complete",
         "dailyTasks.over.keepTrying": "Keep going",
+        "dailyTasks.over.failed": "Challenge failed",
         "dailyTasks.over.retry": "Try again",
         "dailyTasks.over.backToList": "Back to tasks",
         "dailyTasks.over.targetSpeed": "Target speed",
@@ -12702,6 +12838,8 @@
       if (opts && typeof opts === "object" && opts.trainingMeta && typeof opts.trainingMeta === "object") {
         runEntry.trainingMeta = opts.trainingMeta;
       }
+      const dailyMeta = mergeDailyTaskRunMeta(runEntry.trainingMeta);
+      if (dailyMeta) runEntry.trainingMeta = dailyMeta;
       if (opts && typeof opts === "object" && typeof opts.mastered === "number" && Number.isFinite(opts.mastered)) {
         runEntry.mastered = Math.max(0, Math.floor(opts.mastered));
       }
@@ -15033,6 +15171,18 @@
       appendRun(elapsedSec, 0, -1, primeCompositeWrongCount, "primeComposite", primeCompositeAttempts.slice(), false, true);
       void renderPrimeRecentRuns();
       updateHomePlayerLevel();
+      if (isDailyTaskPlay()) {
+        const inner = document.getElementById("prime-finished-panel-inner");
+        const mount =
+          document.querySelector("#prime-panel-finished .prime-finish-card") ||
+          document.getElementById("prime-panel-finished");
+        void finishDailyTaskSettlement({
+          abandoned: true,
+          attempts: primeCompositeAttempts.slice(),
+          mountEl: mount,
+          hideEls: inner ? [inner] : [],
+        });
+      }
     }
 
     function primeCompositeRenderQuestion() {
@@ -15197,6 +15347,18 @@
         } else if (sessionScore > 0 && syncFail) syncFail.style.display = "block";
         updateHomePlayerLevel();
         await renderPrimeRecentRuns();
+      }
+      if (isDailyTaskPlay()) {
+        const inner = document.getElementById("prime-finished-panel-inner");
+        const mount =
+          document.querySelector("#prime-panel-finished .prime-finish-card") ||
+          document.getElementById("prime-panel-finished");
+        await finishDailyTaskSettlement({
+          abandoned: false,
+          attempts: primeCompositeAttempts.slice(),
+          mountEl: mount,
+          hideEls: inner ? [inner] : [],
+        });
       }
     }
 
@@ -18592,6 +18754,14 @@
       });
       const dailyTaskBackBtn = document.getElementById("daily-task-back-btn");
       if (dailyTaskBackBtn) dailyTaskBackBtn.addEventListener("click", goDailyTaskListFromSettlement);
+      const dailyTaskSettlementBack = document.getElementById("daily-task-settlement-back");
+      if (dailyTaskSettlementBack) {
+        dailyTaskSettlementBack.addEventListener("click", goDailyTaskListFromSettlement);
+      }
+      const dailyTaskSettlementRetry = document.getElementById("daily-task-settlement-retry");
+      if (dailyTaskSettlementRetry) {
+        dailyTaskSettlementRetry.addEventListener("click", retryDailyTaskFromSettlement);
+      }
       const dailyTaskBodyEl = document.getElementById("daily-task-body");
       if (dailyTaskBodyEl) {
         dailyTaskBodyEl.addEventListener("click", function (e) {

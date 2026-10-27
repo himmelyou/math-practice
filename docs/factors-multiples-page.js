@@ -924,19 +924,34 @@
     const recent = document.getElementById("fm-recent-card");
     if (recent) recent.style.display = "";
 
-    if (dom().fmFinishTitle) dom().fmFinishTitle.textContent = t("expand.end.title");
-    if (dom().fmFinishCorrect) {
-      dom().fmFinishCorrect.textContent = String(
-        Math.max(0, questionsPerRun(startLevel) - fmWrongCount)
-      );
-    }
-    if (dom().fmFinishWrong) dom().fmFinishWrong.textContent = String(fmWrongCount);
-    if (dom().fmFinishTime) {
-      dom().fmFinishTime.textContent = deps.formatCompactRunTime(durationSec);
-    }
-    if (dom().fmFinishLevel) dom().fmFinishLevel.textContent = levelLabel(startLevel);
-    if (dom().fmFinishResult) {
-      dom().fmFinishResult.textContent = t("expand.result." + outcome.resultKey);
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const inner = document.getElementById("fm-finished-panel-inner");
+      const mount =
+        document.querySelector("#fm-panel-finished .fm-finish-card") ||
+        document.getElementById("fm-panel-finished");
+      await deps.finishDailyTaskSettlement({
+        abandoned: false,
+        attempts: fmAttempts.slice(),
+        mountEl: mount,
+        hideEls: inner ? [inner] : [],
+      });
+    } else {
+      if (dom().fmFinishTitle) dom().fmFinishTitle.textContent = t("expand.end.title");
+      if (dom().fmFinishCorrect) {
+        dom().fmFinishCorrect.textContent = String(
+          Math.max(0, questionsPerRun(startLevel) - fmWrongCount)
+        );
+      }
+      if (dom().fmFinishWrong) dom().fmFinishWrong.textContent = String(fmWrongCount);
+      if (dom().fmFinishTime) {
+        dom().fmFinishTime.textContent = deps.formatCompactRunTime(durationSec);
+      }
+      if (dom().fmFinishLevel) dom().fmFinishLevel.textContent = levelLabel(startLevel);
+      if (dom().fmFinishResult) {
+        dom().fmFinishResult.textContent = t("expand.result." + outcome.resultKey);
+      }
     }
     renderFmWrongReview();
     renderFmLevelSelect();
@@ -967,12 +982,27 @@
     setFmPanel("finished");
     const recent = document.getElementById("fm-recent-card");
     if (recent) recent.style.display = "";
-    if (dom().fmFinishTitle) dom().fmFinishTitle.textContent = t("expand.end.title");
-    if (dom().fmFinishCorrect) dom().fmFinishCorrect.textContent = "-";
-    if (dom().fmFinishWrong) dom().fmFinishWrong.textContent = String(fmWrongCount);
-    if (dom().fmFinishTime) dom().fmFinishTime.textContent = "-";
-    if (dom().fmFinishLevel) dom().fmFinishLevel.textContent = levelLabel(fmRunStartLevel);
-    if (dom().fmFinishResult) dom().fmFinishResult.textContent = t("expand.go.abandoned");
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const inner = document.getElementById("fm-finished-panel-inner");
+      const mount =
+        document.querySelector("#fm-panel-finished .fm-finish-card") ||
+        document.getElementById("fm-panel-finished");
+      void deps.finishDailyTaskSettlement({
+        abandoned: true,
+        attempts: fmAttempts.slice(),
+        mountEl: mount,
+        hideEls: inner ? [inner] : [],
+      });
+    } else {
+      if (dom().fmFinishTitle) dom().fmFinishTitle.textContent = t("expand.end.title");
+      if (dom().fmFinishCorrect) dom().fmFinishCorrect.textContent = "-";
+      if (dom().fmFinishWrong) dom().fmFinishWrong.textContent = String(fmWrongCount);
+      if (dom().fmFinishTime) dom().fmFinishTime.textContent = "-";
+      if (dom().fmFinishLevel) dom().fmFinishLevel.textContent = levelLabel(fmRunStartLevel);
+      if (dom().fmFinishResult) dom().fmFinishResult.textContent = t("expand.go.abandoned");
+    }
     renderFmWrongReview();
     deps.updateGlobalBackButtonState();
   }

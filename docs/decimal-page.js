@@ -731,20 +731,36 @@
       dom().decQuestionText.style.display = "none";
     }
     hideDecQuestionSubtext();
-    if (dom().decGameOverPanel) dom().decGameOverPanel.style.display = "";
-    if (dom().decGameOverTitle) dom().decGameOverTitle.textContent = t("expand.end.title");
-    if (dom().decGoDurationLabel) dom().decGoDurationLabel.textContent = t("expand.end.time");
-    if (dom().decGoDuration) dom().decGoDuration.textContent = deps.formatCompactRunTime(durationSec);
-    if (dom().decGoScoreLabel) dom().decGoScoreLabel.textContent = t("expand.end.level");
-    if (dom().decGoScore) dom().decGoScore.textContent = "L" + (startLevel + 1);
-    if (dom().decGoWrongLabel) dom().decGoWrongLabel.textContent = t("expand.end.wrong");
-    if (dom().decGoWrong) dom().decGoWrong.textContent = String(decWrongCount);
-    if (dom().decScoreText) dom().decScoreText.textContent = String(decScore);
-    if (dom().decGoResultLabel) dom().decGoResultLabel.textContent = t("expand.end.result");
-    if (dom().decGoResult) {
-      dom().decGoResult.textContent = t("expand.result." + outcome.resultKey);
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const mount =
+        (dom().decGameOverPanel && dom().decGameOverPanel.parentElement) ||
+        document.getElementById("dec-game-card");
+      await deps.finishDailyTaskSettlement({
+        abandoned: false,
+        attempts: decAttempts.slice(),
+        mountEl: mount,
+        hideEls: dom().decGameOverPanel ? [dom().decGameOverPanel] : [],
+      });
+    } else {
+      if (dom().decGameOverPanel) dom().decGameOverPanel.style.display = "";
+      if (dom().decGameOverTitle) dom().decGameOverTitle.textContent = t("expand.end.title");
+      if (dom().decGoDurationLabel) dom().decGoDurationLabel.textContent = t("expand.end.time");
+      if (dom().decGoDuration) {
+        dom().decGoDuration.textContent = deps.formatCompactRunTime(durationSec);
+      }
+      if (dom().decGoScoreLabel) dom().decGoScoreLabel.textContent = t("expand.end.level");
+      if (dom().decGoScore) dom().decGoScore.textContent = "L" + (startLevel + 1);
+      if (dom().decGoWrongLabel) dom().decGoWrongLabel.textContent = t("expand.end.wrong");
+      if (dom().decGoWrong) dom().decGoWrong.textContent = String(decWrongCount);
+      if (dom().decScoreText) dom().decScoreText.textContent = String(decScore);
+      if (dom().decGoResultLabel) dom().decGoResultLabel.textContent = t("expand.end.result");
+      if (dom().decGoResult) {
+        dom().decGoResult.textContent = t("expand.result." + outcome.resultKey);
+      }
+      if (dom().decPlayAgainBtn) dom().decPlayAgainBtn.style.display = "";
     }
-    if (dom().decPlayAgainBtn) dom().decPlayAgainBtn.style.display = "";
     if (deps.getCachedUser()) {
       deps.getCachedUser().levelDecimalCurrentLevel = outcome.savedCurrent;
       deps.getCachedUser().levelDecimalUnlockedMax = outcome.savedUnlockedMax;
@@ -775,17 +791,31 @@
     }
     hideDecQuestionSubtext();
     setDecHistoryVisible(true);
-    if (dom().decGameOverPanel) dom().decGameOverPanel.style.display = "";
-    if (dom().decGameOverTitle) dom().decGameOverTitle.textContent = t("expand.end.title");
-    if (dom().decGoDurationLabel) dom().decGoDurationLabel.textContent = t("expand.end.time");
-    if (dom().decGoDuration) dom().decGoDuration.textContent = "-";
-    if (dom().decGoScoreLabel) dom().decGoScoreLabel.textContent = t("expand.end.level");
-    if (dom().decGoScore) dom().decGoScore.textContent = "L" + (decLevel + 1);
-    if (dom().decGoWrongLabel) dom().decGoWrongLabel.textContent = t("expand.end.wrong");
-    if (dom().decGoWrong) dom().decGoWrong.textContent = String(decWrongCount);
-    if (dom().decGoResultLabel) dom().decGoResultLabel.textContent = t("expand.end.result");
-    if (dom().decGoResult) dom().decGoResult.textContent = t("expand.go.abandoned");
-    if (dom().decPlayAgainBtn) dom().decPlayAgainBtn.style.display = "";
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const mount =
+        (dom().decGameOverPanel && dom().decGameOverPanel.parentElement) ||
+        document.getElementById("dec-game-card");
+      void deps.finishDailyTaskSettlement({
+        abandoned: true,
+        attempts: decAttempts.slice(),
+        mountEl: mount,
+        hideEls: dom().decGameOverPanel ? [dom().decGameOverPanel] : [],
+      });
+    } else {
+      if (dom().decGameOverPanel) dom().decGameOverPanel.style.display = "";
+      if (dom().decGameOverTitle) dom().decGameOverTitle.textContent = t("expand.end.title");
+      if (dom().decGoDurationLabel) dom().decGoDurationLabel.textContent = t("expand.end.time");
+      if (dom().decGoDuration) dom().decGoDuration.textContent = "-";
+      if (dom().decGoScoreLabel) dom().decGoScoreLabel.textContent = t("expand.end.level");
+      if (dom().decGoScore) dom().decGoScore.textContent = "L" + (decLevel + 1);
+      if (dom().decGoWrongLabel) dom().decGoWrongLabel.textContent = t("expand.end.wrong");
+      if (dom().decGoWrong) dom().decGoWrong.textContent = String(decWrongCount);
+      if (dom().decGoResultLabel) dom().decGoResultLabel.textContent = t("expand.end.result");
+      if (dom().decGoResult) dom().decGoResult.textContent = t("expand.go.abandoned");
+      if (dom().decPlayAgainBtn) dom().decPlayAgainBtn.style.display = "";
+    }
     deps.updateGlobalBackButtonState();
     renderDecimalRecentRuns();
   }

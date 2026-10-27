@@ -814,17 +814,35 @@
     const recent = document.getElementById("div-recent-card");
     if (recent) recent.style.display = "";
 
-    if (dom().divFinishTitle) dom().divFinishTitle.textContent = t("expand.end.title");
-    if (dom().divFinishCorrect) {
-      dom().divFinishCorrect.textContent = String(Math.max(0, questionsPerRun(startLevel) - divWrongCount));
-    }
-    if (dom().divFinishWrong) dom().divFinishWrong.textContent = String(divWrongCount);
-    if (dom().divFinishTime) {
-      dom().divFinishTime.textContent = deps.formatCompactRunTime(durationSec);
-    }
-    if (dom().divFinishLevel) dom().divFinishLevel.textContent = levelLabel(startLevel);
-    if (dom().divFinishResult) {
-      dom().divFinishResult.textContent = t("expand.result." + outcome.resultKey);
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const inner = document.getElementById("div-finished-panel-inner");
+      const mount =
+        document.querySelector("#div-panel-finished .div-finish-card") ||
+        document.querySelector("#div-panel-finished main.card") ||
+        document.getElementById("div-panel-finished");
+      await deps.finishDailyTaskSettlement({
+        abandoned: false,
+        attempts: divAttempts.slice(),
+        mountEl: mount,
+        hideEls: inner ? [inner] : [],
+      });
+    } else {
+      if (dom().divFinishTitle) dom().divFinishTitle.textContent = t("expand.end.title");
+      if (dom().divFinishCorrect) {
+        dom().divFinishCorrect.textContent = String(
+          Math.max(0, questionsPerRun(startLevel) - divWrongCount)
+        );
+      }
+      if (dom().divFinishWrong) dom().divFinishWrong.textContent = String(divWrongCount);
+      if (dom().divFinishTime) {
+        dom().divFinishTime.textContent = deps.formatCompactRunTime(durationSec);
+      }
+      if (dom().divFinishLevel) dom().divFinishLevel.textContent = levelLabel(startLevel);
+      if (dom().divFinishResult) {
+        dom().divFinishResult.textContent = t("expand.result." + outcome.resultKey);
+      }
     }
     // 局末只展示错题回顾；勿再刷 recent 表，否则会切回 history 盖住回顾
     renderDivWrongReview();
@@ -856,12 +874,28 @@
     setDivPanel("finished");
     const recent = document.getElementById("div-recent-card");
     if (recent) recent.style.display = "";
-    if (dom().divFinishTitle) dom().divFinishTitle.textContent = t("expand.end.title");
-    if (dom().divFinishCorrect) dom().divFinishCorrect.textContent = "-";
-    if (dom().divFinishWrong) dom().divFinishWrong.textContent = String(divWrongCount);
-    if (dom().divFinishTime) dom().divFinishTime.textContent = "-";
-    if (dom().divFinishLevel) dom().divFinishLevel.textContent = levelLabel(divRunStartLevel);
-    if (dom().divFinishResult) dom().divFinishResult.textContent = t("expand.go.abandoned");
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const inner = document.getElementById("div-finished-panel-inner");
+      const mount =
+        document.querySelector("#div-panel-finished .div-finish-card") ||
+        document.querySelector("#div-panel-finished main.card") ||
+        document.getElementById("div-panel-finished");
+      void deps.finishDailyTaskSettlement({
+        abandoned: true,
+        attempts: divAttempts.slice(),
+        mountEl: mount,
+        hideEls: inner ? [inner] : [],
+      });
+    } else {
+      if (dom().divFinishTitle) dom().divFinishTitle.textContent = t("expand.end.title");
+      if (dom().divFinishCorrect) dom().divFinishCorrect.textContent = "-";
+      if (dom().divFinishWrong) dom().divFinishWrong.textContent = String(divWrongCount);
+      if (dom().divFinishTime) dom().divFinishTime.textContent = "-";
+      if (dom().divFinishLevel) dom().divFinishLevel.textContent = levelLabel(divRunStartLevel);
+      if (dom().divFinishResult) dom().divFinishResult.textContent = t("expand.go.abandoned");
+    }
     renderDivWrongReview();
     deps.updateGlobalBackButtonState();
   }

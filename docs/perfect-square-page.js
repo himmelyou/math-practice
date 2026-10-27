@@ -724,20 +724,36 @@
       dom().psQuestionText.style.display = "none";
     }
     hidePsQuestionSubtext();
-    if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
-    if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
-    if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
-    if (dom().psGoDuration) dom().psGoDuration.textContent = deps.formatCompactRunTime(durationSec);
-    if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");
-    if (dom().psGoScore) dom().psGoScore.textContent = "L" + (startLevel + 1);
-    if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
-    if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
-    if (dom().psScoreText) dom().psScoreText.textContent = String(psScore);
-    if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
-    if (dom().psGoResult) {
-      dom().psGoResult.textContent = t("expand.result." + outcome.resultKey);
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const mount =
+        (dom().psGameOverPanel && dom().psGameOverPanel.parentElement) ||
+        document.getElementById("ps-game-card");
+      await deps.finishDailyTaskSettlement({
+        abandoned: false,
+        attempts: psAttempts.slice(),
+        mountEl: mount,
+        hideEls: dom().psGameOverPanel ? [dom().psGameOverPanel] : [],
+      });
+    } else {
+      if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
+      if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
+      if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
+      if (dom().psGoDuration) {
+        dom().psGoDuration.textContent = deps.formatCompactRunTime(durationSec);
+      }
+      if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");
+      if (dom().psGoScore) dom().psGoScore.textContent = "L" + (startLevel + 1);
+      if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
+      if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
+      if (dom().psScoreText) dom().psScoreText.textContent = String(psScore);
+      if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
+      if (dom().psGoResult) {
+        dom().psGoResult.textContent = t("expand.result." + outcome.resultKey);
+      }
+      if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
     }
-    if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
     if (deps.getCachedUser()) {
       deps.getCachedUser().levelPerfectSquareCurrentLevel = outcome.savedCurrent;
       deps.getCachedUser().levelPerfectSquareUnlockedMax = outcome.savedUnlockedMax;
@@ -767,17 +783,31 @@
     }
     hidePsQuestionSubtext();
     setPsHistoryVisible(true);
-    if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
-    if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
-    if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
-    if (dom().psGoDuration) dom().psGoDuration.textContent = "-";
-    if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");
-    if (dom().psGoScore) dom().psGoScore.textContent = "L" + (psLevel + 1);
-    if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
-    if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
-    if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
-    if (dom().psGoResult) dom().psGoResult.textContent = t("expand.go.abandoned");
-    if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
+    const fromDailyTask =
+      typeof deps.isDailyTaskPlay === "function" && deps.isDailyTaskPlay();
+    if (fromDailyTask && typeof deps.finishDailyTaskSettlement === "function") {
+      const mount =
+        (dom().psGameOverPanel && dom().psGameOverPanel.parentElement) ||
+        document.getElementById("ps-game-card");
+      void deps.finishDailyTaskSettlement({
+        abandoned: true,
+        attempts: psAttempts.slice(),
+        mountEl: mount,
+        hideEls: dom().psGameOverPanel ? [dom().psGameOverPanel] : [],
+      });
+    } else {
+      if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
+      if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
+      if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
+      if (dom().psGoDuration) dom().psGoDuration.textContent = "-";
+      if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");
+      if (dom().psGoScore) dom().psGoScore.textContent = "L" + (psLevel + 1);
+      if (dom().psGoWrongLabel) dom().psGoWrongLabel.textContent = t("expand.end.wrong");
+      if (dom().psGoWrong) dom().psGoWrong.textContent = String(psWrongCount);
+      if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
+      if (dom().psGoResult) dom().psGoResult.textContent = t("expand.go.abandoned");
+      if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
+    }
     deps.updateGlobalBackButtonState();
     renderPerfectSquareRecentRuns();
   }
