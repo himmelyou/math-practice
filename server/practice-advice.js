@@ -1,9 +1,9 @@
 /**
- * 练习建议 v0.30：特殊/小数硬留须四则 L1–L16 热图全部激活。
- * v0.29：多模式入队（错题/特殊/小数槽位与全局优先级）。
+ * 练习建议 v0.31：当日任务配额：今日结案(成功+失败)+未完成 ≤ 5，满则不补；跨日保留未完成只补新。
+ * v0.30：特殊/小数硬留须四则 L1–L16 热图全部激活。
  */
 (function (root) {
-  var RULE_VERSION = "0.30-provisional";
+  var RULE_VERSION = "0.31-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -45,6 +45,8 @@
   /** 未完成常驻格数；冷却窗（成功+失败）最多条数 */
   var INCOMPLETE_SIZE = 5;
   var COMPLETED_MAX = 5;
+  /** 中国日历日：今日结案(成功+失败)+未完成 ≤ 此数；满则不补新任务 */
+  var DAILY_TASK_QUOTA = 5;
   /** 同一 key 两次出现之间至少隔这么多条；可练池空时破例 */
   var SAME_TASK_GAP = 5;
   /** 全量成功历史；冷却窗走 plan.tasks 里 success/fail（合计最多 5）。 */
@@ -1491,6 +1493,25 @@
     return (Number(w.games) || 0) > 0 || (Number(w.items) || 0) > 0;
   }
 
+  /** 冷却窗里 chinaDay=当日 的成功+失败条数。 */
+  function todayClosedCount(plan, dayKey) {
+    if (!dayKey) return 0;
+    var n = 0;
+    (plan && plan.tasks ? plan.tasks : []).forEach(function (t) {
+      if (!t) return;
+      if (t.status !== "success" && t.status !== "fail") return;
+      if (t.chinaDay === dayKey) n += 1;
+    });
+    return n;
+  }
+
+  /** 当日未完成上限：配额 − 今日已结案；并不超过 INCOMPLETE_SIZE。 */
+  function maxOpenForDay(plan, ts) {
+    var day = chinaDateKeyFromTs(ts);
+    var closed = todayClosedCount(plan, day);
+    return Math.min(INCOMPLETE_SIZE, Math.max(0, DAILY_TASK_QUOTA - closed));
+  }
+
   function fillIncomplete(plan, ctx, ts, opts) {
     opts = opts || {};
     var keepExisting = opts.keepExisting === true;
@@ -1521,12 +1542,14 @@
     ctx.wrongbookSticky = stickyWrong;
     ctx._cooldownSeq = done.concat(next);
     plan._adviceCtx = ctx;
+    /** 已有未完成可超过当日剩余额度（跨日留下的）；只限制新补条数。 */
+    var maxOpen = maxOpenForDay(plan, ts);
     var needed = uniqueSeeds(ctx).filter(function (s) {
       return seedIsNeeded(s, ctx);
     });
     function appendFromNeeded(allowCloseRepeat) {
       needed.forEach(function (seed) {
-        if (next.length >= INCOMPLETE_SIZE) return;
+        if (next.length >= maxOpen) return;
         var k = seedKey(seed);
         if (
           next.some(function (t) {
@@ -1540,7 +1563,7 @@
       });
     }
     appendFromNeeded(false);
-    if (!next.length) appendFromNeeded(true);
+    if (!next.length && maxOpen > 0) appendFromNeeded(true);
     if (reorderScan) {
       var scanN = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : null;
       if (isRetryClearScan(ctx)) next = placeRetryScanSecond(next, ctx);
@@ -2164,7 +2187,7 @@
       reissueIncomplete(plan, ctx, nowTs, "重新开单：重算未完成（冷却窗保留）", false);
       rebuilt = true;
     }
-    if (openTasks(plan).length < INCOMPLETE_SIZE) {
+    if (openTasks(plan).length < maxOpenForDay(plan, nowTs)) {
       fillIncomplete(plan, ctx, nowTs, { keepExisting: true, reorderScan: false });
     }
     activateFirst(plan.tasks);
@@ -2467,6 +2490,9 @@
       "Q10 一条队列：未完成最多 " +
         INCOMPLETE_SIZE +
         " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
+      "Q18 日配额：中国日历日「今日结案(成功+失败)+未完成」≤" +
+        DAILY_TASK_QUOTA +
+        "；满则不补新。跨日未完成留下只补新；重新开单同受限",
       "Q11 同 key 默认隔 " +
         SAME_TASK_GAP +
         " 条才可再出现；冷却窗最多 " +
@@ -2695,6 +2721,7 @@
         Q8_failGamesPerDay: FAIL_GAMES_PER_DAY,
         Q9_failPracticeDays: FAIL_PRACTICE_DAYS,
         Q10_incompleteSize: INCOMPLETE_SIZE,
+        Q18_dailyTaskQuota: DAILY_TASK_QUOTA,
         Q11_sameTaskGap: SAME_TASK_GAP,
         Q11_completedMax: COMPLETED_MAX,
         Q12_foundationFastPct: FOUNDATION_FAST_PCT,
@@ -2726,7 +2753,10 @@
     FAIL_GAMES_PER_DAY: FAIL_GAMES_PER_DAY,
     FAIL_PRACTICE_DAYS: FAIL_PRACTICE_DAYS,
     INCOMPLETE_SIZE: INCOMPLETE_SIZE,
+    DAILY_TASK_QUOTA: DAILY_TASK_QUOTA,
     COMPLETED_MAX: COMPLETED_MAX,
+    todayClosedCount: todayClosedCount,
+    maxOpenForDay: maxOpenForDay,
     SAME_TASK_GAP: SAME_TASK_GAP,
     SCAN_CLEAR_IMPROVE: SCAN_CLEAR_IMPROVE,
     FOUNDATION_FAST_PCT: FOUNDATION_FAST_PCT,
