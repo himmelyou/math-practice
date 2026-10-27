@@ -57,24 +57,63 @@ function systemPickFromTraining(pick) {
   };
 }
 
+function studentTodayKey(advice) {
+  if (advice && advice.todayKey) return String(advice.todayKey);
+  if (Advice && typeof Advice.chinaDateKeyFromTs === "function") {
+    return Advice.chinaDateKeyFromTs(Date.now()) || "";
+  }
+  return "";
+}
+
+/** 全量成功历史；排除仍在今日主列表留牌的条目。 */
 function studentHistory(advice) {
+  const todayKey = studentTodayKey(advice);
+  const boardIds = {};
+  (advice.queue || []).forEach(function (s) {
+    if (!s || s.id == null) return;
+    if (
+      (s.status === "success" || s.status === "fail") &&
+      todayKey &&
+      s.chinaDay === todayKey
+    ) {
+      boardIds[String(s.id)] = true;
+    }
+  });
+  function keepHistoryRow(s) {
+    if (!s) return false;
+    if (s.id != null && boardIds[String(s.id)]) return false;
+    if (todayKey && s.chinaDay === todayKey) return false;
+    return true;
+  }
   const fromFull = Advice.historyToClientList(advice.plan);
-  if (fromFull && fromFull.length) return fromFull;
+  if (fromFull && fromFull.length) return fromFull.filter(keepHistoryRow);
   return (advice.queue || [])
     .filter(function (s) {
-      return s && s.status === "success";
+      return s && s.status === "success" && keepHistoryRow(s);
     })
     .slice()
     .reverse();
 }
 
+/** 学员端主列表：未完成 + 今日留牌（成功/失败）；历史不含今日留牌。 */
 function studentPayload(advice) {
+  const todayKey = studentTodayKey(advice);
   const queue = (advice.queue || []).filter(function (s) {
-    return s && (s.status === "active" || s.status === "pending");
+    if (!s) return false;
+    if (s.status === "active" || s.status === "pending") return true;
+    if (
+      (s.status === "success" || s.status === "fail") &&
+      todayKey &&
+      s.chinaDay === todayKey
+    ) {
+      return true;
+    }
+    return false;
   });
   return {
     ok: true,
     ruleVersion: advice.ruleVersion,
+    todayKey: todayKey,
     queue: queue,
     history: studentHistory(advice),
     lastFollow: advice.lastFollow || { kind: "none" },
