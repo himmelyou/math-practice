@@ -292,26 +292,10 @@
 
   function buildCompare() {
     return fillSection(SECTION_SIZE, function (list, seen) {
-      var A;
-      var B;
-      if (Math.random() < 0.35) {
-        var d0 = randomInt(2, 9);
-        var n0 = pickCoprimeProper(d0);
-        var k = randomInt(2, 4);
-        A = { n: n0, d: d0 };
-        B = { n: n0 * k, d: d0 * k };
-        if (Math.random() < 0.5) {
-          var sw = A;
-          A = B;
-          B = sw;
-        }
-      } else {
-        A = { n: 0, d: pickDen() };
-        A.n = pickProper(A.d);
-        B = { n: 0, d: pickDen() };
-        B.n = pickProper(B.d);
-        if (A.n === B.n && A.d === B.d) return;
-      }
+      var A = { n: 0, d: pickDen() };
+      var B = { n: 0, d: pickDen() };
+      A.n = pickProper(A.d);
+      B.n = pickProper(B.d);
       if (A.n === B.n && A.d === B.d) return;
       var left = A.n * B.d;
       var right = B.n * A.d;
