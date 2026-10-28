@@ -243,26 +243,46 @@
     var body;
 
     if (layout.stackedSections) {
-      var sectionSize = layout.sectionSize || 12;
       var perCol = layout.perCol || 6;
-      var meta = opts.sectionTitles || ['', ''];
-      var top = questions.slice(0, sectionSize);
-      var bot = questions.slice(sectionSize, sectionSize * 2);
-      body =
-        '<div class="jml-ws-sections">' +
-        '<div class="jml-ws-frac-sec">' +
-        '<h2 class="jml-ws-frac-sec-title">' +
-        escapeHtml(meta[0] || '') +
-        '</h2>' +
-        renderTwoColGrid(top, 1, perCol, showAnswers) +
-        '</div>' +
-        '<div class="jml-ws-frac-sec">' +
-        '<h2 class="jml-ws-frac-sec-title">' +
-        escapeHtml(meta[1] || '') +
-        '</h2>' +
-        renderTwoColGrid(bot, sectionSize + 1, perCol, showAnswers) +
-        '</div>' +
-        '</div>';
+      var blocks = opts.sectionBlocks;
+      if (blocks && blocks.length) {
+        var startIndex = 1;
+        var bi;
+        body = '<div class="jml-ws-sections">';
+        for (bi = 0; bi < blocks.length; bi += 1) {
+          var block = blocks[bi] || {};
+          var bqs = block.questions || [];
+          body +=
+            '<div class="jml-ws-frac-sec">' +
+            '<h2 class="jml-ws-frac-sec-title">' +
+            escapeHtml(block.title || '') +
+            '</h2>' +
+            renderTwoColGrid(bqs, startIndex, perCol, showAnswers) +
+            '</div>';
+          startIndex += bqs.length;
+        }
+        body += '</div>';
+      } else {
+        var sectionSize = layout.sectionSize || 12;
+        var meta = opts.sectionTitles || ['', ''];
+        var top = questions.slice(0, sectionSize);
+        var bot = questions.slice(sectionSize, sectionSize * 2);
+        body =
+          '<div class="jml-ws-sections">' +
+          '<div class="jml-ws-frac-sec">' +
+          '<h2 class="jml-ws-frac-sec-title">' +
+          escapeHtml(meta[0] || '') +
+          '</h2>' +
+          renderTwoColGrid(top, 1, perCol, showAnswers) +
+          '</div>' +
+          '<div class="jml-ws-frac-sec">' +
+          '<h2 class="jml-ws-frac-sec-title">' +
+          escapeHtml(meta[1] || '') +
+          '</h2>' +
+          renderTwoColGrid(bot, sectionSize + 1, perCol, showAnswers) +
+          '</div>' +
+          '</div>';
+      }
     } else {
       var split = splitIntoColumns(questions, layout.perCol);
       body =
@@ -306,7 +326,7 @@
       return Math.min(maxD - 1, Math.max(0, Math.floor(level)));
     }
     if (mode === 'fraction') {
-      var maxF = (window.JmlFraction && window.JmlFraction.LEVEL_COUNT) || 4;
+      var maxF = (window.JmlFraction && window.JmlFraction.LEVEL_COUNT) || 5;
       return Math.min(maxF - 1, Math.max(0, Math.floor(level)));
     }
     if (mode === 'divisibility') {
@@ -400,9 +420,66 @@
         ? window.JmlFraction.getLevelMeta(level)
         : null;
     var sectionTitles = fracMeta && fracMeta.sections ? fracMeta.sections : null;
+    var isFracMixed =
+      mode === 'fraction' && fracMeta && fracMeta.worksheetKind === 'mixedPacket';
 
     var html = '';
     try {
+      if (isFracMixed) {
+        var frX = window.JmlFraction;
+        if (!frX || typeof frX.buildXPacket !== 'function') {
+          throw new Error('未加载分数混合卷出题');
+        }
+        var xLayout = {
+          questionsPerPage: 24,
+          perCol: 4,
+          pageClass: 'jml-ws-page--frac jml-ws-page--frac-x',
+          stackedSections: true,
+        };
+        var setIdx;
+        for (setIdx = 0; setIdx < pages; setIdx += 1) {
+          var packet = frX.buildXPacket();
+          var pi;
+          for (pi = 0; pi < packet.length; pi += 1) {
+            var pageSpec = packet[pi];
+            var pageLayout = {
+              questionsPerPage: xLayout.questionsPerPage,
+              perCol: xLayout.perCol,
+              pageClass: xLayout.pageClass,
+              stackedSections: true,
+            };
+            if ((pageSpec.sections || []).length >= 3) {
+              pageLayout.pageClass =
+                'jml-ws-page--frac jml-ws-page--frac-x jml-ws-page--frac-x3';
+            }
+            var sectionBlocks = (pageSpec.sections || []).map(function (sec) {
+              return {
+                title: sec.title || '',
+                questions: (sec.questions || []).map(mapFractionQuestion),
+              };
+            });
+            var pageTitle = title + (pageSpec.pageTitleSuffix || '');
+            html += renderPageHtml({
+              title: pageTitle,
+              studentName: studentName,
+              questions: [],
+              showAnswers: false,
+              layout: pageLayout,
+              sectionBlocks: sectionBlocks,
+            });
+            if (includeAnswers) {
+              html += renderPageHtml({
+                title: pageTitle,
+                studentName: studentName,
+                questions: [],
+                showAnswers: true,
+                layout: pageLayout,
+                sectionBlocks: sectionBlocks,
+              });
+            }
+          }
+        }
+      } else {
       for (var p = 0; p < pages; p += 1) {
         var batch = buildPageBatch(mode, level, layout.questionsPerPage, p);
         html += renderPageHtml({
@@ -423,6 +500,7 @@
             sectionTitles: sectionTitles,
           });
         }
+      }
       }
     } catch (e) {
       preview.innerHTML =

@@ -282,6 +282,29 @@
   display: none;
 }
 
+/* X 混合卷：每段 8 题；首页三段略压行高 */
+.jml-ws-page--frac-x .jml-ws-workspace {
+  min-height: 5.5mm;
+  max-height: 8mm;
+}
+
+.jml-ws-page--frac-x3 .jml-ws-frac-sec {
+  flex: 1 1 33%;
+}
+
+.jml-ws-page--frac-x3 .jml-ws-sections {
+  gap: 2.5mm;
+}
+
+.jml-ws-page--frac-x3 .jml-ws-workspace {
+  min-height: 4.5mm;
+  max-height: 6.5mm;
+}
+
+.jml-ws-page--frac-x3 .jml-ws-prompt {
+  font-size: 10.5pt;
+}
+
 .jml-ws-frac {
   display: inline-flex;
   flex-direction: column;

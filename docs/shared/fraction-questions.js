@@ -1,16 +1,25 @@
 /**
- * 分数运算打印出题 F1–F4（仅管理端习题纸）
- * 每页 24 题：上段 12 + 下段 12；段内左右各 6。
+ * 分数运算打印出题 F1–F4 + X 混合卷（仅管理端习题纸）
+ * F1–F4 每页 24 题：上段 12 + 下段 12；段内左右各 6。
+ * X：线下混合卷两页，约分/比大小/加减/乘法/除法各 8（加减为同分母 4 + 异分母 4）。
  */
 (function (global) {
   var QUESTIONS_PER_PAGE = 24;
   var SECTION_SIZE = 12;
+  var X_LEVEL_INDEX = 4;
+  var X_SECTION_SIZE = 8;
 
   var LEVEL_DEFS = [
     { id: "F1", name: "第 1 级 · 形态", sections: ["约分", "假分数与带分数"] },
     { id: "F2", name: "第 2 级 · 通分与比较", sections: ["通分", "比大小"] },
     { id: "F3", name: "第 3 级 · 加减", sections: ["同分母加减", "异分母加减"] },
     { id: "F4", name: "第 4 级 · 乘除", sections: ["乘法", "除法"] },
+    {
+      id: "X",
+      name: "混合练习（线下）",
+      sections: ["约分", "比大小", "加减", "乘法", "除法"],
+      worksheetKind: "mixedPacket",
+    },
   ];
 
   function randomInt(min, max) {
@@ -507,8 +516,56 @@
     return Math.max(0, Math.min(LEVEL_DEFS.length - 1, Math.floor(Number(i) || 0)));
   }
 
+  function takeN(builder, n) {
+    var list = [];
+    var guard = 0;
+    while (list.length < n && guard < 30) {
+      guard += 1;
+      list = list.concat(builder());
+    }
+    return list.slice(0, n);
+  }
+
+  /** X 混合卷：两页；第 1 页约分+比大小+加减，第 2 页乘法+除法。 */
+  function buildXPacket() {
+    var add = shuffleArray(
+      takeN(buildSameDenOp, 4).concat(takeN(buildUnlikeOp, 4))
+    );
+    return [
+      {
+        pageTitleSuffix: "",
+        sections: [
+          { title: "约分", questions: takeN(buildSimplify, X_SECTION_SIZE) },
+          { title: "比大小", questions: takeN(buildCompare, X_SECTION_SIZE) },
+          { title: "加减", questions: add },
+        ],
+      },
+      {
+        pageTitleSuffix: "（续）",
+        sections: [
+          { title: "乘法", questions: takeN(buildMul, X_SECTION_SIZE) },
+          { title: "除法", questions: takeN(buildDiv, X_SECTION_SIZE) },
+        ],
+      },
+    ];
+  }
+
   function buildRun(levelIndex, count) {
     levelIndex = clampLevelIndex(levelIndex);
+    if (levelIndex === X_LEVEL_INDEX) {
+      var packet = buildXPacket();
+      var flat = [];
+      var p;
+      var s;
+      for (p = 0; p < packet.length; p += 1) {
+        for (s = 0; s < packet[p].sections.length; s += 1) {
+          flat = flat.concat(packet[p].sections[s].questions);
+        }
+      }
+      if (count == null || count === "") return flat;
+      count = Math.max(0, Math.floor(Number(count) || 0));
+      return flat.slice(0, count);
+    }
     if (count == null || count === "") count = QUESTIONS_PER_PAGE;
     count = Math.max(0, Math.floor(Number(count) || 0));
     var builders = SECTION_BUILDERS[levelIndex];
@@ -532,11 +589,15 @@
 
   global.JmlFraction = {
     LEVEL_COUNT: LEVEL_DEFS.length,
+    X_LEVEL_INDEX: X_LEVEL_INDEX,
     QUESTIONS_PER_PAGE: QUESTIONS_PER_PAGE,
     SECTION_SIZE: SECTION_SIZE,
+    X_SECTION_SIZE: X_SECTION_SIZE,
     LEVEL_LABELS: LEVEL_LABELS,
+    LEVEL_DEFS: LEVEL_DEFS,
     buildQuestion: buildQuestion,
     buildRun: buildRun,
+    buildXPacket: buildXPacket,
     getLevelMeta: function (levelIndex) {
       return LEVEL_DEFS[clampLevelIndex(levelIndex)];
     },
