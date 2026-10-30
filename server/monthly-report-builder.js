@@ -183,6 +183,7 @@ function formatCompactRunTime(sec) {
 
 function mixBucketId(mode) {
   const m = normalizeMode(mode);
+  if (m === "memorytraining") return null;
   for (let i = 0; i < MIX_BUCKETS.length; i++) {
     const b = MIX_BUCKETS[i];
     if (b.modes && b.modes.indexOf(m) >= 0) return b.id;
@@ -201,11 +202,12 @@ function buildHabit(runsInMonth, opts) {
   let durationSec = 0;
   (runsInMonth || []).forEach(function (r) {
     if (!r || r.comboOnly === true) return;
+    if (normalizeMode(r.mode) === "memorytraining") return;
     runs += 1;
     const day = chinaDayFromTs(r.ts);
     if (day) daySet[day] = true;
     const id = mixBucketId(r.mode);
-    counts[id] = (counts[id] || 0) + 1;
+    if (id) counts[id] = (counts[id] || 0) + 1;
     const sec = Number(r.survivalTimeSec) || 0;
     if (sec > 0) durationSec += sec;
   });

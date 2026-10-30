@@ -412,6 +412,30 @@ function buildClearRankingMap(list) {
   return map;
 }
 
+function memoryKindOfRun(r) {
+  const tm = r && r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : {};
+  const kind = String(tm.memoryKind || "");
+  if (kind === "instant" || kind === "working" || kind === "addition") return kind;
+  if (tm.memoryLevel === "workingMemory") return "addition";
+  return "addition";
+}
+
+function bestMemorySpan(u, runs, kind) {
+  let best = 0;
+  if (kind === "instant") best = Math.max(0, Math.floor(Number(u && u.bestMemoryInstantSpan) || 0));
+  if (kind === "working") best = Math.max(0, Math.floor(Number(u && u.bestMemoryWorkingSpan) || 0));
+  (runs || []).forEach((r) => {
+    if (!r || r.comboOnly === true || r.abandoned === true) return;
+    if (String(r.mode || "").toLowerCase() !== "memorytraining") return;
+    if (memoryKindOfRun(r) !== kind) return;
+    const tm = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : {};
+    let span = Math.floor(Number(tm.successSpan) || 0);
+    if (!(span > 0)) span = Math.floor(Number(r.maxLevel) || 0);
+    if (span > best) best = span;
+  });
+  return best > 0 ? best : null;
+}
+
 function buildStudentOverviewRows(options) {
   const users = options.users || [];
   const runsByUser = options.runsByUser || {};
@@ -483,6 +507,8 @@ function buildStudentOverviewRows(options) {
     const expP = formatSpecialModeProgress(expUnlocked, EXPAND_MAX_LEVEL, "L", runs, "expandBrackets");
     const divP = formatDivisibilityProgress(divUnlocked, runs, divPerfectMap[username]);
     const fmP = formatSpecialModeProgress(fmUnlocked, FM_MAX_LEVEL, "Y", runs, "factorsMultiples");
+    const memInstant = bestMemorySpan(u, runs, "instant");
+    const memWorking = bestMemorySpan(u, runs, "working");
 
     rows.push({
       username,
@@ -505,6 +531,10 @@ function buildStudentOverviewRows(options) {
       trainingProgressSort: trainingProgressSortKey(trainingP),
       trainingMode: trainingP.mode,
       trainingReason: trainingP.reason,
+      memoryInstantProgress: memInstant != null ? String(memInstant) : null,
+      memoryInstantProgressSort: memInstant != null ? memInstant : -1,
+      memoryWorkingProgress: memWorking != null ? String(memWorking) : null,
+      memoryWorkingProgressSort: memWorking != null ? memWorking : -1,
       primeProgress: primeEntry ? formatCompactRunTime(primeEntry.survivalTimeSec) : null,
       primeProgressSec: primeEntry ? Number(primeEntry.survivalTimeSec) || null : null,
       divisibilityProgress: divP.text,

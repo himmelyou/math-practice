@@ -5299,7 +5299,7 @@
       </div>
     </section>
 
-    <!-- 记忆训练：第1关工作记忆；L12 两步呈现；不进错题本/热图 -->
+    <!-- 记忆训练：瞬时 / 工作(倒背) / 加法；下拉自由选；不进错题本/热图/月报 -->
     <section class="game-section run-mode-page memory-training-page" id="memory-training-section" style="display:none;">
       <div class="status-grid" id="mt-status-grid">
         <div class="timer-chip" id="mt-timer-chip">
@@ -5319,7 +5319,7 @@
         </div>
         <div class="status-item">
           <span class="status-label" id="mt-lbl-level">当前关卡：</span>
-          <span class="status-value" id="mt-level-text">工作记忆</span>
+          <span class="status-value" id="mt-level-text">瞬时记忆</span>
         </div>
         <div class="status-item">
           <span class="status-label" id="mt-lbl-wrong">错题：</span>
@@ -5332,7 +5332,8 @@
         <div class="question-header">
           <div class="question-label">
             <span class="status-label" id="mt-lbl-difficulty">关卡：</span>
-            <span class="status-value" id="mt-prompt-label">工作记忆</span>
+            <span class="status-value" id="mt-prompt-label" style="display:none;">瞬时记忆</span>
+            <select class="expand-level-select" id="mt-kind-select" aria-label="选择记忆训练模式"></select>
           </div>
         </div>
 
@@ -5370,7 +5371,7 @@
 
       <section class="recent-card" id="mt-recent-card" style="display:none;">
         <div class="recent-header">
-          <span class="recent-title" id="mt-recent-title">最近十次记忆训练</span>
+          <span class="recent-title" id="mt-recent-title">最近十次 · 瞬时记忆</span>
         </div>
         <div class="recent-body">
           <div id="mt-history-wrap">
@@ -5379,8 +5380,8 @@
                 <tr>
                   <th id="mt-th-dt">日期时间</th>
                   <th id="mt-th-time">用时</th>
-                  <th id="mt-th-wrong">错题</th>
-                  <th id="mt-th-err">错误率</th>
+                  <th id="mt-th-wrong">成功位数</th>
+                  <th id="mt-th-err">结果</th>
                 </tr>
               </thead>
               <tbody id="mt-history-body"></tbody>
@@ -6404,6 +6405,9 @@
       dom.mtScoreText = document.getElementById("mt-score-text");
       dom.mtWrongText = document.getElementById("mt-wrong-text");
       dom.mtPromptLabel = document.getElementById("mt-prompt-label");
+      dom.mtKindSelect = document.getElementById("mt-kind-select");
+      dom.mtLevelText = document.getElementById("mt-level-text");
+      dom.mtModeName = document.getElementById("mt-mode-name");
       dom.mtQuestionSubtext = document.getElementById("mt-question-subtext");
       dom.mtQuestionText = document.getElementById("mt-question-text");
       dom.mtAnswerForm = document.getElementById("mt-answer-form");
@@ -6423,6 +6427,9 @@
       dom.mtGoResult = document.getElementById("mt-go-result");
       dom.mtPlayAgainBtn = document.getElementById("mt-play-again-btn");
       dom.mtRecentCard = document.getElementById("mt-recent-card");
+      dom.mtRecentTitle = document.getElementById("mt-recent-title");
+      dom.mtThWrong = document.getElementById("mt-th-wrong");
+      dom.mtThErr = document.getElementById("mt-th-err");
       dom.mtHistoryBody = document.getElementById("mt-history-body");
       dom.mtHistoryEmpty = document.getElementById("mt-history-empty");
       dom.mtSoftKbdCard = document.getElementById("mt-soft-kbd-card");
@@ -10853,23 +10860,43 @@
         "home.mode.memoryTraining": "記憶訓練",
         "home.mode.divisibility": "整除",
         "mode.running.memoryTraining": "記憶訓練",
-        "memoryTraining.level.workingMemory": "工作記憶",
+        "memoryTraining.kind.instant": "瞬時記憶",
+        "memoryTraining.kind.working": "工作記憶",
+        "memoryTraining.kind.addition": "加法訓練",
+        "memoryTraining.level.workingMemory": "加法訓練",
         "memoryTraining.prompt.sum": "請算出以下兩個數字的和。",
+        "memoryTraining.prompt.forward": "記住剛才出現的數字，按順序輸入。",
+        "memoryTraining.prompt.reverse": "記住剛才出現的數字，倒序輸入。",
         "memoryTraining.prestart.empty": "還沒有歷史成績，先來一局吧",
         "memoryTraining.prestart.hint": "記住第一個數，再看第二個數做加法",
+        "memoryTraining.prestart.hintAddition": "記住第一個數，再看第二個數做加法",
+        "memoryTraining.prestart.hintInstant": "每秒一個數字，按順序回憶輸入",
+        "memoryTraining.prestart.hintWorking": "每秒一個數字，倒序回憶輸入",
         "memoryTraining.prestart.avgError": "歷史平均錯誤率",
         "memoryTraining.prestart.avgSpeed": "歷史平均速度",
+        "memoryTraining.prestart.bestSpan": "最高紀錄",
+        "memoryTraining.prestart.noRecord": "還沒有最高紀錄，從 2 位開始",
         "memoryTraining.feedback.equationLabel": "正確算式：",
+        "memoryTraining.feedback.answerLabel": "正確答案：",
         "memoryTraining.end.compare": "對比：",
         "memoryTraining.end.thisError": "本局錯誤率",
         "memoryTraining.end.thisSpeed": "本局均速",
+        "memoryTraining.end.thisSpan": "本局成功位數",
+        "memoryTraining.end.successSpan": "成功位數：",
         "memoryTraining.end.first": "已記下首局成績，繼續練會更準更快。",
         "memoryTraining.end.improved": "有進步，繼續保持！",
         "memoryTraining.end.keepTrying": "還要繼續努力。",
         "memoryTraining.end.steady": "表現穩定，再挑戰一局吧。",
+        "memoryTraining.end.brokeRecord": "打破紀錄！",
+        "memoryTraining.end.noSuccess": "本局尚未成功記住一段數字。",
         "memoryTraining.fail.question": "出題失敗，請稍後再試",
         "memoryTraining.next": "下一個數字",
         "memoryTraining.recentTitle": "最近十次記憶訓練",
+        "memoryTraining.recentTitlePrefix": "最近十次 · ",
+        "memoryTraining.th.successSpan": "成功位數",
+        "memoryTraining.th.result": "結果",
+        "memoryTraining.status.span": "位數",
+        "memoryTraining.kindSelectAria": "選擇記憶訓練模式",
         "home.mode.factorsMultiples": "因數倍數",
         "home.mode.wrongbook": "錯題本",
         "home.mode.stats": "數據統計",
@@ -11407,23 +11434,43 @@
         "home.mode.memoryTraining": "Memory training",
         "home.mode.divisibility": "Divisibility",
         "mode.running.memoryTraining": "Memory training",
-        "memoryTraining.level.workingMemory": "Working memory",
+        "memoryTraining.kind.instant": "Instant memory",
+        "memoryTraining.kind.working": "Working memory",
+        "memoryTraining.kind.addition": "Addition drill",
+        "memoryTraining.level.workingMemory": "Addition drill",
         "memoryTraining.prompt.sum": "Find the sum of the two numbers.",
+        "memoryTraining.prompt.forward": "Recall the digits in order.",
+        "memoryTraining.prompt.reverse": "Recall the digits in reverse order.",
         "memoryTraining.prestart.empty": "No history yet — try a run",
         "memoryTraining.prestart.hint": "Memorize the first number, then add the second",
+        "memoryTraining.prestart.hintAddition": "Memorize the first number, then add the second",
+        "memoryTraining.prestart.hintInstant": "One digit per second — type them in order",
+        "memoryTraining.prestart.hintWorking": "One digit per second — type them backwards",
         "memoryTraining.prestart.avgError": "Avg. error rate",
         "memoryTraining.prestart.avgSpeed": "Avg. speed",
+        "memoryTraining.prestart.bestSpan": "Best span",
+        "memoryTraining.prestart.noRecord": "No best yet — start at 2 digits",
         "memoryTraining.feedback.equationLabel": "Correct: ",
+        "memoryTraining.feedback.answerLabel": "Answer: ",
         "memoryTraining.end.compare": "Compare: ",
         "memoryTraining.end.thisError": "This run error",
         "memoryTraining.end.thisSpeed": "This run speed",
+        "memoryTraining.end.thisSpan": "Success span",
+        "memoryTraining.end.successSpan": "Success span: ",
         "memoryTraining.end.first": "First run recorded — keep practicing.",
         "memoryTraining.end.improved": "Nice progress — keep it up!",
         "memoryTraining.end.keepTrying": "Keep practicing.",
         "memoryTraining.end.steady": "Steady — try another run.",
+        "memoryTraining.end.brokeRecord": "New record!",
+        "memoryTraining.end.noSuccess": "No successful span this run.",
         "memoryTraining.fail.question": "Could not make a question. Try again.",
         "memoryTraining.next": "Next number",
         "memoryTraining.recentTitle": "Last 10 memory runs",
+        "memoryTraining.recentTitlePrefix": "Last 10 · ",
+        "memoryTraining.th.successSpan": "Span",
+        "memoryTraining.th.result": "Result",
+        "memoryTraining.status.span": "Digits",
+        "memoryTraining.kindSelectAria": "Choose memory training mode",
         "home.mode.factorsMultiples": "Factors & Multiples",
         "home.mode.wrongbook": "Mistakes",
         "home.mode.stats": "Stats",
@@ -12177,10 +12224,10 @@
       setT("mt-lbl-progress", "game.status.progress");
       setT("mt-lbl-score", "game.status.scoreThisRun");
       setT("mt-lbl-level", "game.status.expandLevel");
-      setT("mt-level-text", "memoryTraining.level.workingMemory");
+      setT("mt-level-text", "memoryTraining.kind.instant");
       setT("mt-lbl-wrong", "game.status.expandWrong");
       setT("mt-lbl-difficulty", "ps.difficultyLabel");
-      setT("mt-prompt-label", "memoryTraining.level.workingMemory");
+      setT("mt-prompt-label", "memoryTraining.kind.instant");
       setT("mt-start-btn", "game.btn.startChallenge");
       setT("mt-next-btn", "memoryTraining.next");
       setT("mt-game-over-title", "expand.end.title");
@@ -12190,9 +12237,17 @@
       setT("mt-play-again-btn", "game.btn.playAgain");
       setT("mt-th-dt", "expand.th.datetime");
       setT("mt-th-time", "expand.th.time");
-      setT("mt-th-wrong", "expand.th.wrong");
+      setT("mt-th-wrong", "memoryTraining.th.successSpan");
       setT("mt-recent-title", "memoryTraining.recentTitle");
-      setT("mt-th-err", "stats.th.errorRate");
+      setT("mt-th-err", "memoryTraining.th.result");
+      var mtKindSelect = byId("mt-kind-select");
+      if (mtKindSelect) mtKindSelect.setAttribute("aria-label", t("memoryTraining.kindSelectAria"));
+      if (window.JmlMemoryTrainingPage && typeof JmlMemoryTrainingPage.showMemoryTrainingPrestart === "function") {
+        var mtSec = document.getElementById("memory-training-section");
+        if (mtSec && mtSec.classList.contains("visible") && !isPlaying) {
+          JmlMemoryTrainingPage.showMemoryTrainingPrestart();
+        }
+      }
       setT("ps-history-empty", "recent.empty");
       const psLevelSelect = byId("ps-level-select");
       if (psLevelSelect) psLevelSelect.setAttribute("aria-label", t("ps.levelSelectAria"));
@@ -12568,6 +12623,12 @@
       if (sync.recentPerfectSquareRuns) cachedUser.recentPerfectSquareRuns = sync.recentPerfectSquareRuns;
       if (sync.recentDecimalRuns) cachedUser.recentDecimalRuns = sync.recentDecimalRuns;
       if (sync.recentMemoryTrainingRuns) cachedUser.recentMemoryTrainingRuns = sync.recentMemoryTrainingRuns;
+      if (sync.bestMemoryInstantSpan != null) {
+        cachedUser.bestMemoryInstantSpan = Number(sync.bestMemoryInstantSpan) || 0;
+      }
+      if (sync.bestMemoryWorkingSpan != null) {
+        cachedUser.bestMemoryWorkingSpan = Number(sync.bestMemoryWorkingSpan) || 0;
+      }
       if (sync.recentDivisibilityRuns) cachedUser.recentDivisibilityRuns = sync.recentDivisibilityRuns;
       if (sync.recentFactorsMultiplesRuns) cachedUser.recentFactorsMultiplesRuns = sync.recentFactorsMultiplesRuns;
       if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
@@ -12824,7 +12885,15 @@
         } else if (mode === "memoryTraining") {
           if (!Array.isArray(u.recentMemoryTrainingRuns)) u.recentMemoryTrainingRuns = [];
           u.recentMemoryTrainingRuns.unshift(runEntry);
-          if (u.recentMemoryTrainingRuns.length > 10) u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 10);
+          if (u.recentMemoryTrainingRuns.length > 30) u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 30);
+          var mtMeta = runEntry.trainingMeta && typeof runEntry.trainingMeta === "object" ? runEntry.trainingMeta : {};
+          var mtSpan = Math.max(0, Math.floor(Number(mtMeta.successSpan) || 0));
+          if (mtSpan > 0 && mtMeta.memoryKind === "instant") {
+            u.bestMemoryInstantSpan = Math.max(Number(u.bestMemoryInstantSpan) || 0, mtSpan);
+          }
+          if (mtSpan > 0 && mtMeta.memoryKind === "working") {
+            u.bestMemoryWorkingSpan = Math.max(Number(u.bestMemoryWorkingSpan) || 0, mtSpan);
+          }
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -12850,7 +12919,12 @@
           : mode === "factorsMultiples"
           ? { recentFactorsMultiplesRuns: u.recentFactorsMultiplesRuns, totalScore: u.totalScore }
           : mode === "memoryTraining"
-          ? { recentMemoryTrainingRuns: u.recentMemoryTrainingRuns, totalScore: u.totalScore }
+          ? {
+              recentMemoryTrainingRuns: u.recentMemoryTrainingRuns,
+              totalScore: u.totalScore,
+              bestMemoryInstantSpan: u.bestMemoryInstantSpan || 0,
+              bestMemoryWorkingSpan: u.bestMemoryWorkingSpan || 0,
+            }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
@@ -13020,6 +13094,8 @@
       if (!Array.isArray(user.recentDivisibilityRuns)) user.recentDivisibilityRuns = [];
       if (!Array.isArray(user.recentFactorsMultiplesRuns)) user.recentFactorsMultiplesRuns = [];
       if (!Array.isArray(user.recentMemoryTrainingRuns)) user.recentMemoryTrainingRuns = [];
+      if (typeof user.bestMemoryInstantSpan !== "number") user.bestMemoryInstantSpan = 0;
+      if (typeof user.bestMemoryWorkingSpan !== "number") user.bestMemoryWorkingSpan = 0;
       if (typeof user.levelFactorsMultiplesCurrentLevel !== "number") user.levelFactorsMultiplesCurrentLevel = 0;
       if (typeof user.levelFactorsMultiplesUnlockedMax !== "number") {
         user.levelFactorsMultiplesUnlockedMax = user.levelFactorsMultiplesCurrentLevel;

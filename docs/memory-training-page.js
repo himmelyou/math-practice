@@ -1,27 +1,40 @@
 /**
- * 记忆训练（拓展练习）：第 1 关工作记忆。
- * 复用四则 L12 题库，两步呈现（先记第一个数再显示第二个数）。
- * 不进错题本、不写热图；落盘 runs + recentMemoryTrainingRuns。
+ * 记忆训练（拓展）：瞬时记忆 / 工作记忆（倒背）/ 加法训练。
+ * 下拉自由切换；不进错题本、不写热图；落盘 runs + recentMemoryTrainingRuns。
  */
 (function (global) {
   var MODE = "memoryTraining";
   var QUESTIONS_PER_RUN = 10;
   var L12_LEVEL_INDEX = 11;
   var TIME_CAP_MS = 60 * 1000;
+  var DIGIT_SHOW_MS = 750;
+  var DIGIT_BLANK_MS = 250;
+  var SPAN_MIN = 2;
+  var SPAN_MAX = 12;
+  var KIND_KEY = "jml_mt_kind_v1";
+  var KINDS = ["instant", "working", "addition"];
 
   var deps = null;
   var mtStartTs = 0;
   var mtTimerId = null;
+  var mtDigitTimerId = null;
   var mtMastered = 0;
   var mtWrongCount = 0;
   var mtScore = 0;
   var mtAttempts = [];
   var mtCurrent = null;
-  var mtPhase = "idle"; // idle | showFirst | answer
+  var mtPhase = "idle"; // idle | showFirst | answer | digitShow | digitAnswer
   var mtQuestionShownAt = 0;
   var mtInputLocked = false;
   var mtHistoryStats = null;
   var mtEndCompareHtml = "";
+  var mtKind = "instant";
+  var mtSpanLen = SPAN_MIN;
+  var mtLevelStreak = 0;
+  var mtLevelWrong = 0;
+  var mtSuccessSpan = 0;
+  var mtPriorBest = 0;
+  var mtDigits = [];
 
   function dom() {
     return deps.dom;
@@ -33,6 +46,49 @@
 
   function inGuestMode() {
     return !!(typeof deps.isGuestMode === "function" ? deps.isGuestMode() : deps.isGuestMode);
+  }
+
+  function isDigitKind(kind) {
+    return kind === "instant" || kind === "working";
+  }
+
+  function normalizeKind(raw) {
+    var k = String(raw || "");
+    if (k === "instant" || k === "working" || k === "addition") return k;
+    if (k === "workingMemory") return "addition";
+    return "instant";
+  }
+
+  function runMemoryKind(r) {
+    if (!r) return "addition";
+    var tm = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : {};
+    if (tm.memoryKind) return normalizeKind(tm.memoryKind);
+    if (tm.memoryLevel === "workingMemory") return "addition";
+    return "addition";
+  }
+
+  function loadSavedKind() {
+    try {
+      return normalizeKind(localStorage.getItem(KIND_KEY));
+    } catch (e) {
+      return "instant";
+    }
+  }
+
+  function saveKind(kind) {
+    mtKind = normalizeKind(kind);
+    try {
+      localStorage.setItem(KIND_KEY, mtKind);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function kindLabel(kind) {
+    var k = normalizeKind(kind);
+    if (k === "instant") return t("memoryTraining.kind.instant");
+    if (k === "working") return t("memoryTraining.kind.working");
+    return t("memoryTraining.kind.addition");
   }
 
   function formatElapsedSec(sec) {
@@ -103,6 +159,13 @@
     var body = document.getElementById("mt-play-body");
     if (!body) return;
     body.classList.toggle("run-mode-play-body--playing", mode === "playing");
+  }
+
+  function clearDigitTimer() {
+    if (mtDigitTimerId) {
+      clearTimeout(mtDigitTimerId);
+      mtDigitTimerId = null;
+    }
   }
 
   /** start | reveal | answer | none */
@@ -180,6 +243,29 @@
     };
   }
 
+  function generateDigitSequence(len) {
+    var n = Math.max(SPAN_MIN, Math.min(SPAN_MAX, Math.floor(Number(len) || SPAN_MIN)));
+    var out = [];
+    var prev = -1;
+    for (var i = 0; i < n; i++) {
+      var d = Math.floor(Math.random() * 10);
+      var guard = 0;
+      while (d === prev && guard < 20) {
+        d = Math.floor(Math.random() * 10);
+        guard += 1;
+      }
+      out.push(d);
+      prev = d;
+    }
+    return out;
+  }
+
+  function expectedDigitAnswer(digits, kind) {
+    var seq = Array.isArray(digits) ? digits.slice() : [];
+    if (kind === "working") seq.reverse();
+    return seq.join("");
+  }
+
   /** 历史均值：错误率=错题/作答；速度=答对用时几何均（秒），剔 >cap */
   function computeStatsFromRuns(runs) {
     var list = Array.isArray(runs) ? runs : [];
@@ -222,6 +308,31 @@
     return Array.isArray(user.recentMemoryTrainingRuns) ? user.recentMemoryTrainingRuns : [];
   }
 
+  function getRunsForKind(kind) {
+    var want = normalizeKind(kind);
+    return getRecentRuns().filter(function (r) {
+      return runMemoryKind(r) === want;
+    });
+  }
+
+  function bestSpanForKind(kind) {
+    var user = typeof deps.getCachedUser === "function" ? deps.getCachedUser() : null;
+    var fromUser = 0;
+    if (user) {
+      if (kind === "instant") fromUser = Number(user.bestMemoryInstantSpan) || 0;
+      if (kind === "working") fromUser = Number(user.bestMemoryWorkingSpan) || 0;
+    }
+    var best = fromUser;
+    getRunsForKind(kind).forEach(function (r) {
+      if (!r || r.abandoned === true || r.comboOnly === true) return;
+      var tm = r.trainingMeta || {};
+      var s = Number(tm.successSpan);
+      if (!Number.isFinite(s) || s <= 0) s = Number(r.maxLevel) || 0;
+      if (s > best) best = s;
+    });
+    return best > 0 ? best : 0;
+  }
+
   function clearMtPrestartChrome() {
     var card = document.getElementById("mt-game-card");
     if (card) card.classList.remove("training-brush-prestart");
@@ -233,27 +344,90 @@
     }
   }
 
-  /** 对齐四则 brushStat：卡上 training-brush-prestart，主/副行仅 training-brush-stat（勿加 rule-hint） */
-  function paintPrestartStats() {
-    mtHistoryStats = computeStatsFromRuns(getRecentRuns());
-    var main = "";
-    var sub = "";
-    if (!mtHistoryStats.sampleAttempts) {
-      main = t("memoryTraining.prestart.empty");
-      sub = t("memoryTraining.prestart.hint");
-    } else {
-      main =
-        t("memoryTraining.prestart.avgError") +
-        " " +
-        formatPct1(mtHistoryStats.errorRate);
-      sub =
-        t("memoryTraining.prestart.avgSpeed") +
-        " " +
-        formatSec1(mtHistoryStats.avgSec);
+  function syncKindSelectOptions() {
+    var sel = dom().mtKindSelect;
+    if (!sel) return;
+    var cur = mtKind;
+    sel.innerHTML = "";
+    KINDS.forEach(function (k) {
+      var opt = document.createElement("option");
+      opt.value = k;
+      opt.textContent = kindLabel(k);
+      sel.appendChild(opt);
+    });
+    sel.value = cur;
+  }
+
+  function setKindChrome(playing) {
+    var sel = dom().mtKindSelect;
+    var label = dom().mtPromptLabel;
+    if (sel) {
+      sel.style.display = playing ? "none" : "";
+      sel.disabled = !!playing;
     }
+    if (label) {
+      label.style.display = playing ? "" : "none";
+      label.textContent = kindLabel(mtKind);
+    }
+    if (dom().mtLevelText) dom().mtLevelText.textContent = kindLabel(mtKind);
+    if (dom().mtModeName) dom().mtModeName.textContent = t("home.mode.memoryTraining");
+  }
+
+  function syncHistoryHeaders() {
+    var digit = isDigitKind(mtKind);
+    if (dom().mtThWrong) {
+      dom().mtThWrong.textContent = digit
+        ? t("memoryTraining.th.successSpan")
+        : t("expand.th.wrong");
+    }
+    if (dom().mtThErr) {
+      dom().mtThErr.textContent = digit
+        ? t("memoryTraining.th.result")
+        : t("stats.th.errorRate");
+    }
+    if (dom().mtRecentTitle) {
+      dom().mtRecentTitle.textContent =
+        t("memoryTraining.recentTitlePrefix") + kindLabel(mtKind);
+    }
+  }
+
+  function paintPrestartStats() {
     clearMtPrestartChrome();
     var card = document.getElementById("mt-game-card");
     if (card) card.classList.add("training-brush-prestart");
+    var main = "";
+    var sub = "";
+    if (isDigitKind(mtKind)) {
+      mtPriorBest = bestSpanForKind(mtKind);
+      if (mtPriorBest > 0) {
+        main = t("memoryTraining.prestart.bestSpan") + " " + mtPriorBest;
+        sub =
+          mtKind === "working"
+            ? t("memoryTraining.prestart.hintWorking")
+            : t("memoryTraining.prestart.hintInstant");
+      } else {
+        main = t("memoryTraining.prestart.noRecord");
+        sub =
+          mtKind === "working"
+            ? t("memoryTraining.prestart.hintWorking")
+            : t("memoryTraining.prestart.hintInstant");
+      }
+    } else {
+      mtHistoryStats = computeStatsFromRuns(getRunsForKind("addition"));
+      if (!mtHistoryStats.sampleAttempts) {
+        main = t("memoryTraining.prestart.empty");
+        sub = t("memoryTraining.prestart.hintAddition");
+      } else {
+        main =
+          t("memoryTraining.prestart.avgError") +
+          " " +
+          formatPct1(mtHistoryStats.errorRate);
+        sub =
+          t("memoryTraining.prestart.avgSpeed") +
+          " " +
+          formatSec1(mtHistoryStats.avgSec);
+      }
+    }
     if (dom().mtQuestionText) {
       dom().mtQuestionText.style.display = "";
       dom().mtQuestionText.classList.add("training-brush-stat");
@@ -268,9 +442,8 @@
         dom().mtQuestionSubtext.style.display = "none";
       }
     }
-    if (dom().mtPromptLabel) {
-      dom().mtPromptLabel.textContent = t("memoryTraining.level.workingMemory");
-    }
+    setKindChrome(false);
+    syncHistoryHeaders();
   }
 
   function buildEndCompareMessage(runStats, histStats) {
@@ -309,6 +482,7 @@
       return;
     }
     dom().mtHistoryEmpty.style.display = "none";
+    var digit = isDigitKind(mtKind);
     list.forEach(function (r) {
       var tr = document.createElement("tr");
       var ts = Number(r && r.ts) || 0;
@@ -322,24 +496,49 @@
         typeof deps.formatCompactRunTime === "function"
           ? deps.formatCompactRunTime(r.survivalTimeSec || 0)
           : String(r.survivalTimeSec || 0);
-      var wrong = r.wrongCount != null ? String(r.wrongCount) : "0";
-      var stats = computeStatsFromAttempts(r.attempts || []);
+      var esc = typeof deps.escapeHtml === "function" ? deps.escapeHtml : function (x) {
+        return String(x == null ? "" : x);
+      };
+      var c3 = "";
+      var c4 = "";
+      if (digit) {
+        var tm = r.trainingMeta || {};
+        var span = Number(tm.successSpan);
+        if (!Number.isFinite(span) || span <= 0) span = Number(r.maxLevel) || 0;
+        c3 = span > 0 ? String(span) : "—";
+        c4 =
+          tm.brokeRecord === true
+            ? t("memoryTraining.end.brokeRecord")
+            : "—";
+      } else {
+        c3 = r.wrongCount != null ? String(r.wrongCount) : "0";
+        c4 = formatPct1(computeStatsFromAttempts(r.attempts || []).errorRate);
+      }
       tr.innerHTML =
         "<td>" +
-        (typeof deps.escapeHtml === "function" ? deps.escapeHtml(dt) : dt) +
+        esc(dt) +
         "</td><td>" +
-        (typeof deps.escapeHtml === "function" ? deps.escapeHtml(timeLabel) : timeLabel) +
+        esc(timeLabel) +
         "</td><td>" +
-        wrong +
+        esc(c3) +
         "</td><td>" +
-        formatPct1(stats.errorRate) +
+        esc(c4) +
         "</td>";
       dom().mtHistoryBody.appendChild(tr);
     });
   }
 
   function renderMemoryTrainingRecentRuns() {
-    renderMtRecentRunsTable(getRecentRuns());
+    renderMtRecentRunsTable(getRunsForKind(mtKind));
+  }
+
+  function updateDigitStatus() {
+    if (dom().mtProgressText) {
+      dom().mtProgressText.textContent =
+        t("memoryTraining.status.span") + " " + mtSpanLen;
+    }
+    if (dom().mtWrongText) dom().mtWrongText.textContent = String(mtLevelWrong);
+    if (dom().mtScoreText) dom().mtScoreText.textContent = String(mtSuccessSpan);
   }
 
   function showMemoryTrainingPrestart() {
@@ -347,23 +546,30 @@
     deps.setGameOver(false);
     mtPhase = "idle";
     mtCurrent = null;
+    mtDigits = [];
     mtInputLocked = false;
     mtEndCompareHtml = "";
+    clearDigitTimer();
     stopMtTimer();
     if (dom().mtTimerValue) dom().mtTimerValue.textContent = "0:00";
-    if (dom().mtProgressText) dom().mtProgressText.textContent = "0 / " + QUESTIONS_PER_RUN;
+    if (dom().mtProgressText) {
+      dom().mtProgressText.textContent = isDigitKind(mtKind)
+        ? t("memoryTraining.status.span") + " " + SPAN_MIN
+        : "0 / " + QUESTIONS_PER_RUN;
+    }
     if (dom().mtWrongText) dom().mtWrongText.textContent = "0";
     if (dom().mtScoreText) dom().mtScoreText.textContent = "0";
     if (dom().mtGameOverPanel) dom().mtGameOverPanel.style.display = "none";
     setMtGameCardGameOver(false);
     setMtCardActionSlot("start");
     setMtHistoryVisible(true);
+    syncKindSelectOptions();
     paintPrestartStats();
     renderMemoryTrainingRecentRuns();
     deps.updateGlobalBackButtonState();
   }
 
-  function nextMtQuestion() {
+  function nextAdditionQuestion() {
     if (mtMastered + mtWrongCount >= QUESTIONS_PER_RUN) {
       void endMemoryTrainingGame();
       return;
@@ -399,9 +605,83 @@
     setMtCardActionSlot("reveal");
   }
 
+  function beginDigitTrial() {
+    clearDigitTimer();
+    mtDigits = generateDigitSequence(mtSpanLen);
+    mtCurrent = {
+      digits: mtDigits.slice(),
+      answerStr: expectedDigitAnswer(mtDigits, mtKind),
+      spanLen: mtSpanLen,
+    };
+    mtPhase = "digitShow";
+    mtQuestionShownAt = Date.now();
+    mtInputLocked = false;
+    clearMtPrestartChrome();
+    updateDigitStatus();
+    if (dom().mtQuestionSubtext) {
+      dom().mtQuestionSubtext.style.display = "";
+      dom().mtQuestionSubtext.textContent =
+        mtKind === "working"
+          ? t("memoryTraining.prompt.reverse")
+          : t("memoryTraining.prompt.forward");
+    }
+    if (dom().mtAnswerInput) {
+      dom().mtAnswerInput.value = "";
+      dom().mtAnswerInput.disabled = true;
+    }
+    setMtFeedback("", null);
+    setMtSoftKeyboardVisible(false);
+    setMtCardActionSlot("none");
+    if (dom().mtAnswerForm) dom().mtAnswerForm.style.display = "none";
+    setMtGameCardLayoutMode("playing");
+    setMtPlayBodyMode("playing");
+    showDigitAt(0);
+  }
+
+  function showDigitAt(index) {
+    if (deps.getGameMode() !== MODE || !deps.getIsPlaying() || deps.getGameOver()) return;
+    if (mtPhase !== "digitShow" || !mtCurrent) return;
+    if (index >= mtCurrent.digits.length) {
+      enterDigitAnswer();
+      return;
+    }
+    if (dom().mtQuestionText) {
+      dom().mtQuestionText.style.display = "";
+      dom().mtQuestionText.textContent = String(mtCurrent.digits[index]);
+    }
+    clearDigitTimer();
+    mtDigitTimerId = setTimeout(function () {
+      if (dom().mtQuestionText) dom().mtQuestionText.textContent = "";
+      mtDigitTimerId = setTimeout(function () {
+        showDigitAt(index + 1);
+      }, DIGIT_BLANK_MS);
+    }, DIGIT_SHOW_MS);
+  }
+
+  function enterDigitAnswer() {
+    if (!mtCurrent) return;
+    mtPhase = "digitAnswer";
+    if (dom().mtQuestionText) {
+      dom().mtQuestionText.style.display = "";
+      dom().mtQuestionText.textContent = "?";
+    }
+    if (dom().mtAnswerInput) {
+      dom().mtAnswerInput.disabled = false;
+      dom().mtAnswerInput.value = "";
+    }
+    setMtCardActionSlot("answer");
+    syncMtAnswerInputMode();
+    try {
+      if (dom().mtAnswerInput) dom().mtAnswerInput.focus();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function handleMtRevealNext() {
     if (deps.getGameMode() !== MODE) return;
     if (!deps.getIsPlaying() || deps.getGameOver()) return;
+    if (mtKind !== "addition") return;
     if (mtPhase !== "showFirst" || !mtCurrent) return;
     mtPhase = "answer";
     if (dom().mtQuestionText) {
@@ -420,7 +700,7 @@
     }
   }
 
-  function evaluateMtAnswer(userAnswer) {
+  function evaluateAdditionAnswer(userAnswer) {
     if (!mtCurrent || mtInputLocked || mtPhase !== "answer") return;
     mtInputLocked = true;
     if (dom().mtAnswerInput) dom().mtAnswerInput.disabled = true;
@@ -432,6 +712,7 @@
       timeSpentMs: timeSpentMs,
       a: mtCurrent.a,
       b: mtCurrent.b,
+      memoryKind: "addition",
     });
 
     if (correct) {
@@ -447,7 +728,7 @@
         if (mtMastered + mtWrongCount >= QUESTIONS_PER_RUN) {
           void endMemoryTrainingGame();
         } else {
-          nextMtQuestion();
+          nextAdditionQuestion();
         }
       }, 350);
       return;
@@ -471,15 +752,72 @@
       if (mtMastered + mtWrongCount >= QUESTIONS_PER_RUN) {
         void endMemoryTrainingGame();
       } else {
-        nextMtQuestion();
+        nextAdditionQuestion();
       }
     }, 900);
+  }
+
+  function evaluateDigitAnswer(userStr) {
+    if (!mtCurrent || mtInputLocked || mtPhase !== "digitAnswer") return;
+    mtInputLocked = true;
+    if (dom().mtAnswerInput) dom().mtAnswerInput.disabled = true;
+    var timeSpentMs = mtQuestionShownAt ? Date.now() - mtQuestionShownAt : 0;
+    var expected = String(mtCurrent.answerStr || "");
+    var correct = userStr === expected;
+    mtAttempts.push({
+      levelIndex: mtSpanLen,
+      correct: correct,
+      timeSpentMs: timeSpentMs,
+      digits: (mtCurrent.digits || []).slice(),
+      expected: expected,
+      memoryKind: mtKind,
+    });
+
+    if (correct) {
+      mtLevelStreak += 1;
+      if (mtLevelStreak >= 2) {
+        // 同级连对 2 次才算「成功该等级」；3 位没过则纪录仍为 2
+        mtSuccessSpan = Math.max(mtSuccessSpan, mtSpanLen);
+        mtScore = mtSuccessSpan;
+        if (mtSpanLen < SPAN_MAX) {
+          mtSpanLen += 1;
+          mtLevelStreak = 0;
+          mtLevelWrong = 0;
+        } else {
+          mtLevelStreak = 0;
+        }
+      }
+      updateDigitStatus();
+      setMtFeedback(t("game.feedback.correctSurvival"), "correct");
+      setTimeout(function () {
+        beginDigitTrial();
+      }, 400);
+      return;
+    }
+
+    mtLevelWrong += 1;
+    updateDigitStatus();
+    setMtFeedback(
+      t("game.feedback.incorrectPrefixHtml") +
+        t("memoryTraining.feedback.answerLabel") +
+        "<strong>" +
+        expected +
+        "</strong>",
+      "incorrect"
+    );
+    setTimeout(function () {
+      if (mtLevelWrong >= 2) {
+        void endMemoryTrainingGame();
+      } else {
+        mtLevelStreak = 0;
+        beginDigitTrial();
+      }
+    }, 1100);
   }
 
   function handleMtSubmit() {
     if (deps.getGameMode() !== MODE) return;
     if (!deps.getIsPlaying() || deps.getGameOver() || !mtCurrent) return;
-    if (mtPhase !== "answer") return;
     var input = dom().mtAnswerInput;
     if (!input) return;
     var value = input.value.trim();
@@ -487,13 +825,26 @@
       setMtFeedback(t("game.feedback.titleHtml") + t("game.feedback.needAnswer"), null);
       return;
     }
+
+    if (isDigitKind(mtKind)) {
+      if (mtPhase !== "digitAnswer") return;
+      if (!/^\d+$/.test(value)) {
+        setMtFeedback(t("game.feedback.titleHtml") + t("game.feedback.invalidNumber"), null);
+        return;
+      }
+      input.value = "";
+      evaluateDigitAnswer(value);
+      return;
+    }
+
+    if (mtPhase !== "answer") return;
     var userAnswer = Number(value);
     if (!Number.isFinite(userAnswer) || !Number.isInteger(userAnswer)) {
       setMtFeedback(t("game.feedback.titleHtml") + t("game.feedback.invalidNumber"), null);
       return;
     }
     input.value = "";
-    evaluateMtAnswer(userAnswer);
+    evaluateAdditionAnswer(userAnswer);
   }
 
   function startMemoryTrainingGame() {
@@ -506,50 +857,104 @@
     mtScore = 0;
     mtAttempts = [];
     mtCurrent = null;
+    mtDigits = [];
     mtInputLocked = false;
-    mtHistoryStats = computeStatsFromRuns(getRecentRuns());
+    mtSpanLen = SPAN_MIN;
+    mtLevelStreak = 0;
+    mtLevelWrong = 0;
+    mtSuccessSpan = 0;
+    mtPriorBest = isDigitKind(mtKind) ? bestSpanForKind(mtKind) : 0;
+    if (mtKind === "addition") {
+      mtHistoryStats = computeStatsFromRuns(getRunsForKind("addition"));
+    }
 
     if (dom().mtGameOverPanel) dom().mtGameOverPanel.style.display = "none";
-    if (dom().mtProgressText) dom().mtProgressText.textContent = "0 / " + QUESTIONS_PER_RUN;
+    if (dom().mtProgressText) {
+      dom().mtProgressText.textContent = isDigitKind(mtKind)
+        ? t("memoryTraining.status.span") + " " + SPAN_MIN
+        : "0 / " + QUESTIONS_PER_RUN;
+    }
     if (dom().mtScoreText) dom().mtScoreText.textContent = "0";
     if (dom().mtWrongText) dom().mtWrongText.textContent = "0";
+    setKindChrome(true);
     setMtHistoryVisible(false);
     startMtTimer(0);
     deps.updateGlobalBackButtonState();
-    nextMtQuestion();
+    if (isDigitKind(mtKind)) beginDigitTrial();
+    else nextAdditionQuestion();
   }
 
   async function endMemoryTrainingGame() {
     if (deps.getGameMode() !== MODE) return;
     deps.setIsPlaying(false);
+    clearDigitTimer();
     stopMtTimer();
     var durationSec = Math.floor((Date.now() - (mtStartTs || Date.now())) / 1000);
-    var runStats = computeStatsFromAttempts(mtAttempts);
-    var compareMsg = buildEndCompareMessage(runStats, mtHistoryStats);
-    mtEndCompareHtml =
-      "<div>" +
-      t("memoryTraining.end.thisError") +
-      " <strong>" +
-      formatPct1(runStats.errorRate) +
-      "</strong> · " +
-      t("memoryTraining.end.thisSpeed") +
-      " <strong>" +
-      formatSec1(runStats.avgSec) +
-      "</strong></div><div style=\"margin-top:6px\">" +
-      compareMsg +
-      "</div>";
+    var brokeRecord = false;
+    var trainingMeta = { memoryKind: mtKind, pickedLevel: 0 };
+
+    if (isDigitKind(mtKind)) {
+      brokeRecord = mtSuccessSpan > 0 && mtSuccessSpan > mtPriorBest;
+      trainingMeta.successSpan = mtSuccessSpan;
+      trainingMeta.priorBest = mtPriorBest;
+      trainingMeta.brokeRecord = brokeRecord;
+      mtEndCompareHtml =
+        "<div>" +
+        t("memoryTraining.end.thisSpan") +
+        " <strong>" +
+        (mtSuccessSpan > 0 ? String(mtSuccessSpan) : "—") +
+        "</strong></div><div style=\"margin-top:6px\">" +
+        (mtSuccessSpan <= 0
+          ? t("memoryTraining.end.noSuccess")
+          : brokeRecord
+            ? t("memoryTraining.end.brokeRecord")
+            : t("memoryTraining.end.keepTrying")) +
+        "</div>";
+      mtWrongCount = mtLevelWrong;
+      mtScore = mtSuccessSpan;
+    } else {
+      var runStats = computeStatsFromAttempts(mtAttempts);
+      var compareMsg = buildEndCompareMessage(runStats, mtHistoryStats);
+      mtEndCompareHtml =
+        "<div>" +
+        t("memoryTraining.end.thisError") +
+        " <strong>" +
+        formatPct1(runStats.errorRate) +
+        "</strong> · " +
+        t("memoryTraining.end.thisSpeed") +
+        " <strong>" +
+        formatSec1(runStats.avgSec) +
+        "</strong></div><div style=\"margin-top:6px\">" +
+        compareMsg +
+        "</div>";
+    }
 
     await deps.appendRun(
       durationSec,
       mtScore,
-      0,
+      isDigitKind(mtKind) ? mtSuccessSpan : 0,
       mtWrongCount,
       MODE,
       mtAttempts.slice(),
       undefined,
       undefined,
-      { trainingMeta: { pickedLevel: 0, memoryLevel: "workingMemory" } }
+      { trainingMeta: trainingMeta }
     );
+
+    var user = typeof deps.getCachedUser === "function" ? deps.getCachedUser() : null;
+    if (user && isDigitKind(mtKind) && mtSuccessSpan > 0) {
+      if (mtKind === "instant") {
+        user.bestMemoryInstantSpan = Math.max(
+          Number(user.bestMemoryInstantSpan) || 0,
+          mtSuccessSpan
+        );
+      } else if (mtKind === "working") {
+        user.bestMemoryWorkingSpan = Math.max(
+          Number(user.bestMemoryWorkingSpan) || 0,
+          mtSuccessSpan
+        );
+      }
+    }
 
     setMtSoftKeyboardVisible(false);
     setMtGameCardGameOver(true);
@@ -568,11 +973,22 @@
     if (dom().mtGoDuration) {
       dom().mtGoDuration.textContent = deps.formatCompactRunTime(durationSec);
     }
-    if (dom().mtGoWrongLabel) dom().mtGoWrongLabel.textContent = t("expand.end.wrong");
-    if (dom().mtGoWrong) dom().mtGoWrong.textContent = String(mtWrongCount);
+    if (dom().mtGoWrongLabel) {
+      dom().mtGoWrongLabel.textContent = isDigitKind(mtKind)
+        ? t("memoryTraining.end.successSpan")
+        : t("expand.end.wrong");
+    }
+    if (dom().mtGoWrong) {
+      dom().mtGoWrong.textContent = isDigitKind(mtKind)
+        ? mtSuccessSpan > 0
+          ? String(mtSuccessSpan)
+          : "—"
+        : String(mtWrongCount);
+    }
     if (dom().mtGoResultLabel) dom().mtGoResultLabel.textContent = t("memoryTraining.end.compare");
     if (dom().mtGoResult) dom().mtGoResult.innerHTML = mtEndCompareHtml;
     if (dom().mtPlayAgainBtn) dom().mtPlayAgainBtn.style.display = "";
+    setKindChrome(false);
     setMtHistoryVisible(true);
     renderMemoryTrainingRecentRuns();
     deps.setGameOver(true);
@@ -581,8 +997,19 @@
 
   function abandonMemoryTrainingGame() {
     if (deps.getGameMode() !== MODE) return;
+    clearDigitTimer();
     var durationSec = Math.floor((Date.now() - (mtStartTs || Date.now())) / 1000);
-    void deps.appendRun(durationSec, 0, 0, mtWrongCount, MODE, mtAttempts.slice(), false, true);
+    void deps.appendRun(
+      durationSec,
+      0,
+      isDigitKind(mtKind) ? mtSuccessSpan : 0,
+      isDigitKind(mtKind) ? mtLevelWrong : mtWrongCount,
+      MODE,
+      mtAttempts.slice(),
+      false,
+      true,
+      { trainingMeta: { memoryKind: mtKind, abandoned: true, successSpan: mtSuccessSpan } }
+    );
     deps.setIsPlaying(false);
     deps.setGameOver(true);
     stopMtTimer();
@@ -598,19 +1025,27 @@
       dom().mtQuestionSubtext.textContent = "";
       dom().mtQuestionSubtext.style.display = "none";
     }
+    setKindChrome(false);
     setMtHistoryVisible(true);
     if (dom().mtGameOverPanel) dom().mtGameOverPanel.style.display = "";
     if (dom().mtGameOverTitle) dom().mtGameOverTitle.textContent = t("game.over.abandonedTitle");
     if (dom().mtGoDuration) {
       dom().mtGoDuration.textContent = deps.formatCompactRunTime(durationSec);
     }
-    if (dom().mtGoWrong) dom().mtGoWrong.textContent = String(mtWrongCount);
+    if (dom().mtGoWrong) {
+      dom().mtGoWrong.textContent = isDigitKind(mtKind)
+        ? mtSuccessSpan > 0
+          ? String(mtSuccessSpan)
+          : "—"
+        : String(mtWrongCount);
+    }
     if (dom().mtGoResult) dom().mtGoResult.textContent = "—";
     renderMemoryTrainingRecentRuns();
     deps.updateGlobalBackButtonState();
   }
 
   function hideMemoryTrainingSection() {
+    clearDigitTimer();
     var sec = document.getElementById("memory-training-section");
     if (sec) {
       sec.style.display = "none";
@@ -655,6 +1090,7 @@
       sec.style.display = "flex";
       sec.classList.add("visible");
     }
+    mtKind = loadSavedKind();
     showMemoryTrainingPrestart();
     deps.updateTopTitleForCurrentView(false);
   }
@@ -673,6 +1109,12 @@
   }
 
   function getAbandonProgress() {
+    if (isDigitKind(mtKind)) {
+      return {
+        answered: Array.isArray(mtAttempts) ? mtAttempts.length : 0,
+        total: Math.max((Array.isArray(mtAttempts) ? mtAttempts.length : 0) + 1, 1),
+      };
+    }
     return {
       answered: Array.isArray(mtAttempts) ? mtAttempts.length : 0,
       total: QUESTIONS_PER_RUN,
@@ -705,6 +1147,14 @@
     syncMtAnswerInputMode();
   }
 
+  function onKindSelectChange() {
+    if (deps.getIsPlaying() && !deps.getGameOver()) return;
+    var sel = dom().mtKindSelect;
+    if (!sel) return;
+    saveKind(sel.value);
+    showMemoryTrainingPrestart();
+  }
+
   function bindEvents() {
     if (dom().mtStartBtn) dom().mtStartBtn.addEventListener("click", startMemoryTrainingGame);
     if (dom().mtNextBtn) dom().mtNextBtn.addEventListener("click", handleMtRevealNext);
@@ -713,11 +1163,15 @@
         showMemoryTrainingPrestart();
       });
     }
+    if (dom().mtKindSelect) {
+      dom().mtKindSelect.addEventListener("change", onKindSelectChange);
+    }
     initMtSoftKeyboardIfNeeded();
   }
 
   function init(injectedDeps) {
     deps = injectedDeps;
+    mtKind = loadSavedKind();
     bindEvents();
   }
 

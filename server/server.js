@@ -302,6 +302,10 @@ function buildRunSyncForStudent(u, mode) {
     sync.recentMemoryTrainingRuns = Array.isArray(u.recentMemoryTrainingRuns)
       ? u.recentMemoryTrainingRuns
       : [];
+    sync.bestMemoryInstantSpan =
+      typeof u.bestMemoryInstantSpan === "number" ? u.bestMemoryInstantSpan : 0;
+    sync.bestMemoryWorkingSpan =
+      typeof u.bestMemoryWorkingSpan === "number" ? u.bestMemoryWorkingSpan : 0;
   } else {
     sync.recentSurvivalRuns = Array.isArray(u.recentSurvivalRuns) ? u.recentSurvivalRuns : [];
     sync.bestSurvivalSec = typeof u.bestSurvivalSec === "number" ? u.bestSurvivalSec : 0;
@@ -2058,6 +2062,8 @@ app.post("/api/register", async (req, res) => {
     recentDivisibilityRuns: [],
     recentFactorsMultiplesRuns: [],
     recentMemoryTrainingRuns: [],
+    bestMemoryInstantSpan: 0,
+    bestMemoryWorkingSpan: 0,
     streakCurrent: 0,
     streakBest: 0,
     streakLastDate: "",
@@ -2390,7 +2396,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "bestMemoryInstantSpan", "bestMemoryWorkingSpan", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -3403,8 +3409,20 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     } else if (!comboOnly && runEntry.mode === "memoryTraining") {
       if (!Array.isArray(u.recentMemoryTrainingRuns)) u.recentMemoryTrainingRuns = [];
       u.recentMemoryTrainingRuns.unshift(runEntry);
-      if (u.recentMemoryTrainingRuns.length > 10) {
-        u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 10);
+      if (u.recentMemoryTrainingRuns.length > 30) {
+        u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 30);
+      }
+      const tm =
+        runEntry.trainingMeta && typeof runEntry.trainingMeta === "object"
+          ? runEntry.trainingMeta
+          : {};
+      const kind = String(tm.memoryKind || "");
+      const span = Math.max(0, Math.floor(Number(tm.successSpan) || 0));
+      if (span > 0 && kind === "instant") {
+        u.bestMemoryInstantSpan = Math.max(Number(u.bestMemoryInstantSpan) || 0, span);
+      }
+      if (span > 0 && kind === "working") {
+        u.bestMemoryWorkingSpan = Math.max(Number(u.bestMemoryWorkingSpan) || 0, span);
       }
     }
     if (!comboOnly && runEntry.mode === "level") {
@@ -3986,6 +4004,8 @@ app.post("/api/admin/users", async (req, res) => {
     recentDivisibilityRuns: [],
     recentFactorsMultiplesRuns: [],
     recentMemoryTrainingRuns: [],
+    bestMemoryInstantSpan: 0,
+    bestMemoryWorkingSpan: 0,
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],

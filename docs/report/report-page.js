@@ -181,6 +181,8 @@
     levelProgress: 'levelProgressSort',
     trainingProgress: 'trainingProgressSort',
     survivalProgress: 'survivalProgressSort',
+    memoryInstantProgress: 'memoryInstantProgressSort',
+    memoryWorkingProgress: 'memoryWorkingProgressSort',
     primeProgress: 'primeProgressSec',
     divisibilityProgress: 'divisibilityProgressSort',
     factorsMultiplesProgress: 'factorsMultiplesProgressSort',
@@ -687,6 +689,12 @@
           escapeHtml(dashCell(r.survivalProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog num">' +
+          escapeHtml(dashCell(r.memoryInstantProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog num">' +
+          escapeHtml(dashCell(r.memoryWorkingProgress)) +
+          '</td>' +
+          '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.primeProgress)) +
           '</td>' +
           '<td class="jml-ov-col-prog">' +
@@ -721,6 +729,8 @@
       overviewSortLabel('levelProgress', '闯关', 'num') +
       overviewSortLabel('trainingProgress', '训练流畅', 'num') +
       overviewSortLabel('survivalProgress', '生存', 'num') +
+      overviewSortLabel('memoryInstantProgress', '瞬时', 'num') +
+      overviewSortLabel('memoryWorkingProgress', '工作记忆', 'num') +
       overviewSortLabel('primeProgress', '质数(用时)', 'num') +
       overviewSortLabel('perfectSquareProgress', '平方数') +
       overviewSortLabel('divisibilityProgress', '整除', 'num') +
