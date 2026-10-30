@@ -298,6 +298,10 @@ function buildRunSyncForStudent(u, mode) {
       : [];
   } else if (m === "decimal") {
     sync.recentDecimalRuns = Array.isArray(u.recentDecimalRuns) ? u.recentDecimalRuns : [];
+  } else if (m === "memoryTraining") {
+    sync.recentMemoryTrainingRuns = Array.isArray(u.recentMemoryTrainingRuns)
+      ? u.recentMemoryTrainingRuns
+      : [];
   } else {
     sync.recentSurvivalRuns = Array.isArray(u.recentSurvivalRuns) ? u.recentSurvivalRuns : [];
     sync.bestSurvivalSec = typeof u.bestSurvivalSec === "number" ? u.bestSurvivalSec : 0;
@@ -520,6 +524,7 @@ function normalizeRunMode(mode) {
   if (mode === "divisibility") return "divisibility";
   if (mode === "decimal") return "decimal";
   if (mode === "factorsMultiples") return "factorsMultiples";
+  if (mode === "memoryTraining") return "memoryTraining";
   return "survival";
 }
 
@@ -1209,7 +1214,7 @@ function legacyDefaultI18nPayload() {
       "home.mode.training": "訓練模式",
       "home.mode.survival": "生存挑戰",
       "home.mode.expandBrackets": "拆括號",
-      "home.mode.unitConversion": "單位換算",
+      "home.mode.memoryTraining": "記憶訓練",
       "home.mode.primeComposite": "質數合數",
       "home.mode.divisibility": "整除",
       "home.mode.factorsMultiples": "因數倍數",
@@ -1305,7 +1310,7 @@ function legacyDefaultI18nPayload() {
       "home.mode.training": "Practice",
       "home.mode.survival": "Survival",
       "home.mode.expandBrackets": "Brackets",
-      "home.mode.unitConversion": "Units",
+      "home.mode.memoryTraining": "Memory training",
       "home.mode.primeComposite": "Primes",
       "home.mode.divisibility": "Divisibility",
       "home.mode.factorsMultiples": "Factors & Multiples",
@@ -2052,6 +2057,7 @@ app.post("/api/register", async (req, res) => {
     recentDecimalRuns: [],
     recentDivisibilityRuns: [],
     recentFactorsMultiplesRuns: [],
+    recentMemoryTrainingRuns: [],
     streakCurrent: 0,
     streakBest: 0,
     streakLastDate: "",
@@ -2384,7 +2390,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -3394,6 +3400,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (u.recentFactorsMultiplesRuns.length > 10) {
         u.recentFactorsMultiplesRuns = u.recentFactorsMultiplesRuns.slice(0, 10);
       }
+    } else if (!comboOnly && runEntry.mode === "memoryTraining") {
+      if (!Array.isArray(u.recentMemoryTrainingRuns)) u.recentMemoryTrainingRuns = [];
+      u.recentMemoryTrainingRuns.unshift(runEntry);
+      if (u.recentMemoryTrainingRuns.length > 10) {
+        u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 10);
+      }
     }
     if (!comboOnly && runEntry.mode === "level") {
       const ml = Math.min(SURVIVAL_UNLOCK_L16_INDEX, Math.max(0, Number(runEntry.maxLevel) || 0));
@@ -3973,6 +3985,7 @@ app.post("/api/admin/users", async (req, res) => {
     recentDecimalRuns: [],
     recentDivisibilityRuns: [],
     recentFactorsMultiplesRuns: [],
+    recentMemoryTrainingRuns: [],
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],

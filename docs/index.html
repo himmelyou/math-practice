@@ -338,7 +338,8 @@
     .app:has(#perfect-square-section.visible) .app-header,
     .app:has(#divisibility-section.visible) .app-header,
     .app:has(#factors-multiples-section.visible) .app-header,
-    .app:has(#decimal-section.visible) .app-header {
+    .app:has(#decimal-section.visible) .app-header,
+    .app:has(#memory-training-section.visible) .app-header {
       padding-bottom: 0;
     }
 
@@ -4612,9 +4613,9 @@
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
-            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-unit-conversion">
+            <button type="button" class="mode-btn home-mode-card mode-btn-practice" id="mode-memory-training">
               <img class="home-mode-icon" src="assets/home/ic_unit.png" width="28" height="28" alt="" />
-              <span class="home-mode-label">单位换算</span>
+              <span class="home-mode-label">记忆训练</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
               <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
@@ -5294,6 +5295,102 @@
       </div>
     </section>
 
+    <!-- 记忆训练：第1关工作记忆；L12 两步呈现；不进错题本/热图 -->
+    <section class="game-section run-mode-page memory-training-page" id="memory-training-section" style="display:none;">
+      <div class="status-grid" id="mt-status-grid">
+        <div class="timer-chip" id="mt-timer-chip">
+          <span id="mt-timer-prefix" class="timer-chip-prefix" aria-hidden="true"><svg class="timer-chip-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" xmlns="http://www.w3.org/2000/svg" focusable="false"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span id="mt-timer-value">0:00</span>
+        </div>
+        <div class="status-item status-item-full">
+          <span class="status-label" id="mt-lbl-mode">当前模式：</span>
+          <span class="status-value" id="mt-mode-name">记忆训练</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="mt-lbl-progress">进度：</span>
+          <span class="status-value" id="mt-progress-text">0 / 10</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="mt-lbl-score">本局得分：</span>
+          <span class="status-value" id="mt-score-text">0</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="mt-lbl-level">当前关卡：</span>
+          <span class="status-value" id="mt-level-text">工作记忆</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label" id="mt-lbl-wrong">错题：</span>
+          <span class="status-value" id="mt-wrong-text">0</span>
+        </div>
+      </div>
+
+      <div class="game-play-body run-mode-play-body" id="mt-play-body">
+      <main class="card game-card--prestart run-mode-game-card" id="mt-game-card">
+        <div class="question-header">
+          <div class="question-label">
+            <span class="status-label" id="mt-lbl-difficulty">关卡：</span>
+            <span class="status-value" id="mt-prompt-label">工作记忆</span>
+          </div>
+        </div>
+
+        <div class="question-body">
+          <div class="question-subtext" id="mt-question-subtext"></div>
+          <div class="question-text" id="mt-question-text"></div>
+        </div>
+
+        <form id="mt-answer-form" class="answer-form" action="javascript:void(0);">
+          <div class="game-card-action-anchor">
+            <div class="input-row" id="mt-answer-input-row" style="display:none;">
+              <input id="mt-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+            </div>
+            <div class="button-row" id="mt-next-row" style="display:none;">
+              <button type="button" class="btn-primary" id="mt-next-btn">下一个数字</button>
+            </div>
+            <div class="button-row" id="mt-start-row">
+              <button type="button" class="btn-primary" id="mt-start-btn">开始挑战</button>
+            </div>
+          </div>
+        </form>
+
+        <div id="mt-game-over-panel" class="game-over-panel training-summary" style="display:none;">
+          <h2 class="game-over-title" id="mt-game-over-title">本局结束</h2>
+          <div class="game-over-stats-grid">
+            <p class="game-over-line"><span id="mt-go-duration-label">本局用时：</span><strong id="mt-go-duration">-</strong></p>
+            <p class="game-over-line"><span id="mt-go-wrong-label">本局错题：</span><strong id="mt-go-wrong">0</strong></p>
+            <p class="game-over-line" style="grid-column:1/-1;"><span id="mt-go-result-label">对比：</span><strong id="mt-go-result">-</strong></p>
+          </div>
+          <div class="game-over-buttons">
+            <button class="btn-primary" id="mt-play-again-btn">再玩一局</button>
+          </div>
+        </div>
+      </main>
+
+      <section class="recent-card" id="mt-recent-card" style="display:none;">
+        <div class="recent-header">
+          <span class="recent-title" id="mt-recent-title">最近十次记忆训练</span>
+        </div>
+        <div class="recent-body">
+          <div id="mt-history-wrap">
+            <table class="recent-table">
+              <thead>
+                <tr>
+                  <th id="mt-th-dt">日期时间</th>
+                  <th id="mt-th-time">用时</th>
+                  <th id="mt-th-wrong">错题</th>
+                  <th id="mt-th-err">错误率</th>
+                </tr>
+              </thead>
+              <tbody id="mt-history-body"></tbody>
+            </table>
+            <div id="mt-history-empty" class="recent-empty">当前还没有练习记录。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="soft-kbd-card" id="mt-soft-kbd-card" style="display:none;" data-jml-soft-kbd-layout="integer"></section>
+      <div class="game-play-tail" id="mt-play-tail" aria-hidden="true"></div>
+      </div>
+    </section>
+
     <!-- 整除：可玩 Z1–Z5；热图仅 Z1–Z4（Z5 按除数拆入） -->
     <section class="game-section divisibility-page" id="divisibility-section" style="display:none;">
       <div class="status-grid" id="div-status-grid">
@@ -5810,6 +5907,7 @@
   <script src="shared/monthly-report-fake.js?v=22"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=55"></script>
+  <script src="memory-training-page.js?v=1"></script>
   <script src="divisibility-page.js?v=21"></script>
   <script src="factors-multiples-page.js?v=8"></script>
   <script src="decimal-page.js?v=22"></script>
@@ -6107,6 +6205,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       syncWrongbookTabUi();
       renderWrongbookList();
     }
@@ -6295,6 +6394,34 @@
       dom.psHistoryBody = document.getElementById("ps-history-body");
       dom.psHistoryEmpty = document.getElementById("ps-history-empty");
       dom.psSoftKbdCard = document.getElementById("ps-soft-kbd-card");
+
+      dom.mtTimerValue = document.getElementById("mt-timer-value");
+      dom.mtProgressText = document.getElementById("mt-progress-text");
+      dom.mtScoreText = document.getElementById("mt-score-text");
+      dom.mtWrongText = document.getElementById("mt-wrong-text");
+      dom.mtPromptLabel = document.getElementById("mt-prompt-label");
+      dom.mtQuestionSubtext = document.getElementById("mt-question-subtext");
+      dom.mtQuestionText = document.getElementById("mt-question-text");
+      dom.mtAnswerForm = document.getElementById("mt-answer-form");
+      dom.mtAnswerInputRow = document.getElementById("mt-answer-input-row");
+      dom.mtAnswerInput = document.getElementById("mt-answer-input");
+      dom.mtNextRow = document.getElementById("mt-next-row");
+      dom.mtNextBtn = document.getElementById("mt-next-btn");
+      dom.mtStartRow = document.getElementById("mt-start-row");
+      dom.mtStartBtn = document.getElementById("mt-start-btn");
+      dom.mtGameOverPanel = document.getElementById("mt-game-over-panel");
+      dom.mtGameOverTitle = document.getElementById("mt-game-over-title");
+      dom.mtGoDurationLabel = document.getElementById("mt-go-duration-label");
+      dom.mtGoDuration = document.getElementById("mt-go-duration");
+      dom.mtGoWrongLabel = document.getElementById("mt-go-wrong-label");
+      dom.mtGoWrong = document.getElementById("mt-go-wrong");
+      dom.mtGoResultLabel = document.getElementById("mt-go-result-label");
+      dom.mtGoResult = document.getElementById("mt-go-result");
+      dom.mtPlayAgainBtn = document.getElementById("mt-play-again-btn");
+      dom.mtRecentCard = document.getElementById("mt-recent-card");
+      dom.mtHistoryBody = document.getElementById("mt-history-body");
+      dom.mtHistoryEmpty = document.getElementById("mt-history-empty");
+      dom.mtSoftKbdCard = document.getElementById("mt-soft-kbd-card");
 
       dom.divElapsed = document.getElementById("div-elapsed");
       dom.divProgressText = document.getElementById("div-progress-text");
@@ -6683,6 +6810,39 @@
       return window.JmlDecimalPage && JmlDecimalPage.isDecimalPlayingNow();
     }
 
+    function hideMemoryTrainingSection() {
+      if (window.JmlMemoryTrainingPage) JmlMemoryTrainingPage.hideMemoryTrainingSection();
+    }
+
+    function isMemoryTrainingPlayingNow() {
+      return window.JmlMemoryTrainingPage && JmlMemoryTrainingPage.isMemoryTrainingPlayingNow();
+    }
+
+    function initMemoryTrainingPage() {
+      if (!window.JmlMemoryTrainingPage) return;
+      JmlMemoryTrainingPage.init({
+        dom: dom,
+        t: t,
+        getCachedUser: function () { return cachedUser; },
+        ensureUserProgressDefault: ensureUserProgressDefault,
+        isGuestMode: function () { return isGuestMode; },
+        showToast: showToast,
+        setTopActionsVisible: setTopActionsVisible,
+        updateTopTitleForCurrentView: updateTopTitleForCurrentView,
+        updateGlobalBackButtonState: updateGlobalBackButtonState,
+        appendRun: appendRun,
+        formatCompactRunTime: formatCompactRunTime,
+        escapeHtml: escapeHtml,
+        primeCompositeResetToIdle: primeCompositeResetToIdle,
+        getGameMode: function () { return gameMode; },
+        setGameMode: function (m) { gameMode = m; },
+        getIsPlaying: function () { return isPlaying; },
+        setIsPlaying: function (v) { isPlaying = v; },
+        getGameOver: function () { return gameOver; },
+        setGameOver: function (v) { gameOver = v; },
+      });
+    }
+
     function hidePerfectSquareSection() {
       if (window.JmlPerfectSquarePage) JmlPerfectSquarePage.hidePerfectSquareSection();
       hideDivisibilitySection();
@@ -6839,6 +6999,9 @@
       if (dom.psSoftKbdCard) {
         window.JmlSoftKeyboard.ensureMounted(dom.psSoftKbdCard, "integer", t);
       }
+      if (dom.mtSoftKbdCard) {
+        window.JmlSoftKeyboard.ensureMounted(dom.mtSoftKbdCard, "integer", t);
+      }
     }
 
     /** 错题练习：小数题用带小数点键盘，其余整数键盘 */
@@ -6890,6 +7053,7 @@
       if (gameMode === "divisibility") return t("mode.running.divisibility");
       if (gameMode === "factorsMultiples") return t("mode.running.factorsMultiples");
       if (gameMode === "decimal") return t("mode.running.decimal");
+      if (gameMode === "memoryTraining") return t("mode.running.memoryTraining");
       return t("home.mode.survival");
     }
 
@@ -7382,6 +7546,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "none";
@@ -7407,6 +7572,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "none";
@@ -7767,6 +7933,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       const sec = document.getElementById("daily-task-section");
@@ -8428,7 +8595,8 @@
         isPerfectSquarePlayingNow() ||
         isDivisibilityPlayingNow() ||
         isFactorsMultiplesPlayingNow() ||
-        isDecimalPlayingNow()
+        isDecimalPlayingNow() ||
+        isMemoryTrainingPlayingNow()
       );
     }
 
@@ -8669,6 +8837,16 @@
       }
       if (m === "decimal" && window.JmlDecimalPage && typeof JmlDecimalPage.getAbandonProgress === "function") {
         return Object.assign({ mode: m }, normalizeAbandonProgress(JmlDecimalPage.getAbandonProgress()));
+      }
+      if (
+        m === "memoryTraining" &&
+        window.JmlMemoryTrainingPage &&
+        typeof JmlMemoryTrainingPage.getAbandonProgress === "function"
+      ) {
+        return Object.assign(
+          { mode: m },
+          normalizeAbandonProgress(JmlMemoryTrainingPage.getAbandonProgress())
+        );
       }
       if (
         m === "perfectSquare" &&
@@ -9053,6 +9231,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "none";
@@ -9266,6 +9445,12 @@
     }
 
     function globalBackToHome() {
+      if (isMemoryTrainingPlayingNow()) {
+        if (!confirmAbandonRun("memoryTraining")) return;
+        JmlMemoryTrainingPage.abandonMemoryTrainingGame();
+        updateGlobalBackButtonState();
+        return;
+      }
       if (isPerfectSquarePlayingNow()) {
         if (!confirmAbandonRun("perfectSquare")) return;
         JmlPerfectSquarePage.abandonPerfectSquareGame();
@@ -10661,8 +10846,26 @@
         "home.mode.primeComposite": "質數合數",
         "home.mode.perfectSquare": "平方數",
         "home.mode.decimal": "小數運算",
-        "home.mode.unitConversion": "單位換算",
+        "home.mode.memoryTraining": "記憶訓練",
         "home.mode.divisibility": "整除",
+        "mode.running.memoryTraining": "記憶訓練",
+        "memoryTraining.level.workingMemory": "工作記憶",
+        "memoryTraining.prompt.sum": "請算出以下兩個數字的和。",
+        "memoryTraining.prestart.empty": "還沒有歷史成績，先來一局吧",
+        "memoryTraining.prestart.hint": "記住第一個數，再看第二個數做加法",
+        "memoryTraining.prestart.avgError": "歷史平均錯誤率",
+        "memoryTraining.prestart.avgSpeed": "歷史平均速度",
+        "memoryTraining.feedback.equationLabel": "正確算式：",
+        "memoryTraining.end.compare": "對比：",
+        "memoryTraining.end.thisError": "本局錯誤率",
+        "memoryTraining.end.thisSpeed": "本局均速",
+        "memoryTraining.end.first": "已記下首局成績，繼續練會更準更快。",
+        "memoryTraining.end.improved": "有進步，繼續保持！",
+        "memoryTraining.end.keepTrying": "還要繼續努力。",
+        "memoryTraining.end.steady": "表現穩定，再挑戰一局吧。",
+        "memoryTraining.fail.question": "出題失敗，請稍後再試",
+        "memoryTraining.next": "下一個數字",
+        "memoryTraining.recentTitle": "最近十次記憶訓練",
         "home.mode.factorsMultiples": "因數倍數",
         "home.mode.wrongbook": "錯題本",
         "home.mode.stats": "數據統計",
@@ -11197,8 +11400,26 @@
         "home.mode.primeComposite": "Primes",
         "home.mode.perfectSquare": "Squares",
         "home.mode.decimal": "Decimals",
-        "home.mode.unitConversion": "Units",
+        "home.mode.memoryTraining": "Memory training",
         "home.mode.divisibility": "Divisibility",
+        "mode.running.memoryTraining": "Memory training",
+        "memoryTraining.level.workingMemory": "Working memory",
+        "memoryTraining.prompt.sum": "Find the sum of the two numbers.",
+        "memoryTraining.prestart.empty": "No history yet — try a run",
+        "memoryTraining.prestart.hint": "Memorize the first number, then add the second",
+        "memoryTraining.prestart.avgError": "Avg. error rate",
+        "memoryTraining.prestart.avgSpeed": "Avg. speed",
+        "memoryTraining.feedback.equationLabel": "Correct: ",
+        "memoryTraining.end.compare": "Compare: ",
+        "memoryTraining.end.thisError": "This run error",
+        "memoryTraining.end.thisSpeed": "This run speed",
+        "memoryTraining.end.first": "First run recorded — keep practicing.",
+        "memoryTraining.end.improved": "Nice progress — keep it up!",
+        "memoryTraining.end.keepTrying": "Keep practicing.",
+        "memoryTraining.end.steady": "Steady — try another run.",
+        "memoryTraining.fail.question": "Could not make a question. Try again.",
+        "memoryTraining.next": "Next number",
+        "memoryTraining.recentTitle": "Last 10 memory runs",
         "home.mode.factorsMultiples": "Factors & Multiples",
         "home.mode.wrongbook": "Mistakes",
         "home.mode.stats": "Stats",
@@ -11947,6 +12168,27 @@
       setT("ps-th-time", "expand.th.time");
       setT("ps-th-wrong", "expand.th.wrong");
       setT("ps-th-level", "expand.th.level");
+      setT("mt-lbl-mode", "game.status.currentMode");
+      setT("mt-mode-name", "home.mode.memoryTraining");
+      setT("mt-lbl-progress", "game.status.progress");
+      setT("mt-lbl-score", "game.status.scoreThisRun");
+      setT("mt-lbl-level", "game.status.expandLevel");
+      setT("mt-level-text", "memoryTraining.level.workingMemory");
+      setT("mt-lbl-wrong", "game.status.expandWrong");
+      setT("mt-lbl-difficulty", "ps.difficultyLabel");
+      setT("mt-prompt-label", "memoryTraining.level.workingMemory");
+      setT("mt-start-btn", "game.btn.startChallenge");
+      setT("mt-next-btn", "memoryTraining.next");
+      setT("mt-game-over-title", "expand.end.title");
+      setT("mt-go-duration-label", "expand.end.time");
+      setT("mt-go-wrong-label", "expand.end.wrong");
+      setT("mt-go-result-label", "memoryTraining.end.compare");
+      setT("mt-play-again-btn", "game.btn.playAgain");
+      setT("mt-th-dt", "expand.th.datetime");
+      setT("mt-th-time", "expand.th.time");
+      setT("mt-th-wrong", "expand.th.wrong");
+      setT("mt-recent-title", "memoryTraining.recentTitle");
+      setT("mt-th-err", "stats.th.errorRate");
       setT("ps-history-empty", "recent.empty");
       const psLevelSelect = byId("ps-level-select");
       if (psLevelSelect) psLevelSelect.setAttribute("aria-label", t("ps.levelSelectAria"));
@@ -12147,7 +12389,7 @@
       setHomeModeLabel("mode-prime-composite", "home.mode.primeComposite");
       setHomeModeLabel("mode-perfect-square", "home.mode.perfectSquare");
       setHomeModeLabel("mode-decimal", "home.mode.decimal");
-      setHomeModeLabel("mode-unit-conversion", "home.mode.unitConversion");
+      setHomeModeLabel("mode-memory-training", "home.mode.memoryTraining");
       setHomeModeLabel("mode-divisibility", "home.mode.divisibility");
       setHomeModeLabel("mode-factors-multiples", "home.mode.factorsMultiples");
       setHomeModeLabel("mode-wrongbook", "home.mode.wrongbook");
@@ -12321,6 +12563,7 @@
       if (sync.recentExpandBracketsRuns) cachedUser.recentExpandBracketsRuns = sync.recentExpandBracketsRuns;
       if (sync.recentPerfectSquareRuns) cachedUser.recentPerfectSquareRuns = sync.recentPerfectSquareRuns;
       if (sync.recentDecimalRuns) cachedUser.recentDecimalRuns = sync.recentDecimalRuns;
+      if (sync.recentMemoryTrainingRuns) cachedUser.recentMemoryTrainingRuns = sync.recentMemoryTrainingRuns;
       if (sync.recentDivisibilityRuns) cachedUser.recentDivisibilityRuns = sync.recentDivisibilityRuns;
       if (sync.recentFactorsMultiplesRuns) cachedUser.recentFactorsMultiplesRuns = sync.recentFactorsMultiplesRuns;
       if (sync.recentSurvivalRuns) cachedUser.recentSurvivalRuns = sync.recentSurvivalRuns;
@@ -12522,6 +12765,7 @@
           if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
           if (window.JmlFactorsMultiplesPage) JmlFactorsMultiplesPage.renderFactorsMultiplesRecentRuns();
           if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
+          if (window.JmlMemoryTrainingPage) JmlMemoryTrainingPage.renderMemoryTrainingRecentRuns();
           updateHomePlayerLevel();
           return true;
         }
@@ -12534,6 +12778,7 @@
           if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
           if (window.JmlFactorsMultiplesPage) JmlFactorsMultiplesPage.renderFactorsMultiplesRecentRuns();
           if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
+          if (window.JmlMemoryTrainingPage) JmlMemoryTrainingPage.renderMemoryTrainingRecentRuns();
           updateHomePlayerLevel();
           return true;
         }
@@ -12572,6 +12817,10 @@
           if (!Array.isArray(u.recentFactorsMultiplesRuns)) u.recentFactorsMultiplesRuns = [];
           u.recentFactorsMultiplesRuns.unshift(runEntry);
           if (u.recentFactorsMultiplesRuns.length > 10) u.recentFactorsMultiplesRuns = u.recentFactorsMultiplesRuns.slice(0, 10);
+        } else if (mode === "memoryTraining") {
+          if (!Array.isArray(u.recentMemoryTrainingRuns)) u.recentMemoryTrainingRuns = [];
+          u.recentMemoryTrainingRuns.unshift(runEntry);
+          if (u.recentMemoryTrainingRuns.length > 10) u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 10);
         } else {
           if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
           u.recentSurvivalRuns.unshift(runEntry);
@@ -12596,6 +12845,8 @@
           ? { recentDivisibilityRuns: u.recentDivisibilityRuns, totalScore: u.totalScore }
           : mode === "factorsMultiples"
           ? { recentFactorsMultiplesRuns: u.recentFactorsMultiplesRuns, totalScore: u.totalScore }
+          : mode === "memoryTraining"
+          ? { recentMemoryTrainingRuns: u.recentMemoryTrainingRuns, totalScore: u.totalScore }
           : { bestSurvivalSec: u.bestSurvivalSec, bestScore: u.bestScore, totalScore: u.totalScore, recentSurvivalRuns: u.recentSurvivalRuns };
         const updated = await apiPutUser(username, updates);
         if (updated) cachedUser = updated;
@@ -12606,6 +12857,7 @@
         if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
         if (window.JmlFactorsMultiplesPage) JmlFactorsMultiplesPage.renderFactorsMultiplesRecentRuns();
         if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
+        if (window.JmlMemoryTrainingPage) JmlMemoryTrainingPage.renderMemoryTrainingRecentRuns();
         return !!updated;
       } catch (e) {
         console.warn("同步记录到服务器失败", e);
@@ -12616,6 +12868,8 @@
         if (window.JmlDivisibilityPage) JmlDivisibilityPage.renderDivisibilityRecentRuns();
       } else if (gameMode === "factorsMultiples") {
         if (window.JmlFactorsMultiplesPage) JmlFactorsMultiplesPage.renderFactorsMultiplesRecentRuns();
+      } else if (gameMode === "memoryTraining") {
+        if (window.JmlMemoryTrainingPage) JmlMemoryTrainingPage.renderMemoryTrainingRecentRuns();
       } else if (gameMode === "decimal") {
         if (window.JmlDecimalPage) JmlDecimalPage.renderDecimalRecentRuns();
       } else if (gameMode !== "expandBrackets") {
@@ -12761,6 +13015,7 @@
       if (!Array.isArray(user.recentDecimalRuns)) user.recentDecimalRuns = [];
       if (!Array.isArray(user.recentDivisibilityRuns)) user.recentDivisibilityRuns = [];
       if (!Array.isArray(user.recentFactorsMultiplesRuns)) user.recentFactorsMultiplesRuns = [];
+      if (!Array.isArray(user.recentMemoryTrainingRuns)) user.recentMemoryTrainingRuns = [];
       if (typeof user.levelFactorsMultiplesCurrentLevel !== "number") user.levelFactorsMultiplesCurrentLevel = 0;
       if (typeof user.levelFactorsMultiplesUnlockedMax !== "number") {
         user.levelFactorsMultiplesUnlockedMax = user.levelFactorsMultiplesCurrentLevel;
@@ -12820,6 +13075,7 @@
       if (mode === "decimal") return "decimal";
       if (mode === "divisibility") return "divisibility";
       if (mode === "factorsMultiples") return "factorsMultiples";
+      if (mode === "memoryTraining") return "memoryTraining";
       return "survival";
     }
 
@@ -13134,6 +13390,13 @@
     }
 
     function abandonCurrentRun() {
+      if (gameMode === "memoryTraining") {
+        if (isPlaying && !gameOver) {
+          if (!confirmAbandonRun("memoryTraining")) return;
+          JmlMemoryTrainingPage.abandonMemoryTrainingGame();
+        }
+        return;
+      }
       if (gameMode === "perfectSquare") {
         if (isPlaying && !gameOver) {
           if (!confirmAbandonRun("perfectSquare")) return;
@@ -14818,6 +15081,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       primeCompositeResetToIdle();
@@ -14876,6 +15140,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       const sec = document.getElementById("achievement-wall-section");
@@ -14917,6 +15182,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const rankingSection = document.getElementById("ranking-section");
       if (rankingSection) rankingSection.style.display = "flex";
       initRankingUiSkeletonIfNeeded();
@@ -14954,6 +15220,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const primeSection = document.getElementById("prime-composite-section");
       if (primeSection) {
         primeSection.style.display = "flex";
@@ -16105,6 +16372,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       sec.style.display = "block";
       renderAvatarPicker();
     }
@@ -16679,6 +16947,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const statsSection = document.getElementById("stats-section");
       if (statsSection) statsSection.classList.add("visible");
       const empty = document.getElementById("stats-level-empty");
@@ -16872,6 +17141,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       const avatarPickerSec = document.getElementById("avatar-picker-section");
       if (avatarPickerSec) avatarPickerSec.style.display = "none";
       if (dom.expandSection) {
@@ -17019,6 +17289,7 @@
       hideDivisibilitySection();
       hideFactorsMultiplesSection();
       hideDecimalSection();
+      hideMemoryTrainingSection();
       syncWrongbookTabUi();
       renderWrongbookList();
       const name = loadCurrentUsername();
@@ -18868,6 +19139,13 @@
       });
       const modeExpandBrackets = document.getElementById("mode-expand-brackets");
       if (modeExpandBrackets) modeExpandBrackets.addEventListener("click", handleModeExpandBrackets);
+      const modeMemoryTraining = document.getElementById("mode-memory-training");
+      if (modeMemoryTraining) {
+        modeMemoryTraining.addEventListener("click", function () {
+          if (!gatePendingRunDraft()) return;
+          if (window.JmlMemoryTrainingPage) JmlMemoryTrainingPage.handleModeMemoryTraining();
+        });
+      }
       const primeStartBtn = document.getElementById("prime-composite-start-btn");
       if (primeStartBtn) primeStartBtn.addEventListener("click", primeCompositeStart);
       const primeAgainBtn = document.getElementById("prime-composite-again-btn");
@@ -18883,16 +19161,6 @@
         await ensureAvatarCatalogLoaded();
         updateHomeAvatar();
         showAvatarPicker();
-      });
-
-      // 首页：未开放入口统一用提示，不拉长按钮文案
-      const soonButtons = [
-        { id: "mode-unit-conversion", key: "home.soon.unitConversion" },
-      ];
-      soonButtons.forEach((x) => {
-        const btn = document.getElementById(x.id);
-        if (!btn) return;
-        btn.addEventListener("click", () => showToast(t(x.key)));
       });
 
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
@@ -19104,6 +19372,7 @@
       initDivisibilityPage();
       initFactorsMultiplesPage();
       initDecimalPage();
+      initMemoryTrainingPage();
       initStatusGridIcons();
       applyI18nToLoginView();
       applyI18nToMainView();
