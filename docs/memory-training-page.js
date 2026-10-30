@@ -222,6 +222,18 @@
     return Array.isArray(user.recentMemoryTrainingRuns) ? user.recentMemoryTrainingRuns : [];
   }
 
+  function clearMtPrestartChrome() {
+    var card = document.getElementById("mt-game-card");
+    if (card) card.classList.remove("training-brush-prestart");
+    if (dom().mtQuestionText) {
+      dom().mtQuestionText.classList.remove("training-brush-stat", "rule-hint");
+    }
+    if (dom().mtQuestionSubtext) {
+      dom().mtQuestionSubtext.classList.remove("training-brush-stat");
+    }
+  }
+
+  /** 对齐四则 brushStat：卡上 training-brush-prestart，主/副行仅 training-brush-stat（勿加 rule-hint） */
   function paintPrestartStats() {
     mtHistoryStats = computeStatsFromRuns(getRecentRuns());
     var main = "";
@@ -239,15 +251,22 @@
         " " +
         formatSec1(mtHistoryStats.avgSec);
     }
+    clearMtPrestartChrome();
+    var card = document.getElementById("mt-game-card");
+    if (card) card.classList.add("training-brush-prestart");
     if (dom().mtQuestionText) {
       dom().mtQuestionText.style.display = "";
-      dom().mtQuestionText.classList.add("training-brush-stat", "rule-hint");
+      dom().mtQuestionText.classList.add("training-brush-stat");
       dom().mtQuestionText.textContent = main;
     }
     if (dom().mtQuestionSubtext) {
       dom().mtQuestionSubtext.textContent = sub;
-      dom().mtQuestionSubtext.style.display = sub ? "" : "none";
-      if (sub) dom().mtQuestionSubtext.classList.add("training-brush-stat");
+      if (sub) {
+        dom().mtQuestionSubtext.classList.add("training-brush-stat");
+        dom().mtQuestionSubtext.style.display = "";
+      } else {
+        dom().mtQuestionSubtext.style.display = "none";
+      }
     }
     if (dom().mtPromptLabel) {
       dom().mtPromptLabel.textContent = t("memoryTraining.level.workingMemory");
@@ -359,14 +378,13 @@
     mtPhase = "showFirst";
     mtQuestionShownAt = Date.now();
     mtInputLocked = false;
+    clearMtPrestartChrome();
     if (dom().mtQuestionSubtext) {
       dom().mtQuestionSubtext.style.display = "";
-      dom().mtQuestionSubtext.classList.remove("training-brush-stat");
       dom().mtQuestionSubtext.textContent = t("memoryTraining.prompt.sum");
     }
     if (dom().mtQuestionText) {
       dom().mtQuestionText.style.display = "";
-      dom().mtQuestionText.classList.remove("training-brush-stat", "rule-hint");
       dom().mtQuestionText.textContent = String(mtCurrent.a);
     }
     if (dom().mtProgressText) {

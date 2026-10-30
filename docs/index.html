@@ -3443,12 +3443,15 @@
     }
 
     /* 刷题/日任务开局样式只认卡上专用标记，避免与闯关/生存共用 training-prestart 壳时串味 */
-    #game-card.training-brush-prestart > .question-body {
+    #game-card.training-brush-prestart > .question-body,
+    #mt-game-card.training-brush-prestart > .question-body {
       justify-content: center;
     }
 
     #game-card.training-brush-prestart .question-text.training-brush-stat,
-    #game-card.training-brush-prestart .question-subtext.training-brush-stat {
+    #game-card.training-brush-prestart .question-subtext.training-brush-stat,
+    #mt-game-card.training-brush-prestart .question-text.training-brush-stat,
+    #mt-game-card.training-brush-prestart .question-subtext.training-brush-stat {
       text-align: center;
       font-size: var(--jml-brush-stat-size);
       font-weight: var(--jml-brush-stat-weight);
@@ -3459,7 +3462,8 @@
       line-height: 1.4;
     }
 
-    #game-card.training-brush-prestart .question-text.training-brush-stat {
+    #game-card.training-brush-prestart .question-text.training-brush-stat,
+    #mt-game-card.training-brush-prestart .question-text.training-brush-stat {
       flex: 0 1 auto;
       margin-top: 0;
     }
@@ -5907,7 +5911,7 @@
   <script src="shared/monthly-report-fake.js?v=22"></script>
   <script src="achievements-client.js?v=9"></script>
   <script src="perfect-square-page.js?v=55"></script>
-  <script src="memory-training-page.js?v=1"></script>
+  <script src="memory-training-page.js?v=2"></script>
   <script src="divisibility-page.js?v=21"></script>
   <script src="factors-multiples-page.js?v=8"></script>
   <script src="decimal-page.js?v=22"></script>
