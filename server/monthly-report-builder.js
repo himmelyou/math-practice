@@ -387,7 +387,7 @@ function heatCatRank(catId) {
  * 热图进步：
  * - 准确率：上月末已有样本且未达标 → 本月末达标（首次从无样本到达标不算）
  * - 速度：两端均达标，均速提升 ≥3%
- * - 展示：五栏目各取有进步的最高等级（最多 5）；不足 3 且总数 ≥3 时按难度从剩余补到 3
+ * - 展示：五栏目各取有进步的最高等级（最多 5）；主选不足 3 时从剩余进步格按难度补到 3（含同栏目较低档）
  */
 function buildHeatmapDiff(priorHeat, currentHeat) {
   const prev = cellMap(priorHeat);
@@ -452,8 +452,8 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
   });
 
   const selected = primary.slice();
-  // 补足到 3：总数够且主选不足时，从剩余按难度补
-  if (selected.length < 3 && improved.length >= 3) {
+  // 补足到 3：主选不足且还有剩余进步格时补（不要求总进步 ≥3；可含同栏目较低档）
+  if (selected.length < 3) {
     const rest = improved
       .filter(function (row) {
         return !pickedKeys[row.key];
