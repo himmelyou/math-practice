@@ -24,6 +24,7 @@ const dedupeUsernames = require("./dedupe-usernames");
 const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { attachHeatBaselineBeforeWrite } = require("./heat-baseline-at-append");
 const { buildUserHeatmapsByCategory } = require("./user-heatmap");
+const { getJmlStatsAggregate } = require("./load-jml-stats-aggregate");
 const {
   computeDecimalNextLevel,
   computeDivisibilityNextLevel,
@@ -819,13 +820,34 @@ function cohortsByCategoryForHeatmap() {
   };
 }
 
-function buildHeatmapPayloadForUsername(username) {
-  const runs = runsStore.getUserRuns(username).map((r) => ({
-    ...r,
-    mode: normalizeRunMode(r.mode),
-  }));
+/** 管理端报表用：去掉 attempts，只保留 attemptCount（显著缩小 JSON） */
+function slimRunForAdminReport(run) {
+  if (!run || typeof run !== "object") return run;
+  const attempts = Array.isArray(run.attempts) ? run.attempts : null;
+  const out = { ...run };
+  delete out.attempts;
+  out.attemptCount =
+    attempts != null
+      ? attempts.length
+      : Number.isFinite(Number(run.attemptCount))
+        ? Math.max(0, Math.floor(Number(run.attemptCount)))
+        : 0;
+  return out;
+}
+
+function getNormalizedUserRunsSorted(username) {
+  return runsStore
+    .getUserRuns(username)
+    .map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }))
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+}
+
+function buildHeatmapPayloadFromRuns(username, runs) {
   const built = buildUserHeatmapsByCategory({
-    runs,
+    runs: Array.isArray(runs) ? runs : [],
     cohortsByCategory: cohortsByCategoryForHeatmap(),
   });
   return {
@@ -839,23 +861,69 @@ function buildHeatmapPayloadForUsername(username) {
   };
 }
 
+function buildHeatmapPayloadForUsername(username) {
+  return buildHeatmapPayloadFromRuns(username, getNormalizedUserRunsSorted(username));
+}
+
+/** 报表折线用：服务端按分类聚合并去掉 attempts 依赖 */
+function buildAggByCategoryFromRuns(runs) {
+  let Agg;
+  try {
+    Agg = getJmlStatsAggregate();
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || "aggregate unavailable", byCategory: {} };
+  }
+  if (!Agg || typeof Agg.aggregateFromRuns !== "function") {
+    return { ok: false, error: "aggregate API incomplete", byCategory: {} };
+  }
+  const fallbackCats = [
+    { id: "arithmetic", modes: ["survival", "level", "training"], levelCount: 16 },
+    { id: "decimal", modes: ["decimal"], levelCount: 6 },
+    { id: "perfectSquare", modes: ["perfectSquare"], levelCount: 4 },
+    { id: "divisibility", modes: ["divisibility"], levelCount: 4 },
+    { id: "factorsMultiples", modes: ["factorsMultiples"], levelCount: 6 },
+  ];
+  let categories = fallbackCats;
+  try {
+    const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
+    const HM = getJmlStatsHeatmap();
+    if (HM && typeof HM.getHeatmapCategories === "function") {
+      const list = HM.getHeatmapCategories();
+      if (Array.isArray(list) && list.length) categories = list;
+    }
+  } catch (e) {
+    categories = fallbackCats;
+  }
+  const byCategory = {};
+  categories.forEach(function (cat) {
+    if (!cat || !cat.id) return;
+    byCategory[cat.id] = Agg.aggregateFromRuns(runs, {
+      modes: cat.modes,
+      levelCount: cat.levelCount,
+    });
+  });
+  return { ok: true, byCategory: byCategory, categories: categories };
+}
+
 function computePracticePlanForUsername(username, opts) {
   opts = opts || {};
   const usersData = readJson(USERS_FILE, { users: [] });
   const user = usersData.users.find((u) => u.username === username);
   if (!user) return { ok: false, status: 404, error: "用户不存在" };
-  const runs = runsStore.getUserRuns(username).map((r) => ({
-    ...r,
-    mode: normalizeRunMode(r.mode),
-  }));
+  const runs = Array.isArray(opts.runs)
+    ? opts.runs
+    : getNormalizedUserRunsSorted(username);
   if (ensureUserClearedFlagsFromRuns(user, runs)) {
     writeJson(USERS_FILE, usersData);
   }
-  const heatPayload = buildHeatmapPayloadForUsername(username);
+  const heatPayload =
+    opts.heatPayload && opts.heatPayload.ok
+      ? opts.heatPayload
+      : buildHeatmapPayloadFromRuns(username, runs);
   const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
   const modeCells = practicePlanService.modeCellsFromHeatmapPayload(heatPayload);
-  let systemPick = null;
-  if (opts.includeSystemPick) {
+  let systemPick = opts.systemPick != null ? opts.systemPick : null;
+  if (opts.includeSystemPick && systemPick == null) {
     try {
       const cohort = readCohortResultForHeatmap();
       const capMs =
@@ -886,11 +954,238 @@ function computePracticePlanForUsername(username, opts) {
       includeSystemPick: false,
       systemPick,
     });
-    return { ok: true, advice };
+    return { ok: true, advice, heatPayload, runs, user };
   } catch (e) {
     console.warn("[practice-plan]", e && e.message ? e.message : e);
     return { ok: false, status: 500, error: "任务单计算失败" };
   }
+}
+
+function buildTrainingNextDebugBlock(username, user, runs) {
+  const cohort = readCohortResultForHeatmap();
+  const capMs =
+    cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+  let pick;
+  try {
+    pick = computeTrainingNextLevelForUser({
+      runs,
+      cohort,
+      storedDayMode: user.trainingDayMode || null,
+      capMs,
+    });
+  } catch (e) {
+    return {
+      ok: false,
+      error: "选关计算失败",
+      detail: e && e.message ? e.message : String(e),
+    };
+  }
+
+  const cells = pick && pick.heat && Array.isArray(pick.heat.cells) ? pick.heat.cells : [];
+  const cellsSummary = cells.map((c) => {
+    const p = c && c.p != null && Number.isFinite(Number(c.p)) ? Math.round(Number(c.p) * 1000) / 1000 : null;
+    const timePct =
+      c && c.timePct != null && Number.isFinite(Number(c.timePct))
+        ? Math.round(Number(c.timePct) * 10) / 10
+        : null;
+    return {
+      levelIndex: c.levelIndex,
+      L: (c.levelIndex != null ? Number(c.levelIndex) : 0) + 1,
+      active: !!c.active,
+      n: c.n != null ? c.n : 0,
+      p: p,
+      timePct: timePct,
+      tooSlow: c.tooSlow === true,
+      fluent: c.fluent === true,
+      accurate: c.accurate === true,
+    };
+  });
+
+  const trainingRuns = runs
+    .filter((r) => String(r && r.mode ? r.mode : "").toLowerCase() === "training")
+    .filter((r) => r && r.comboOnly !== true)
+    .slice()
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .slice(0, 12)
+    .map((r) => {
+      const m = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
+      return {
+        ts: r.ts || 0,
+        iso: r.ts ? new Date(r.ts).toISOString() : "",
+        maxLevel: r.maxLevel,
+        L: (Number(r.maxLevel) || 0) + 1,
+        cleared: r.cleared === true,
+        abandoned: r.abandoned === true || !!(m && m.abandoned),
+        wrongCount: r.wrongCount,
+        runBrushMode: !!(m && m.runBrushMode),
+        autoPickLevel: m && m.autoPickLevel != null ? m.autoPickLevel : null,
+        autoPickL: m && m.autoPickLevel != null ? Number(m.autoPickLevel) + 1 : null,
+        pickedLevel: m && m.pickedLevel != null ? m.pickedLevel : null,
+        pickedL: m && m.pickedLevel != null ? Number(m.pickedLevel) + 1 : null,
+        manualOverride: !!(m && m.manualOverride),
+        pickMode: m && m.pickMode != null ? m.pickMode : null,
+        effectivePickMode: m && m.effectivePickMode != null ? m.effectivePickMode : null,
+        pickReason: m && m.pickReason != null ? String(m.pickReason) : "",
+        entrySource: m && m.entrySource != null ? String(m.entrySource) : "",
+        dayMode: m && m.dayMode != null ? String(m.dayMode) : "",
+        frontierLevel: m && m.frontierLevel != null ? m.frontierLevel : null,
+        heatLevel: m && m.heatLevel != null ? m.heatLevel : null,
+        runKind: m && m.runKind != null ? String(m.runKind) : "",
+        dayStateAfter: m && m.dayStateAfter && typeof m.dayStateAfter === "object" ? m.dayStateAfter : null,
+        heatAvgSecAtStart: m && m.heatAvgSecAtStart != null ? m.heatAvgSecAtStart : null,
+        runAvgSec: m && m.runAvgSec != null ? m.runAvgSec : null,
+      };
+    });
+
+  const serverBlock =
+    pick && pick.ok
+      ? {
+          ok: true,
+          source: "server_computeTrainingNextLevelForUser",
+          todayKey: pick.todayKey,
+          levelIndex: pick.levelIndex,
+          pickedL: pick.levelIndex + 1,
+          brushMode: pick.brushMode,
+          dayMode: pick.dayMode,
+          frontierLevel: pick.frontierLevel,
+          frontierL: pick.frontierLevel != null ? pick.frontierLevel + 1 : null,
+          heatLevel: pick.heatLevel,
+          heatL: pick.heatLevel != null ? pick.heatLevel + 1 : null,
+          mode: pick.mode,
+          reason: pick.reason,
+          pickReason: pick.pickReason,
+          enterBrush: pick.enterBrush,
+          brushPoolMax: pick.brushPoolMax,
+          dayState: pick.dayState,
+          result: pick.result,
+          heatAvgSecAtStart: pick.heatAvgSecAtStart,
+          heatMeanLnAtStart: pick.heatMeanLnAtStart,
+          cohortLoaded: pick.cohortLoaded,
+          cellsSummary,
+        }
+      : {
+          ok: false,
+          error: (pick && pick.error) || "无法计算下一关",
+          todayKey: pick && pick.todayKey,
+          dayState: pick && pick.dayState,
+          cellsSummary,
+        };
+
+  return {
+    ok: true,
+    username,
+    at: new Date().toISOString(),
+    note:
+      "server 与学员端 GET /api/user/:user/training/next-level 同口径；选关权威只在服务器。",
+    trainingDayMode: user.trainingDayMode || null,
+    levelTrainingCurrentLevel:
+      typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,
+    levelTrainingCurrentL:
+      typeof user.levelTrainingCurrentLevel === "number" && user.levelTrainingCurrentLevel >= 0
+        ? user.levelTrainingCurrentLevel + 1
+        : null,
+    server: serverBlock,
+    recentTraining: trainingRuns,
+    pick: pick && pick.ok ? pick : null,
+  };
+}
+
+/**
+ * 管理端学员工作台：runs 读一次，热图算一次，附带选关/任务单/报表聚合。
+ * runs 默认瘦身（无 attempts）。
+ */
+function buildStudentWorkspaceForUsername(username, opts) {
+  opts = opts || {};
+  const includeAttempts = opts.includeAttempts === true;
+  const usersData = readJson(USERS_FILE, { users: [] });
+  const user = usersData.users.find((u) => u.username === username);
+  if (!user) return { ok: false, status: 404, error: "用户不存在" };
+
+  const runs = getNormalizedUserRunsSorted(username);
+  if (ensureUserClearedFlagsFromRuns(user, runs)) {
+    writeJson(USERS_FILE, usersData);
+  }
+
+  const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
+  const trainDebug = buildTrainingNextDebugBlock(username, user, runs);
+  let systemPick = null;
+  if (trainDebug && trainDebug.pick) {
+    try {
+      systemPick = practicePlanService.systemPickFromTraining(trainDebug.pick);
+    } catch (e) {
+      systemPick = null;
+    }
+  }
+
+  const planOut = computePracticePlanForUsername(username, {
+    runs,
+    heatPayload,
+    includeSystemPick: false,
+    systemPick,
+    snapshot: true,
+  });
+
+  let categoryNext = null;
+  try {
+    const built = computeSpecialCategoryNextLevels({
+      user,
+      runs,
+      cohorts: {
+        decimal: readCohortDecimalResultForHeatmap(),
+        perfectSquare: readCohortPerfectSquareResultForHeatmap(),
+        divisibility: readCohortDivisibilityResultForHeatmap(),
+        factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
+      },
+    });
+    categoryNext = {
+      ok: true,
+      byCategory: built.byCategory || {},
+      profile: {
+        levelDecimalCurrentLevel: user.levelDecimalCurrentLevel,
+        levelDecimalUnlockedMax: user.levelDecimalUnlockedMax,
+        levelPerfectSquareCurrentLevel: user.levelPerfectSquareCurrentLevel,
+        levelPerfectSquareUnlockedMax: user.levelPerfectSquareUnlockedMax,
+        levelDivisibilityCurrentLevel: user.levelDivisibilityCurrentLevel,
+        levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
+        levelFactorsMultiplesCurrentLevel: user.levelFactorsMultiplesCurrentLevel,
+        levelFactorsMultiplesUnlockedMax: user.levelFactorsMultiplesUnlockedMax,
+      },
+    };
+  } catch (e) {
+    categoryNext = {
+      ok: false,
+      error: e && e.message ? e.message : "选关计算失败",
+      byCategory: {},
+    };
+  }
+
+  const aggBuilt = buildAggByCategoryFromRuns(runs);
+
+  return {
+    ok: true,
+    username,
+    at: new Date().toISOString(),
+    user: safeUser(user),
+    runs: includeAttempts ? runs : runs.map(slimRunForAdminReport),
+    runsSlimmed: !includeAttempts,
+    heatmap: heatPayload,
+    aggByCategory: aggBuilt.ok ? aggBuilt.byCategory : {},
+    aggOk: !!aggBuilt.ok,
+    trainingNext: {
+      ok: !!trainDebug.ok,
+      at: trainDebug.at,
+      note: trainDebug.note,
+      trainingDayMode: trainDebug.trainingDayMode,
+      levelTrainingCurrentLevel: trainDebug.levelTrainingCurrentLevel,
+      levelTrainingCurrentL: trainDebug.levelTrainingCurrentL,
+      server: trainDebug.server,
+      recentTraining: trainDebug.recentTraining,
+    },
+    categoryNext: categoryNext,
+    practicePlan: planOut.ok
+      ? adminPracticePlanPayload(planOut.advice)
+      : { ok: false, error: planOut.error || "任务单计算失败" },
+  };
 }
 
 function computeHeatmapL16PassedFromRuns(runs) {
@@ -4371,23 +4666,53 @@ function ensureUserClearedFlagsFromRuns(user, runs) {
 }
 
 // ========== 管理员：一次拉取学员资料 + 全部 runs（report 选学员） ==========
+/**
+ * 管理员：学员工作台（一次返回 detail 瘦身 runs + 热图 + 选关 + 任务单 + 折线聚合）
+ * 默认不含 attempts；?attempts=1 保留完整 attempts。
+ */
+app.get("/api/admin/student-workspace/:username", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const { username } = req.params;
+  const includeAttempts =
+    String((req.query && req.query.attempts) || "") === "1" ||
+    String((req.query && req.query.includeAttempts) || "") === "1";
+  try {
+    const out = buildStudentWorkspaceForUsername(username, { includeAttempts });
+    if (!out.ok) {
+      return res.status(out.status || 500).json({ ok: false, error: out.error || "加载失败" });
+    }
+    return res.json(out);
+  } catch (e) {
+    console.warn("[admin student-workspace]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "学员工作台计算失败" });
+  }
+});
+
 app.get("/api/admin/student-detail/:username", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const { username } = req.params;
+  const includeAttempts =
+    String((req.query && req.query.attempts) || "") === "1" ||
+    String((req.query && req.query.includeAttempts) || "") === "1";
   const usersData = readJson(USERS_FILE, { users: [] });
   const user = usersData.users.find((u) => u.username === username);
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-    const runs = runsStore.getUserRuns(username)
-    .map((r) => ({ ...r, mode: normalizeRunMode(r.mode) }))
-    .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const runs = getNormalizedUserRunsSorted(username);
   if (ensureUserClearedFlagsFromRuns(user, runs)) {
     writeJson(USERS_FILE, usersData);
   }
-  res.json({ ok: true, user: safeUser(user), runs });
+  res.json({
+    ok: true,
+    user: safeUser(user),
+    runs: includeAttempts ? runs : runs.map(slimRunForAdminReport),
+    runsSlimmed: !includeAttempts,
+  });
 });
 
 /**
@@ -4403,131 +4728,22 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
-    const runs = runsStore.getUserRuns(username).map((r) => ({
-    ...r,
-    mode: normalizeRunMode(r.mode),
-  }));
-  const cohort = readCohortResultForHeatmap();
-  const capMs =
-    cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
-  let pick;
-  try {
-    pick = computeTrainingNextLevelForUser({
-      runs,
-      cohort,
-      storedDayMode: user.trainingDayMode || null,
-      capMs,
-    });
-  } catch (e) {
-    console.warn("[admin training/next-level-debug]", e && e.message ? e.message : e);
-    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  const runs = getNormalizedUserRunsSorted(username);
+  const out = buildTrainingNextDebugBlock(username, user, runs);
+  if (!out.ok) {
+    console.warn("[admin training/next-level-debug]", out.detail || out.error);
+    return res.status(500).json({ ok: false, error: out.error || "选关计算失败" });
   }
-
-  const cells = pick && pick.heat && Array.isArray(pick.heat.cells) ? pick.heat.cells : [];
-  const cellsSummary = cells.map((c) => {
-    const p = c && c.p != null && Number.isFinite(Number(c.p)) ? Math.round(Number(c.p) * 1000) / 1000 : null;
-    const timePct =
-      c && c.timePct != null && Number.isFinite(Number(c.timePct))
-        ? Math.round(Number(c.timePct) * 10) / 10
-        : null;
-    return {
-      levelIndex: c.levelIndex,
-      L: (c.levelIndex != null ? Number(c.levelIndex) : 0) + 1,
-      active: !!c.active,
-      n: c.n != null ? c.n : 0,
-      p: p,
-      timePct: timePct,
-      tooSlow: c.tooSlow === true,
-      fluent: c.fluent === true,
-      accurate: c.accurate === true,
-    };
-  });
-
-  const trainingRuns = runs
-    .filter((r) => String(r && r.mode ? r.mode : "").toLowerCase() === "training")
-    .filter((r) => r && r.comboOnly !== true)
-    .slice()
-    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
-    .slice(0, 12)
-    .map((r) => {
-      const m = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
-      return {
-        ts: r.ts || 0,
-        iso: r.ts ? new Date(r.ts).toISOString() : "",
-        maxLevel: r.maxLevel,
-        L: (Number(r.maxLevel) || 0) + 1,
-        cleared: r.cleared === true,
-        abandoned: r.abandoned === true || !!(m && m.abandoned),
-        wrongCount: r.wrongCount,
-        runBrushMode: !!(m && m.runBrushMode),
-        autoPickLevel: m && m.autoPickLevel != null ? m.autoPickLevel : null,
-        autoPickL: m && m.autoPickLevel != null ? Number(m.autoPickLevel) + 1 : null,
-        pickedLevel: m && m.pickedLevel != null ? m.pickedLevel : null,
-        pickedL: m && m.pickedLevel != null ? Number(m.pickedLevel) + 1 : null,
-        manualOverride: !!(m && m.manualOverride),
-        pickMode: m && m.pickMode != null ? m.pickMode : null,
-        effectivePickMode: m && m.effectivePickMode != null ? m.effectivePickMode : null,
-        pickReason: m && m.pickReason != null ? String(m.pickReason) : "",
-        entrySource: m && m.entrySource != null ? String(m.entrySource) : "",
-        dayMode: m && m.dayMode != null ? String(m.dayMode) : "",
-        frontierLevel: m && m.frontierLevel != null ? m.frontierLevel : null,
-        heatLevel: m && m.heatLevel != null ? m.heatLevel : null,
-        runKind: m && m.runKind != null ? String(m.runKind) : "",
-        dayStateAfter: m && m.dayStateAfter && typeof m.dayStateAfter === "object" ? m.dayStateAfter : null,
-        heatAvgSecAtStart: m && m.heatAvgSecAtStart != null ? m.heatAvgSecAtStart : null,
-        runAvgSec: m && m.runAvgSec != null ? m.runAvgSec : null,
-      };
-    });
-
-  const serverBlock =
-    pick && pick.ok
-      ? {
-          ok: true,
-          source: "server_computeTrainingNextLevelForUser",
-          todayKey: pick.todayKey,
-          levelIndex: pick.levelIndex,
-          pickedL: pick.levelIndex + 1,
-          brushMode: pick.brushMode,
-          dayMode: pick.dayMode,
-          frontierLevel: pick.frontierLevel,
-          frontierL: pick.frontierLevel != null ? pick.frontierLevel + 1 : null,
-          heatLevel: pick.heatLevel,
-          heatL: pick.heatLevel != null ? pick.heatLevel + 1 : null,
-          mode: pick.mode,
-          reason: pick.reason,
-          pickReason: pick.pickReason,
-          enterBrush: pick.enterBrush,
-          brushPoolMax: pick.brushPoolMax,
-          dayState: pick.dayState,
-          result: pick.result,
-          heatAvgSecAtStart: pick.heatAvgSecAtStart,
-          heatMeanLnAtStart: pick.heatMeanLnAtStart,
-          cohortLoaded: pick.cohortLoaded,
-          cellsSummary,
-        }
-      : {
-          ok: false,
-          error: (pick && pick.error) || "无法计算下一关",
-          todayKey: pick && pick.todayKey,
-          dayState: pick && pick.dayState,
-          cellsSummary,
-        };
-
   return res.json({
     ok: true,
-    username,
-    at: new Date().toISOString(),
-    note:
-      "server 与学员端 GET /api/user/:user/training/next-level 同口径；选关权威只在服务器。",
-    trainingDayMode: user.trainingDayMode || null,
-    levelTrainingCurrentLevel:
-      typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,
-    levelTrainingCurrentL:
-      typeof user.levelTrainingCurrentLevel === "number" && user.levelTrainingCurrentLevel >= 0
-        ? user.levelTrainingCurrentLevel + 1
-        : null,
-    server: serverBlock,
-    recentTraining: trainingRuns,
+    username: out.username,
+    at: out.at,
+    note: out.note,
+    trainingDayMode: out.trainingDayMode,
+    levelTrainingCurrentLevel: out.levelTrainingCurrentLevel,
+    levelTrainingCurrentL: out.levelTrainingCurrentL,
+    server: out.server,
+    recentTraining: out.recentTraining,
   });
 });
 

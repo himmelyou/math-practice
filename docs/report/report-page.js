@@ -1261,8 +1261,12 @@
       if (el) {
         el.innerHTML = '<div class="jml-report-empty">正在加载学员数据…</div>';
       }
-      // loadStudentData 成功后若仍在本 Tab 会调用 fetchAndRenderTrainDebug
+      // loadStudentData 成功后若仍在本 Tab 会用工作台预载或再拉 debug
       return Promise.resolve(loadStudentData());
+    }
+    if (state.trainDebugPayload && !forceReloadStudent) {
+      renderTrainDebugPanel(state.trainDebugPayload);
+      return Promise.resolve();
     }
     return fetchAndRenderTrainDebug();
   }
@@ -1850,6 +1854,65 @@
     }
   }
 
+  function attachTrainingPickReasonText(server) {
+    if (
+      server &&
+      server.ok !== false &&
+      !server.reasonText &&
+      window.JmlStatsHeatmap &&
+      window.JmlStatsHeatmap.trainingNextLevelReasonText
+    ) {
+      server.reasonText = window.JmlStatsHeatmap.trainingNextLevelReasonText(
+        server.result || server,
+        getReportTrainingReasonLabels()
+      );
+    }
+    return server;
+  }
+
+  function applyWorkspaceExtras(data, u) {
+    if (!data || state.selectedUsername !== u) return;
+
+    if (data.heatmap) applyServerHeatmapPayload(data.heatmap);
+
+    if (data.aggByCategory && typeof data.aggByCategory === 'object') {
+      state.aggByCategory = data.aggByCategory;
+      state.statsBuiltFor = '';
+    }
+
+    var train = data.trainingNext;
+    if (train && train.server) {
+      state.serverTrainingPick = attachTrainingPickReasonText(train.server);
+      state.trainDebugPayload = {
+        ok: true,
+        username: u,
+        at: train.at || data.at,
+        note: train.note,
+        trainingDayMode: train.trainingDayMode,
+        levelTrainingCurrentLevel: train.levelTrainingCurrentLevel,
+        levelTrainingCurrentL: train.levelTrainingCurrentL,
+        server: state.serverTrainingPick,
+        recentTraining: train.recentTraining || [],
+      };
+    }
+
+    if (data.categoryNext && data.categoryNext.ok && data.categoryNext.byCategory) {
+      state.serverCategoryNext = data.categoryNext.byCategory;
+    } else {
+      state.serverCategoryNext = null;
+    }
+
+    var plan = data.practicePlan;
+    state.practiceAdviceLoading = false;
+    if (plan && plan.ok) {
+      state.practiceAdvice = plan;
+      state.practiceAdviceError = '';
+    } else {
+      state.practiceAdvice = null;
+      state.practiceAdviceError = (plan && plan.error) || '任务单加载失败';
+    }
+  }
+
   function ensureStudentStatsBuilt() {
     var u = state.loadedStudentUsername || state.selectedUsername;
     if (!u || !state.runs) return;
@@ -1859,14 +1922,19 @@
     var runs = state.runs;
     var Agg = window.JmlStatsAggregate;
     var HM = window.JmlStatsHeatmap;
-    state.aggByCategory = {};
+    var hasServerAgg = state.aggByCategory && Object.keys(state.aggByCategory).length > 0;
+    if (!hasServerAgg) {
+      state.aggByCategory = {};
+    }
     if (Agg && HM && HM.getHeatmapCategories) {
-      HM.getHeatmapCategories().forEach(function (cat) {
-        state.aggByCategory[cat.id] = Agg.aggregateFromRuns(runs, {
-          modes: cat.modes,
-          levelCount: cat.levelCount,
+      if (!hasServerAgg) {
+        HM.getHeatmapCategories().forEach(function (cat) {
+          state.aggByCategory[cat.id] = Agg.aggregateFromRuns(runs, {
+            modes: cat.modes,
+            levelCount: cat.levelCount,
+          });
         });
-      });
+      }
       var sel = HM.findLatestHeatmapRelatedSelection
         ? HM.findLatestHeatmapRelatedSelection(runs)
         : { categoryId: 'arithmetic', levelIndex: 0 };
@@ -1901,14 +1969,17 @@
             })
           : null;
     } else if (Agg) {
-      var agg = Agg.aggregateFromRuns(runs);
+      var agg = hasServerAgg
+        ? state.aggByCategory.arithmetic
+        : Agg.aggregateFromRuns(runs);
       state.agg = agg;
-      state.aggByCategory = { arithmetic: agg };
-      var levelIdx2 = Agg.firstLevelWithData(agg.byLevel);
+      if (!hasServerAgg) state.aggByCategory = { arithmetic: agg };
+      var levelIdx2 = Agg.firstLevelWithData(agg && agg.byLevel);
       state.statsLevelIndex = levelIdx2;
       state.chartCategoryId = 'arithmetic';
       state.expandedCategoryId = 'arithmetic';
-      state.chartModel = agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
+      state.chartModel =
+        agg && agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
     } else {
       state.agg = null;
       state.chartModel = null;
@@ -1928,8 +1999,9 @@
       errEl.style.display = 'none';
       errEl.textContent = '';
     }
-    return apiFetch('/api/admin/student-detail/' + encodeURIComponent(u))
+    return apiFetch('/api/admin/student-workspace/' + encodeURIComponent(u))
       .then(function (data) {
+        if (state.selectedUsername !== u) return;
         var runs = Array.isArray(data.runs) ? data.runs.slice() : [];
         // 服务端已按 ts 降序；仅在偶发乱序时再排
         if (runs.length > 1) {
@@ -1941,92 +2013,46 @@
             }
           }
           if (needSort) {
-        runs.sort(function (a, b) {
-          return (b.ts || 0) - (a.ts || 0);
-        });
+            runs.sort(function (a, b) {
+              return (b.ts || 0) - (a.ts || 0);
+            });
           }
         }
         state.runs = runs;
         state.userDetail = data && data.user ? data.user : null;
         state.statsBuiltFor = '';
-          state.agg = null;
+        state.agg = null;
         state.aggByCategory = {};
-          state.chartModel = null;
+        state.chartModel = null;
         state.heat = null;
         state.heatByCategory = {};
         state.practiceAdvice = null;
         state.practiceAdviceError = '';
         state.practiceAdviceLoading = true;
+        state.serverTrainingPick = null;
+        state.serverCategoryNext = null;
+        state.trainDebugPayload = null;
+        state.heatmapFromServer = false;
+        state.loadedStudentUsername = u;
+
+        applyWorkspaceExtras(data, u);
 
         renderRunsTable();
         renderWrongBook();
         renderExpandWrongBook();
         renderDivisibilityWrongBook();
-        state.loadedStudentUsername = u;
-        state.serverTrainingPick = null;
-        state.serverCategoryNext = null;
-        state.trainDebugPayload = null;
-        state.heatmapFromServer = false;
-        state.heatByCategory = {};
         renderTaskHistoryPanel();
-        void fetchPracticeAdviceForSelectedUser();
-        // 后台拉服务器热图格子（权威）
-        void fetchServerHeatmapForSelectedUser()
-          .then(function (ok) {
-            if (state.selectedUsername !== u) return;
-            if (activeTabId() === 'stats') {
-              ensureStudentStatsBuilt();
-        renderStatsPanel();
-              redrawAllStatsCharts();
-            }
-            return ok;
-          })
-          .catch(function () {});
-        // 后台拉服务器选关，供热图图例与 Debug 共用
-        void apiFetch(
-          '/api/admin/user/' + encodeURIComponent(u) + '/training/next-level-debug'
-        )
-          .then(function (apiData) {
-            if (state.selectedUsername !== u) return;
-            var server = apiData && apiData.server ? apiData.server : null;
-            if (
-              server &&
-              server.ok !== false &&
-              !server.reasonText &&
-              window.JmlStatsHeatmap &&
-              window.JmlStatsHeatmap.trainingNextLevelReasonText
-            ) {
-              server.reasonText = window.JmlStatsHeatmap.trainingNextLevelReasonText(
-                server.result || server,
-                getReportTrainingReasonLabels()
-              );
-            }
-            state.serverTrainingPick = server;
-            if (activeTabId() === 'stats') renderStatsPanel();
-          })
-          .catch(function () {
-            /* 图例可稍后在 Debug Tab 拉取 */
-          });
-        void apiFetch(
-          '/api/admin/user/' + encodeURIComponent(u) + '/category-next-levels'
-        )
-          .then(function (apiData) {
-            if (state.selectedUsername !== u) return;
-            state.serverCategoryNext =
-              apiData && apiData.ok && apiData.byCategory ? apiData.byCategory : null;
-            if (activeTabId() === 'stats') renderStatsPanel();
-          })
-          .catch(function () {
-            if (state.selectedUsername !== u) return;
-            state.serverCategoryNext = null;
-          });
 
         if (activeTabId() === 'stats') {
           ensureStudentStatsBuilt();
           renderStatsPanel();
           redrawAllStatsCharts();
         } else if (activeTabId() === 'train-debug') {
-          void fetchAndRenderTrainDebug();
+          if (state.trainDebugPayload) {
+            renderTrainDebugPanel(state.trainDebugPayload);
+          } else {
+            void fetchAndRenderTrainDebug();
+          }
         } else if (activeTabId() === 'task-history') {
           renderTaskHistoryPanel();
         } else if (activeTabId() === 'monthly-report') {
@@ -2037,7 +2063,11 @@
             statsWrap.innerHTML =
               '<div class="jml-report-empty">切换到「数据分析」时再计算热图与图表</div>';
           }
-          renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取服务器选关');
+          if (state.trainDebugPayload) {
+            renderTrainDebugPlaceholder('切换到「训练选关Debug」可查看（已随工作台预载）');
+          } else {
+            renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取服务器选关');
+          }
           var monthlyWrap = document.getElementById('jml-report-monthly-body');
           if (monthlyWrap) {
             monthlyWrap.innerHTML =
@@ -2113,6 +2143,7 @@
     if (m && typeof m === 'object' && m.runAvgSec != null && Number.isFinite(Number(m.runAvgSec))) {
       return formatTrainingSpeedSec(m.runAvgSec);
     }
+    // 工作台默认不带 attempts；仅在完整 detail 时现算
     var Agg = window.JmlStatsAggregate;
     var picked =
       m && Number.isFinite(Number(m.pickedLevel))
@@ -2236,12 +2267,12 @@
       var goal = formatDailyTaskGoalText(task);
       if (kind) parts.push(kind);
       if (goal) parts.push(goal);
-      var taskTitle = m && typeof m === 'object' ? JSON.stringify(m, null, 2) : '任务模式';
+      var taskTitle = parts.join(' · ');
       return (
         '<span class="jml-runs-pick" title="' +
         escapeHtml(taskTitle) +
         '">' +
-        escapeHtml(parts.join(' · ')) +
+        escapeHtml(taskTitle) +
         '</span>'
       );
     }
@@ -2257,12 +2288,12 @@
     trainParts.push(m.runBrushMode ? '刷热图' : '闯关');
     if (m.pickReason) trainParts.push(String(m.pickReason));
     if (m.entrySource) trainParts.push(String(m.entrySource));
-    var title = JSON.stringify(m, null, 2);
+    var title = trainParts.join(' · ');
     return (
       '<span class="jml-runs-pick" title="' +
       escapeHtml(title) +
       '">' +
-      escapeHtml(trainParts.join(' · ')) +
+      escapeHtml(title) +
       '</span>'
     );
   }
@@ -2334,8 +2365,12 @@
         : Array.isArray(r.wrongQuestionIds)
           ? r.wrongQuestionIds.length
           : 0;
-    var total =
-      Array.isArray(r.attempts) && r.attempts.length > 0 ? r.attempts.length : null;
+    var total = null;
+    if (r.attemptCount != null && Number.isFinite(Number(r.attemptCount))) {
+      total = Math.max(0, Math.floor(Number(r.attemptCount)));
+    } else if (Array.isArray(r.attempts) && r.attempts.length > 0) {
+      total = r.attempts.length;
+    }
     if (total == null) return escapeHtml(String(wrong));
     return escapeHtml(String(wrong) + '/' + String(total));
   }
@@ -3022,7 +3057,8 @@
           state.practiceAdvice = null;
           state.practiceAdviceError = (data && data.error) || '任务单加载失败';
         }
-        renderRunsTable();
+        // 选关诊断列可能依赖任务单；仅在挑战记录 Tab 时重画，避免整页卡顿
+        if (activeTabId() === 'runs') renderRunsTable();
         renderTaskHistoryPanel();
         if (activeTabId() === 'stats') renderStatsPanel();
       })
@@ -3031,7 +3067,7 @@
         state.practiceAdviceLoading = false;
         state.practiceAdvice = null;
         state.practiceAdviceError = (e && e.message) || '任务单加载失败';
-        renderRunsTable();
+        if (activeTabId() === 'runs') renderRunsTable();
         renderTaskHistoryPanel();
         if (activeTabId() === 'stats') renderStatsPanel();
       });
