@@ -1,10 +1,11 @@
 /**
- * 练习建议 v0.32：当日结案留在主列表（留牌），不进冷却、不补新；次日归档冷却后再补。
+ * 练习建议 v0.33：已开闯关卡锁定合格线（开出后不抬不降）；新目标等结案后再开新单。
+ * v0.32：当日结案留在主列表（留牌），不进冷却、不补新；次日归档冷却后再补。
  * v0.31：当日任务配额：今日结案(成功+失败)+未完成 ≤ 5。
  * v0.30：特殊/小数硬留须四则 L1–L16 热图全部激活。
  */
 (function (root) {
-  var RULE_VERSION = "0.32-provisional";
+  var RULE_VERSION = "0.33-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -1095,17 +1096,6 @@
     });
   }
 
-  function normalizeOpenScanGoals(plan, ctx) {
-    if (!plan || !ctx || !ctx.scan) return;
-    var retry = isRetryClearScan(ctx);
-    openTasks(plan).forEach(function (t) {
-      if (!isScanTask(t)) return;
-      var taskRetry = t.scanKind === "retry_clear";
-      if (taskRetry !== retry) return;
-      applyScanFields(t, ctx.scan);
-    });
-  }
-
   function makeOpenTask(plan, row) {
     return {
       id: nextTaskId(plan),
@@ -1560,13 +1550,6 @@
       board.push(t);
     });
     archive = trimDone(archive);
-    if (!keepExisting && ctx.scan) {
-      board.forEach(function (t) {
-        if (t && (t.status === "active" || t.status === "pending") && isScanTask(t)) {
-          applyScanFields(t, ctx.scan);
-        }
-      });
-    }
     var stickyWrong = board.some(function (t) {
       return t && (t.status === "active" || t.status === "pending") && t.action === "wrongbook";
     });
@@ -2139,7 +2122,6 @@
       if (!Array.isArray(plan.tasks)) plan.tasks = [];
       if (!Array.isArray(plan.history)) plan.history = [];
       normalizeOpenTrainingGoals(plan);
-      normalizeOpenScanGoals(plan, ctx);
       return { plan: plan, rebuilt: false, lastFollow: lastFollow };
     }
     if (!saved || (username && saved.username && saved.username !== username)) {
@@ -2154,7 +2136,6 @@
     if (username) plan.username = username;
     activateFirst(plan.tasks);
     normalizeOpenTrainingGoals(plan);
-    normalizeOpenScanGoals(plan, ctx);
     if (settleWrongbookTasks(plan, ctx, nowTs, lastFollow)) {
       rebuilt = true;
     }
