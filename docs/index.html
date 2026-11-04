@@ -4785,15 +4785,19 @@
       </div>
 
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
-        <div class="game-card-action-anchor">
-          <div class="input-row" id="answer-input-row" style="display:none">
-            <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="numeric" />
+          <div class="game-card-action-anchor">
+            <div class="input-row" id="answer-input-row" style="display:none">
+              <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="numeric" />
+            </div>
+            <div class="button-row div-choice-row" id="wrong-practice-choice-row" style="display:none;">
+              <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-a">—</button>
+              <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-b">—</button>
+            </div>
+            <div class="button-row" id="start-row">
+              <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
+            </div>
           </div>
-          <div class="button-row" id="start-row">
-            <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
-          </div>
-        </div>
-      </form>
+        </form>
 
       <div class="batch-summary" id="batch-summary"></div>
 
@@ -6315,6 +6319,9 @@
       dom.answerForm = document.getElementById("answer-form");
       dom.answerInput = document.getElementById("answer-input");
       dom.submitBtn = document.getElementById("submit-btn");
+      dom.wrongPracticeChoiceRow = document.getElementById("wrong-practice-choice-row");
+      dom.wrongPracticeBtnA = document.getElementById("wrong-practice-btn-a");
+      dom.wrongPracticeBtnB = document.getElementById("wrong-practice-btn-b");
       dom.startGameBtn = document.getElementById("start-game-btn");
       dom.startRow = document.getElementById("start-row");
       dom.batchSummary = document.getElementById("batch-summary");
@@ -7022,9 +7029,99 @@
         .replace(/[_-]/g, "") === "decimal";
     }
 
+    function wrongPracticeModeKey(entry) {
+      return String((entry && entry.mode) || "")
+        .toLowerCase()
+        .replace(/[_-]/g, "");
+    }
+
+    /** 因数倍数选择题：有 A/B 选项可重做 */
+    function wrongPracticeEntryIsChoice(entry) {
+      if (!entry || wrongPracticeModeKey(entry) !== "factorsmultiples") return false;
+      if (entry.fillIn === true) return false;
+      return entry.optionA != null && entry.optionA !== "" && entry.optionB != null && entry.optionB !== "";
+    }
+
+    /** 旧版 FM 选择（无选项）无法按原玩法重做 */
+    function wrongPracticeEntryIsLegacyFmChoice(entry) {
+      if (!entry || wrongPracticeModeKey(entry) !== "factorsmultiples") return false;
+      if (entry.fillIn === true) return false;
+      return !(entry.optionA != null && entry.optionA !== "" && entry.optionB != null && entry.optionB !== "");
+    }
+
+    function wrongPracticeEntryIsPracticeable(entry) {
+      return !!entry && !wrongPracticeEntryIsLegacyFmChoice(entry);
+    }
+
+    function getWrongPracticeCandidates() {
+      return getWrongAnswers().filter(wrongPracticeEntryIsPracticeable);
+    }
+
+    function wrongPracticeChoiceStem(entry) {
+      if (!entry) return "";
+      if (entry.promptStem) return String(entry.promptStem);
+      return String(entry.text || "")
+        .replace(/\s*A\.\s*.+$/i, "")
+        .trim();
+    }
+
+    function wrongPracticeExpectedValue(entry) {
+      if (!entry) return null;
+      if (entry.correctValue != null && entry.correctValue !== "") return entry.correctValue;
+      return entry.answer;
+    }
+
+    function setWrongPracticeChoiceLocked(locked) {
+      if (dom.wrongPracticeBtnA) dom.wrongPracticeBtnA.disabled = !!locked;
+      if (dom.wrongPracticeBtnB) dom.wrongPracticeBtnB.disabled = !!locked;
+    }
+
+    function paintWrongPracticeChoiceButtons(entry) {
+      if (dom.wrongPracticeBtnA) {
+        dom.wrongPracticeBtnA.textContent = "A. " + String(entry.optionA);
+        dom.wrongPracticeBtnA.classList.remove("div-choice-wrong", "fm-choice-wrong", "prime-choice-wrong");
+      }
+      if (dom.wrongPracticeBtnB) {
+        dom.wrongPracticeBtnB.textContent = "B. " + String(entry.optionB);
+        dom.wrongPracticeBtnB.classList.remove("div-choice-wrong", "fm-choice-wrong", "prime-choice-wrong");
+      }
+      setWrongPracticeChoiceLocked(false);
+    }
+
+    function syncWrongPracticeSurface() {
+      const entry = wrongPracticeQueue[wrongPracticeIndex];
+      const isChoice = wrongPracticeEntryIsChoice(entry);
+      const gameCard = document.getElementById("game-card");
+      if (isChoice) {
+        setGameCardActionSlot("choice");
+        setSoftKeyboardVisible(false);
+        paintWrongPracticeChoiceButtons(entry);
+        if (dom.submitBtn) dom.submitBtn.style.display = "none";
+        if (dom.answerInput) {
+          dom.answerInput.value = "";
+          dom.answerInput.disabled = true;
+        }
+      } else {
+        setGameCardActionSlot("input");
+        if (dom.answerInput) {
+          dom.answerInput.disabled = false;
+          dom.answerInput.value = "";
+        }
+        if (dom.submitBtn) {
+          dom.submitBtn.style.display = "";
+          dom.submitBtn.disabled = false;
+        }
+        initSoftKeyboardIfNeeded();
+        syncWrongPracticeSoftKeyboard();
+        setSoftKeyboardVisible(true);
+      }
+      if (gameCard) gameCard.classList.toggle("choice-play-card", isChoice);
+    }
+
     function syncWrongPracticeSoftKeyboard() {
       if (!window.JmlSoftKeyboard || !dom.softKbdCard) return;
       const entry = wrongPracticeQueue[wrongPracticeIndex];
+      if (wrongPracticeEntryIsChoice(entry)) return;
       const needDec = wrongPracticeEntryNeedsDecimal(entry);
       const layout = needDec ? "decimal" : "integer";
       window.JmlSoftKeyboard.bind({
@@ -7044,15 +7141,18 @@
 
     function wrongPracticeAnswersEqual(userAnswer, expected, mode) {
       const exp = Number(expected);
-      if (!Number.isFinite(userAnswer) || !Number.isFinite(exp)) return false;
+      const got = Number(userAnswer);
+      if (!Number.isFinite(got) || !Number.isFinite(exp)) {
+        return String(userAnswer) === String(expected);
+      }
       if (
         String(mode || "")
           .toLowerCase()
           .replace(/[_-]/g, "") === "decimal"
       ) {
-        return Math.abs(userAnswer - exp) < 1e-6;
+        return Math.abs(got - exp) < 1e-6;
       }
-      return userAnswer === exp;
+      return got === exp;
     }
 
     function getModeTitle() {
@@ -11375,6 +11475,7 @@
         "wrongPractice.markLabel": "對錯：",
         "wrongPractice.correctAnswer": "正確答案：",
         "wrongPractice.okBtn": "確定",
+        "wrongPractice.needMorePracticeable": "可重做的錯題不足 5 道（舊版因數倍數選擇題暫不可練）",
         "toast.primeNeedLogin": "請登入或註冊後再使用此功能。",
         "toast.primeBankLoadFail": "題庫未載入，請重新整理頁面重試",
         "toast.primeGenFail": "出題失敗，請重試",
@@ -11949,6 +12050,7 @@
         "wrongPractice.markLabel": "Mark:",
         "wrongPractice.correctAnswer": "Correct:",
         "wrongPractice.okBtn": "OK",
+        "wrongPractice.needMorePracticeable": "Need 5 practiceable items (legacy factor-choice items can't be replayed yet)",
         "toast.primeNeedLogin": "Please sign in or register to use this feature.",
         "toast.primeBankLoadFail": "Question bank not loaded. Refresh and try again.",
         "toast.primeGenFail": "Failed to generate question. Retry.",
@@ -13222,10 +13324,22 @@
       const m = normalizeWrongAnswerMode(mode);
       const n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
       if (m === "decimal") return "D" + n;
+      if (m === "factorsMultiples") return "Y" + n;
       return "L" + n;
     }
 
-    function buildWrongAnswerEntry(text, answer, studentAnswer, levelIndex, mode) {
+    function coerceWrongAnswerScalar(v) {
+      if (v == null || v === "") return v == null ? "" : v;
+      if (typeof v === "number" && Number.isFinite(v)) return v;
+      const s = String(v).trim();
+      if (s !== "" && /^-?\d+(\.\d+)?$/.test(s)) {
+        const n = Number(s);
+        if (Number.isFinite(n)) return n;
+      }
+      return s;
+    }
+
+    function buildWrongAnswerEntry(text, answer, studentAnswer, levelIndex, mode, meta) {
       const resolvedMode = normalizeWrongAnswerMode(mode || gameMode);
       let lv;
       if (typeof levelIndex === "number" && Number.isFinite(levelIndex)) {
@@ -13235,22 +13349,43 @@
       } else {
         lv = clampWrongAnswerLevelIndex(resolvedMode, currentLevelIndex);
       }
-      return {
+      const entry = {
         text: String(text || ""),
-        answer: Number(answer),
-        studentAnswer: Number(studentAnswer),
+        answer: coerceWrongAnswerScalar(answer),
+        studentAnswer: coerceWrongAnswerScalar(studentAnswer),
         ts: Date.now(),
         mode: resolvedMode,
         levelIndex: lv,
         levelLabel: formatWrongAnswerLevelLabel(resolvedMode, lv),
       };
+      const extra = meta && typeof meta === "object" ? meta : null;
+      if (extra) {
+        if (extra.fillIn === true) entry.fillIn = true;
+        if (extra.fillIn === false) entry.fillIn = false;
+        if (extra.promptStem != null && String(extra.promptStem).trim()) {
+          entry.promptStem = String(extra.promptStem).trim();
+        }
+        if (extra.optionA != null && extra.optionA !== "") {
+          entry.optionA = coerceWrongAnswerScalar(extra.optionA);
+        }
+        if (extra.optionB != null && extra.optionB !== "") {
+          entry.optionB = coerceWrongAnswerScalar(extra.optionB);
+        }
+        if (extra.answerLetter === "A" || extra.answerLetter === "B") {
+          entry.answerLetter = extra.answerLetter;
+        }
+        if (extra.correctValue != null && extra.correctValue !== "") {
+          entry.correctValue = coerceWrongAnswerScalar(extra.correctValue);
+        }
+      }
+      return entry;
     }
 
-    function recordWrongAnswer(text, answer, studentAnswer, levelIndex, mode) {
+    function recordWrongAnswer(text, answer, studentAnswer, levelIndex, mode, meta) {
       if (isGuestMode || gameMode === "wrong") return;
       const name = loadCurrentUsername();
       if (!name) return;
-      const entry = buildWrongAnswerEntry(text, answer, studentAnswer, levelIndex, mode);
+      const entry = buildWrongAnswerEntry(text, answer, studentAnswer, levelIndex, mode, meta);
       apiAppendWrongAnswer(name, entry);
     }
 
@@ -13951,13 +14086,17 @@
       card.classList.toggle("game-card--playing", mode === "playing");
     }
 
-    /** 题目卡底部操作位：开始按钮与输入框同一槽位，互斥显示 */
+    /** 题目卡底部操作位：开始 / 输入 / 错题二选一，互斥显示 */
     function setGameCardActionSlot(mode) {
       const inputRow = document.getElementById("answer-input-row");
+      const choiceRow = dom.wrongPracticeChoiceRow;
+      const gameCard = document.getElementById("game-card");
+      if (gameCard) gameCard.classList.toggle("choice-play-card", mode === "choice");
       if (mode === "start") {
         setGameCardLayoutMode("prestart");
         if (dom.startRow) dom.startRow.style.display = "";
         if (inputRow) inputRow.style.display = "none";
+        if (choiceRow) choiceRow.style.display = "none";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
         return;
       }
@@ -13965,11 +14104,21 @@
         setGameCardLayoutMode("playing");
         if (dom.startRow) dom.startRow.style.display = "none";
         if (inputRow) inputRow.style.display = "";
+        if (choiceRow) choiceRow.style.display = "none";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
+        return;
+      }
+      if (mode === "choice") {
+        setGameCardLayoutMode("playing");
+        if (dom.startRow) dom.startRow.style.display = "none";
+        if (inputRow) inputRow.style.display = "none";
+        if (choiceRow) choiceRow.style.display = "";
+        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
         return;
       }
       if (dom.startRow) dom.startRow.style.display = "none";
       if (inputRow) inputRow.style.display = "none";
+      if (choiceRow) choiceRow.style.display = "none";
     }
 
     const QUESTION_REFRESH_MS = 25;  // 题目切换时先隐藏再出现的间隔，极短但肉眼可见
@@ -14422,8 +14571,40 @@
       else evaluateAnswerSurvival(userAnswer);
     }
 
+    function wrongPracticeQuestionText(entry) {
+      if (!entry) return "";
+      if (wrongPracticeEntryIsChoice(entry)) return wrongPracticeChoiceStem(entry);
+      return String(entry.text || "");
+    }
+
+    function wrongPracticeCorrectLabel(entry) {
+      if (!entry) return "";
+      if (wrongPracticeEntryIsChoice(entry)) {
+        const letter = entry.answerLetter === "B" ? "B" : "A";
+        const val = wrongPracticeExpectedValue(entry);
+        return letter + "（" + String(val) + "）";
+      }
+      return String(entry.answer);
+    }
+
+    function showWrongPracticeCurrentQuestion() {
+      const entry = wrongPracticeQueue[wrongPracticeIndex];
+      if (!entry) return;
+      currentQuestion = {
+        text: wrongPracticeQuestionText(entry),
+        answer: wrongPracticeExpectedValue(entry),
+      };
+      renderQuestion(currentQuestion);
+      if (dom.questionSubtext) dom.questionSubtext.textContent = "";
+      setFeedback("", null);
+      syncWrongPracticeSurface();
+      updateWrongPracticeStatusUI();
+    }
+
     function handleWrongPracticeSubmit() {
       if (wrongPracticeIndex >= wrongPracticeQueue.length) return;
+      const entry = wrongPracticeQueue[wrongPracticeIndex];
+      if (wrongPracticeEntryIsChoice(entry)) return;
       const value = dom.answerInput.value.trim();
       if (value === "") {
         setFeedback(t("game.feedback.titleHtml") + t("game.feedback.needAnswer"), null);
@@ -14439,9 +14620,23 @@
       evaluateAnswerWrong(userAnswer);
     }
 
+    function handleWrongPracticeChoice(letter) {
+      if (gameMode !== "wrong") return;
+      if (wrongPracticeIndex >= wrongPracticeQueue.length) return;
+      const entry = wrongPracticeQueue[wrongPracticeIndex];
+      if (!wrongPracticeEntryIsChoice(entry)) return;
+      if (dom.wrongPracticeBtnA && dom.wrongPracticeBtnA.disabled) return;
+      const picked = letter === "B" ? entry.optionB : entry.optionA;
+      setWrongPracticeChoiceLocked(true);
+      evaluateAnswerWrong(picked, letter);
+    }
+
     function startWrongPractice() {
-      const wrongs = getWrongAnswers();
-      if (wrongs.length < 5) return;
+      const wrongs = getWrongPracticeCandidates();
+      if (wrongs.length < 5) {
+        showToast(t("wrongPractice.needMorePracticeable"));
+        return;
+      }
       wrongPracticeQueue = wrongs.slice().sort(() => Math.random() - 0.5);
       wrongPracticeIndex = 0;
       wrongPracticeResults = [];
@@ -14459,29 +14654,41 @@
       const subtitle = document.getElementById("game-subtitle");
       if (subtitle) subtitle.style.display = "";
       updateStatusModeLabel();
-      if (dom.questionSubtext) dom.questionSubtext.textContent = "";
-      currentQuestion = { text: wrongPracticeQueue[0].text, answer: wrongPracticeQueue[0].answer };
-      renderQuestion(currentQuestion);
-      dom.answerInput.value = "";
-      dom.answerInput.disabled = false;
-      setFeedback("", null);
-      updateWrongPracticeStatusUI();
-      initSoftKeyboardIfNeeded();
-      syncWrongPracticeSoftKeyboard();
-      setSoftKeyboardVisible(true);
-      if (dom.submitBtn) dom.submitBtn.style.display = "";
-      setGameCardActionSlot("input");
+      showWrongPracticeCurrentQuestion();
     }
 
-    function evaluateAnswerWrong(userAnswer) {
+    function evaluateAnswerWrong(userAnswer, choiceLetter) {
       const q = wrongPracticeQueue[wrongPracticeIndex];
-      const correct = wrongPracticeAnswersEqual(userAnswer, q.answer, q.mode);
-      wrongPracticeResults.push({ text: q.text, answer: q.answer, studentAnswer: userAnswer, correct });
+      const expected = wrongPracticeExpectedValue(q);
+      const correct = wrongPracticeAnswersEqual(userAnswer, expected, q.mode);
+      const displayText = wrongPracticeQuestionText(q);
+      const correctLabel = wrongPracticeCorrectLabel(q);
+      const studentLabel =
+        choiceLetter === "A" || choiceLetter === "B"
+          ? choiceLetter + "（" + String(userAnswer) + "）"
+          : userAnswer;
+      wrongPracticeResults.push({
+        text: displayText,
+        answer: correctLabel,
+        studentAnswer: studentLabel,
+        correct: correct,
+      });
       if (correct) {
         setFeedback(t("game.feedback.correctHtml"), "correct");
       } else {
         runWrongCount += 1;
-        setFeedback(t("game.feedback.incorrectPrefixHtml") + t("game.feedback.correctAnswerLabel") + "<strong>" + q.answer + "</strong>", "incorrect");
+        if (choiceLetter === "A" || choiceLetter === "B") {
+          const btn = choiceLetter === "B" ? dom.wrongPracticeBtnB : dom.wrongPracticeBtnA;
+          if (btn) btn.classList.add("div-choice-wrong");
+        }
+        setFeedback(
+          t("game.feedback.incorrectPrefixHtml") +
+            t("game.feedback.correctAnswerLabel") +
+            "<strong>" +
+            escapeHtml(correctLabel) +
+            "</strong>",
+          "incorrect"
+        );
       }
       wrongPracticeIndex++;
       updateWrongPracticeStatusUI();
@@ -14489,18 +14696,14 @@
         setTimeout(showWrongPracticeResult, 800);
         return;
       }
-      setTimeout(() => {
-        currentQuestion = { text: wrongPracticeQueue[wrongPracticeIndex].text, answer: wrongPracticeQueue[wrongPracticeIndex].answer };
-        renderQuestion(currentQuestion);
-        if (dom.questionSubtext) dom.questionSubtext.textContent = "";
-        dom.answerInput.value = "";
-        if (dom.submitBtn) dom.submitBtn.disabled = false;
-        setFeedback("", null);
-        syncWrongPracticeSoftKeyboard();
+      setTimeout(function () {
+        showWrongPracticeCurrentQuestion();
       }, 800);
     }
 
     function showWrongPracticeResult() {
+      setSoftKeyboardVisible(false);
+      setWrongPracticeChoiceLocked(true);
       const correctCount = wrongPracticeResults.filter(r => r.correct).length;
       const total = wrongPracticeResults.length;
       const isPerfectAllCorrect = total > 0 && correctCount === total;
@@ -14527,6 +14730,8 @@
         document.body.removeChild(overlay);
         gameMode = "survival";
         setSoftKeyboardVisible(false);
+        setGameCardActionSlot("start");
+        if (dom.gameSection) dom.gameSection.classList.remove("wrong-practice-active");
 
         // 零错误：清空错题本，并解锁正常模式
         if (isPerfectAllCorrect && !isGuestMode) {
@@ -17455,7 +17660,9 @@
             );
           })
           .join("");
-        if (practiceBtn) practiceBtn.style.display = wrongs.length >= 5 ? "" : "none";
+        if (practiceBtn) {
+          practiceBtn.style.display = getWrongPracticeCandidates().length >= 5 ? "" : "none";
+        }
       } else if (tab === "divisibility") {
         list.innerHTML = wrongs
           .map(function (w) {
@@ -19244,6 +19451,16 @@
       });
 
       if (dom.wrongbookPracticeBtn) dom.wrongbookPracticeBtn.addEventListener("click", startWrongPractice);
+      if (dom.wrongPracticeBtnA) {
+        dom.wrongPracticeBtnA.addEventListener("click", function () {
+          handleWrongPracticeChoice("A");
+        });
+      }
+      if (dom.wrongPracticeBtnB) {
+        dom.wrongPracticeBtnB.addEventListener("click", function () {
+          handleWrongPracticeChoice("B");
+        });
+      }
       const wrongbookTabs = document.getElementById("wrongbook-tabs");
       if (wrongbookTabs) {
         wrongbookTabs.addEventListener("click", function (e) {

@@ -108,7 +108,20 @@ function formatWrongAnswerLevelLabel(mode, levelIndex) {
   const m = normalizeWrongAnswerMode(mode);
   const n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
   if (m === "decimal") return "D" + n;
+  if (m === "factorsMultiples") return "Y" + n;
   return "L" + n;
+}
+
+/** 能解析为有限数字则存 number，否则保留原字符串（选择题答案等） */
+function coerceWrongAnswerScalar(v) {
+  if (v == null || v === "") return v == null ? "" : v;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const s = String(v).trim();
+  if (s !== "" && /^-?\d+(\.\d+)?$/.test(s)) {
+    const n = Number(s);
+    if (Number.isFinite(n)) return n;
+  }
+  return s;
 }
 
 function normalizeWrongAnswerEntry(raw) {
@@ -117,15 +130,33 @@ function normalizeWrongAnswerEntry(raw) {
     mode,
     raw && typeof raw.levelIndex === "number" && Number.isFinite(raw.levelIndex) ? raw.levelIndex : 0
   );
-  return {
+  const entry = {
     text: String((raw && raw.text) || ""),
-    answer: Number(raw && raw.answer),
-    studentAnswer: Number(raw && raw.studentAnswer),
+    answer: coerceWrongAnswerScalar(raw && raw.answer),
+    studentAnswer: coerceWrongAnswerScalar(raw && raw.studentAnswer),
     ts: raw && typeof raw.ts === "number" && Number.isFinite(raw.ts) ? raw.ts : Date.now(),
     mode,
     levelIndex,
     levelLabel: formatWrongAnswerLevelLabel(mode, levelIndex),
   };
+  if (raw && raw.fillIn === true) entry.fillIn = true;
+  if (raw && raw.fillIn === false) entry.fillIn = false;
+  if (raw && raw.promptStem != null && String(raw.promptStem).trim()) {
+    entry.promptStem = String(raw.promptStem).trim();
+  }
+  if (raw && raw.optionA != null && raw.optionA !== "") {
+    entry.optionA = coerceWrongAnswerScalar(raw.optionA);
+  }
+  if (raw && raw.optionB != null && raw.optionB !== "") {
+    entry.optionB = coerceWrongAnswerScalar(raw.optionB);
+  }
+  if (raw && (raw.answerLetter === "A" || raw.answerLetter === "B")) {
+    entry.answerLetter = raw.answerLetter;
+  }
+  if (raw && raw.correctValue != null && raw.correctValue !== "") {
+    entry.correctValue = coerceWrongAnswerScalar(raw.correctValue);
+  }
+  return entry;
 }
 
 function getWrongAnswersClearedBeforeTs(user) {

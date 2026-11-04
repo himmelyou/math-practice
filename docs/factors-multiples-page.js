@@ -660,16 +660,37 @@
     }
   }
 
-  function recordFmWrongItem(q, studentAnswer, correctAnswer, prompt) {
+  function recordFmWrongItem(q, studentAnswer, correctAnswer) {
+    const fillIn = isFmFillInQuestion(q);
+    const fullText = String(q && (q.text || q.prompt) || "");
+    const stem = String(q && (q.promptStem || q.prompt || q.text) || "");
+    const meta = fillIn
+      ? { fillIn: true }
+      : {
+          fillIn: false,
+          promptStem: stem,
+          optionA: q.optionA != null ? q.optionA : q.correctValue,
+          optionB: q.optionB != null ? q.optionB : q.wrongValue,
+          answerLetter: q.answerLetter === "B" ? "B" : "A",
+          correctValue: q.correctValue != null ? q.correctValue : correctAnswer,
+        };
+    const listPrompt = fillIn ? stem || fullText : fullText || stem;
     fmWrongItems.push({
-      prompt: prompt,
+      prompt: listPrompt,
       studentAnswer: studentAnswer,
       correctAnswer: correctAnswer,
       picked: studentAnswer,
       correct: correctAnswer,
     });
     if (typeof deps.recordWrongAnswer === "function") {
-      deps.recordWrongAnswer(prompt, correctAnswer, studentAnswer, fmLevel, "factorsMultiples");
+      deps.recordWrongAnswer(
+        listPrompt,
+        correctAnswer,
+        studentAnswer,
+        fmLevel,
+        "factorsMultiples",
+        meta
+      );
     }
   }
 
@@ -701,8 +722,7 @@
         : q.optionB != null
           ? q.optionB
           : q.wrongValue;
-    const prompt = q.promptStem || q.prompt || q.text;
-    recordFmWrongItem(q, pickedVal, q.correctValue, prompt);
+    recordFmWrongItem(q, pickedVal, q.correctValue);
     updateFmStatusStrip();
     advanceAfterAnswer();
   }
@@ -727,8 +747,7 @@
 
     fmScore -= FM_SCORE_PER_WRONG;
     fmWrongCount += 1;
-    const prompt = q.prompt || q.text || q.promptStem;
-    recordFmWrongItem(q, String(userNum), q.answer, prompt);
+    recordFmWrongItem(q, String(userNum), q.answer);
     updateFmStatusStrip();
     advanceAfterAnswer();
   }
