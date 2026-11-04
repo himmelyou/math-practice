@@ -1,11 +1,10 @@
 /**
- * 练习建议 v0.33：已开闯关卡锁定合格线（开出后不抬不降）；新目标等结案后再开新单。
- * v0.32：当日结案留在主列表（留牌），不进冷却、不补新；次日归档冷却后再补。
- * v0.31：当日任务配额：今日结案(成功+失败)+未完成 ≤ 5。
- * v0.30：特殊/小数硬留须四则 L1–L16 热图全部激活。
+ * 练习建议 v0.34：未完成卡开出后成功线冻结（Ln / 均速 / 准度 / successKind / baseline）；
+ * 跑偏不换未完成卡；仅「重新开单」或新补空位才按热图写新目标。
+ * v0.33：已开闯关卡锁定合格线。v0.32 留牌。v0.31 配额。v0.30 硬留。
  */
 (function (root) {
-  var RULE_VERSION = "0.33-provisional";
+  var RULE_VERSION = "0.34-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -1073,29 +1072,6 @@
     };
   }
 
-  function normalizeOpenTrainingGoals(plan) {
-    openTasks(plan).forEach(function (t) {
-      if (!t || t.action !== "training") return;
-      if (t.successKind === "open_activate") return;
-      var baseP = t.baseline && t.baseline.p != null && Number.isFinite(Number(t.baseline.p)) ? Number(t.baseline.p) : null;
-      if (baseP != null && baseP + 1e-9 >= HEAT_P_YELLOW) {
-        t.successKind = "speed_step";
-        t.targetP = null;
-        var spdT = applySpeedTargets({
-          avgSec: t.baseline && t.baseline.avgSec,
-          timePct: t.baseline && t.baseline.timePct,
-        });
-        t.targetTimePct = spdT.targetTimePct;
-        if (spdT.targetAvgSec != null) t.targetAvgSec = spdT.targetAvgSec;
-        return;
-      }
-      t.successKind = "acc_step";
-      t.targetP = HEAT_P_YELLOW;
-      t.targetAvgSec = null;
-      t.targetTimePct = null;
-    });
-  }
-
   function makeOpenTask(plan, row) {
     return {
       id: nextTaskId(plan),
@@ -1478,12 +1454,6 @@
     return list;
   }
 
-  function taskHasAttempts(t) {
-    if (!t) return false;
-    var w = t.window || emptyPlanWindow();
-    return (Number(w.games) || 0) > 0 || (Number(w.items) || 0) > 0;
-  }
-
   /** 冷却窗里 chinaDay=当日 的成功+失败条数。 */
   function todayClosedCount(plan, dayKey) {
     if (!dayKey) return 0;
@@ -1778,15 +1748,19 @@
     return !!(m && m.dailyTask === true);
   }
 
-  function reissueIncomplete(plan, ctx, ts, text, keepStickyAttempts) {
+  /**
+   * keepOpenBoard !== false（跑偏）：整份未完成保留（成功线已冻结），只补空位。
+   * keepOpenBoard === false（重新开单）：丢掉未完成，按热图重开。
+   */
+  function reissueIncomplete(plan, ctx, ts, text, keepOpenBoard) {
     var done = trimDone(cooldownTasks(plan));
-    var sticky = [];
-    if (keepStickyAttempts !== false) {
+    var kept = [];
+    if (keepOpenBoard !== false) {
       openTasks(plan).forEach(function (t) {
-        if (taskHasAttempts(t)) sticky.push(t);
+        kept.push(t);
       });
     }
-    plan.tasks = done.concat(sticky);
+    plan.tasks = done.concat(kept);
     if (ctx && ctx.profile) plan.profile = ctx.profile;
     if (ctx) {
       plan.pickNote = ctx.pickNote;
@@ -1795,14 +1769,14 @@
       plan.dontOpenLabel = dont.copy;
     }
     fillIncomplete(plan, ctx, ts, {
-      keepExisting: sticky.length > 0,
-      reorderScan: sticky.length === 0,
+      keepExisting: kept.length > 0,
+      reorderScan: kept.length === 0,
     });
     activateFirst(plan.tasks);
     pushEvent(
       plan,
       "rebuild",
-      text || "跑偏：按热图重算未完成（有尝试记录的关保留，冷却窗保留）",
+      text || "跑偏：未完成保留（成功线不改），只补空位；冷却窗保留",
       ts
     );
   }
@@ -1862,12 +1836,18 @@
     return w.correct / w.items;
   }
 
+  /** 仅补齐开单时缺失的速度基线；已有目标绝不改写。 */
   function captureBaselineAvgSec(task, run) {
-    if (task.baseline && task.baseline.avgSec != null) return;
+    if (!task || task.successKind !== "speed_step") return;
     if (task.targetAvgSec != null) return;
+    if (task.baseline && task.baseline.avgSec != null) {
+      task.targetAvgSec = Number(task.baseline.avgSec) * SPEED_RATIO;
+      return;
+    }
     var m = run && run.trainingMeta && typeof run.trainingMeta === "object" ? run.trainingMeta : null;
     var start = m && Number.isFinite(Number(m.heatAvgSecAtStart)) ? Number(m.heatAvgSecAtStart) : null;
     if (start != null && start > 0) {
+      if (!task.baseline) task.baseline = {};
       task.baseline.avgSec = start;
       task.targetAvgSec = start * SPEED_RATIO;
     }
@@ -2121,7 +2101,6 @@
       plan = cloneJson(saved);
       if (!Array.isArray(plan.tasks)) plan.tasks = [];
       if (!Array.isArray(plan.history)) plan.history = [];
-      normalizeOpenTrainingGoals(plan);
       return { plan: plan, rebuilt: false, lastFollow: lastFollow };
     }
     if (!saved || (username && saved.username && saved.username !== username)) {
@@ -2135,7 +2114,6 @@
     else if (!Array.isArray(plan.history)) plan.history = [];
     if (username) plan.username = username;
     activateFirst(plan.tasks);
-    normalizeOpenTrainingGoals(plan);
     if (settleWrongbookTasks(plan, ctx, nowTs, lastFollow)) {
       rebuilt = true;
     }
@@ -2175,7 +2153,7 @@
           plan,
           ctx,
           ts,
-          "跑偏：按热图重算未完成（有尝试记录的关保留，冷却窗保留）"
+          "跑偏：未完成保留（成功线不改），只补空位；冷却窗保留"
         );
         lastFollow = { kind: "drift" };
         rebuilt = true;
@@ -2502,7 +2480,7 @@
         SAME_TASK_GAP +
         " 条才可再出现；冷却窗最多 " +
         COMPLETED_MAX +
-        " 条（成功+失败），满则挤最早。规则升级不拆未完成；重新开单/跑偏才重算未完成。都不清冷却。只有可练池空才允许更密",
+        " 条（成功+失败），满则挤最早。规则升级不拆未完成；跑偏保留未完成（成功线冻结）只补空位；重新开单才重算未完成。都不清冷却。只有可练池空才允许更密",
       "Q12 绿档速度补格：timePct<" +
         FOUNDATION_FAST_PCT +
         " 只比分位；否则 ×" +
@@ -2521,7 +2499,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 未完成 1～5 对上就跟局（记尝试/成功/失败），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标，不再把多局搓在一起。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外才重算未完成（有尝试记录的关保留）。规则升级不拆队；重新开单才丢掉未完成进度"
+      "Q16 未完成 1～5 对上就跟局（记尝试/成功/失败），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标，不再把多局搓在一起。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外跑偏：未完成整份保留（开出后成功线冻结），只补空位。规则升级不拆队、不改成功线；重新开单才丢掉未完成进度"
     ];
     reasons.push(
       reason(
@@ -2626,7 +2604,7 @@
           SAME_TASK_GAP +
           " 条；冷却窗最多 " +
           COMPLETED_MAX +
-          " 条（成功+失败）。可练池空才允许提前重复。1～5 对上就跟局，失败进冷却、不后插；非任务入口当场成功称碰巧完成；跑偏重算未完成并保留冷却窗",
+          " 条（成功+失败）。可练池空才允许提前重复。1～5 对上就跟局，失败进冷却、不后插；非任务入口当场成功称碰巧完成；跑偏保留未完成（成功线冻结）只补空位，保留冷却窗",
         "Q8/Q9 对上的那条计失败；Q16 1～5 都能跟局/碰巧完成",
       )
     );
@@ -2679,7 +2657,7 @@
         archiveCoolN;
       parentCopy =
         ctx.profile.label +
-        "。未完成 1～5 对上就跟局；成功/失败当日留牌不补，次日归档后再补新；首页碰巧同一套；放弃局整局不算；名单外才重算未完成（已有尝试的关保留）。";
+        "。未完成 1～5 对上就跟局；开出后成功线冻结；成功/失败当日留牌不补，次日归档后再补新；首页碰巧同一套；放弃局整局不算；名单外跑偏保留未完成只补空位。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
