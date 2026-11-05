@@ -1,10 +1,11 @@
 /**
- * 练习建议 v0.34：未完成卡开出后成功线冻结（Ln / 均速 / 准度 / successKind / baseline）；
- * 跑偏不换未完成卡；仅「重新开单」或新补空位才按热图写新目标。
- * v0.33：已开闯关卡锁定合格线。v0.32 留牌。v0.31 配额。v0.30 硬留。
+ * 练习建议 v0.35：四则未流畅关先占座（与概览 fluent 同一口径）。
+ * 超前有数据的黄橙（准度或速度）在校内全绿后可练；空关仍不开。
+ * 其它模式只坐剩余格；四则候选不够时用它们补满，不留空。
+ * v0.34：未完成卡成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.34-provisional";
+  var RULE_VERSION = "0.35-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -653,7 +654,7 @@
       schoolHoles: rows.filter(function (r) {
         return inSchoolPrior(r.prior) && (r.stage === "weak" || r.stage === "shaky");
       }),
-      /** 超前黄橙且准≥95%（已会偏慢）；仅校内全绿时进五格（见 uniqueSeeds） */
+      /** 超前且已有数据的黄橙（准度或速度）；仅校内全绿时进五格（见 uniqueSeeds） */
       aheadHoles: rows.filter(function (r) {
         return aheadHoleEligible(r);
       }),
@@ -673,14 +674,24 @@
   }
 
   /**
-   * 超前洞进队条件：已有数据的黄橙，且热图准度 ≥95%。
-   * 准度不够 = 自己先学，不进任务要求。
+   * 超前洞：已有数据的黄橙（准度不够或速度不够同一套）。空关不开。
+   * 是否进队还要校内已激活全绿，见 canScheduleAheadHoles。
    */
   function aheadHoleEligible(row) {
     if (!row || row.prior !== "ahead") return false;
     if (row.stage !== "weak" && row.stage !== "shaky") return false;
-    if (row.p == null || !Number.isFinite(Number(row.p))) return false;
-    return Number(row.p) + 1e-9 >= HEAT_P_YELLOW;
+    return row.p != null && Number.isFinite(Number(row.p));
+  }
+
+  /** 与学员概览 fluent 相同：未标流畅的四则档都算未达标（含无数据）。 */
+  function arithUnfluentCount(rows) {
+    var n = 0;
+    var list = rows || [];
+    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+      var r = list[i];
+      if (!r || r.fluent !== true) n += 1;
+    }
+    return n;
   }
 
   /** 校内已激活全绿时，可把符合条件的超前黄橙进队。 */
@@ -1194,39 +1205,10 @@
 
   function uniqueSeeds(ctx) {
     var budget = resolveSlotBudget(ctx.grade, ctx.rows);
-    var seeds = [];
-    var used = {};
-    var arithUsed = 0;
-    var specialPlaced = false;
-    var decimalPlaced = false;
     var cooldownHint = ctx._cooldownSeq || [];
 
     function isArithSeed(seed) {
       return seed.kind === "training" || seed.kind === "open" || seed.kind === "scan" || seed.kind === "wrongbook";
-    }
-    function isSpecialSeed(seed) {
-      return (
-        (seed.kind === "mode" || seed.kind === "mode_open") &&
-        seed.modeId &&
-        seed.modeId !== "decimal"
-      );
-    }
-    function isDecimalSeed(seed) {
-      return (seed.kind === "mode" || seed.kind === "mode_open") && seed.modeId === "decimal";
-    }
-    function tryAdd(seed, force) {
-      if (!seed) return false;
-      if (seeds.length >= INCOMPLETE_SIZE) return false;
-      var k = seedKey(seed);
-      if (used[k]) return false;
-      var arith = isArithSeed(seed);
-      if (!force && arith && arithUsed >= budget.arith) return false;
-      used[k] = true;
-      seeds.push(seed);
-      if (arith) arithUsed += 1;
-      if (isSpecialSeed(seed)) specialPlaced = true;
-      if (isDecimalSeed(seed)) decimalPlaced = true;
-      return true;
     }
 
     var reservedSpecial =
@@ -1311,28 +1293,48 @@
       });
     }
 
-    function reserveRoomLeft() {
-      var need = 0;
-      if (reservedSpecial && !specialPlaced) need += 1;
-      if (reservedDecimal && !decimalPlaced) need += 1;
-      return need;
-    }
-
+    /**
+     * 四则未流畅关先占座：错题/闯关/四则至少 min(未达标, 5) 格，且不少于年级四则预算。
+     * 其它模式坐剩余格。四则候选不够时，剩余格仍给其它模式，不留空。
+     */
+    var gap = arithUnfluentCount(ctx.rows || []);
+    var arithFloor = Math.min(gap, INCOMPLETE_SIZE);
+    var arithPrefer = Math.min(INCOMPLETE_SIZE, Math.max(budget.arith, arithFloor));
+    var arithSeeds = [];
+    var otherSeeds = [];
     stream.forEach(function (seed) {
-      if (seeds.length >= INCOMPLETE_SIZE) return;
-      var room = INCOMPLETE_SIZE - seeds.length;
-      var need = reserveRoomLeft();
-      var isRes =
-        (reservedSpecial && seedKey(seed) === seedKey(reservedSpecial)) ||
-        (reservedDecimal && seedKey(seed) === seedKey(reservedDecimal));
-      if (need > 0 && room <= need && !isRes) return;
-      tryAdd(seed, false);
+      if (isArithSeed(seed)) arithSeeds.push(seed);
+      else otherSeeds.push(seed);
     });
 
-    if (reservedSpecial && !specialPlaced) tryAdd(reservedSpecial, true);
-    if (reservedDecimal && !decimalPlaced) tryAdd(reservedDecimal, true);
+    var picked = [];
+    var usedKey = {};
+    function take(seed) {
+      if (!seed || picked.length >= INCOMPLETE_SIZE) return false;
+      var k = seedKey(seed);
+      if (!k || usedKey[k]) return false;
+      usedKey[k] = true;
+      picked.push(seed);
+      return true;
+    }
 
-    return seeds;
+    var ai;
+    var arithN = 0;
+    for (ai = 0; ai < arithSeeds.length && arithN < arithPrefer; ai += 1) {
+      if (take(arithSeeds[ai])) arithN += 1;
+    }
+    var otherRoom = INCOMPLETE_SIZE - picked.length;
+    var reserveQueue = [];
+    if (reservedSpecial) reserveQueue.push(reservedSpecial);
+    if (reservedDecimal) reserveQueue.push(reservedDecimal);
+    var oi;
+    for (oi = 0; oi < reserveQueue.length && otherRoom > 0; oi += 1) {
+      if (take(reserveQueue[oi])) otherRoom -= 1;
+    }
+    for (oi = 0; oi < otherSeeds.length && otherRoom > 0; oi += 1) {
+      if (take(otherSeeds[oi])) otherRoom -= 1;
+    }
+    return picked;
   }
 
   function seedIsNeeded(seed, ctx) {
@@ -2463,7 +2465,7 @@
     var reasons = [];
     var unresolved = [
       "Q1 超前「会了」暂定 n≥" + AHEAD_MASTERED_N,
-      "Q2 已学/同步黄橙永远压过超前；校内全绿后仅准≥95% 的超前黄橙（已会偏慢）可进五格",
+      "Q2 已学/同步黄橙永远压过超前；校内全绿后，超前里已有数据的黄橙（准度或速度）可进五格",
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：历史最高与热图连续准≥95%顶取 max（不计分位）；目标 Ln 须通过 Ln。无历史且 L1 不够 95% 时目标仍是 L1。不因热图变差把目标降到低于历史",
       "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
@@ -2493,7 +2495,7 @@
         "。洞分=档位+准度差+timePct+剩余步×" +
         HOLE_FOUNDATION_STEP +
         "（准度不合格时更先补靠前档）",
-      "Q14 已激活校内全绿才开一档已学/同步空关；其后可排准≥95% 的超前黄橙；多模式同此。Q17 错题≥30；L1–L16 全激活后三年级特殊硬留1、四年级再留小数1；生存/拆括号不进",
+      "Q14 已激活校内全绿才开一档已学/同步空关；其后可排超前里已有数据的黄橙（准度或速度都算）；空关不开；多模式同此。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格，四则候选不够时再补其它模式。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
       "Q15 底板型已通关：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +
@@ -2590,7 +2592,7 @@
             (aheadHole
               ? aheadHole.levelLabel + " · " + aheadHole.stageLabel + " 准" + aheadHole.pPct
               : ""),
-          "Q14：超前须准≥95% 才进任务；准度不够先自学；空关不开；不抬档案年级"
+          "Q14：超前有数据的黄橙（准度或速度）在校内全绿后可练；空关不开；不抬档案年级"
         )
       );
     }
@@ -2774,6 +2776,7 @@
     canScheduleOpenNew: canScheduleOpenNew,
     canScheduleAheadHoles: canScheduleAheadHoles,
     aheadHoleEligible: aheadHoleEligible,
+    arithUnfluentCount: arithUnfluentCount,
     resolveScanTarget: resolveScanTarget,
     passedScanTarget: passedScanTarget,
     estimateClearSec: estimateClearSec,
