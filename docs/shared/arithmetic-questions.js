@@ -423,38 +423,45 @@
         {
           id: "L5",
           name: "第 5 级 · 两位数加一位数/整十数",
-          description: "两位数加一位数或整十数，整十数巩固位值，一位数侧重进位。",
+          description: "两位数加一位数或整十数，整十数巩固位值，一位数侧重进位，结果不超过 100。",
           operations: ["+"],
           min: 20,
           max: 99,
           generateQuestion() {
-            // 对齐小程序：整十数 : 一位数 ≈ 4 : 6；一位数部分约 75% 保证个位进位
+            // 整十数 : 一位数 ≈ 4 : 6；一位数部分约 75% 保证个位进位；和 >100 整对重抽
             let a, b, answer;
-            if (Math.random() < 0.4) {
-              a = randomInt(20, 99);
-              b = randomInt(1, 9) * 10;
-            } else {
-              const wantCarry = Math.random() < 0.75;
-              if (wantCarry) {
-                for (let i = 0; i < 50; i++) {
-                  a = randomInt(20, 99);
-                  const aUnit = a % 10;
-                  if (aUnit === 0) continue;
-                  const minB = Math.max(4, 10 - aUnit);
-                  if (minB <= 9) {
-                    b = randomInt(minB, 9);
-                    break;
-                  }
-                }
-                if (typeof a !== "number" || typeof b !== "number") {
-                  a = 27;
-                  b = 6;
-                }
-              } else {
+            for (let attempt = 0; attempt < 80; attempt += 1) {
+              a = undefined;
+              b = undefined;
+              if (Math.random() < 0.4) {
                 a = randomInt(20, 99);
-                b = randomInt(4, 9);
+                b = randomInt(1, 9) * 10;
+              } else {
+                const wantCarry = Math.random() < 0.75;
+                if (wantCarry) {
+                  for (let i = 0; i < 50; i += 1) {
+                    a = randomInt(20, 99);
+                    const aUnit = a % 10;
+                    if (aUnit === 0) continue;
+                    const minB = Math.max(4, 10 - aUnit);
+                    if (minB <= 9) {
+                      b = randomInt(minB, 9);
+                      break;
+                    }
+                  }
+                } else {
+                  a = randomInt(20, 99);
+                  b = randomInt(4, 9);
+                }
               }
+              if (typeof a !== "number" || typeof b !== "number") continue;
+              if (a + b > 100) continue;
+              answer = a + b;
+              const text = `${a} + ${b} = ?`;
+              return { a, b, op: "+", text, answer, baseLevelId: this.id };
             }
+            a = 27;
+            b = 6;
             answer = a + b;
             const text = `${a} + ${b} = ?`;
             return { a, b, op: "+", text, answer, baseLevelId: this.id };
