@@ -18428,61 +18428,22 @@
       }
     }
 
-    function computeTrainingEntryFromHeat(heat) {
-      const HM = window.JmlStatsHeatmap;
-      const today = getLocalTrainingDayKey();
-      let st = loadTrainingFlowState();
-      if (!HM || typeof HM.computeTrainingNextLevel !== "function" || !heat) {
-        lastTrainingPickResult = null;
-        lastTrainingEntrySource = "fallback";
-        const fb = st.brushMode ? 0 : 0;
-        console.log("[JML 训练选关]", JSON.stringify({ reason: "no_heat_or_compute", brushMode: st.brushMode, fallbackL: fb + 1 }, null, 2));
-        return { levelIndex: fb, brushMode: !!st.brushMode };
-      }
-      lastTrainingEntrySource = "heatmap_local";
-      const result = HM.computeTrainingNextLevel(heat, st, today);
-      lastTrainingPickResult = result;
-      st = applyTrainingNextLevelResult(st, result);
-      saveTrainingFlowState(st);
-      trainingSessionBrushMode = result.dayMode === "heat" || !!(result.brushMode || result.mode === "brush");
-      try {
-        const reasonText =
-          typeof HM.trainingNextLevelReasonText === "function"
-            ? HM.trainingNextLevelReasonText(result, getTrainingReasonLabels())
-            : result.reason;
-        console.log("[JML 训练选关]", JSON.stringify({
-          at: new Date().toISOString(),
-          dayKey: today,
-          dayMode: result.dayMode || st.dayMode,
-          frontierL: result.frontierLevel != null ? result.frontierLevel + 1 : null,
-          heatL: result.heatLevel != null ? result.heatLevel + 1 : null,
-          brushMode: trainingSessionBrushMode,
-          result: result,
-          reasonText: reasonText,
-          pickedL: result.levelIndex + 1,
-          cells: (heat.cells || []).map(function (c) {
-            return {
-              L: c.levelIndex + 1,
-              n: c.n,
-              p: c.p == null ? null : Math.round(c.p * 1000) / 1000,
-              active: c.active,
-              timePct: c.timePct,
-            };
-          }),
-        }, null, 2));
-      } catch (e) {
-        console.warn("[JML 训练选关] 日志失败", e);
-      }
-      return { levelIndex: result.levelIndex, brushMode: trainingSessionBrushMode };
+    function computeTrainingEntryFromHeat() {
+      lastTrainingPickResult = null;
+      lastTrainingEntrySource = "fallback";
+      trainingSessionBrushMode = false;
+      const saved = getLevelTrainingCurrentLevel();
+      const idx = saved >= 0 ? Math.min(15, Math.max(0, saved)) : 0;
+      return { levelIndex: idx, brushMode: false };
     }
 
     async function resolveTrainingEntryLevelAsync() {
       refreshTrainingDayLocalState();
-      // 游客无服务端选关：本地热图兜底
+      // 游客无任务单：用本机已保存的训练关
       if (isGuestMode) {
         const { heat } = await buildTrainingHeatmapAsync();
         trainingHeatSnapshot = heat;
-        const entry = computeTrainingEntryFromHeat(heat);
+        const entry = computeTrainingEntryFromHeat();
         writeTrainingNextEntryCache(entry.levelIndex, entry.brushMode);
         return entry.levelIndex;
       }
@@ -18514,24 +18475,9 @@
         return currentLevelIndex;
       }
       lastTrainingEntrySource = "fallback";
-      const st = loadTrainingFlowState();
-      const HM = window.JmlStatsHeatmap;
-      const today = getLocalTrainingDayKey();
-      let idx = null;
-      if (HM && typeof HM.computeTrainingNextLevelSync === "function") {
-        const sync = HM.computeTrainingNextLevelSync(st, today);
-        trainingSessionBrushMode = !!sync.brushMode;
-        if (sync.levelIndex != null && Number.isFinite(Number(sync.levelIndex))) {
-          idx = Math.min(15, Math.max(0, Math.floor(Number(sync.levelIndex))));
-        }
-      } else {
-        trainingSessionBrushMode = !!st.brushMode;
-      }
-      if (idx == null) {
-        const saved = getLevelTrainingCurrentLevel();
-        if (saved >= 0) idx = Math.min(15, Math.max(0, saved));
-        else idx = getTrainingStartLevel();
-      }
+      trainingSessionBrushMode = false;
+      const savedFb = getLevelTrainingCurrentLevel();
+      const idx = savedFb >= 0 ? Math.min(15, Math.max(0, savedFb)) : getTrainingStartLevel();
       trainingAutoPickLevelIndex = idx;
       return idx;
     }

@@ -304,33 +304,11 @@ function formatTrainingProgress(runs, cohort, capMs, HM, todayKey) {
     }
   });
 
-  let reason = "流畅掌握 " + fluentCount + "/" + levelCount;
-  let mode = "";
-  if (typeof HM.computeTrainingNextLevel === "function") {
-    let dayState = { dayKey: todayKey, brushMode: false, brushPoolMax: null, lastRun: null };
-    if (typeof HM.reconstructTrainingDayStateFromRuns === "function") {
-      dayState = HM.reconstructTrainingDayStateFromRuns(runs || [], todayKey, {
-        cohort,
-        maxTimeSpentMs: capMs,
-      });
-    }
-    const result = HM.computeTrainingNextLevel(heat, dayState, todayKey);
-    if (result && result.levelIndex != null && Number.isFinite(Number(result.levelIndex))) {
-      const li = Math.min(15, Math.max(0, Math.floor(Number(result.levelIndex))));
-      mode = result.brushMode || result.mode === "brush" ? "brush" : "daily";
-      const nextLabel =
-        mode === "brush" ? "刷热图·L" + (li + 1) : "L" + (li + 1);
-      reason =
-        reason +
-        "；推荐下一关 " +
-        nextLabel +
-        (result.reason ? "（" + result.reason + "）" : "");
-    }
-  }
+  const reason = "流畅掌握 " + fluentCount + "/" + levelCount;
 
   return {
     text: fluentCount + "/" + levelCount,
-    mode,
+    mode: "",
     reason,
     fluentCount,
     levelCount,

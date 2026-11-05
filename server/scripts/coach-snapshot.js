@@ -265,14 +265,10 @@ function printSummary(snap) {
     lines.push("系统四则选关：失败 " + (pick.error || ""));
   } else {
     lines.push(
-      "系统四则选关：" +
+      "训练默认关：" +
         (pick.pickedL != null ? "L" + pick.pickedL : "—") +
-        "  日模式 " +
-        (pick.dayMode || "—") +
-        "  F=" +
-        (pick.frontierL != null ? "L" + pick.frontierL : "—") +
-        "  H=" +
-        (pick.heatL != null ? "L" + pick.heatL : "—") +
+        "  " +
+        (pick.taskSource || "") +
         "  " +
         (pick.pickReason || pick.reason || "")
     );

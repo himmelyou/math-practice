@@ -2690,19 +2690,6 @@
       return step.status === "active" || step.status === "pending";
     });
     var active = getActiveTask(plan);
-    var firstTrain = null;
-    openQueue.forEach(function (step) {
-      if (!firstTrain && step.action === "training") firstTrain = step;
-    });
-
-    var sysLevel =
-      opts.systemPick && opts.systemPick.levelIndex != null && Number.isFinite(Number(opts.systemPick.levelIndex))
-        ? clampLevel(opts.systemPick.levelIndex)
-        : opts.systemPick && opts.systemPick.pickedL != null
-          ? clampLevel(Number(opts.systemPick.pickedL) - 1)
-          : null;
-    var compareLevel = active && active.action === "training" ? active.levelIndex : firstTrain ? firstTrain.levelIndex : null;
-    var diverges = compareLevel != null && sysLevel != null ? compareLevel !== sysLevel : false;
 
     var title = "";
     var parentCopy = "";
@@ -2780,8 +2767,6 @@
       clearEstimate: ctx.clearEstimate || null,
       reasons: reasons,
       rows: ctx.rows,
-      systemPick: opts.systemPick || null,
-      divergesFromSystemPick: diverges,
       provisional: {
         Q1_aheadMasteredN: AHEAD_MASTERED_N,
         Q2_schoolHolesBeatAhead: true,

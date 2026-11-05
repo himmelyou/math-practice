@@ -2,7 +2,6 @@
  * 服务器权威：用热图 + runs + 年级算练习任务单并落盘。
  */
 const Advice = require("./practice-advice");
-const { computeTrainingNextLevelForUser } = require("./training-next-level");
 
 function arithmeticCellsFromHeatmapPayload(payload) {
   const pack =
@@ -42,19 +41,6 @@ function levelBestFromRuns(runs) {
     if (Number.isFinite(ml) && (best == null || ml > best)) best = Math.floor(ml);
   });
   return best;
-}
-
-function systemPickFromTraining(pick) {
-  if (!pick || pick.ok === false) return null;
-  const levelIndex = pick.levelIndex != null && Number.isFinite(Number(pick.levelIndex)) ? Number(pick.levelIndex) : null;
-  return {
-    levelIndex: levelIndex,
-    pickedL: levelIndex != null ? levelIndex + 1 : null,
-    dayMode: pick.dayMode || null,
-    pickReason: pick.pickReason || pick.reason || "",
-    reason: pick.reason || "",
-    ok: true,
-  };
 }
 
 function studentTodayKey(advice) {
@@ -134,15 +120,6 @@ function computePracticePlanForUser(opts) {
   const stored = store && username ? store.get(username) : null;
   const savedPlan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
 
-  let systemPick = opts.systemPick || null;
-  if (!systemPick && opts.includeSystemPick && typeof opts.computeTrainingPick === "function") {
-    try {
-      systemPick = systemPickFromTraining(opts.computeTrainingPick());
-    } catch (e) {
-      systemPick = null;
-    }
-  }
-
   const hasClearedLevel =
     user.hasClearedLevel === true ||
     runs.some(function (r) {
@@ -168,7 +145,6 @@ function computePracticePlanForUser(opts) {
     resetIncomplete: opts.resetIncomplete === true,
     snapshot: opts.snapshot === true,
     nowTs: opts.nowTs != null ? Number(opts.nowTs) : Date.now(),
-    systemPick: systemPick,
   });
 
   if (store && username && advice.plan && opts.snapshot !== true) {
@@ -186,7 +162,5 @@ module.exports = {
   modeCellsFromHeatmapPayload,
   visibleArithmeticWrongCount,
   computePracticePlanForUser,
-  computeTrainingNextLevelForUser,
   studentPayload,
-  systemPickFromTraining,
 };

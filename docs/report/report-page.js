@@ -1084,13 +1084,14 @@
         '</div></div>'
       );
     }
-    var dayMode = block.dayMode || (block.dayState && block.dayState.dayMode) || '';
-    var fL = block.frontierL != null ? block.frontierL : block.frontierLevel != null ? block.frontierLevel + 1 : null;
-    var hL = block.heatL != null ? block.heatL : block.heatLevel != null ? block.heatLevel + 1 : null;
-    var pool =
-      block.brushPoolMax != null && Number.isFinite(Number(block.brushPoolMax))
-        ? 'L1–L' + (Number(block.brushPoolMax) + 1)
-        : '—';
+    var why =
+      block.reason === 'task_open_training'
+        ? '今日未完成四则的第一关'
+        : block.reason === 'task_arith_done'
+          ? '今日四则已完成，按优先级'
+          : block.reason === 'task_not_refreshed'
+            ? '今日未刷新任务，按优先级'
+            : block.reasonText || block.pickReason || block.reason || '';
     return (
       '<div class="jml-train-debug-card">' +
       '<h3>' +
@@ -1098,17 +1099,9 @@
       '</h3><div class="big">L' +
       escapeHtml(String(block.pickedL)) +
       '</div><div class="meta">' +
-      escapeHtml(dayMode || block.mode || '') +
-      ' · brush=' +
-      escapeHtml(String(!!block.brushMode)) +
-      '<br/>F=' +
-      escapeHtml(fL != null ? 'L' + fL : '—') +
-      ' · H=' +
-      escapeHtml(hL != null ? 'L' + hL : '—') +
-      ' · pool=' +
-      escapeHtml(pool) +
-      '<br/>' +
-      escapeHtml(block.reasonText || block.pickReason || block.reason || '') +
+      escapeHtml(why) +
+      '<br/>来源 ' +
+      escapeHtml(block.taskSource || '') +
       '<br/>todayKey=' +
       escapeHtml(block.todayKey || '') +
       '</div></div>'
@@ -1187,8 +1180,6 @@
       pickCardHtml('服务器选关（学员端同口径）', server) +
       '<div class="jml-train-debug-card"><h3>档案</h3><div class="meta">levelTrainingCurrentL=' +
       escapeHtml(String(payload.levelTrainingCurrentL)) +
-      '<br/>trainingDayMode=' +
-      escapeHtml(JSON.stringify(payload.trainingDayMode || null)) +
       '</div></div>' +
       '</div>' +
       '<h3 class="jml-report-h3" style="margin:8px 0 4px;font-size:14px;">近期 training 局</h3>' +
@@ -3073,21 +3064,6 @@
       });
   }
 
-  function formatAdviceSystemPickLine(sp) {
-    if (!sp || (sp.ok === false && sp.levelIndex == null && sp.pickedL == null)) {
-      return '旧训练选关：暂无';
-    }
-    var lv =
-      sp.pickedL != null && Number.isFinite(Number(sp.pickedL))
-        ? 'L' + Number(sp.pickedL)
-        : sp.levelIndex != null && Number.isFinite(Number(sp.levelIndex))
-          ? 'L' + (Number(sp.levelIndex) + 1)
-          : '—';
-    var day = sp.dayMode === 'heat' ? '热图日' : sp.dayMode === 'frontier' ? '前沿日' : sp.dayMode || '—';
-    var why = sp.pickReason || sp.reason || '';
-    return '旧训练选关：' + day + ' ' + lv + (why ? '（' + why + '）' : '');
-  }
-
   function buildPracticeAdviceBannerHtml() {
     if (state.practiceAdviceLoading && !state.practiceAdvice) {
       return (
@@ -3114,9 +3090,6 @@
       );
     }
     var p = advice.primary || {};
-    var diverge = advice.divergesFromSystemPick
-      ? '<span class="jml-advice-badge jml-advice-badge--diff">与旧选关不一致</span>'
-      : '<span class="jml-advice-badge">与旧选关一致</span>';
     var reasons = (advice.reasons || [])
       .map(function (r) {
         return (
@@ -3231,15 +3204,11 @@
           : gradeVal != null && gradeVal !== ''
             ? gradeVal + '年级'
             : '未填';
-    var sp = advice.systemPick || state.serverTrainingPick;
 
     return (
-      '<section class="jml-advice-banner' +
-      (advice.divergesFromSystemPick ? ' jml-advice-banner--diff' : '') +
-      '">' +
+      '<section class="jml-advice-banner">' +
       '<div class="jml-advice-head">' +
       '<h3 class="jml-advice-title">助手练习建议</h3>' +
-      diverge +
       '<span class="jml-advice-ver">' +
       escapeHtml(advice.ruleVersion || '') +
       ' · 年级 ' +
@@ -3258,9 +3227,6 @@
       escapeHtml(p.parentCopy || '') +
       '</p>' +
       dont +
-      '<p class="jml-advice-system">' +
-      escapeHtml(formatAdviceSystemPickLine(sp)) +
-      '</p>' +
       '<details class="jml-advice-details"><summary>详细原因（对照用）</summary>' +
       '<ul class="jml-advice-reasons">' +
       reasons +

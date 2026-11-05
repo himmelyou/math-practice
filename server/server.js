@@ -21,7 +21,6 @@ const { buildTrafficStats } = require("./traffic-stats");
 const trainingRunSpeedBackfill = require("./backfill-training-run-speed");
 const { swapDecimalD4D5 } = require("./swap-decimal-d4-d5");
 const dedupeUsernames = require("./dedupe-usernames");
-const { computeTrainingNextLevelForUser } = require("./training-next-level");
 const { attachHeatBaselineBeforeWrite } = require("./heat-baseline-at-append");
 const { buildUserHeatmapsByCategory } = require("./user-heatmap");
 const { getJmlStatsAggregate } = require("./load-jml-stats-aggregate");
@@ -953,23 +952,6 @@ function computePracticePlanForUsername(username, opts) {
       : buildHeatmapPayloadFromRuns(username, runs);
   const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
   const modeCells = practicePlanService.modeCellsFromHeatmapPayload(heatPayload);
-  let systemPick = opts.systemPick != null ? opts.systemPick : null;
-  if (opts.includeSystemPick && systemPick == null) {
-    try {
-      const cohort = readCohortResultForHeatmap();
-      const capMs =
-        cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
-      const pick = computeTrainingNextLevelForUser({
-        runs,
-        cohort,
-        storedDayMode: user.trainingDayMode || null,
-        capMs,
-      });
-      systemPick = practicePlanService.systemPickFromTraining(pick);
-    } catch (e) {
-      systemPick = null;
-    }
-  }
   try {
     const advice = practicePlanService.computePracticePlanForUser({
       username,
@@ -982,8 +964,6 @@ function computePracticePlanForUsername(username, opts) {
       store: practicePlanStore,
       resetIncomplete: opts.resetIncomplete === true,
       snapshot: opts.snapshot === true,
-      includeSystemPick: false,
-      systemPick,
     });
     return { ok: true, advice, heatPayload, runs, user };
   } catch (e) {
@@ -993,26 +973,8 @@ function computePracticePlanForUsername(username, opts) {
 }
 
 function buildTrainingNextDebugBlock(username, user, runs) {
-  const cohort = readCohortResultForHeatmap();
-  const capMs =
-    cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
-  let pick;
-  try {
-    pick = computeTrainingNextLevelForUser({
-      runs,
-      cohort,
-      storedDayMode: user.trainingDayMode || null,
-      capMs,
-    });
-  } catch (e) {
-    return {
-      ok: false,
-      error: "选关计算失败",
-      detail: e && e.message ? e.message : String(e),
-    };
-  }
-
-  const cells = pick && pick.heat && Array.isArray(pick.heat.cells) ? pick.heat.cells : [];
+  const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
+  const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
   const cellsSummary = cells.map((c) => {
     const p = c && c.p != null && Number.isFinite(Number(c.p)) ? Math.round(Number(c.p) * 1000) / 1000 : null;
     const timePct =
@@ -1075,40 +1037,27 @@ function buildTrainingNextDebugBlock(username, user, runs) {
     taskPick = null;
   }
   const taskOk = taskPick && taskPick.ok && taskPick.levelIndex != null;
-  const serverBlock =
-    pick && pick.ok
-      ? {
-          ok: true,
-          source: "server_task_training_level",
-          todayKey: practicePlanService.Advice.chinaDateKeyFromTs(Date.now()),
-          levelIndex: taskOk ? taskPick.levelIndex : pick.levelIndex,
-          pickedL: (taskOk ? taskPick.levelIndex : pick.levelIndex) + 1,
-          brushMode: false,
-          dayMode: "frontier",
-          frontierLevel: null,
-          frontierL: null,
-          heatLevel: null,
-          heatL: null,
-          mode: "daily",
-          reason: taskOk ? taskPick.reason : pick.reason,
-          pickReason: taskOk ? taskPick.reason : pick.pickReason,
-          taskSource: taskOk ? taskPick.source : "",
-          enterBrush: false,
-          brushPoolMax: null,
-          dayState: null,
-          result: taskOk ? taskPick : pick.result,
-          heatAvgSecAtStart: pick.heatAvgSecAtStart,
-          heatMeanLnAtStart: pick.heatMeanLnAtStart,
-          cohortLoaded: pick.cohortLoaded,
-          cellsSummary,
-        }
-      : {
-          ok: false,
-          error: (pick && pick.error) || "无法计算下一关",
-          todayKey: pick && pick.todayKey,
-          dayState: pick && pick.dayState,
-          cellsSummary,
-        };
+  const serverBlock = taskOk
+    ? {
+        ok: true,
+        source: "server_task_training_level",
+        todayKey: practicePlanService.Advice.chinaDateKeyFromTs(Date.now()),
+        levelIndex: taskPick.levelIndex,
+        pickedL: taskPick.levelIndex + 1,
+        levelLabel: taskPick.levelLabel || "L" + (taskPick.levelIndex + 1),
+        brushMode: false,
+        mode: "daily",
+        reason: taskPick.reason,
+        pickReason: taskPick.reason,
+        taskSource: taskPick.source,
+        result: taskPick,
+        cellsSummary,
+      }
+    : {
+        ok: false,
+        error: "无法计算下一关",
+        cellsSummary,
+      };
 
   return {
     ok: true,
@@ -1116,7 +1065,6 @@ function buildTrainingNextDebugBlock(username, user, runs) {
     at: new Date().toISOString(),
     note:
       "训练默认关与每日任务四则顺序一致：今天刷新过且还有未完成四则，取列表第一关；否则按优先级现算。",
-    trainingDayMode: user.trainingDayMode || null,
     levelTrainingCurrentLevel:
       typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,
     levelTrainingCurrentL:
@@ -1125,7 +1073,6 @@ function buildTrainingNextDebugBlock(username, user, runs) {
         : null,
     server: serverBlock,
     recentTraining: trainingRuns,
-    pick: pick && pick.ok ? pick : null,
   };
 }
 
@@ -1147,20 +1094,10 @@ function buildStudentWorkspaceForUsername(username, opts) {
 
   const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
   const trainDebug = buildTrainingNextDebugBlock(username, user, runs);
-  let systemPick = null;
-  if (trainDebug && trainDebug.pick) {
-    try {
-      systemPick = practicePlanService.systemPickFromTraining(trainDebug.pick);
-    } catch (e) {
-      systemPick = null;
-    }
-  }
 
   const planOut = computePracticePlanForUsername(username, {
     runs,
     heatPayload,
-    includeSystemPick: false,
-    systemPick,
     snapshot: true,
   });
 
@@ -1214,7 +1151,6 @@ function buildStudentWorkspaceForUsername(username, opts) {
       ok: !!trainDebug.ok,
       at: trainDebug.at,
       note: trainDebug.note,
-      trainingDayMode: trainDebug.trainingDayMode,
       levelTrainingCurrentLevel: trainDebug.levelTrainingCurrentLevel,
       levelTrainingCurrentL: trainDebug.levelTrainingCurrentL,
       server: trainDebug.server,
@@ -2933,7 +2869,7 @@ app.get("/api/user/:username/heatmap", requireStudentAuth, ensureOwnData, (req, 
 /** 学员：练习任务单（服务器算、服务器存；引擎不在 H5） */
 app.get("/api/user/:username/practice-plan", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
-  const out = computePracticePlanForUsername(username, { includeSystemPick: false });
+  const out = computePracticePlanForUsername(username, {});
   if (!out.ok) {
     return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
   }
@@ -2944,7 +2880,6 @@ app.post("/api/user/:username/practice-plan", requireStudentAuth, ensureOwnData,
   const { username } = req.params;
   const resetIncomplete = !!(req.body && req.body.resetIncomplete);
   const out = computePracticePlanForUsername(username, {
-    includeSystemPick: false,
     resetIncomplete,
   });
   if (!out.ok) {
@@ -2970,8 +2905,6 @@ function adminPracticePlanPayload(advice) {
     clearEstimate: advice.clearEstimate,
     reasons: advice.reasons,
     unresolved: advice.unresolved,
-    systemPick: advice.systemPick,
-    divergesFromSystemPick: advice.divergesFromSystemPick,
   };
 }
 
@@ -2981,7 +2914,7 @@ app.get("/api/admin/user/:username/practice-plan", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const { username } = req.params;
-  const out = computePracticePlanForUsername(username, { includeSystemPick: true, snapshot: true });
+  const out = computePracticePlanForUsername(username, { snapshot: true });
   if (!out.ok) {
     return res.status(out.status || 500).json({ ok: false, error: out.error || "任务单计算失败" });
   }
@@ -2995,7 +2928,6 @@ app.post("/api/admin/user/:username/practice-plan", (req, res) => {
   const { username } = req.params;
   const resetIncomplete = !!(req.body && req.body.resetIncomplete);
   const out = computePracticePlanForUsername(username, {
-    includeSystemPick: true,
     resetIncomplete,
   });
   if (!out.ok) {
@@ -3694,19 +3626,6 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
       u.recentTrainingRuns.unshift(runEntry);
       if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
-      const da =
-        runEntry.trainingMeta &&
-        runEntry.trainingMeta.dayStateAfter &&
-        typeof runEntry.trainingMeta.dayStateAfter === "object"
-          ? runEntry.trainingMeta.dayStateAfter
-          : null;
-      if (da && (da.dayMode === "frontier" || da.dayMode === "heat") && da.dayKey) {
-        u.trainingDayMode = {
-          dayKey: String(da.dayKey),
-          dayMode: da.dayMode,
-          prevDayMode: da.prevDayMode === "frontier" || da.prevDayMode === "heat" ? da.prevDayMode : null,
-        };
-      }
     } else if (!comboOnly && runEntry.mode === "primeComposite") {
       if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
       u.recentPrimeCompositeRuns.unshift(runEntry);
@@ -4792,7 +4711,6 @@ app.get("/api/admin/user/:username/training/next-level-debug", (req, res) => {
     username: out.username,
     at: out.at,
     note: out.note,
-    trainingDayMode: out.trainingDayMode,
     levelTrainingCurrentLevel: out.levelTrainingCurrentLevel,
     levelTrainingCurrentL: out.levelTrainingCurrentL,
     server: out.server,
