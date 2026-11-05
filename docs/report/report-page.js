@@ -1177,7 +1177,7 @@
 
     el.innerHTML =
       '<div class="jml-train-debug">' +
-      '<p class="jml-train-debug-hint">训练选关以服务器为准（与学员端 <code>/api/user/…/training/next-level</code> 同口径）。</p>' +
+      '<p class="jml-train-debug-hint">训练默认关与每日任务四则顺序一致（与学员端 <code>/api/user/…/training/next-level</code> 同口径）。今天刷新过且还有未完成四则，取列表第一关；否则按优先级现算。</p>' +
       '<div class="jml-train-debug-toolbar">' +
       '<button type="button" class="jml-btn" id="jml-train-debug-refresh">重新拉取</button>' +
       '<button type="button" class="jml-btn" id="jml-train-debug-copy">复制 JSON</button>' +

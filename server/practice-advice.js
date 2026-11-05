@@ -1,10 +1,10 @@
 /**
- * 练习建议 v0.36：黄橙排序改为先未达标，再靠前。
- * 同一档里准度缺口和速度分位取更严重的一项，不相加，橙不再压过黄。
+ * 练习建议 v0.37：已通关后，平台型和底板型都只在预估 ≤ 纪录 85% 时排冲榜闯关。
+ * v0.36：黄橙排序改为先未达标，再靠前。
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.36-provisional";
+  var RULE_VERSION = "0.37-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -453,9 +453,7 @@
 
   function scanIsNeeded(ctx) {
     if (!ctx) return false;
-    if (ctx.profile && ctx.profile.id === "skill_gaps" && ctx.hasClearedLevel) {
-      return isRetryClearScan(ctx);
-    }
+    if (ctx.hasClearedLevel) return isRetryClearScan(ctx);
     return true;
   }
 
@@ -2116,6 +2114,7 @@
     }
     if (!saved || (username && saved.username && saved.username !== username)) {
       plan = issuePlan(ctx, nowTs, username);
+      plan.refreshedAt = nowTs;
       rebuilt = true;
       return { plan: plan, rebuilt: rebuilt, lastFollow: lastFollow };
     }
@@ -2185,7 +2184,73 @@
       fillIncomplete(plan, ctx, nowTs, { keepExisting: true, reorderScan: false });
     }
     activateFirst(plan.tasks);
+    plan.refreshedAt = nowTs;
     return { plan: plan, rebuilt: rebuilt, lastFollow: lastFollow };
+  }
+
+  function planRefreshedToday(plan, nowTs) {
+    if (!plan || plan.refreshedAt == null) return false;
+    var day = chinaDateKeyFromTs(nowTs);
+    return !!day && chinaDateKeyFromTs(plan.refreshedAt) === day;
+  }
+
+  function firstOpenTrainingTask(plan) {
+    var tasks = plan && plan.tasks ? plan.tasks : [];
+    var i;
+    for (i = 0; i < tasks.length; i += 1) {
+      var t = tasks[i];
+      if (!t || t.action !== "training") continue;
+      if (t.status !== "active" && t.status !== "pending") continue;
+      if (t.levelIndex == null || !Number.isFinite(Number(t.levelIndex))) continue;
+      return t;
+    }
+    return null;
+  }
+
+  function firstPriorityTrainingRow(ctx) {
+    if (!ctx) return null;
+    ctx._cooldownSeq = ctx._cooldownSeq || [];
+    var seeds = uniqueSeeds(ctx);
+    var i;
+    for (i = 0; i < seeds.length; i += 1) {
+      var s = seeds[i];
+      if (!s || (s.kind !== "training" && s.kind !== "open")) continue;
+      if (!s.row || s.row.levelIndex == null) continue;
+      return s.row;
+    }
+    return null;
+  }
+
+  /**
+   * 训练默认关：今天刷新过任务单且还有未完成四则 → 列表里第一个；
+   * 否则按四则黄橙优先顺序现算一关。不写任务单。
+   */
+  function recommendTrainingLevel(opts) {
+    opts = opts || {};
+    var nowTs = opts.nowTs != null && Number.isFinite(Number(opts.nowTs)) ? Number(opts.nowTs) : Date.now();
+    var ctx = buildAdviceContext(opts);
+    var plan = opts.savedPlan || null;
+    if (planRefreshedToday(plan, nowTs)) {
+      var open = firstOpenTrainingTask(plan);
+      if (open) {
+        return {
+          ok: true,
+          levelIndex: clampLevel(open.levelIndex),
+          levelLabel: open.levelLabel || levelLabel(open.levelIndex),
+          source: "open_task",
+          reason: "task_open_training",
+        };
+      }
+    }
+    var row = firstPriorityTrainingRow(ctx);
+    var idx = row && row.levelIndex != null ? clampLevel(row.levelIndex) : 0;
+    return {
+      ok: true,
+      levelIndex: idx,
+      levelLabel: row && row.levelLabel ? row.levelLabel : levelLabel(idx),
+      source: "advice_priority",
+      reason: planRefreshedToday(plan, nowTs) ? "task_arith_done" : "task_not_refreshed",
+    };
   }
 
   function successCopy(task) {
@@ -2400,7 +2465,7 @@
     var retry = retryClearInfo(rows, opts.runs);
     var clearEstimate = clearEstimateInfo(rows, opts.runs);
     var scan = resolveScanTarget(rows, opts);
-    if (profile.id === "skill_gaps" && opts.hasClearedLevel === true && retry && retry.improve) {
+    if (opts.hasClearedLevel === true && retry && retry.improve) {
       scan = {
         levelIndex: LEVEL_COUNT - 1,
         levelLabel: levelLabel(LEVEL_COUNT - 1),
@@ -2505,7 +2570,7 @@
         HOLE_LEVEL_WEIGHT +
         "×剩余步+max(速度分位,准度缺口)。未达标整段在前；靠前一档压过后一档；准度和极慢取更严重的一项",
       "Q14 已激活校内全绿才开一档已学/同步空关；其后可排超前里已有数据的黄橙（准度或速度都算）；空关不开；多模式同此。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格，四则候选不够时再补其它模式。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
-      "Q15 底板型已通关：热图预估全通≤纪录×" +
+      "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
@@ -2792,6 +2857,7 @@
     bestClearedLevelSec: bestClearedLevelSec,
     formatAdviceClock: formatAdviceClock,
     computePracticeAdvice: computePracticeAdvice,
+    recommendTrainingLevel: recommendTrainingLevel,
     historyToClientList: historyToClientList,
     chinaDateKeyFromTs: chinaDateKeyFromTs,
     PRIOR_LABEL: PRIOR_LABEL,

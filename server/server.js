@@ -1068,27 +1068,35 @@ function buildTrainingNextDebugBlock(username, user, runs) {
       };
     });
 
+  let taskPick = null;
+  try {
+    taskPick = recommendTrainingLevelForUser(username, user, runs);
+  } catch (eTask) {
+    taskPick = null;
+  }
+  const taskOk = taskPick && taskPick.ok && taskPick.levelIndex != null;
   const serverBlock =
     pick && pick.ok
       ? {
           ok: true,
-          source: "server_computeTrainingNextLevelForUser",
-          todayKey: pick.todayKey,
-          levelIndex: pick.levelIndex,
-          pickedL: pick.levelIndex + 1,
-          brushMode: pick.brushMode,
-          dayMode: pick.dayMode,
-          frontierLevel: pick.frontierLevel,
-          frontierL: pick.frontierLevel != null ? pick.frontierLevel + 1 : null,
-          heatLevel: pick.heatLevel,
-          heatL: pick.heatLevel != null ? pick.heatLevel + 1 : null,
-          mode: pick.mode,
-          reason: pick.reason,
-          pickReason: pick.pickReason,
-          enterBrush: pick.enterBrush,
-          brushPoolMax: pick.brushPoolMax,
-          dayState: pick.dayState,
-          result: pick.result,
+          source: "server_task_training_level",
+          todayKey: practicePlanService.Advice.chinaDateKeyFromTs(Date.now()),
+          levelIndex: taskOk ? taskPick.levelIndex : pick.levelIndex,
+          pickedL: (taskOk ? taskPick.levelIndex : pick.levelIndex) + 1,
+          brushMode: false,
+          dayMode: "frontier",
+          frontierLevel: null,
+          frontierL: null,
+          heatLevel: null,
+          heatL: null,
+          mode: "daily",
+          reason: taskOk ? taskPick.reason : pick.reason,
+          pickReason: taskOk ? taskPick.reason : pick.pickReason,
+          taskSource: taskOk ? taskPick.source : "",
+          enterBrush: false,
+          brushPoolMax: null,
+          dayState: null,
+          result: taskOk ? taskPick : pick.result,
           heatAvgSecAtStart: pick.heatAvgSecAtStart,
           heatMeanLnAtStart: pick.heatMeanLnAtStart,
           cohortLoaded: pick.cohortLoaded,
@@ -1107,7 +1115,7 @@ function buildTrainingNextDebugBlock(username, user, runs) {
     username,
     at: new Date().toISOString(),
     note:
-      "server 与学员端 GET /api/user/:user/training/next-level 同口径；选关权威只在服务器。",
+      "训练默认关与每日任务四则顺序一致：今天刷新过且还有未完成四则，取列表第一关；否则按优先级现算。",
     trainingDayMode: user.trainingDayMode || null,
     levelTrainingCurrentLevel:
       typeof user.levelTrainingCurrentLevel === "number" ? user.levelTrainingCurrentLevel : null,
@@ -2826,7 +2834,27 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
   res.json({ ok: true, runs });
 });
 
-/** 训练下一关：服务端权威选关（热图 + runs 反推日状态） */
+function recommendTrainingLevelForUser(username, user, runs) {
+  const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
+  const stored = practicePlanStore.get(username);
+  const savedPlan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
+  const Advice = practicePlanService.Advice;
+  return Advice.recommendTrainingLevel({
+    username,
+    grade: user && user.grade != null ? user.grade : null,
+    cells: practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload),
+    modeCells: practicePlanService.modeCellsFromHeatmapPayload(heatPayload),
+    runs: runs || [],
+    savedPlan,
+    wrongAnswersVisible: visibleWrongAnswers(user).length,
+    hasClearedLevel: !!(user && user.hasClearedLevel === true),
+    levelChallengeBestLevel: user && user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
+    levelBestFromRuns: practicePlanService.levelBestFromRuns(runs || []),
+    nowTs: Date.now(),
+  });
+}
+
+/** 训练下一关：与每日任务的四则顺序对齐。不改任务单。 */
 app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
   const data = readJson(USERS_FILE, { users: [] });
@@ -2838,74 +2866,47 @@ app.get("/api/user/:username/training/next-level", requireStudentAuth, ensureOwn
     ...r,
     mode: normalizeRunMode(r.mode),
   }));
-  const cohort = readCohortResultForHeatmap();
   let pick;
   try {
-    pick = computeTrainingNextLevelForUser({
-      runs,
-      cohort,
-      storedDayMode: user.trainingDayMode || null,
-      capMs: cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS,
-    });
+    pick = recommendTrainingLevelForUser(username, user, runs);
   } catch (e) {
     console.warn("[training/next-level]", e && e.message ? e.message : e);
     return res.status(500).json({ ok: false, error: "选关计算失败" });
   }
-  if (!pick || !pick.ok) {
+  if (!pick || !pick.ok || pick.levelIndex == null) {
     return res.status(422).json({
       ok: false,
-      error: (pick && pick.error) || "无法计算下一关",
-      todayKey: pick && pick.todayKey,
+      error: "无法计算下一关",
     });
   }
-  // 若日模式已跨日归一，写回用户标记（无新局时也保持隔日切换）
-  if (pick.dayState && pick.dayState.dayKey && pick.dayState.dayMode) {
-    const nextMark = {
-      dayKey: pick.dayState.dayKey,
-      dayMode: pick.dayState.dayMode,
-      prevDayMode: pick.dayState.prevDayMode || null,
-    };
-    const prev = user.trainingDayMode || null;
-    if (
-      !prev ||
-      prev.dayKey !== nextMark.dayKey ||
-      prev.dayMode !== nextMark.dayMode ||
-      prev.prevDayMode !== nextMark.prevDayMode
-    ) {
-      user.trainingDayMode = nextMark;
-      writeJson(USERS_FILE, data);
-    }
-  }
+  const todayKey = practicePlanService.Advice.chinaDateKeyFromTs(Date.now());
   return res.json({
     ok: true,
     source: "server",
-    todayKey: pick.todayKey,
+    todayKey: todayKey,
     levelIndex: pick.levelIndex,
-    brushMode: pick.brushMode,
-    dayMode: pick.dayMode,
-    frontierLevel: pick.frontierLevel,
-    heatLevel: pick.heatLevel,
-    mode: pick.mode,
+    brushMode: false,
+    dayMode: "frontier",
+    frontierLevel: null,
+    heatLevel: null,
+    mode: "daily",
     reason: pick.reason,
-    pickReason: pick.pickReason,
-    enterBrush: pick.enterBrush,
-    brushPoolMax: pick.brushPoolMax,
-    dayState: pick.dayState,
-    heatAvgSecAtStart: pick.heatAvgSecAtStart,
-    heatMeanLnAtStart: pick.heatMeanLnAtStart,
-    cohortLoaded: pick.cohortLoaded,
-    heat: pick.heat
-      ? {
-          cells: pick.heat.cells,
-          minAttempts: pick.heat.minAttempts,
-          maxTimeSpentMs: pick.heat.maxTimeSpentMs,
-          cohortLoaded: pick.heat.cohortLoaded,
-          personalWindowAttempts: pick.heat.personalWindowAttempts,
-          personalHalfLifeDays: pick.heat.personalHalfLifeDays,
-          levelCount: pick.heat.levelCount || 16,
-        }
-      : null,
-    result: pick.result,
+    pickReason: pick.reason,
+    enterBrush: false,
+    brushPoolMax: null,
+    dayState: null,
+    taskSource: pick.source,
+    levelLabel: pick.levelLabel,
+    heat: null,
+    result: {
+      mode: "daily",
+      levelIndex: pick.levelIndex,
+      reason: pick.reason,
+      pickReason: pick.reason,
+      brushMode: false,
+      dayMode: "frontier",
+      enterBrush: false,
+    },
   });
 });
 
@@ -4243,6 +4244,27 @@ app.get("/api/admin/student-overview", (req, res) => {
     levelList,
     cohort,
     capMs,
+  });
+  rows.forEach((row) => {
+    const user = users.find((u) => u && u.username === row.username);
+    if (!user) return;
+    let rec = null;
+    try {
+      rec = recommendTrainingLevelForUser(row.username, user, scopedRuns[row.username] || []);
+    } catch (eRec) {
+      rec = null;
+    }
+    if (!rec || !rec.ok || rec.levelIndex == null) return;
+    const label = rec.levelLabel || "L" + (rec.levelIndex + 1);
+    const why =
+      rec.reason === "task_open_training"
+        ? "今日未完成四则"
+        : rec.reason === "task_arith_done"
+          ? "今日四则已完成，按优先级"
+          : "今日未刷新任务，按优先级";
+    const head = row.trainingReason ? String(row.trainingReason).split("；")[0] : "";
+    row.trainingReason = (head ? head + "；" : "") + "推荐下一关 " + label + "（" + why + "）";
+    row.trainingMode = "task";
   });
   res.json({
     ok: true,
