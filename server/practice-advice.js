@@ -2243,11 +2243,20 @@
       }
     }
     var row = firstPriorityTrainingRow(ctx);
-    var idx = row && row.levelIndex != null ? clampLevel(row.levelIndex) : 0;
+    if (!row || row.levelIndex == null || !Number.isFinite(Number(row.levelIndex))) {
+      return {
+        ok: false,
+        levelIndex: null,
+        levelLabel: "",
+        source: "advice_priority",
+        reason: "no_training_level",
+      };
+    }
+    var idx = clampLevel(row.levelIndex);
     return {
       ok: true,
       levelIndex: idx,
-      levelLabel: row && row.levelLabel ? row.levelLabel : levelLabel(idx),
+      levelLabel: row.levelLabel ? row.levelLabel : levelLabel(idx),
       source: "advice_priority",
       reason: planRefreshedToday(plan, nowTs) ? "task_arith_done" : "task_not_refreshed",
     };

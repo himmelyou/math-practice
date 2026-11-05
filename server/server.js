@@ -2770,24 +2770,61 @@ app.get("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res
   res.json({ ok: true, runs });
 });
 
+function openTrainingLevelFromSavedPlan(username, nowTs) {
+  const stored = practicePlanStore.get(username);
+  const plan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
+  if (!plan || plan.refreshedAt == null) return null;
+  const Advice = practicePlanService.Advice;
+  const today = Advice.chinaDateKeyFromTs(nowTs);
+  if (!today || Advice.chinaDateKeyFromTs(plan.refreshedAt) !== today) return null;
+  const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
+  for (let i = 0; i < tasks.length; i += 1) {
+    const t = tasks[i];
+    if (!t || t.action !== "training") continue;
+    if (t.status !== "active" && t.status !== "pending") continue;
+    const raw = Number(t.levelIndex);
+    if (!Number.isFinite(raw)) continue;
+    const levelIndex = Math.min(15, Math.max(0, Math.floor(raw)));
+    return {
+      ok: true,
+      levelIndex,
+      levelLabel: t.levelLabel || "L" + (levelIndex + 1),
+      source: "open_task",
+      reason: "task_open_training",
+    };
+  }
+  return null;
+}
+
 function recommendTrainingLevelForUser(username, user, runs) {
+  const nowTs = Date.now();
   const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
   const stored = practicePlanStore.get(username);
   const savedPlan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
   const Advice = practicePlanService.Advice;
-  return Advice.recommendTrainingLevel({
-    username,
-    grade: user && user.grade != null ? user.grade : null,
-    cells: practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload),
-    modeCells: practicePlanService.modeCellsFromHeatmapPayload(heatPayload),
-    runs: runs || [],
-    savedPlan,
-    wrongAnswersVisible: visibleWrongAnswers(user).length,
-    hasClearedLevel: !!(user && user.hasClearedLevel === true),
-    levelChallengeBestLevel: user && user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
-    levelBestFromRuns: practicePlanService.levelBestFromRuns(runs || []),
-    nowTs: Date.now(),
-  });
+  let pick = null;
+  try {
+    pick = Advice.recommendTrainingLevel({
+      username,
+      grade: user && user.grade != null ? user.grade : null,
+      cells: practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload),
+      modeCells: practicePlanService.modeCellsFromHeatmapPayload(heatPayload),
+      runs: runs || [],
+      savedPlan,
+      wrongAnswersVisible: visibleWrongAnswers(user).length,
+      hasClearedLevel: !!(user && user.hasClearedLevel === true),
+      levelChallengeBestLevel: user && user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
+      levelBestFromRuns: practicePlanService.levelBestFromRuns(runs || []),
+      nowTs,
+    });
+  } catch (ePick) {
+    console.warn("[recommendTrainingLevel]", ePick && ePick.message ? ePick.message : ePick);
+    pick = null;
+  }
+  if (pick && pick.ok && pick.levelIndex != null) return pick;
+  const fromPlan = openTrainingLevelFromSavedPlan(username, nowTs);
+  if (fromPlan) return fromPlan;
+  return pick || { ok: false, levelIndex: null, levelLabel: "", source: "", reason: "no_training_level" };
 }
 
 /** 训练下一关：与每日任务的四则顺序对齐。不改任务单。 */
