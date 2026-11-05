@@ -1,11 +1,10 @@
 /**
- * 练习建议 v0.35：四则未流畅关先占座（与概览 fluent 同一口径）。
- * 超前有数据的黄橙（准度或速度）在校内全绿后可练；空关仍不开。
- * 其它模式只坐剩余格；四则候选不够时用它们补满，不留空。
- * v0.34：未完成卡成功线冻结。
+ * 练习建议 v0.36：黄橙排序改为先未达标，再靠前。
+ * 同一档里准度缺口和速度分位取更严重的一项，不相加，橙不再压过黄。
+ * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.35-provisional";
+  var RULE_VERSION = "0.36-provisional";
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -28,8 +27,12 @@
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
   var FOUNDATION_RATIO = 1.15;
-  /** 黄橙洞分：本线剩余步 × 此系数（与 timePct 同量级；准度不够时更先补靠前档） */
-  var HOLE_FOUNDATION_STEP = 10;
+  /** 黄橙洞分：每档剩余步的权重，大于严重度全距（0–100），靠前一档压过后一档 */
+  var HOLE_LEVEL_WEIGHT = 100;
+  /** 未达概览 fluent 的关整段排在「已流畅但仍黄」之前 */
+  var HOLE_UNFLUENT_BAND = 10000;
+  /** 兼容旧输出字段；洞分不再用这个小步长 */
+  var HOLE_FOUNDATION_STEP = HOLE_LEVEL_WEIGHT;
   /** Q6 已废：准度不再小步。常量仅兼容旧输出字段。 */
   var ACC_STEP = 0.015;
   /** Q7：速度任务：本局均速 ≤ 基线 × 此系数；对照 timePct − 步长（现为达均速） */
@@ -223,17 +226,23 @@
     return tp * Math.pow(FOUNDATION_RATIO, foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0)));
   }
 
-  function holeFoundationTerm(row) {
-    return foundationRemaining(row && (row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0))) * HOLE_FOUNDATION_STEP;
+  /** 准度离 95% 的缺口，封顶 100，与速度分位同一把尺子。 */
+  function accuracySeverity(row) {
+    var p = row && row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
+    if (p >= HEAT_P_YELLOW) return 0;
+    return Math.min(100, ((HEAT_P_YELLOW - p) / (1 - HEAT_P_YELLOW)) * 100);
   }
 
+  /**
+   * 黄橙排序：未达标（非 fluent）整段在前；段内剩余步权重大于严重度。
+   * 严重度 = max(速度分位, 准度缺口)，不相加。极慢和准度不够同一类问题。
+   */
   function holeScore(row) {
-    var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
-    var spd = timePctVal(row);
-    var found = holeFoundationTerm(row);
-    if (row.stage === "weak") return 2000 + (1 - p) * 1000 + (row.tooSlow ? 80 : 0) + spd + found;
-    if (row.stage === "shaky") return 1000 + (1 - p) * 1000 + spd + found;
-    return 0;
+    if (!row || (row.stage !== "weak" && row.stage !== "shaky")) return 0;
+    var rem = foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0));
+    var severity = Math.max(timePctVal(row), accuracySeverity(row));
+    var band = row.fluent === true ? 0 : HOLE_UNFLUENT_BAND;
+    return band + rem * HOLE_LEVEL_WEIGHT + severity;
   }
 
   /** 已学流畅档：准度离 97% + 地基加权速度项 + 样本偏薄。越大越该补进未完成。 */
@@ -2492,9 +2501,9 @@
         HEAT_PCT_PLUS1 +
         "；黄=准<95%或timePct≥" +
         FAST_TIME_PCT +
-        "。洞分=档位+准度差+timePct+剩余步×" +
-        HOLE_FOUNDATION_STEP +
-        "（准度不合格时更先补靠前档）",
+        "。洞分=未达标档+" +
+        HOLE_LEVEL_WEIGHT +
+        "×剩余步+max(速度分位,准度缺口)。未达标整段在前；靠前一档压过后一档；准度和极慢取更严重的一项",
       "Q14 已激活校内全绿才开一档已学/同步空关；其后可排超前里已有数据的黄橙（准度或速度都算）；空关不开；多模式同此。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格，四则候选不够时再补其它模式。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
       "Q15 底板型已通关：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
