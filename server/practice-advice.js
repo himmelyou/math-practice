@@ -1,10 +1,13 @@
 /**
- * 练习建议 v0.37：已通关后，平台型和底板型都只在预估 ≤ 纪录 85% 时排冲榜闯关。
+ * 练习建议 v0.38：质数合数通关判定与成就对齐（cleared/perfect 或 score≥250）。
+ * v0.37：已通关后，平台型和底板型都只在预估 ≤ 纪录 85% 时排冲榜闯关。
  * v0.36：黄橙排序改为先未达标，再靠前。
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.37-provisional";
+  var RULE_VERSION = "0.38-provisional";
+  /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
+  var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
   try {
     if (typeof require === "function") Modes = require("./practice-advice-modes");
@@ -1865,7 +1868,7 @@
   function evaluateSuccess(task, run, stats) {
     if (task.successKind === "wrongbook_clear") return false;
     if (task.action === "primeComposite") {
-      return !!(run && (run.cleared === true || run.perfect === true));
+      return isPrimeCompositeClearedRun(run);
     }
     var sumLv =
       task.action === "training" ||
@@ -2456,13 +2459,20 @@
     });
   }
 
+  function isPrimeCompositeClearedRun(run) {
+    if (!run) return false;
+    if (run.cleared === true || run.perfect === true) return true;
+    var score = Number(run.score);
+    return Number.isFinite(score) && score >= PRIME_CLEAR_SCORE;
+  }
+
   function detectPrimeFlags(runs) {
     var played = false;
     var cleared = false;
     (runs || []).forEach(function (r) {
       if (normalizeRunMode(r && r.mode) !== "primecomposite") return;
       played = true;
-      if (r.cleared === true || r.perfect === true) cleared = true;
+      if (isPrimeCompositeClearedRun(r)) cleared = true;
     });
     return { played: played, cleared: cleared };
   }
