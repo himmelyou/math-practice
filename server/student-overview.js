@@ -126,7 +126,12 @@ function formatLevelChallengeProgress(u, runs, rankingEntry) {
       sortKey: 1e6 - rankSec,
     };
   }
-  if (!hasRunMode(runs, "level") && u.hasClearedLevel !== true) {
+  let best =
+    typeof u.levelChallengeBestLevel === "number" && Number.isFinite(u.levelChallengeBestLevel)
+      ? Math.floor(u.levelChallengeBestLevel)
+      : -1;
+  const hasRuns = hasRunMode(runs, "level");
+  if (!hasRuns && u.hasClearedLevel !== true && best < 0) {
     return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   }
   if (userHasClearedLevel(u, runs)) {
@@ -138,10 +143,6 @@ function formatLevelChallengeProgress(u, runs, rankingEntry) {
       sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1,
     };
   }
-  let best =
-    typeof u.levelChallengeBestLevel === "number" && Number.isFinite(u.levelChallengeBestLevel)
-      ? Math.floor(u.levelChallengeBestLevel)
-      : -1;
   (runs || []).forEach((r) => {
     if (String(r && r.mode ? r.mode : "").toLowerCase() !== "level") return;
     const ml = Number(r.maxLevel);
@@ -169,7 +170,10 @@ function formatSurvivalProgress(u, runs, rankingEntry) {
       sortKey: 1e6 - rankSec,
     };
   }
-  if (!hasRunMode(runs, "survival") && u.hasClearedSurvival !== true) {
+  const hasRuns = hasRunMode(runs, "survival");
+  const hasStoredBest =
+    typeof u.survivalBestLevel === "number" && Number.isFinite(u.survivalBestLevel);
+  if (!hasRuns && u.hasClearedSurvival !== true && !hasStoredBest) {
     return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   }
   if (userHasClearedSurvival(u, runs)) {
@@ -181,7 +185,14 @@ function formatSurvivalProgress(u, runs, rankingEntry) {
       sortKey: LEVEL_CHALLENGE_MAX_INDEX + 1,
     };
   }
-  const best = maxSurvivalLevelFromRuns(runs);
+  let best = maxSurvivalLevelFromRuns(runs);
+  if (
+    best < 0 &&
+    typeof u.survivalBestLevel === "number" &&
+    Number.isFinite(u.survivalBestLevel)
+  ) {
+    best = Math.floor(u.survivalBestLevel);
+  }
   if (best < 0) return { text: null, cleared: false, ranked: false, rankSec: null, sortKey: null };
   const idx = Math.min(LEVEL_CHALLENGE_MAX_INDEX, best);
   return {
@@ -196,6 +207,7 @@ function formatSurvivalProgress(u, runs, rankingEntry) {
 function formatSpecialModeProgress(unlockedMax, maxLevelIndex, prefix, runs, mode) {
   const hasRuns = hasRunMode(runs, mode);
   const u = Math.max(0, Math.floor(Number(unlockedMax) || 0));
+  // 无 runs 时：只要解锁档 >0 或通关（u>max）就展示；不依赖 hasRunMode
   if (!hasRuns && u <= 0) return { text: null, cleared: false, sortKey: null };
   const max = Math.max(0, Math.floor(Number(maxLevelIndex) || 0));
   if (u > max) return { text: "通关", cleared: true, sortKey: max + 1 };
@@ -207,7 +219,6 @@ function formatSpecialModeProgress(unlockedMax, maxLevelIndex, prefix, runs, mod
  * perfectEntry 来自 divisibility-perfect-ranking（Z5 零错）
  */
 function formatDivisibilityProgress(unlockedMax, runs, perfectEntry) {
-  const hasRuns = hasRunMode(runs, "divisibility");
   const u = Math.max(0, Math.floor(Number(unlockedMax) || 0));
   const perfectSec = perfectEntry ? Number(perfectEntry.survivalTimeSec) || 0 : 0;
   if (perfectSec > 0) {
@@ -220,7 +231,8 @@ function formatDivisibilityProgress(unlockedMax, runs, perfectEntry) {
       sortKey: 1e6 - perfectSec,
     };
   }
-  if (!hasRuns && u <= 0) {
+  // 无 runs 时仍可用解锁档；u<=0 且无榜则空
+  if (u <= 0 && !hasRunMode(runs, "divisibility")) {
     return { text: null, cleared: false, perfect: false, perfectSec: null, sortKey: null };
   }
   if (u > DIV_MAX_LEVEL) {
@@ -449,12 +461,46 @@ function buildStudentOverviewRows(options) {
     const runs = runsByUser[username] || [];
     const lastTs = Number(u.lastGameTs) || latestRunTsFromRuns(runs);
     const daysOff = computeDaysOffline(lastTs, nowMs);
-    const daysActive30 = computeDaysActiveLast30(runs, nowMs);
+    let daysActive30 = null;
+    if (Array.isArray(runs) && runs.length > 0) {
+      daysActive30 = computeDaysActiveLast30(runs, nowMs);
+    } else if (typeof u.daysActiveLast30 === "number" && Number.isFinite(u.daysActiveLast30)) {
+      daysActive30 = Math.max(0, Math.min(30, Math.floor(u.daysActiveLast30)));
+    } else if (Array.isArray(u.overviewActiveDayKeys) && u.overviewActiveDayKeys.length) {
+      // 仅有 day keys：按近 30 日重算（不读 runs）
+      const today = todayKey;
+      let n = 0;
+      const seen = Object.create(null);
+      u.overviewActiveDayKeys.forEach((k) => {
+        const key = String(k || "");
+        if (!key || seen[key]) return;
+        const age = daysBetweenDateKeys(key, today);
+        if (age == null || age < 0 || age > 29) return;
+        seen[key] = true;
+        n += 1;
+      });
+      daysActive30 = n;
+    }
     const levelP = formatLevelChallengeProgress(u, runs, levelMap[username]);
     const survivalP = formatSurvivalProgress(u, runs, survivalMap[username]);
-    const trainingP = computeTrainingHeat
-      ? formatTrainingProgress(runs, cohort, capMs, HM, todayKey)
-      : { text: null, mode: "", reason: "", fluentCount: null, levelCount: 16 };
+    let trainingP;
+    if (computeTrainingHeat) {
+      trainingP = formatTrainingProgress(runs, cohort, capMs, HM, todayKey);
+    } else if (
+      typeof u.trainingFluentCount === "number" &&
+      Number.isFinite(u.trainingFluentCount)
+    ) {
+      const fc = Math.max(0, Math.min(16, Math.floor(u.trainingFluentCount)));
+      trainingP = {
+        text: fc + "/16",
+        mode: "",
+        reason: "流畅掌握 " + fc + "/16（账号索引）",
+        fluentCount: fc,
+        levelCount: 16,
+      };
+    } else {
+      trainingP = { text: null, mode: "", reason: "", fluentCount: null, levelCount: 16 };
+    }
     const psUnlocked =
       typeof u.levelPerfectSquareUnlockedMax === "number"
         ? u.levelPerfectSquareUnlockedMax

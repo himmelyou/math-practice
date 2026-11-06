@@ -1614,6 +1614,35 @@
     }
   }
 
+  async function backfillOverviewIndexes() {
+    try {
+      var msg =
+        '将扫描每位学员的 runs，回填概览索引到 users.json：\n' +
+        '· 近 30 天上线天数\n' +
+        '· 四则训练流畅关数\n' +
+        '· 生存最高关\n\n' +
+        '学员多时可能较慢。操作前请先备份。是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('回填概览索引中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-overview-indexes', {
+        method: 'POST',
+      });
+      setStatus(
+        '概览索引回填完成：学员 ' +
+          (Number(data && data.usersTouched) || 0) +
+          ' · 有流畅数 ' +
+          (Number(data && data.withFluent) || 0) +
+          ' · 有上线天数 ' +
+          (Number(data && data.withActive) || 0) +
+          ' · 有生存档 ' +
+          (Number(data && data.withSurvivalBest) || 0),
+        'ok'
+      );
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   async function backfillPrimePerfectRanking() {
     try {
       var msg = '将从 runs.json 扫描掌握 50 题且错题 ≤5 的质数局，重建 prime-perfect-ranking.json。\n\n'
@@ -2005,6 +2034,10 @@
 
     var backfillLevelRankingBtn = document.getElementById('jml-btn-backfill-level-ranking');
     if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
+    var backfillOverviewIndexesBtn = document.getElementById('jml-btn-backfill-overview-indexes');
+    if (backfillOverviewIndexesBtn) {
+      backfillOverviewIndexesBtn.addEventListener('click', backfillOverviewIndexes);
+    }
     var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
     if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
     var backfillDivisibilityPerfectRankingBtn = document.getElementById('jml-btn-backfill-divisibility-perfect-ranking');

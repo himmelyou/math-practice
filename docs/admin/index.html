@@ -332,6 +332,7 @@
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
+          <button type="button" id="jml-btn-backfill-overview-indexes" class="jml-btn jml-btn-primary" title="扫 runs 回填近30天上线/训练流畅关/生存最高档到账号，供学员概览全员表">回填概览索引</button>
           <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn jml-btn-primary">重建质数达人榜</button>
           <button type="button" id="jml-btn-backfill-divisibility-perfect-ranking" class="jml-btn jml-btn-primary">重建整除达人榜</button>
           <button type="button" id="jml-btn-swap-decimal-d4-d5" class="jml-btn jml-btn-primary" title="小数 D4/D5 内容对调后，历史 runs levelIndex 3↔4（一次性）">小数 D4/D5 迁移</button>
@@ -350,6 +351,17 @@
             <li>部署后尽快核对；之后新局只写分文件、legacy 冻结，再核可能出现 <code>onlyInByUser</code>（属预期）</li>
             <li>「再同步」：用 legacy 覆盖分文件（仅维护用；平时不必点）</li>
           </ol>
+        </div>
+        <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>学员概览索引（写在 users.json）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li><code>daysActiveLast30</code> / <code>overviewActiveDayKeys</code>：近 30 天上线天数</li>
+            <li><code>trainingFluentCount</code>：四则热图流畅关数（0–16）</li>
+            <li><code>survivalBestLevel</code>：生存最高关（0-based）</li>
+            <li>日常新局会增量更新；全员概览零读 runs，改读这些字段</li>
+            <li>上线本功能后请点一次本按钮回填历史；学员多时可能需数十秒</li>
+          </ol>
+          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
         </div>
         <div class="jml-placeholder-panel">
           <p><strong>闯关达人榜（level-ranking.json）</strong></p>
@@ -452,7 +464,7 @@
   <script src="../shared/fraction-questions.js?v=4"></script>
   <script src="../shared/factors-multiples-questions.js?v=12"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=50"></script>
+    <script src="admin-panel.js?v=51"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=31"></script>
   <script src="admin-achievements.js?v=9"></script>

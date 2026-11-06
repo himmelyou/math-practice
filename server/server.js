@@ -24,6 +24,7 @@ const dedupeUsernames = require("./dedupe-usernames");
 const { attachHeatBaselineBeforeWrite } = require("./heat-baseline-at-append");
 const { buildUserHeatmapsByCategory } = require("./user-heatmap");
 const { getJmlStatsAggregate } = require("./load-jml-stats-aggregate");
+const overviewUserIndex = require("./overview-user-index");
 const {
   computeDecimalNextLevel,
   computeDivisibilityNextLevel,
@@ -3647,6 +3648,22 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     if (runTs > 0 && runTs >= (Number(u.lastGameTs) || 0)) {
       u.lastGameTs = runTs;
     }
+    // 概览索引：活跃日 / 生存最高档 / 四则流畅关（全员表零读 runs）
+    try {
+      const allRunsForIndex = !comboOnly
+        ? allRunsAfterWrite || runsStore.getUserRuns(username)
+        : null;
+      overviewUserIndex.bumpOverviewIndexesAfterRun(u, runEntry, allRunsForIndex, {
+        cohort: readCohortResultForHeatmap(),
+        capMs: COHORT_MAX_TIME_SPENT_MS,
+      });
+    } catch (eIdx) {
+      console.warn(
+        "[overview-index]",
+        username,
+        eIdx && eIdx.message ? eIdx.message : eIdx
+      );
+    }
     if (!comboOnly) {
     u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
       achievementEngine.bumpAchievementStatsFromRun(u, runEntry);
@@ -4221,17 +4238,19 @@ app.get("/api/admin/student-overview", (req, res) => {
   const capMs =
     cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
 
+  // 全员：零读 runs（靠账号字段 + 排行榜）；单人深链：读 runs 补进度/训练列
   const scopedRuns = {};
-  users.forEach((u) => {
-    if (!u || !u.username) return;
-    const runs = runsStore.getUserRuns(u.username);
-    scopedRuns[u.username] = runs;
-    // 列表优先用账号上维护的 lastGameTs；缺失时用本趟 runs 补展示（不写盘）
-    if (!(Number(u.lastGameTs) > 0)) {
-      const ts = latestRunTsFromRuns(runs);
-      if (ts > 0) u.lastGameTs = ts;
-    }
-  });
+  if (singleUser) {
+    users.forEach((u) => {
+      if (!u || !u.username) return;
+      const runs = runsStore.getUserRuns(u.username);
+      scopedRuns[u.username] = runs;
+      if (!(Number(u.lastGameTs) > 0)) {
+        const ts = latestRunTsFromRuns(runs);
+        if (ts > 0) u.lastGameTs = ts;
+      }
+    });
+  }
 
   const rows = buildStudentOverviewRows({
     users,
@@ -5994,6 +6013,59 @@ app.post("/api/admin/maintenance/backfill-level-ranking", (req, res) => {
     return res.json({ ok: true, ...stats });
   } catch (e) {
     return res.status(500).json({ ok: false, error: "回填失败：" + (e.message || String(e)) });
+  }
+});
+
+/**
+ * 回填学员概览索引：daysActiveLast30 / overviewActiveDayKeys / trainingFluentCount / survivalBestLevel
+ * 全员扫 runs 一次写回 users.json；之后列表靠写时维护，不必再扫。
+ */
+app.post("/api/admin/maintenance/backfill-overview-indexes", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    const data = readJson(USERS_FILE, { users: [] });
+    const users = Array.isArray(data.users) ? data.users : [];
+    const cohort = readCohortResultForHeatmap();
+    const capMs =
+      cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+    const nowMs = Date.now();
+    let usersTouched = 0;
+    let withFluent = 0;
+    let withActive = 0;
+    let withSurvivalBest = 0;
+    users.forEach((u) => {
+      if (!u || !u.username) return;
+      const runs = runsStore.getUserRuns(u.username);
+      overviewUserIndex.recomputeOverviewIndexesFromRuns(u, runs, {
+        cohort,
+        capMs,
+        nowMs,
+      });
+      if (!(Number(u.lastGameTs) > 0)) {
+        const ts = latestRunTsFromRuns(runs);
+        if (ts > 0) u.lastGameTs = ts;
+      }
+      usersTouched += 1;
+      if (typeof u.trainingFluentCount === "number") withFluent += 1;
+      if (typeof u.daysActiveLast30 === "number") withActive += 1;
+      if (typeof u.survivalBestLevel === "number") withSurvivalBest += 1;
+    });
+    writeJson(USERS_FILE, data);
+    return res.json({
+      ok: true,
+      usersTouched,
+      withFluent,
+      withActive,
+      withSurvivalBest,
+    });
+  } catch (e) {
+    console.warn("[backfill-overview-indexes]", e && e.message ? e.message : e);
+    return res.status(500).json({
+      ok: false,
+      error: "回填失败：" + (e && e.message ? e.message : String(e)),
+    });
   }
 });
 
