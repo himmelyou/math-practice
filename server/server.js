@@ -3642,8 +3642,12 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     const u = userData.users[uIdx];
     // 增量维护连击：放弃局（comboOnly）也计入
     bumpUserComboFromAttempts(u, runEntry.attempts);
+    // 末次游玩：有对局写入就算（含 comboOnly），供账号列表 O(1) 读取
+    const runTs = Number(runEntry.ts) || 0;
+    if (runTs > 0 && runTs >= (Number(u.lastGameTs) || 0)) {
+      u.lastGameTs = runTs;
+    }
     if (!comboOnly) {
-    u.lastGameTs = runEntry.ts;
     u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
       achievementEngine.bumpAchievementStatsFromRun(u, runEntry);
       // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
@@ -4062,18 +4066,47 @@ app.get("/api/combo-ranking", (req, res) => {
 });
 
 // ========== 管理员：获取所有学员 ==========
+/** 账号管理表行：只返回列表需要的标量，避免整包用户 + 全量 runs */
+function adminUsersListRow(u) {
+  return {
+    username: u && u.username ? String(u.username) : "",
+    nickname: typeof (u && u.nickname) === "string" ? u.nickname.trim() : "",
+    adminNote: typeof (u && u.adminNote) === "string" ? u.adminNote.trim() : "",
+    grade: u && u.grade != null && u.grade !== "" ? u.grade : null,
+    totalScore: Number(u && u.totalScore) || 0,
+    lastGameTs: Number(u && u.lastGameTs) || 0,
+    isTester: !!(u && u.isTester),
+    isVip: !!(u && u.isVip),
+  };
+}
+
 app.get("/api/admin/users", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const data = readJson(USERS_FILE, { users: [] });
-  const users = data.users.map((u) => {
-    const out = { ...u };
-    const userRuns = runsStore.getUserRuns(u.username);
-    out.lastGameTs = latestRunTsFromRuns(userRuns);
-    return safeUser(out);
+  const list = Array.isArray(data.users) ? data.users : [];
+  let backfilled = 0;
+  // 优先用局入库时写入的 lastGameTs；旧号缺失时扫一次 runs 并回写，避免每次列表都读全库对局
+  list.forEach((u) => {
+    if (!u || !u.username) return;
+    if (Number(u.lastGameTs) > 0) return;
+    const ts = latestRunTsFromRuns(runsStore.getUserRuns(u.username));
+    if (ts > 0) {
+      u.lastGameTs = ts;
+      backfilled += 1;
+    }
   });
-  res.json({ ok: true, users, gradeBulkUpgrade: getGradeBulkUpgradeStatus() });
+  if (backfilled > 0) {
+    writeJson(USERS_FILE, data);
+  }
+  const users = list.map(adminUsersListRow);
+  res.json({
+    ok: true,
+    users,
+    gradeBulkUpgrade: getGradeBulkUpgradeStatus(),
+    lastGameTsBackfilled: backfilled,
+  });
 });
 
 /**
@@ -4150,12 +4183,22 @@ app.post("/api/admin/users/bulk-upgrade-grade", (req, res) => {
 
 // ========== 管理员：学员概览表（各模式进度、未上线天数） ==========
 // 可选 ?username=xxx：只算该学员一行（管理页深链 / 切换单人）
+// 全员：不现算热图/选关推荐（目录页）；单人：可算训练流畅列 + 推荐提示
 app.get("/api/admin/student-overview", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const onlyUsername = (req.query && req.query.username ? String(req.query.username) : "").trim();
   const usersData = readJson(USERS_FILE, { users: [] });
+  const allUsers = Array.isArray(usersData.users) ? usersData.users : [];
+  // 先缩小学员集合，再读 runs（避免深链时仍扫全库）
+  let users = onlyUsername
+    ? allUsers.filter((u) => u && u.username === onlyUsername)
+    : allUsers.slice();
+  if (onlyUsername && !users.length) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+
   const primeData = readJson(PRIME_PERFECT_RANKING_FILE, { list: [] });
   const primeList = (Array.isArray(primeData.list) ? primeData.list : []).filter(
     (e) => e && e.username && (Number(e.wrongCount) || 0) <= PRIME_RANKING_MAX_WRONG
@@ -4172,25 +4215,24 @@ app.get("/api/admin/student-overview", (req, res) => {
   const levelList = (Array.isArray(levelData.list) ? levelData.list : []).filter(
     (e) => e && e.username && (Number(e.survivalTimeSec) || 0) > 0
   );
-  const cohort = readCohortResultForHeatmap();
-  const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
-  let users = (Array.isArray(usersData.users) ? usersData.users : []).map((u) => {
-    const userRuns = runsStore.getUserRuns(u.username);
-    const out = { ...u };
-    out.lastGameTs = latestRunTsFromRuns(userRuns);
-    return out;
-  });
-  if (onlyUsername) {
-    users = users.filter((u) => u && u.username === onlyUsername);
-    if (!users.length) {
-      return res.status(404).json({ ok: false, error: "用户不存在" });
-    }
-  }
+
+  const singleUser = !!onlyUsername;
+  const cohort = singleUser ? readCohortResultForHeatmap() : null;
+  const capMs =
+    cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+
   const scopedRuns = {};
   users.forEach((u) => {
     if (!u || !u.username) return;
-    scopedRuns[u.username] = runsStore.getUserRuns(u.username);
+    const runs = runsStore.getUserRuns(u.username);
+    scopedRuns[u.username] = runs;
+    // 列表优先用账号上维护的 lastGameTs；缺失时用本趟 runs 补展示（不写盘）
+    if (!(Number(u.lastGameTs) > 0)) {
+      const ts = latestRunTsFromRuns(runs);
+      if (ts > 0) u.lastGameTs = ts;
+    }
   });
+
   const rows = buildStudentOverviewRows({
     users,
     runsByUser: scopedRuns,
@@ -4200,34 +4242,41 @@ app.get("/api/admin/student-overview", (req, res) => {
     levelList,
     cohort,
     capMs,
+    computeTrainingHeat: singleUser,
   });
-  rows.forEach((row) => {
-    const user = users.find((u) => u && u.username === row.username);
-    if (!user) return;
-    let rec = null;
-    try {
-      rec = recommendTrainingLevelForUser(row.username, user, scopedRuns[row.username] || []);
-    } catch (eRec) {
-      rec = null;
-    }
-    if (!rec || !rec.ok || rec.levelIndex == null) return;
-    const label = rec.levelLabel || "L" + (rec.levelIndex + 1);
-    const why =
-      rec.reason === "task_open_training"
-        ? "今日未完成四则"
-        : rec.reason === "task_arith_done"
-          ? "今日四则已完成，按优先级"
-          : "今日未刷新任务，按优先级";
-    const head = row.trainingReason ? String(row.trainingReason).split("；")[0] : "";
-    row.trainingReason = (head ? head + "；" : "") + "推荐下一关 " + label + "（" + why + "）";
-    row.trainingMode = "task";
-  });
+
+  // 选关推荐只给单人深链补 tooltip；全员列表不做（每人再造热图）
+  if (singleUser) {
+    rows.forEach((row) => {
+      const user = users.find((u) => u && u.username === row.username);
+      if (!user) return;
+      let rec = null;
+      try {
+        rec = recommendTrainingLevelForUser(row.username, user, scopedRuns[row.username] || []);
+      } catch (eRec) {
+        rec = null;
+      }
+      if (!rec || !rec.ok || rec.levelIndex == null) return;
+      const label = rec.levelLabel || "L" + (rec.levelIndex + 1);
+      const why =
+        rec.reason === "task_open_training"
+          ? "今日未完成四则"
+          : rec.reason === "task_arith_done"
+            ? "今日四则已完成，按优先级"
+            : "今日未刷新任务，按优先级";
+      const head = row.trainingReason ? String(row.trainingReason).split("；")[0] : "";
+      row.trainingReason = (head ? head + "；" : "") + "推荐下一关 " + label + "（" + why + "）";
+      row.trainingMode = "task";
+    });
+  }
+
   res.json({
     ok: true,
     rows,
     builtAt: Date.now(),
     scope: onlyUsername ? "user" : "all",
     username: onlyUsername || undefined,
+    trainingHeat: singleUser,
   });
 });
 

@@ -425,12 +425,16 @@ function buildStudentOverviewRows(options) {
   const capMs = options.capMs != null ? options.capMs : 60 * 1000;
   const nowMs = options.nowMs != null ? options.nowMs : Date.now();
   const todayKey = options.todayKey || chinaTodayKey(nowMs);
+  // 全员列表默认不算热图（太重）；单人深链可开 computeTrainingHeat
+  const computeTrainingHeat = options.computeTrainingHeat === true;
 
   let HM = null;
-  try {
-    HM = getJmlStatsHeatmap();
-  } catch (e) {
-    console.warn("[student-overview] heatmap load failed", e.message);
+  if (computeTrainingHeat) {
+    try {
+      HM = getJmlStatsHeatmap();
+    } catch (e) {
+      console.warn("[student-overview] heatmap load failed", e.message);
+    }
   }
 
   const primeMap = buildPrimeRankingMap(primeList);
@@ -448,7 +452,9 @@ function buildStudentOverviewRows(options) {
     const daysActive30 = computeDaysActiveLast30(runs, nowMs);
     const levelP = formatLevelChallengeProgress(u, runs, levelMap[username]);
     const survivalP = formatSurvivalProgress(u, runs, survivalMap[username]);
-    const trainingP = formatTrainingProgress(runs, cohort, capMs, HM, todayKey);
+    const trainingP = computeTrainingHeat
+      ? formatTrainingProgress(runs, cohort, capMs, HM, todayKey)
+      : { text: null, mode: "", reason: "", fluentCount: null, levelCount: 16 };
     const psUnlocked =
       typeof u.levelPerfectSquareUnlockedMax === "number"
         ? u.levelPerfectSquareUnlockedMax
