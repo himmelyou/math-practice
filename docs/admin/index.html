@@ -72,7 +72,6 @@
             一键升级
           </button>
           <span id="jml-grade-bulk-hint" class="jml-grade-bulk-hint muted" aria-live="polite"></span>
-          <button type="button" id="jml-btn-dedupe-usernames" class="jml-btn jml-btn-danger" title="临时：删除重名里的空壳账户（大小写不敏感）">清理重名空户</button>
         </div>
         <div class="jml-table-wrap">
           <table class="jml-user-table">
@@ -331,98 +330,16 @@
 
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
-          <button type="button" id="jml-btn-backfill-level-ranking" class="jml-btn jml-btn-primary">回填闯关达人榜</button>
-          <button type="button" id="jml-btn-backfill-overview-indexes" class="jml-btn jml-btn-primary" title="扫 runs 回填近30天上线/训练流畅关/生存最高档到账号，供学员概览全员表">回填概览索引</button>
-          <button type="button" id="jml-btn-backfill-prime-perfect-ranking" class="jml-btn jml-btn-primary">重建质数达人榜</button>
-          <button type="button" id="jml-btn-backfill-divisibility-perfect-ranking" class="jml-btn jml-btn-primary">重建整除达人榜</button>
-          <button type="button" id="jml-btn-swap-decimal-d4-d5" class="jml-btn jml-btn-primary" title="小数 D4/D5 内容对调后，历史 runs levelIndex 3↔4（一次性）">小数 D4/D5 迁移</button>
-          <button type="button" id="jml-btn-purge-divisibility-wrong" class="jml-btn jml-btn-danger" title="全库清除错题本中的整除题（mode=divisibility）">清除整除错题</button>
-          <button type="button" id="jml-btn-dedupe-usernames-maint" class="jml-btn jml-btn-danger">清理重名空户</button>
-          <button type="button" id="jml-btn-runs-store-verify" class="jml-btn jml-btn-primary" title="只读核对：legacy runs.json vs runs-by-user">核对 runs 分文件</button>
-          <button type="button" id="jml-btn-runs-store-sync" class="jml-btn" title="从 legacy runs.json 强制覆盖同步到 runs-by-user（不改 legacy）">从总库再同步分文件</button>
-        </div>
-        <pre id="jml-runs-store-verify-out" class="jml-placeholder-panel" style="margin-top:12px;max-height:360px;overflow:auto;white-space:pre-wrap;font-size:12px;display:none;"></pre>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>runs 分文件存储</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>业务读写已切到 <code>data/runs-by-user/&lt;user&gt;.json</code>，降低整库进内存导致的 OOM</li>
-            <li>原 <code>data/runs.json</code> <strong>不会被改动/删除</strong>，仅作迁移源与核对基准</li>
-            <li>「核对」：逐用户比条数与内容哈希；全部一致则 <code>allEqual=true</code></li>
-            <li>部署后尽快核对；之后新局只写分文件、legacy 冻结，再核可能出现 <code>onlyInByUser</code>（属预期）</li>
-            <li>「再同步」：用 legacy 覆盖分文件（仅维护用；平时不必点）</li>
-          </ol>
+          <button type="button" id="jml-btn-rebuild-monthly-snapshots" class="jml-btn jml-btn-primary" title="全体学员：按每月末局重建热图与概览同口径 progress（从 runs 倒推；覆盖其快照）">重建全体月度快照</button>
         </div>
         <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>学员概览索引（写在 users.json）</strong></p>
+          <p><strong>重建全体月度快照</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li><code>daysActiveLast30</code> / <code>overviewActiveDayKeys</code>：近 30 天上线天数</li>
-            <li><code>trainingFluentCount</code>：四则热图流畅关数（0–16）</li>
-            <li><code>survivalBestLevel</code>：生存最高关（0-based）</li>
-            <li>日常新局会增量更新；全员概览零读 runs，改读这些字段</li>
-            <li>上线本功能后请点一次本按钮回填历史；学员多时可能需数十秒</li>
+            <li>按每月末局，用截至该时刻的 runs 重算热图并覆盖月度快照</li>
+            <li>progress 按该月末局 asOf 从 runs 倒推概览同口径水位</li>
+            <li>覆盖全体有用户名的学员；学员多时可能较慢</li>
           </ol>
           <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
-        </div>
-        <div class="jml-placeholder-panel">
-          <p><strong>闯关达人榜（level-ranking.json）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>仅统计 <code>mode=level</code> 且 <code>cleared=true</code>（L1–L16 全通）的局</li>
-            <li>每人保留一条最佳：用时最短 → 错题更少 → 更早通关（<code>ts</code> 更小）</li>
-            <li>从 runs-by-user 扫描全库并写入 <code>level-ranking.json</code>，同步 <code>hasClearedLevel</code></li>
-            <li>日常新通关会增量更新；榜文件丢失、恢复备份或需全库重算时使用</li>
-          </ol>
-          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>质数达人榜（prime-perfect-ranking.json）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>进榜：<code>mode=primeComposite</code>、掌握 <strong>50 题</strong>且错题 <strong>≤5</strong>（新局 <code>mastered</code>，旧局 <code>score÷5</code>）</li>
-            <li>每人保留最短用时；同用时错题更少，再同则更早 <code>ts</code></li>
-            <li><strong>质数达人成就</strong>仍为无错通关（<code>wrongCount=0</code>），与榜分开</li>
-            <li>日常新局会增量更新；榜文件丢失、恢复备份或改榜规则后需全库重算时使用</li>
-          </ol>
-          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>整除达人榜（divisibility-perfect-ranking.json）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>进榜：<code>mode=divisibility</code>、<strong>L5（Z5 混合整除）</strong>且本局 <strong>wrongCount=0</strong></li>
-            <li>每人保留最短用时；同用时更早 <code>ts</code> 优先</li>
-            <li>日常新局会增量更新；榜文件丢失、恢复备份或改榜规则后需全库重算时使用</li>
-          </ol>
-          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>小数 D4 / D5 对调迁移</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>出题已改为：D4 = 小数×÷一位整数，D5 = 单位分数互化（30 题）</li>
-            <li>本按钮把历史 <code>mode=decimal</code> 的 <code>maxLevel</code> / <code>attempts.levelIndex</code> 做 <strong>3↔4</strong>，热图跟内容走</li>
-            <li>同步：错题本小数条目、<code>recentDecimalRuns</code>、练习任务单中的小数关</li>
-            <li><strong>不改</strong> <code>levelDecimalUnlockedMax</code> / currentLevel</li>
-            <li>一次性幂等（写入 <code>adminMeta.decimalD4D5SwappedAt</code>）；会先 dry-run 再确认正式写</li>
-            <li>正式迁移后会删除小数常模缓存，请到报表「重建小数常模」</li>
-          </ol>
-          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。须先部署含新出题的前端/服务端。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>清除整除错题（临时）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>全库扫描 <code>users.json</code> 的 <code>wrongAnswers</code>，删除 <code>mode=divisibility</code> 条目</li>
-            <li>不影响其他模式错题；整除已改为不进错题本，本操作用于清历史残留</li>
-            <li>用完后可从管理端移除本按钮与对应 API</li>
-          </ol>
-          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
-        </div>
-        <div class="jml-placeholder-panel" style="margin-top:16px;">
-          <p><strong>清理重名空户（临时）</strong></p>
-          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>按用户名<strong>大小写不敏感</strong>分组，找出重名</li>
-            <li>有「非空」记录时，删除同组中昵称/积分/进度皆空的空壳</li>
-            <li>全是空壳则只保留一条；多条都非空则跳过并提示</li>
-            <li>只改 <code>users.json</code>，不删 <code>runs.json</code></li>
-            <li>会先<strong>预览</strong>将删名单，确认后再写入</li>
-          </ol>
-          <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。注册/创建账户已改为大小写不敏感判重。</p>
         </div>
       </div>
     </div>
@@ -464,7 +381,7 @@
   <script src="../shared/fraction-questions.js?v=4"></script>
   <script src="../shared/factors-multiples-questions.js?v=12"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=51"></script>
+    <script src="admin-panel.js?v=54"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=31"></script>
   <script src="admin-achievements.js?v=9"></script>

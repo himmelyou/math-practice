@@ -1498,315 +1498,33 @@
     }
   }
 
-  async function dedupeUsernames() {
-    try {
-      setStatus('正在查找重名空壳…', '');
-      var preview = await apiFetch('/api/admin/maintenance/dedupe-usernames', {
-        method: 'POST',
-        body: JSON.stringify({ dryRun: true }),
-      });
-      var removed = (preview && preview.removed) || [];
-      var skipped = (preview && preview.skippedConflict) || [];
-      if (!removed.length && !skipped.length) {
-        setStatus('未发现需要清理的重名空壳', 'ok');
-        return;
-      }
-      if (!removed.length && skipped.length) {
-        setStatus(
-          '发现重名但均为非空，未自动删除：' +
-            skipped
-              .map(function (s) {
-                return (s.usernames || []).join('/');
-              })
-              .join('；'),
-          'err'
-        );
-        return;
-      }
-      var lines = [
-        '预览：将删除 ' + removed.length + ' 条空壳（不会改 runs）',
-        '学员数：' + (preview.beforeCount || '?') + ' → ' + (preview.afterCount || '?'),
-        '',
-        '将删除：',
-      ];
-      removed.forEach(function (r) {
-        lines.push(
-          '· ' +
-            (r.username || '?') +
-            '（组 ' +
-            (r.key || '') +
-            '，' +
-            (r.reason || '') +
-            '）'
-        );
-      });
-      if (skipped.length) {
-        lines.push('');
-        lines.push('跳过冲突组（多条都非空）：');
-        skipped.forEach(function (s) {
-          lines.push('· ' + (s.usernames || []).join(' / '));
-        });
-      }
-      lines.push('');
-      lines.push('确认删除以上空壳？');
-      if (!confirm(lines.join('\n'))) {
-        setStatus('已取消清理', '');
-        return;
-      }
-      setStatus('正在删除重名空壳…', '');
-      var data = await apiFetch('/api/admin/maintenance/dedupe-usernames', {
-        method: 'POST',
-        body: JSON.stringify({ dryRun: false }),
-      });
-      var doneRemoved = (data && data.removed) || [];
-      var doneSkipped = (data && data.skippedConflict) || [];
-      var parts = [
-        '清理完成：删除 ' + doneRemoved.length + ' 条',
-        '学员 ' + (data.beforeCount || '?') + ' → ' + (data.afterCount || '?'),
-      ];
-      if (doneRemoved.length) {
-        parts.push(
-          '已删：' +
-            doneRemoved
-              .map(function (r) {
-                return r.username;
-              })
-              .join(', ')
-        );
-      }
-      if (doneSkipped.length) {
-        parts.push(
-          '跳过冲突 ' +
-            doneSkipped.length +
-            '：' +
-            doneSkipped
-              .map(function (s) {
-                return (s.usernames || []).join('/');
-              })
-              .join('；')
-        );
-      }
-      setStatus(parts.join('。'), doneSkipped.length ? 'err' : 'ok');
-      loadUsers();
-    } catch (e) {
-      setStatus(e.message || '清理失败', 'err');
-    }
-  }
-
-  async function backfillLevelRanking() {
-    try {
-      var msg = '将从 runs.json 扫描闯关全通（mode=level, cleared=true）记录，'
-        + '重建 level-ranking.json，并同步 hasClearedLevel。\n\n'
-        + '请确认已在「系统备份」Tab 下载过备份。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('回填闯关达人榜中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-level-ranking', { method: 'POST' });
-      var entries = Number(data && data.entries) || 0;
-      var scanned = Number(data && data.clearedRunsScanned) || 0;
-      var flags = Number(data && data.usersFlagUpdated) || 0;
-      setStatus(
-        '回填完成：榜内 ' + entries + ' 人，扫描全通局 ' + scanned + ' 条，更新 hasClearedLevel ' + flags + ' 人',
-        'ok'
-      );
-      loadUsers();
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
-    }
-  }
-
-  async function backfillOverviewIndexes() {
+  async function rebuildMonthlySnapshotsAll() {
     try {
       var msg =
-        '将扫描每位学员的 runs，回填概览索引到 users.json：\n' +
-        '· 近 30 天上线天数\n' +
-        '· 四则训练流畅关数\n' +
-        '· 生存最高关\n\n' +
+        '将重建全体学员的月度能力快照（覆盖已有快照）。\n\n' +
+        '热图：每月每类取末局，用截至该时刻的 runs 重算并覆盖。\n' +
+        'progress：按该月末局 asOf 从 runs 倒推概览同口径水位。\n\n' +
         '学员多时可能较慢。操作前请先备份。是否继续？';
       if (!confirm(msg)) return;
-      setStatus('回填概览索引中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-overview-indexes', {
+      setStatus('重建全体月度快照中…', '');
+      var data = await apiFetch('/api/admin/maintenance/rebuild-monthly-snapshots-testers', {
         method: 'POST',
+        body: '{}',
       });
+      if (!data || data.ok !== true) throw new Error((data && data.error) || '重建失败');
+      var scanned = data.usersScanned != null ? data.usersScanned : data.testersScanned || 0;
       setStatus(
-        '概览索引回填完成：学员 ' +
-          (Number(data && data.usersTouched) || 0) +
-          ' · 有流畅数 ' +
-          (Number(data && data.withFluent) || 0) +
-          ' · 有上线天数 ' +
-          (Number(data && data.withActive) || 0) +
-          ' · 有生存档 ' +
-          (Number(data && data.withSurvivalBest) || 0),
-        'ok'
+        '快照重建完成：学员 ' +
+          scanned +
+          ' · 写入月行 ' +
+          (data.monthsWritten || 0) +
+          ' · 类别块 ' +
+          (data.categoryWrites || 0) +
+          (data.errors && data.errors.length ? ' · 部分错误 ' + data.errors.length : ''),
+        data.errors && data.errors.length ? 'err' : 'ok'
       );
-    } catch (e) {
-      setStatus(e.message || '回填失败', 'err');
-    }
-  }
-
-  async function backfillPrimePerfectRanking() {
-    try {
-      var msg = '将从 runs.json 扫描掌握 50 题且错题 ≤5 的质数局，重建 prime-perfect-ranking.json。\n\n'
-        + '榜文件丢失、恢复备份或改榜规则后使用。\n\n'
-        + '不影响成就（成就仍为无错通关）。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('重建质数达人榜中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-prime-perfect-ranking', { method: 'POST' });
-      var entries = Number(data && data.entries) || 0;
-      var scanned = Number(data && data.masteredRunsScanned) || 0;
-      setStatus('重建完成：榜内 ' + entries + ' 人，扫描掌握局 ' + scanned + ' 条', 'ok');
     } catch (e) {
       setStatus(e.message || '重建失败', 'err');
-    }
-  }
-
-  async function swapDecimalD4D5Migration() {
-    try {
-      setStatus('小数 D4/D5 迁移 · dry-run 扫描中…', '');
-      var dry = await apiFetch('/api/admin/maintenance/swap-decimal-d4-d5', {
-        method: 'POST',
-        body: JSON.stringify({ dryRun: true }),
-      });
-      if (!dry || dry.ok !== true) throw new Error((dry && dry.error) || 'dry-run 失败');
-      if (dry.alreadyDone) {
-        setStatus('已迁移过（' + (dry.swappedAt || '') + '），无需再跑', 'ok');
-        return;
-      }
-      var msg =
-        '将把小数历史关号 3↔4 对调（热图跟新 D4/D5 内容）。\n\n' +
-        '预估：触及用户 ' +
-        (dry.runUsersTouched || 0) +
-        '，局 ' +
-        (dry.runsRemapped || 0) +
-        '，attempt ' +
-        (dry.attemptsRemapped || 0) +
-        '，错题 ' +
-        (dry.wrongAnswersRemapped || 0) +
-        '，recent ' +
-        (dry.recentDecimalRemapped || 0) +
-        '，任务单条目 ' +
-        (dry.practicePlanEntriesRemapped || 0) +
-        '。\n\n' +
-        '不改解锁进度。正式写入后不可再跑。\n请确认已备份且前端出题已部署。';
-      if (!window.confirm(msg)) {
-        setStatus('已取消迁移', '');
-        return;
-      }
-      setStatus('小数 D4/D5 正式迁移中…', '');
-      var data = await apiFetch('/api/admin/maintenance/swap-decimal-d4-d5', {
-        method: 'POST',
-        body: JSON.stringify({ dryRun: false }),
-      });
-      if (!data || data.ok !== true) throw new Error((data && data.error) || '迁移失败');
-      if (data.alreadyDone) {
-        setStatus('已迁移过，跳过', 'ok');
-        return;
-      }
-      setStatus(
-        '迁移完成：用户 ' +
-          (data.runUsersTouched || 0) +
-          '，局 ' +
-          (data.runsRemapped || 0) +
-          '，attempt ' +
-          (data.attemptsRemapped || 0) +
-          (data.cohortCleared ? '；已清小数常模，请到报表重建' : ''),
-        'ok'
-      );
-    } catch (e) {
-      setStatus(e.message || '迁移失败', 'err');
-    }
-  }
-
-  async function backfillDivisibilityPerfectRanking() {
-    try {
-      var msg = '将从 runs 扫描 L5（Z5）零错整除局，重建 divisibility-perfect-ranking.json。\n\n'
-        + '进榜条件：mode=divisibility、maxLevel=4、wrongCount=0。\n'
-        + '榜文件丢失、恢复备份或改榜规则后使用。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('重建整除达人榜中…', '');
-      var data = await apiFetch('/api/admin/maintenance/backfill-divisibility-perfect-ranking', { method: 'POST' });
-      var entries = Number(data && data.entries) || 0;
-      var scanned = Number(data && data.runsScanned) || 0;
-      setStatus('重建完成：榜内 ' + entries + ' 人，扫描合格局 ' + scanned + ' 条', 'ok');
-    } catch (e) {
-      setStatus(e.message || '重建失败', 'err');
-    }
-  }
-
-  async function purgeDivisibilityWrongAnswers() {
-    try {
-      var msg = '将从全库 users.json 清除错题本中 mode=divisibility 的条目。\n\n'
-        + '只删整除错题，其他模式不受影响。\n'
-        + '操作前请先备份。是否继续？';
-      if (!confirm(msg)) return;
-      setStatus('正在清除整除错题…', '');
-      var data = await apiFetch('/api/admin/maintenance/purge-divisibility-wrong-answers', { method: 'POST' });
-      var usersTouched = Number(data && data.usersTouched) || 0;
-      var entriesRemoved = Number(data && data.entriesRemoved) || 0;
-      setStatus(
-        '清除完成：影响 ' + usersTouched + ' 人，删除 ' + entriesRemoved + ' 条整除错题',
-        'ok'
-      );
-    } catch (e) {
-      setStatus(e.message || '清除失败', 'err');
-    }
-  }
-
-  async function verifyRunsStore() {
-    var out = document.getElementById('jml-runs-store-verify-out');
-    if (out) {
-      out.style.display = 'block';
-      out.textContent = '正在核对 legacy runs.json vs runs-by-user…';
-    }
-    try {
-      setStatus('正在核对 runs 分文件…', '');
-      var data = await apiFetch('/api/admin/maintenance/runs-store-verify');
-      if (out) out.textContent = JSON.stringify(data, null, 2);
-      if (data && data.allEqual) {
-        setStatus(
-          '核对通过：allEqual=true（legacy ' +
-            (data.legacyUserCount != null ? data.legacyUserCount : '?') +
-            ' · 分文件 ' +
-            (data.byUserCount != null ? data.byUserCount : '?') +
-            ' · 匹配 ' +
-            (data.matchedUsers != null ? data.matchedUsers : '?') +
-            '）',
-          'ok'
-        );
-      } else {
-        setStatus(
-          '核对有差异：mismatch=' +
-            (data && data.mismatchCount) +
-            ' · onlyLegacy=' +
-            (data && data.onlyInLegacyCount) +
-            ' · onlyByUser=' +
-            (data && data.onlyInByUserCount) +
-            '（详见下方 JSON）',
-          'err'
-        );
-      }
-    } catch (e) {
-      if (out) out.textContent = String(e.message || e);
-      setStatus(e.message || '核对失败', 'err');
-    }
-  }
-
-  async function syncRunsStoreFromLegacy() {
-    try {
-      var msg =
-        '将用 legacy runs.json 覆盖写入 runs-by-user（不改动 runs.json 本身）。\n\n' +
-        '若分文件已有新对局会被盖掉。确认继续？';
-      if (!confirm(msg)) return;
-      setStatus('正在从总库同步分文件…', '');
-      var data = await apiFetch('/api/admin/maintenance/runs-store-sync', { method: 'POST' });
-      setStatus(
-        '同步完成：users=' +
-          (data && data.userCount != null ? data.userCount : '?') +
-          (data && data.skipped ? '（skipped）' : ''),
-        'ok'
-      );
-      await verifyRunsStore();
-    } catch (e) {
-      setStatus(e.message || '同步失败', 'err');
     }
   }
 
@@ -2032,30 +1750,10 @@
       });
     }
 
-    var backfillLevelRankingBtn = document.getElementById('jml-btn-backfill-level-ranking');
-    if (backfillLevelRankingBtn) backfillLevelRankingBtn.addEventListener('click', backfillLevelRanking);
-    var backfillOverviewIndexesBtn = document.getElementById('jml-btn-backfill-overview-indexes');
-    if (backfillOverviewIndexesBtn) {
-      backfillOverviewIndexesBtn.addEventListener('click', backfillOverviewIndexes);
+    var rebuildMonthlySnapshotsBtn = document.getElementById('jml-btn-rebuild-monthly-snapshots');
+    if (rebuildMonthlySnapshotsBtn) {
+      rebuildMonthlySnapshotsBtn.addEventListener('click', rebuildMonthlySnapshotsAll);
     }
-    var backfillPrimePerfectRankingBtn = document.getElementById('jml-btn-backfill-prime-perfect-ranking');
-    if (backfillPrimePerfectRankingBtn) backfillPrimePerfectRankingBtn.addEventListener('click', backfillPrimePerfectRanking);
-    var backfillDivisibilityPerfectRankingBtn = document.getElementById('jml-btn-backfill-divisibility-perfect-ranking');
-    if (backfillDivisibilityPerfectRankingBtn) {
-      backfillDivisibilityPerfectRankingBtn.addEventListener('click', backfillDivisibilityPerfectRanking);
-    }
-    var swapDecimalD4D5Btn = document.getElementById('jml-btn-swap-decimal-d4-d5');
-    if (swapDecimalD4D5Btn) swapDecimalD4D5Btn.addEventListener('click', swapDecimalD4D5Migration);
-    var purgeDivWrongBtn = document.getElementById('jml-btn-purge-divisibility-wrong');
-    if (purgeDivWrongBtn) purgeDivWrongBtn.addEventListener('click', purgeDivisibilityWrongAnswers);
-    var runsStoreVerifyBtn = document.getElementById('jml-btn-runs-store-verify');
-    if (runsStoreVerifyBtn) runsStoreVerifyBtn.addEventListener('click', verifyRunsStore);
-    var runsStoreSyncBtn = document.getElementById('jml-btn-runs-store-sync');
-    if (runsStoreSyncBtn) runsStoreSyncBtn.addEventListener('click', syncRunsStoreFromLegacy);
-    var dedupeBtn = document.getElementById('jml-btn-dedupe-usernames');
-    if (dedupeBtn) dedupeBtn.addEventListener('click', dedupeUsernames);
-    var dedupeMaintBtn = document.getElementById('jml-btn-dedupe-usernames-maint');
-    if (dedupeMaintBtn) dedupeMaintBtn.addEventListener('click', dedupeUsernames);
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
     var saveI18nBtn = document.getElementById('jml-btn-save-i18n');
