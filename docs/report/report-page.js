@@ -145,7 +145,7 @@
     overviewLoading: false,
     overviewError: '',
     overviewBuiltAt: 0,
-    overviewSortKey: 'daysOffline',
+    overviewSortKey: 'lastGameTs',
     overviewSortDir: 'desc',
     /** 训练选关 Debug 最近一次完整 JSON（供复制） */
     trainDebugPayload: null,
@@ -176,7 +176,7 @@
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
-    daysOffline: 'daysOffline',
+    lastGameTs: 'lastGameTs',
     daysActiveLast30: 'daysActiveLast30',
     levelProgress: 'levelProgressSort',
     trainingProgress: 'trainingProgressSort',
@@ -408,9 +408,12 @@
       var raw = localStorage.getItem(REPORT_OVERVIEW_SORT_KEY);
       if (!raw) return;
       var o = JSON.parse(raw);
-      if (o && o.key && OVERVIEW_SORTABLE_KEYS[o.key]) {
-        state.overviewSortKey = o.key;
-        state.overviewSortDir = o.dir === 'asc' ? 'asc' : 'desc';
+      if (o && o.key) {
+        var storedKey = o.key === 'daysOffline' ? 'lastGameTs' : o.key;
+        if (OVERVIEW_SORTABLE_KEYS[storedKey]) {
+          state.overviewSortKey = storedKey;
+          state.overviewSortDir = o.dir === 'asc' ? 'asc' : 'desc';
+        }
       }
     } catch (e) {
       /* ignore */
@@ -444,9 +447,9 @@
 
   function sortOverviewRows(rows) {
     var list = rows.slice();
-    var key = state.overviewSortKey || 'daysOffline';
+    var key = state.overviewSortKey || 'lastGameTs';
     var dir = state.overviewSortDir === 'asc' ? 'asc' : 'desc';
-    var field = OVERVIEW_SORTABLE_KEYS[key] || 'daysOffline';
+    var field = OVERVIEW_SORTABLE_KEYS[key] || 'lastGameTs';
     list.sort(function (a, b) {
       var cmp = 0;
       if (key === 'username') {
@@ -674,8 +677,8 @@
           '<td class="jml-ov-col-active30 num">' +
           escapeHtml(r.daysActiveLast30 != null ? String(r.daysActiveLast30) : '—') +
           '</td>' +
-          '<td class="jml-ov-col-offline num">' +
-          escapeHtml(r.daysOffline != null ? String(r.daysOffline) : '—') +
+          '<td class="jml-ov-col-lastgame">' +
+          escapeHtml(r.lastGameTs ? formatDateTime(r.lastGameTs) : '—') +
           '</td>' +
           '<td class="jml-ov-col-prog num">' +
           escapeHtml(dashCell(r.levelProgress)) +
@@ -725,7 +728,7 @@
       '<th scope="col" title="管理员自用备注，最多 20 字">备注</th>' +
       '<th scope="col">昵称</th>' +
       overviewSortLabel('daysActiveLast30', '最近30天上线天数', 'num') +
-      overviewSortLabel('daysOffline', '未上线(天)', 'num') +
+      overviewSortLabel('lastGameTs', '最后上线时间') +
       overviewSortLabel('levelProgress', '闯关', 'num') +
       overviewSortLabel('trainingProgress', '训练流畅', 'num') +
       overviewSortLabel('survivalProgress', '生存', 'num') +
