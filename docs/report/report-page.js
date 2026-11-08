@@ -147,6 +147,8 @@
     overviewBuiltAt: 0,
     overviewSortKey: 'lastGameTs',
     overviewSortDir: 'desc',
+    overviewColOrder: null,
+    overviewColDragFrom: '',
     /** 训练选关 Debug 最近一次完整 JSON（供复制） */
     trainDebugPayload: null,
     serverTrainingPick: null,
@@ -173,6 +175,7 @@
   var REPORT_LANG_KEY = 'jml_report_lang_v1';
   var REPORT_USER_SCOPE_KEY = 'jml_report_user_scope_v1';
   var REPORT_OVERVIEW_SORT_KEY = 'jml_report_overview_sort_v1';
+  var REPORT_OVERVIEW_COLS_KEY = 'jml_report_overview_cols_v1';
   var OVERVIEW_SORTABLE_KEYS = {
     username: 'username',
     grade: 'gradeSort',
@@ -189,6 +192,91 @@
     perfectSquareProgress: 'perfectSquareProgressSort',
     decimalProgress: 'decimalProgressSort',
     expandProgress: 'expandProgressSort',
+  };
+  var OVERVIEW_DEFAULT_COL_ORDER = [
+    'username',
+    'grade',
+    'adminNote',
+    'nickname',
+    'daysActiveLast30',
+    'lastGameTs',
+    'levelProgress',
+    'trainingProgress',
+    'survivalProgress',
+    'memoryInstantProgress',
+    'memoryWorkingProgress',
+    'primeProgress',
+    'perfectSquareProgress',
+    'divisibilityProgress',
+    'factorsMultiplesProgress',
+    'decimalProgress',
+    'expandProgress',
+  ];
+  var OVERVIEW_COL_META = {
+    username: { title: '用户名', sortKey: 'username', tdClass: 'jml-ov-col-user' },
+    grade: { title: '年级', sortKey: 'grade', tdClass: 'jml-ov-col-grade' },
+    adminNote: {
+      title: '备注',
+      titleAttr: '管理员自用备注，最多 20 字',
+      tdClass: 'jml-ov-col-note',
+    },
+    nickname: { title: '昵称', tdClass: 'jml-ov-col-nick' },
+    daysActiveLast30: {
+      title: '最近30天上线天数',
+      sortKey: 'daysActiveLast30',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-active30 num',
+    },
+    lastGameTs: { title: '最后上线时间', sortKey: 'lastGameTs', tdClass: 'jml-ov-col-lastgame' },
+    levelProgress: { title: '闯关', sortKey: 'levelProgress', thClass: 'num', tdClass: 'jml-ov-col-prog num' },
+    trainingProgress: {
+      title: '训练流畅',
+      sortKey: 'trainingProgress',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
+    survivalProgress: {
+      title: '生存',
+      sortKey: 'survivalProgress',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
+    memoryInstantProgress: {
+      title: '瞬时',
+      sortKey: 'memoryInstantProgress',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
+    memoryWorkingProgress: {
+      title: '工作记忆',
+      sortKey: 'memoryWorkingProgress',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
+    primeProgress: {
+      title: '质数(用时)',
+      sortKey: 'primeProgress',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
+    perfectSquareProgress: {
+      title: '平方数',
+      sortKey: 'perfectSquareProgress',
+      tdClass: 'jml-ov-col-prog',
+    },
+    divisibilityProgress: {
+      title: '整除',
+      sortKey: 'divisibilityProgress',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
+    factorsMultiplesProgress: {
+      title: '因数倍数',
+      sortKey: 'factorsMultiplesProgress',
+      tdClass: 'jml-ov-col-prog',
+    },
+    decimalProgress: { title: '小数', sortKey: 'decimalProgress', tdClass: 'jml-ov-col-prog' },
+    expandProgress: { title: '拆括号', sortKey: 'expandProgress', tdClass: 'jml-ov-col-prog' },
   };
   var reportI18nRuntime = { zhHant: {}, en: {} };
 
@@ -464,23 +552,167 @@
     return list;
   }
 
-  function overviewSortLabel(key, title, extraClass) {
-    var active = state.overviewSortKey === key;
+  function normalizeOverviewColOrder(order) {
+    var seen = Object.create(null);
+    var out = [];
+    (Array.isArray(order) ? order : []).forEach(function (id) {
+      if (!OVERVIEW_COL_META[id] || seen[id]) return;
+      seen[id] = true;
+      out.push(id);
+    });
+    OVERVIEW_DEFAULT_COL_ORDER.forEach(function (id) {
+      if (seen[id]) return;
+      seen[id] = true;
+      out.push(id);
+    });
+    return out;
+  }
+
+  function readStoredOverviewColOrder() {
+    try {
+      var raw = localStorage.getItem(REPORT_OVERVIEW_COLS_KEY);
+      if (!raw) return normalizeOverviewColOrder(null);
+      return normalizeOverviewColOrder(JSON.parse(raw));
+    } catch (e) {
+      return normalizeOverviewColOrder(null);
+    }
+  }
+
+  function storeOverviewColOrder() {
+    try {
+      localStorage.setItem(
+        REPORT_OVERVIEW_COLS_KEY,
+        JSON.stringify(state.overviewColOrder || OVERVIEW_DEFAULT_COL_ORDER)
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function ensureOverviewColOrder() {
+    if (!state.overviewColOrder || !state.overviewColOrder.length) {
+      state.overviewColOrder = readStoredOverviewColOrder();
+    } else {
+      state.overviewColOrder = normalizeOverviewColOrder(state.overviewColOrder);
+    }
+    return state.overviewColOrder;
+  }
+
+  function overviewHeaderCell(colId) {
+    var meta = OVERVIEW_COL_META[colId];
+    if (!meta) return '';
+    var sortKey = meta.sortKey || '';
+    var active = !!(sortKey && state.overviewSortKey === sortKey);
     var arrow = '';
     if (active) arrow = state.overviewSortDir === 'asc' ? ' ▲' : ' ▼';
-    var cls = 'jml-ov-sort-th' + (active ? ' jml-ov-sort-active' : '') + (extraClass ? ' ' + extraClass : '');
+    var cls =
+      'jml-ov-col-th' +
+      (sortKey ? ' jml-ov-sort-th' : '') +
+      (active ? ' jml-ov-sort-active' : '') +
+      (meta.thClass ? ' ' + meta.thClass : '');
+    var ariaSort = sortKey
+      ? active
+        ? state.overviewSortDir === 'asc'
+          ? 'ascending'
+          : 'descending'
+        : 'none'
+      : undefined;
     return (
       '<th scope="col" class="' +
       cls +
-      '" data-sort-key="' +
-      escapeHtml(key) +
-      '" role="columnheader" aria-sort="' +
-      (active ? (state.overviewSortDir === 'asc' ? 'ascending' : 'descending') : 'none') +
-      '">' +
-      escapeHtml(title) +
+      '" data-col-id="' +
+      escapeHtml(colId) +
+      '"' +
+      (sortKey ? ' data-sort-key="' + escapeHtml(sortKey) + '"' : '') +
+      (meta.titleAttr ? ' title="' + escapeHtml(meta.titleAttr) + '"' : '') +
+      (ariaSort ? ' role="columnheader" aria-sort="' + ariaSort + '"' : '') +
+      '>' +
+      '<span class="jml-ov-col-drag" draggable="true" title="拖动调整列顺序" aria-label="拖动列">⠿</span>' +
+      '<span class="jml-ov-col-title">' +
+      escapeHtml(meta.title) +
       arrow +
+      '</span>' +
       '</th>'
     );
+  }
+
+  function overviewCellHtml(colId, r) {
+    var meta = OVERVIEW_COL_META[colId];
+    if (!meta) return '';
+    var tdClass = meta.tdClass || '';
+    var trainTitle = '';
+    var inner = '—';
+    if (colId === 'username') {
+      inner =
+        '<a class="jml-report-user-link" href="?user=' +
+        encodeURIComponent(r.username) +
+        '">' +
+        escapeHtml(r.username) +
+        '</a>';
+    } else if (colId === 'grade') {
+      inner = escapeHtml(dashCell(r.gradeLabel));
+    } else if (colId === 'adminNote') {
+      inner =
+        '<input type="text" class="jml-ov-note-input" maxlength="20" data-username="' +
+        escapeHtml(r.username) +
+        '" value="' +
+        escapeHtml(r.adminNote || '') +
+        '" placeholder="备注" aria-label="备注：' +
+        escapeHtml(r.username) +
+        '" />';
+    } else if (colId === 'nickname') {
+      inner = escapeHtml(dashCell(r.nickname));
+    } else if (colId === 'daysActiveLast30') {
+      inner = escapeHtml(r.daysActiveLast30 != null ? String(r.daysActiveLast30) : '—');
+    } else if (colId === 'lastGameTs') {
+      inner = escapeHtml(r.lastGameTs ? formatDateTime(r.lastGameTs) : '—');
+    } else if (colId === 'levelProgress') {
+      inner = escapeHtml(dashCell(r.levelProgress));
+    } else if (colId === 'trainingProgress') {
+      trainTitle = r.trainingReason ? ' title="' + escapeHtml(String(r.trainingReason)) + '"' : '';
+      inner = escapeHtml(dashCell(r.trainingProgress));
+    } else if (colId === 'survivalProgress') {
+      inner = escapeHtml(dashCell(r.survivalProgress));
+    } else if (colId === 'memoryInstantProgress') {
+      inner = escapeHtml(dashCell(r.memoryInstantProgress));
+    } else if (colId === 'memoryWorkingProgress') {
+      inner = escapeHtml(dashCell(r.memoryWorkingProgress));
+    } else if (colId === 'primeProgress') {
+      inner = escapeHtml(dashCell(r.primeProgress));
+    } else if (colId === 'perfectSquareProgress') {
+      inner = escapeHtml(dashCell(r.perfectSquareProgress));
+    } else if (colId === 'divisibilityProgress') {
+      inner = escapeHtml(dashCell(r.divisibilityProgress));
+    } else if (colId === 'factorsMultiplesProgress') {
+      inner = escapeHtml(dashCell(r.factorsMultiplesProgress));
+    } else if (colId === 'decimalProgress') {
+      inner = escapeHtml(dashCell(r.decimalProgress));
+    } else if (colId === 'expandProgress') {
+      inner = escapeHtml(dashCell(r.expandProgress));
+    }
+    return '<td class="' + tdClass + '"' + trainTitle + '>' + inner + '</td>';
+  }
+
+  function clearOverviewColDragIndicators(root) {
+    if (!root) return;
+    root.querySelectorAll('.jml-ov-col-th').forEach(function (th) {
+      th.classList.remove('jml-ov-col-dragging', 'jml-ov-col-drag-over-left', 'jml-ov-col-drag-over-right');
+    });
+  }
+
+  function moveOverviewColumn(fromId, toId, placeBefore) {
+    var order = ensureOverviewColOrder().slice();
+    var from = order.indexOf(fromId);
+    var to = order.indexOf(toId);
+    if (from < 0 || to < 0 || fromId === toId) return false;
+    order.splice(from, 1);
+    to = order.indexOf(toId);
+    if (to < 0) return false;
+    var insertAt = placeBefore ? to : to + 1;
+    order.splice(insertAt, 0, fromId);
+    state.overviewColOrder = order;
+    storeOverviewColOrder();
+    return true;
   }
 
   function toggleOverviewSort(key) {
@@ -645,76 +877,21 @@
       wrap.innerHTML = '<div class="jml-report-empty">暂无匹配的学员</div>';
       return;
     }
+    var colOrder = ensureOverviewColOrder();
+    var head = colOrder
+      .map(function (id) {
+        return overviewHeaderCell(id);
+      })
+      .join('');
     var body = list
       .map(function (r) {
-        var userCell =
-          '<a class="jml-report-user-link" href="?user=' +
-          encodeURIComponent(r.username) +
-          '">' +
-          escapeHtml(r.username) +
-          '</a>';
-        var trainTitle = r.trainingReason ? ' title="' + escapeHtml(String(r.trainingReason)) + '"' : '';
         return (
           '<tr>' +
-          '<td class="jml-ov-col-user">' +
-          userCell +
-          '</td>' +
-          '<td class="jml-ov-col-grade">' +
-          escapeHtml(dashCell(r.gradeLabel)) +
-          '</td>' +
-          '<td class="jml-ov-col-note">' +
-          '<input type="text" class="jml-ov-note-input" maxlength="20" data-username="' +
-          escapeHtml(r.username) +
-          '" value="' +
-          escapeHtml(r.adminNote || '') +
-          '" placeholder="备注" aria-label="备注：' +
-          escapeHtml(r.username) +
-          '" />' +
-          '</td>' +
-          '<td class="jml-ov-col-nick">' +
-          escapeHtml(dashCell(r.nickname)) +
-          '</td>' +
-          '<td class="jml-ov-col-active30 num">' +
-          escapeHtml(r.daysActiveLast30 != null ? String(r.daysActiveLast30) : '—') +
-          '</td>' +
-          '<td class="jml-ov-col-lastgame">' +
-          escapeHtml(r.lastGameTs ? formatDateTime(r.lastGameTs) : '—') +
-          '</td>' +
-          '<td class="jml-ov-col-prog num">' +
-          escapeHtml(dashCell(r.levelProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog num"' +
-          trainTitle +
-          '>' +
-          escapeHtml(dashCell(r.trainingProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog num">' +
-          escapeHtml(dashCell(r.survivalProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog num">' +
-          escapeHtml(dashCell(r.memoryInstantProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog num">' +
-          escapeHtml(dashCell(r.memoryWorkingProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog num">' +
-          escapeHtml(dashCell(r.primeProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog">' +
-          escapeHtml(dashCell(r.perfectSquareProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog num">' +
-          escapeHtml(dashCell(r.divisibilityProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog">' +
-          escapeHtml(dashCell(r.factorsMultiplesProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog">' +
-          escapeHtml(dashCell(r.decimalProgress)) +
-          '</td>' +
-          '<td class="jml-ov-col-prog">' +
-          escapeHtml(dashCell(r.expandProgress)) +
-          '</td>' +
+          colOrder
+            .map(function (id) {
+              return overviewCellHtml(id, r);
+            })
+            .join('') +
           '</tr>'
         );
       })
@@ -723,23 +900,7 @@
       '<div class="jml-report-table-wrap jml-report-overview-wrap">' +
       '<table class="jml-report-table jml-report-overview-table">' +
       '<thead><tr>' +
-      overviewSortLabel('username', '用户名') +
-      overviewSortLabel('grade', '年级') +
-      '<th scope="col" title="管理员自用备注，最多 20 字">备注</th>' +
-      '<th scope="col">昵称</th>' +
-      overviewSortLabel('daysActiveLast30', '最近30天上线天数', 'num') +
-      overviewSortLabel('lastGameTs', '最后上线时间') +
-      overviewSortLabel('levelProgress', '闯关', 'num') +
-      overviewSortLabel('trainingProgress', '训练流畅', 'num') +
-      overviewSortLabel('survivalProgress', '生存', 'num') +
-      overviewSortLabel('memoryInstantProgress', '瞬时', 'num') +
-      overviewSortLabel('memoryWorkingProgress', '工作记忆', 'num') +
-      overviewSortLabel('primeProgress', '质数(用时)', 'num') +
-      overviewSortLabel('perfectSquareProgress', '平方数') +
-      overviewSortLabel('divisibilityProgress', '整除', 'num') +
-      overviewSortLabel('factorsMultiplesProgress', '因数倍数') +
-      overviewSortLabel('decimalProgress', '小数') +
-      overviewSortLabel('expandProgress', '拆括号') +
+      head +
       '</tr></thead><tbody>' +
       body +
       '</tbody></table></div>';
@@ -3595,10 +3756,67 @@
     if (overviewBody && !overviewBody.dataset.sortBound) {
       overviewBody.dataset.sortBound = '1';
       overviewBody.addEventListener('click', function (ev) {
+        if (ev.target.closest('.jml-ov-col-drag')) return;
         var th = ev.target.closest('.jml-ov-sort-th');
         if (!th || !overviewBody.contains(th)) return;
         var key = th.getAttribute('data-sort-key');
         if (key) toggleOverviewSort(key);
+      });
+      overviewBody.addEventListener('dragstart', function (ev) {
+        var handle = ev.target.closest('.jml-ov-col-drag');
+        if (!handle || !overviewBody.contains(handle)) return;
+        var th = handle.closest('th[data-col-id]');
+        if (!th) return;
+        var colId = th.getAttribute('data-col-id') || '';
+        if (!colId) return;
+        state.overviewColDragFrom = colId;
+        th.classList.add('jml-ov-col-dragging');
+        try {
+          ev.dataTransfer.effectAllowed = 'move';
+          ev.dataTransfer.setData('text/plain', colId);
+        } catch (e) {
+          /* ignore */
+        }
+      });
+      overviewBody.addEventListener('dragend', function () {
+        clearOverviewColDragIndicators(overviewBody);
+        state.overviewColDragFrom = '';
+      });
+      overviewBody.addEventListener('dragover', function (ev) {
+        var th = ev.target.closest('th[data-col-id]');
+        if (!th || !overviewBody.contains(th)) return;
+        if (!state.overviewColDragFrom) return;
+        ev.preventDefault();
+        try {
+          ev.dataTransfer.dropEffect = 'move';
+        } catch (e) {
+          /* ignore */
+        }
+        var rect = th.getBoundingClientRect();
+        var before = ev.clientX - rect.left < rect.width / 2;
+        overviewBody.querySelectorAll('.jml-ov-col-th').forEach(function (el) {
+          el.classList.toggle('jml-ov-col-drag-over-left', el === th && before);
+          el.classList.toggle('jml-ov-col-drag-over-right', el === th && !before);
+        });
+      });
+      overviewBody.addEventListener('drop', function (ev) {
+        var th = ev.target.closest('th[data-col-id]');
+        if (!th || !overviewBody.contains(th)) return;
+        ev.preventDefault();
+        var fromId = state.overviewColDragFrom || '';
+        try {
+          fromId = ev.dataTransfer.getData('text/plain') || fromId;
+        } catch (e) {
+          /* keep fromId */
+        }
+        var toId = th.getAttribute('data-col-id') || '';
+        var rect = th.getBoundingClientRect();
+        var before = ev.clientX - rect.left < rect.width / 2;
+        clearOverviewColDragIndicators(overviewBody);
+        state.overviewColDragFrom = '';
+        if (fromId && toId && moveOverviewColumn(fromId, toId, before)) {
+          renderOverviewTable();
+        }
       });
       overviewBody.addEventListener('focusout', function (ev) {
         var input = ev.target;
@@ -3814,6 +4032,7 @@
       syncReportDocumentLang();
       syncReportLangBtn();
       readStoredOverviewSort();
+      state.overviewColOrder = readStoredOverviewColOrder();
       state.userScope = readStoredUserScope();
       updateScopeButtons();
       bindEvents();

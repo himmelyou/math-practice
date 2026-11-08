@@ -182,6 +182,41 @@
   vertical-align: middle;
 }
 
+.jml-report-overview-table .jml-ov-col-th {
+  position: relative;
+  user-select: none;
+}
+
+.jml-report-overview-table .jml-ov-col-drag {
+  display: inline-block;
+  margin-right: 4px;
+  cursor: grab;
+  color: #9ca3af;
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.jml-report-overview-table .jml-ov-col-drag:active {
+  cursor: grabbing;
+}
+
+.jml-report-overview-table .jml-ov-col-title {
+  vertical-align: middle;
+}
+
+.jml-report-overview-table .jml-ov-col-dragging {
+  opacity: 0.45;
+}
+
+.jml-report-overview-table .jml-ov-col-drag-over-left {
+  box-shadow: inset 2px 0 0 #2563eb;
+}
+
+.jml-report-overview-table .jml-ov-col-drag-over-right {
+  box-shadow: inset -2px 0 0 #2563eb;
+}
+
 .jml-report-overview-table .jml-ov-col-note {
   white-space: normal;
   min-width: 100px;
