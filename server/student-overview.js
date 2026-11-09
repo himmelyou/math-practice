@@ -460,6 +460,7 @@ function buildStudentOverviewRows(options) {
     const username = u.username;
     const runs = runsByUser[username] || [];
     const lastTs = Number(u.lastGameTs) || latestRunTsFromRuns(runs);
+    const createdAt = Number(u.createdAt) || 0;
     const daysOff = computeDaysOffline(lastTs, nowMs);
     let daysActive30 = null;
     if (Array.isArray(runs) && runs.length > 0) {
@@ -549,6 +550,7 @@ function buildStudentOverviewRows(options) {
       adminNote: typeof u.adminNote === "string" ? u.adminNote.trim() : "",
       isVip: u.isVip === true,
       lastGameTs: lastTs > 0 ? lastTs : 0,
+      createdAt: createdAt > 0 ? createdAt : 0,
       daysOffline: daysOff,
       daysActiveLast30: daysActive30,
       levelProgress: levelP.text,

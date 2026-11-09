@@ -543,6 +543,12 @@
       if (key === 'username') {
         cmp = String(a.username || '').localeCompare(String(b.username || ''), 'zh-CN');
         if (dir === 'desc') cmp = -cmp;
+      } else if (key === 'lastGameTs') {
+        cmp = compareOverviewNullable(
+          a.lastGameTs || a.createdAt || 0,
+          b.lastGameTs || b.createdAt || 0,
+          dir
+        );
       } else {
         cmp = compareOverviewNullable(a[field], b[field], dir);
       }
@@ -665,7 +671,8 @@
     } else if (colId === 'daysActiveLast30') {
       inner = escapeHtml(r.daysActiveLast30 != null ? String(r.daysActiveLast30) : '—');
     } else if (colId === 'lastGameTs') {
-      inner = escapeHtml(r.lastGameTs ? formatDateTime(r.lastGameTs) : '—');
+      var lastSeen = r.lastGameTs || r.createdAt || 0;
+      inner = escapeHtml(lastSeen ? formatDateTime(lastSeen) : '—');
     } else if (colId === 'levelProgress') {
       inner = escapeHtml(dashCell(r.levelProgress));
     } else if (colId === 'trainingProgress') {

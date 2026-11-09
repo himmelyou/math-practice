@@ -4090,6 +4090,7 @@ function adminUsersListRow(u) {
     grade: u && u.grade != null && u.grade !== "" ? u.grade : null,
     totalScore: Number(u && u.totalScore) || 0,
     lastGameTs: Number(u && u.lastGameTs) || 0,
+    createdAt: Number(u && u.createdAt) || 0,
     isTester: !!(u && u.isTester),
     isVip: !!(u && u.isVip),
   };

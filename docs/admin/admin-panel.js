@@ -153,8 +153,8 @@
         if (va > vb) return 1 * dir;
         return 0;
       }
-      va = key === 'lastGameTs' ? (a.lastGameTs || 0) : (a.totalScore != null ? a.totalScore : 0);
-      vb = key === 'lastGameTs' ? (b.lastGameTs || 0) : (b.totalScore != null ? b.totalScore : 0);
+      va = key === 'lastGameTs' ? (a.lastGameTs || a.createdAt || 0) : (a.totalScore != null ? a.totalScore : 0);
+      vb = key === 'lastGameTs' ? (b.lastGameTs || b.createdAt || 0) : (b.totalScore != null ? b.totalScore : 0);
       return (va - vb) * dir;
     });
     return list;
@@ -343,7 +343,7 @@
       tdPwd.textContent = '****';
       tr.appendChild(tdPwd);
       tr.appendChild(tdText((u.nickname && String(u.nickname).trim()) || '-', ''));
-      tr.appendChild(tdText(formatDateTime(u.lastGameTs), ''));
+      tr.appendChild(tdText(formatDateTime(u.lastGameTs || u.createdAt), ''));
       tr.appendChild(tdText(u.totalScore != null ? String(u.totalScore) : '0', 'num'));
 
       var tdTester = document.createElement('td');
