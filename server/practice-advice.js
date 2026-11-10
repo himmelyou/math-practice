@@ -1,11 +1,12 @@
 /**
- * 练习建议 v0.38：质数合数通关判定与成就对齐（cleared/perfect 或 score≥250）。
+ * 练习建议 v0.39：次日首开/刷新整单重算；去掉失败钟与补格；间隔破例排队尾。
+ * v0.38：质数合数通关判定与成就对齐（cleared/perfect 或 score≥250）。
  * v0.37：已通关后，平台型和底板型都只在预估 ≤ 纪录 85% 时排冲榜闯关。
  * v0.36：黄橙排序改为先未达标，再靠前。
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.38-provisional";
+  var RULE_VERSION = "0.39-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -46,16 +47,15 @@
   var MIN_SUCCESS_ITEMS = 20;
   /** Q14：开新关激活门槛（1 局或 20 题） */
   var MIN_OPEN_GAMES = 1;
-  /** Q8：当日封顶局数 */
-  var FAIL_GAMES_PER_DAY = 3;
-  /** Q9：跨日停滞（有练日） */
-  var FAIL_PRACTICE_DAYS = 3;
+  /** Q8/Q9 已废：不靠失败次数结案；换项靠次日整单重算 */
+  var FAIL_GAMES_PER_DAY = null;
+  var FAIL_PRACTICE_DAYS = null;
   /** 未完成常驻格数；冷却窗（成功+失败）最多条数 */
   var INCOMPLETE_SIZE = 5;
   var COMPLETED_MAX = 5;
   /** 中国日历日：今日结案(成功+失败)+未完成 ≤ 此数；满则不补新任务 */
   var DAILY_TASK_QUOTA = 5;
-  /** 同一 key 两次出现之间至少隔这么多条；可练池空时破例 */
+  /** 同一 key 两次出现之间至少隔这么多条；凑不满五格时破例，破例关排队尾 */
   var SAME_TASK_GAP = 5;
   /** 全量成功历史；冷却窗走 plan.tasks 里 success/fail（合计最多 5）。 */
   var STORE_FULL_HISTORY = true;
@@ -1083,8 +1083,6 @@
       targetAvgSec: targetAvgSec,
       scanLevelIndex: null,
       scanLevelLabel: "",
-      failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
-      failMaxPracticeDays: FAIL_PRACTICE_DAYS,
       window: emptyPlanWindow(),
       closedAt: null,
       closeReason: "",
@@ -1117,8 +1115,6 @@
       targetAvgSec: null,
       scanLevelIndex: null,
       scanLevelLabel: "",
-      failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
-      failMaxPracticeDays: FAIL_PRACTICE_DAYS,
       window: emptyPlanWindow(),
       closedAt: null,
       closeReason: "",
@@ -1177,8 +1173,6 @@
       targetP: null,
       targetTimePct: null,
       targetAvgSec: null,
-      failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
-      failMaxPracticeDays: FAIL_PRACTICE_DAYS,
       window: emptyPlanWindow(),
       closedAt: null,
       closeReason: "",
@@ -1516,6 +1510,8 @@
     opts = opts || {};
     var keepExisting = opts.keepExisting === true;
     var reorderScan = opts.reorderScan === true;
+    /** false：只整理留牌/归档，不新开任务（结案、跑偏）。开单/日切/重新开单才 true。 */
+    var appendNew = opts.appendNew !== false;
     var day = chinaDateKeyFromTs(ts);
     /** 非今日结案 → 冷却归档；今日结案留在主列表（留牌）直到跨日。 */
     var archive = [];
@@ -1538,29 +1534,31 @@
     ctx.wrongbookSticky = stickyWrong;
     ctx._cooldownSeq = archive.concat(board);
     plan._adviceCtx = ctx;
-    /** 已有未完成可超过当日剩余额度（跨日留下的）；只限制新补条数。今日留牌占配额，故满则不补。 */
+    /** 今日留牌占配额；开单时按剩余额度发新卡。正常路径不「补空格」。 */
     var maxOpen = maxOpenForDay(plan, ts);
-    var needed = uniqueSeeds(ctx).filter(function (s) {
-      return seedIsNeeded(s, ctx);
-    });
-    function appendFromNeeded(allowCloseRepeat) {
-      needed.forEach(function (seed) {
-        if (openCountIn(board) >= maxOpen) return;
-        var k = seedKey(seed);
-        if (
-          board.some(function (t) {
-            return t && t.key === k;
-          })
-        ) {
-          return;
-        }
-        if (!allowCloseRepeat && keyTooSoon(k, archive.concat(board))) return;
-        board.push(seedToTask(plan, seed));
+    if (appendNew) {
+      var needed = uniqueSeeds(ctx).filter(function (s) {
+        return seedIsNeeded(s, ctx);
       });
+      function appendFromNeeded(allowCloseRepeat) {
+        needed.forEach(function (seed) {
+          if (openCountIn(board) >= maxOpen) return;
+          var k = seedKey(seed);
+          if (
+            board.some(function (t) {
+              return t && t.key === k;
+            })
+          ) {
+            return;
+          }
+          if (!allowCloseRepeat && keyTooSoon(k, archive.concat(board))) return;
+          board.push(seedToTask(plan, seed));
+        });
+      }
+      appendFromNeeded(false);
+      /** 先遵守间隔；仍不满五格再破例，破例关追加在队尾。 */
+      if (openCountIn(board) < maxOpen) appendFromNeeded(true);
     }
-    appendFromNeeded(false);
-    /** 先避开冷却间隔；仍补不满（如昨日留牌刚归档、同 key 全太近）再允许更密。 */
-    if (openCountIn(board) < maxOpen) appendFromNeeded(true);
     if (reorderScan) {
       var todays = [];
       var opens = [];
@@ -1612,13 +1610,11 @@
       targetAvgSec: null,
       scanLevelIndex: null,
       scanLevelLabel: "",
-      failMaxGamesPerDay: 9999,
-      failMaxPracticeDays: 9999,
       window: emptyPlanWindow(),
       closedAt: null,
       closeReason: "",
       title: "错题本（四则）",
-      detail: "可练错题 " + n + " 道；本模式全对清空才算完成，错一题则错题仍在。无失败次数限制",
+      detail: "可练错题 " + n + " 道；本模式全对清空才算完成，错一题则错题仍在。未清空可继续尝试",
     };
   }
 
@@ -1664,8 +1660,6 @@
       targetAvgSec: targetAvgSec,
       scanLevelIndex: null,
       scanLevelLabel: "",
-      failMaxGamesPerDay: FAIL_GAMES_PER_DAY,
-      failMaxPracticeDays: FAIL_PRACTICE_DAYS,
       window: emptyPlanWindow(),
       closedAt: null,
       closeReason: "",
@@ -1719,6 +1713,17 @@
     return { labels: labels, copy: copy };
   }
 
+  function stampDailyIssued(plan, ts) {
+    if (!plan) return;
+    plan.dailyIssuedDay = chinaDateKeyFromTs(ts) || "";
+  }
+
+  function needsDailyIssue(plan, nowTs) {
+    var day = chinaDateKeyFromTs(nowTs);
+    if (!day) return false;
+    return !plan || plan.dailyIssuedDay !== day;
+  }
+
   function issuePlan(ctx, issuedAt, username) {
     var dont = dontOpenFrom(ctx.aheadNoData);
     var plan = {
@@ -1736,7 +1741,12 @@
       events: [],
       history: [],
     };
-    fillIncomplete(plan, ctx, issuedAt, { keepExisting: false, reorderScan: true });
+    fillIncomplete(plan, ctx, issuedAt, {
+      keepExisting: false,
+      reorderScan: true,
+      appendNew: true,
+    });
+    stampDailyIssued(plan, issuedAt);
     var head = getActiveTask(plan);
     pushEvent(
       plan,
@@ -1761,13 +1771,14 @@
   }
 
   /**
-   * keepOpenBoard !== false（跑偏）：整份未完成保留（成功线已冻结），只补空位。
-   * keepOpenBoard === false（重新开单）：丢掉未完成，按热图重开。
+   * keepOpenBoard !== false（跑偏）：整份未完成保留（成功线已冻结），不补空位。
+   * keepOpenBoard === false（日切/重新开单）：丢掉未完成，按热图重开。
    */
   function reissueIncomplete(plan, ctx, ts, text, keepOpenBoard) {
+    var fullRebuild = keepOpenBoard === false;
     var done = trimDone(cooldownTasks(plan));
     var kept = [];
-    if (keepOpenBoard !== false) {
+    if (!fullRebuild) {
       openTasks(plan).forEach(function (t) {
         kept.push(t);
       });
@@ -1781,14 +1792,18 @@
       plan.dontOpenLabel = dont.copy;
     }
     fillIncomplete(plan, ctx, ts, {
-      keepExisting: kept.length > 0,
-      reorderScan: kept.length === 0,
+      keepExisting: !fullRebuild,
+      reorderScan: fullRebuild,
+      appendNew: fullRebuild,
     });
     activateFirst(plan.tasks);
     pushEvent(
       plan,
       "rebuild",
-      text || "跑偏：未完成保留（成功线不改），只补空位；冷却窗保留",
+      text ||
+        (fullRebuild
+          ? "重开未完成（冷却窗保留）"
+          : "跑偏：未完成保留（成功线不改），不补空位；冷却窗保留"),
       ts
     );
   }
@@ -1890,18 +1905,8 @@
     return stats.p + 1e-9 >= HEAT_P_YELLOW;
   }
 
-  function evaluateFail(task) {
-    if (task && task.successKind === "wrongbook_clear") return "";
-    var w = task.window || emptyPlanWindow();
-    var days = Object.keys(w.gamesByDay || {}).filter(function (d) {
-      return (w.gamesByDay[d] || 0) > 0;
-    });
-    if (days.length >= (task.failMaxPracticeDays || FAIL_PRACTICE_DAYS)) return "stagnate_days";
-    var maxDay = 0;
-    days.forEach(function (d) {
-      if (w.gamesByDay[d] > maxDay) maxDay = w.gamesByDay[d];
-    });
-    if (maxDay >= (task.failMaxGamesPerDay || FAIL_GAMES_PER_DAY)) return "day_cap";
+  /** Q8/Q9 已废：当日无限再试；不适合练的关靠次日整单重算换掉。 */
+  function evaluateFail() {
     return "";
   }
 
@@ -2044,8 +2049,12 @@
       closedTask.completedAt = null;
       if (!closedTask.chinaDay) closedTask.chinaDay = day;
     }
-    /** 当日留牌：结案后不补新；fill 只在跨日/开单时把空位补上。 */
-    fillIncomplete(plan, ctx, ts, { keepExisting: true, reorderScan: false });
+    /** 当日留牌：结案后不补新；次日首开/刷新整单重算。 */
+    fillIncomplete(plan, ctx, ts, {
+      keepExisting: true,
+      reorderScan: false,
+      appendNew: false,
+    });
     var head = getActiveTask(plan);
     var openN = openTasks(plan).length;
     var boardClosed = todayClosedCount(plan, day);
@@ -2166,7 +2175,7 @@
           plan,
           ctx,
           ts,
-          "跑偏：未完成保留（成功线不改），只补空位；冷却窗保留"
+          "跑偏：未完成保留（成功线不改），不补空位；冷却窗保留"
         );
         lastFollow = { kind: "drift" };
         rebuilt = true;
@@ -2178,13 +2187,23 @@
       plan.ruleVersion = RULE_VERSION;
       pushEvent(plan, "rebuild", "规则升级：只更新版本号，未完成不重排", nowTs);
     }
+    /** 积压局已按旧五格跟完；再日切/重新开单。 */
     if (flags.resetIncomplete) {
       plan.ruleVersion = RULE_VERSION;
       reissueIncomplete(plan, ctx, nowTs, "重新开单：重算未完成（冷却窗保留）", false);
+      stampDailyIssued(plan, nowTs);
       rebuilt = true;
-    }
-    if (openTasks(plan).length < maxOpenForDay(plan, nowTs)) {
-      fillIncomplete(plan, ctx, nowTs, { keepExisting: true, reorderScan: false });
+    } else if (needsDailyIssue(plan, nowTs)) {
+      plan.ruleVersion = RULE_VERSION;
+      reissueIncomplete(
+        plan,
+        ctx,
+        nowTs,
+        "日切开单：先清积压后按最新情况重开未完成（一天一次）",
+        false
+      );
+      stampDailyIssued(plan, nowTs);
+      rebuilt = true;
     }
     activateFirst(plan.tasks);
     plan.refreshedAt = nowTs;
@@ -2192,9 +2211,11 @@
   }
 
   function planRefreshedToday(plan, nowTs) {
-    if (!plan || plan.refreshedAt == null) return false;
     var day = chinaDateKeyFromTs(nowTs);
-    return !!day && chinaDateKeyFromTs(plan.refreshedAt) === day;
+    if (!day || !plan) return false;
+    if (plan.dailyIssuedDay && plan.dailyIssuedDay === day) return true;
+    if (plan.refreshedAt == null) return false;
+    return chinaDateKeyFromTs(plan.refreshedAt) === day;
   }
 
   function firstOpenTrainingTask(plan) {
@@ -2309,11 +2330,9 @@
 
   function failCopy(task) {
     if (task && task.successKind === "wrongbook_clear") {
-      return "错题任务无失败次数限制：未全对清空则继续留在未完成";
+      return "错题任务：未全对清空可继续尝试；次日开单时按最新情况重排";
     }
-    var g = (task && task.failMaxGamesPerDay) || FAIL_GAMES_PER_DAY;
-    var d = (task && task.failMaxPracticeDays) || FAIL_PRACTICE_DAYS;
-    return "失败：当天打满 " + g + " 局仍未达标则换项；连续 " + d + " 个有练日未达标则进入冷却窗";
+    return "未达可继续尝试；次日进每日任务或管理页刷新时按最新情况重开";
   }
 
   function progressCopy(task) {
@@ -2321,13 +2340,10 @@
     var w = task.window;
     var today = chinaDateKeyFromTs(Date.now());
     var todayN = (w.gamesByDay && w.gamesByDay[today]) || 0;
-    var days = Object.keys(w.gamesByDay || {}).filter(function (k) {
-      return (w.gamesByDay[k] || 0) > 0;
-    }).length;
     var p = windowP(task);
     var bits = [
-      "今日 " + todayN + "/" + FAIL_GAMES_PER_DAY + " 局",
-      "有练日 " + days + "/" + FAIL_PRACTICE_DAYS,
+      "已试 " + (w.games || 0) + " 局",
+      "今日 " + todayN + " 局",
       "任务窗 " + w.items + " 题" + (p != null ? " 准" + pctText(p) : ""),
     ];
     if (w.avgSec != null) bits.push("均速 " + roundSec(w.avgSec) + "s");
@@ -2563,19 +2579,18 @@
       "Q5 闯关合格线：历史最高与热图连续准≥95%顶取 max（不计分位）；目标 Ln 须通过 Ln。无历史且 L1 不够 95% 时目标仍是 L1。不因热图变差把目标降到低于历史",
       "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
       "Q7 速度任务：本局均速 ≤ 基线 ×" + SPEED_RATIO + "（对照 timePct−" + SPEED_TIME_PCT_STEP + "），且本局准度≥" + Math.round(HEAT_P_YELLOW * 100) + "%。训练成功按本局判，不再多局平均",
-      "Q8 当日封顶暂定 " + FAIL_GAMES_PER_DAY + " 局",
-      "Q9 跨日停滞暂定 " + FAIL_PRACTICE_DAYS + " 个有练日",
+      "Q8/Q9 已废：不靠失败次数结案；未达可无限再试，换项靠次日整单重算",
       "Q10 一条队列：未完成最多 " +
         INCOMPLETE_SIZE +
         " 条且不重复；黄橙优先，再按准度×地基加权速度×样本薄补已学流畅",
       "Q18 日配额：中国日历日「今日结案(成功+失败)+未完成」≤" +
         DAILY_TASK_QUOTA +
-        "；结案当日留牌不补新，次日归档冷却后再补。跨日未完成留下；重新开单同受限",
+        "；结案当日留牌不补新。次日进每日任务或管理页刷新：先清积压再整单重开（一天一次）。无补空格",
       "Q11 同 key 默认隔 " +
         SAME_TASK_GAP +
         " 条才可再出现；冷却窗最多 " +
         COMPLETED_MAX +
-        " 条（成功+失败），满则挤最早。规则升级不拆未完成；跑偏保留未完成（成功线冻结）只补空位；重新开单才重算未完成。都不清冷却。只有可练池空才允许更密",
+        " 条（成功+失败），满则挤最早。规则升级不拆未完成；跑偏保留未完成（成功线冻结）不补空；日切/重新开单才重算未完成。都不清冷却。凑不满五格才破例，破例关排队尾",
       "Q12 绿档速度补格：timePct<" +
         FOUNDATION_FAST_PCT +
         " 只比分位；否则 ×" +
@@ -2594,7 +2609,7 @@
         " 才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
         "）；不走≤n前置，有洞时占第二格",
-      "Q16 未完成 1～5 对上就跟局（记尝试/成功/失败），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标，不再把多局搓在一起。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外跑偏：未完成整份保留（开出后成功线冻结），只补空位。规则升级不拆队、不改成功线；重新开单才丢掉未完成进度"
+      "Q16 未完成 1～5 对上就跟局（记尝试/成功），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外跑偏：未完成整份保留（成功线冻结），不补空。规则升级不拆队、不改成功线；日切/重新开单才丢掉未完成进度"
     ];
     reasons.push(
       reason(
@@ -2699,8 +2714,8 @@
           SAME_TASK_GAP +
           " 条；冷却窗最多 " +
           COMPLETED_MAX +
-          " 条（成功+失败）。可练池空才允许提前重复。1～5 对上就跟局，失败进冷却、不后插；非任务入口当场成功称碰巧完成；跑偏保留未完成（成功线冻结）只补空位，保留冷却窗",
-        "Q8/Q9 对上的那条计失败；Q16 1～5 都能跟局/碰巧完成",
+          " 条（成功+失败）。凑不满五格才破例，破例关排队尾。1～5 对上就跟局；未达可再试；成功当日留牌不补；次日整单重开。跑偏保留未完成（成功线冻结）不补空",
+        "Q8/Q9 已废；Q16 1～5 都能跟局/碰巧完成；日切一天一次",
       )
     );
 
@@ -2721,7 +2736,7 @@
     if (!active && !openQueue.length) {
       if (todayBoardN > 0) {
         title = "今日任务已完成";
-        parentCopy = "今日 " + todayBoardN + " 条已留牌，明天再补新任务。";
+        parentCopy = "今日 " + todayBoardN + " 条已留牌；明天进任务或刷新时按最新情况重开。";
         detail = parentCopy;
       } else {
         title = "暂无主建议";
@@ -2739,7 +2754,7 @@
         archiveCoolN;
       parentCopy =
         ctx.profile.label +
-        "。未完成 1～5 对上就跟局；开出后成功线冻结；成功/失败当日留牌不补，次日归档后再补新；首页碰巧同一套；放弃局整局不算；名单外跑偏保留未完成只补空位。";
+        "。未完成 1～5 对上就跟局；开出后成功线冻结；未达可再试；成功当日留牌不补；次日进任务或刷新时整单重开；首页碰巧同一套；放弃局整局不算；名单外跑偏保留未完成不补空。";
       if (plan.dontOpenLabel) parentCopy += " 不要开 " + plan.dontOpenLabel + "。";
       detail = active ? active.detail : "";
     }
@@ -2794,11 +2809,12 @@
         Q5_scanPassNotReach: true,
         Q6_accStep: ACC_STEP,
         Q7_speedRatio: SPEED_RATIO,
-        Q8_failGamesPerDay: FAIL_GAMES_PER_DAY,
-        Q9_failPracticeDays: FAIL_PRACTICE_DAYS,
+        Q8_failGamesPerDay: null,
+        Q9_failPracticeDays: null,
         Q10_incompleteSize: INCOMPLETE_SIZE,
         Q18_dailyTaskQuota: DAILY_TASK_QUOTA,
         Q18_sameDayKeepClosedNoFill: true,
+        Q18_dailyFullReissue: true,
         Q11_sameTaskGap: SAME_TASK_GAP,
         Q11_completedMax: COMPLETED_MAX,
         Q12_foundationFastPct: FOUNDATION_FAST_PCT,
@@ -2832,6 +2848,7 @@
     INCOMPLETE_SIZE: INCOMPLETE_SIZE,
     DAILY_TASK_QUOTA: DAILY_TASK_QUOTA,
     COMPLETED_MAX: COMPLETED_MAX,
+    needsDailyIssue: needsDailyIssue,
     todayClosedCount: todayClosedCount,
     maxOpenForDay: maxOpenForDay,
     SAME_TASK_GAP: SAME_TASK_GAP,
