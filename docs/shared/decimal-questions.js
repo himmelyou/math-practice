@@ -1,5 +1,5 @@
 /**
- * 小数运算 D1–D6 出题（见《小数等级说明.md》）
+ * 小数运算 D1–D6 出题（见根目录《等级说明.md》「小数运算」）
  */
 (function (global) {
   function randomInt(min, max) {

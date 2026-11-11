@@ -52,7 +52,7 @@
       return shuffleInPlace(wrongPool.slice()).slice(0, n);
     }
 
-    // ===== 拆括号 L1–L5（见项目根目录《拆括号等级说明.md》）=====
+    // ===== 拆括号 L1–L5（见项目根目录《等级说明.md》「拆括号」）=====
     const EB_LETTERS = ["a", "b", "x", "y"];
 
     function ebPickAtom() {
@@ -211,7 +211,7 @@
       return out;
     }
 
-    /** L1 题型 + 错因（与《拆括号等级说明.md》L1 正文一致） */
+    /** L1 题型 + 错因（与《等级说明.md》拆括号 L1 一致） */
     const L1_TYPE_T1 = "L1-T1";
     const L1_TYPE_T2 = "L1-T2";
     const L1_T1_SHARE = 0.8;
@@ -349,7 +349,7 @@
       };
     }
 
-    /** L2 题型 + 错因（与《拆括号等级说明.md》L2 正文一致） */
+    /** L2 题型 + 错因（与《等级说明.md》拆括号 L2 一致） */
     const L2_TYPE_T1 = "L2-T1";
     const L2_TYPE_T2 = "L2-T2";
     const L2_TYPE_T3 = "L2-T3";
@@ -632,7 +632,7 @@
       };
     }
 
-    /** L3 题型 + 错因（与《拆括号等级说明.md》L3 正文一致） */
+    /** L3 题型 + 错因（与《等级说明.md》拆括号 L3 一致） */
     const L3_TYPE_T1 = "L3-T1";
     const L3_TYPE_T2 = "L3-T2";
     const L3_TYPE_T3 = "L3-T3";
@@ -929,7 +929,7 @@
       };
     }
 
-    /** L4 题型 + 错因（与《拆括号等级说明.md》L4 正文一致） */
+    /** L4 题型 + 错因（与《等级说明.md》拆括号 L4 一致） */
     const L4_TYPE_T1 = "L4-T1";
     const L4_TYPE_T2 = "L4-T2";
     const L4_TYPE_T3 = "L4-T3";
@@ -1298,7 +1298,7 @@
       };
     }
 
-    /** L5 两括号相乘（与《拆括号等级说明.md》L5 正文一致） */
+    /** L5 两括号相乘（与《等级说明.md》拆括号 L5 一致） */
     const L5_WRONG_PER_QUESTION = 3;
 
     function l5PickBracketPair() {
