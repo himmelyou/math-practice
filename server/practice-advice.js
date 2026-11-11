@@ -1,12 +1,14 @@
 /**
- * 练习建议 v0.39：次日首开/刷新整单重算；去掉失败钟与补格；间隔破例排队尾。
+ * 练习建议 v0.41：平方 L2+ 任务侧按超前（不开新；有数据黄橙才推）。
+ * v0.40：开新关/超前进队闸与模式梯子一致（准≥95% 且未过慢）。
+ * v0.39：次日首开/刷新整单重算；去掉失败钟与补格；间隔破例排队尾。
  * v0.38：质数合数通关判定与成就对齐（cleared/perfect 或 score≥250）。
  * v0.37：已通关后，平台型和底板型都只在预估 ≤ 纪录 85% 时排冲榜闯关。
  * v0.36：黄橙排序改为先未达标，再靠前。
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.39-provisional";
+  var RULE_VERSION = "0.41-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -664,7 +666,7 @@
       schoolHoles: rows.filter(function (r) {
         return inSchoolPrior(r.prior) && (r.stage === "weak" || r.stage === "shaky");
       }),
-      /** 超前且已有数据的黄橙（准度或速度）；仅校内全绿时进五格（见 uniqueSeeds） */
+      /** 超前且已有数据的黄橙（准度或速度）；校内已激活均流畅后进五格（见 uniqueSeeds） */
       aheadHoles: rows.filter(function (r) {
         return aheadHoleEligible(r);
       }),
@@ -685,7 +687,7 @@
 
   /**
    * 超前洞：已有数据的黄橙（准度不够或速度不够同一套）。空关不开。
-   * 是否进队还要校内已激活全绿，见 canScheduleAheadHoles。
+   * 是否进队还要校内已激活均流畅（未过慢），见 canScheduleAheadHoles。
    */
   function aheadHoleEligible(row) {
     if (!row || row.prior !== "ahead") return false;
@@ -704,7 +706,7 @@
     return n;
   }
 
-  /** 校内已激活全绿时，可把符合条件的超前黄橙进队。 */
+  /** 校内已激活均流畅（未过慢）时，可把符合条件的超前黄橙进队。 */
   function canScheduleAheadHoles(rows) {
     return schoolActivatedReady(rows || []);
   }
@@ -948,16 +950,17 @@
     return pickFromPack(ctx.modePacks && ctx.modePacks.decimal, cooldownSeq);
   }
 
-  /** 已学/同步里已激活的关全部热图绿（无黄橙）。无已激活时视为可开第一档。 */
+  /**
+   * 已学/同步里已激活的关全部流畅：准≥95% 且未过慢（与模式梯子 / 概览 fluent 同口径）。
+   * 偏慢黄档（timePct≥50 但仍未过慢）不挡开新关。无已激活时视为可开第一档。
+   */
   function schoolActivatedReady(rows) {
     var list = rows || [];
-    var activated = 0;
     for (var i = 0; i < list.length; i += 1) {
       var r = list[i];
       if (!inSchoolPrior(r.prior)) continue;
       if (r.stage === "no_data") continue;
-      activated += 1;
-      if (r.stage === "weak" || r.stage === "shaky") return false;
+      if (r.fluent !== true) return false;
     }
     return true;
   }
@@ -2574,7 +2577,7 @@
     var reasons = [];
     var unresolved = [
       "Q1 超前「会了」暂定 n≥" + AHEAD_MASTERED_N,
-      "Q2 已学/同步黄橙永远压过超前；校内全绿后，超前里已有数据的黄橙（准度或速度）可进五格",
+      "Q2 已学/同步黄橙永远压过超前；校内已激活均流畅（未过慢）后，超前里已有数据的黄橙（准度或速度）可进五格",
       "Q3 绿快底板暂定连续 " + FLOOR_MIN + " 档且 timePct<" + FAST_TIME_PCT,
       "Q5 闯关合格线：历史最高与热图连续准≥95%顶取 max（不计分位）；目标 Ln 须通过 Ln。无历史且 L1 不够 95% 时目标仍是 L1。不因热图变差把目标降到低于历史",
       "Q6 已废：准度任务本局≥" + Math.round(HEAT_P_YELLOW * 100) + "% 即成功，不再小步、不准写出低于 95% 的目标",
@@ -2603,7 +2606,7 @@
         "。洞分=未达标档+" +
         HOLE_LEVEL_WEIGHT +
         "×剩余步+max(速度分位,准度缺口)。未达标整段在前；靠前一档压过后一档；准度和极慢取更严重的一项",
-      "Q14 已激活校内全绿才开一档已学/同步空关；其后可排超前里已有数据的黄橙（准度或速度都算）；空关不开；多模式同此。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格，四则候选不够时再补其它模式。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
+      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +
@@ -2684,9 +2687,9 @@
       reasons.push(
         reason(
           "R-open-new",
-          "school_all_green_open",
-          "校内已激活全绿，安排开新关 " + (openRow ? openRow.levelLabel : ""),
-          "Q14：超前无数据仍不开；闯关留下数据即当老关"
+          "school_fluent_open",
+          "校内已激活均流畅（未过慢），安排开新关 " + (openRow ? openRow.levelLabel : ""),
+          "Q14：与模式梯子同口径；超前无数据仍不开；闯关留下数据即当老关"
         )
       );
     }
@@ -2695,12 +2698,12 @@
       reasons.push(
         reason(
           "R-ahead-hole",
-          "school_green_ahead_hole",
-          "校内已激活全绿，超前已会偏慢可进队 " +
+          "school_fluent_ahead_hole",
+          "校内已激活均流畅（未过慢），超前黄橙可进队 " +
             (aheadHole
               ? aheadHole.levelLabel + " · " + aheadHole.stageLabel + " 准" + aheadHole.pPct
               : ""),
-          "Q14：超前有数据的黄橙（准度或速度）在校内全绿后可练；空关不开；不抬档案年级"
+          "Q14：超前有数据的黄橙在校内流畅后可练；空关不开；不抬档案年级"
         )
       );
     }
@@ -2822,7 +2825,9 @@
         Q13_holeFoundationStep: HOLE_FOUNDATION_STEP,
         Q13_heatPctPlus1: HEAT_PCT_PLUS1,
         Q14_openWhenSchoolGreen: true,
+        Q14_openWhenSchoolFluent: true,
         Q14_aheadHolesWhenSchoolGreen: true,
+        Q14_aheadHolesWhenSchoolFluent: true,
         Q17_wrongbookMin: Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30,
         Q17_multiModeSlots: true,
         Q17_arithFullyUnlockedForReserve: true,

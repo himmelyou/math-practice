@@ -97,19 +97,14 @@ function modeCurriculumPrior(modeId, grade, levelIndex) {
     return "learned";
   }
 
+  /**
+   * 平方：任务侧只主推 L1；L2+ 按超前（系统不开新，自己玩过且仍黄橙才推）。
+   * 模式内梯子仍可自行开 L2+，不受此先验影响。
+   */
   if (modeId === "perfectSquare") {
     if (g <= 1) return "blocked";
-    if (g === 2) return L <= 1 ? "current" : "ahead";
-    if (g === 3) {
-      if (L <= 2) return "learned";
-      if (L === 3) return "current";
-      return "ahead";
-    }
-    if (g === 4) {
-      if (L <= 3) return "learned";
-      return "current";
-    }
-    return "learned";
+    if (L === 1) return g === 2 ? "current" : "learned";
+    return "ahead";
   }
 
   if (modeId === "divisibility") {

@@ -136,9 +136,12 @@
     heat: null,
     heatByCategory: {},
     heatmapFromServer: false,
+    workspaceHasExtras: false,
     practiceAdvice: null,
     practiceAdviceError: '',
     practiceAdviceLoading: false,
+    studentLoadSeq: 0,
+    studentLoadAbort: null,
     overviewRows: [],
     /** true = 已拉过全员概览；false = 仅有零散单人行（深链/切换补齐） */
     overviewComplete: false,
@@ -988,11 +991,22 @@
       return;
     }
     if (next === 'stats') {
+      if (!state.heatmapFromServer) {
+        void loadStudentData();
+        return;
+      }
       ensureStudentStatsBuilt();
       renderStatsPanel();
       redrawAllStatsCharts();
+      if (!state.workspaceHasExtras) {
+        void loadStudentWorkspaceExtras(state.selectedUsername, state.studentLoadSeq);
+      }
     }
     if (next === 'train-debug') {
+      if (!state.heatmapFromServer || !state.trainDebugPayload) {
+        void loadStudentData();
+        return;
+      }
       void loadTrainDebug(false);
     }
     if (next === 'task-history') {
@@ -1444,6 +1458,7 @@
     state.heat = null;
     state.heatByCategory = {};
     state.heatmapFromServer = false;
+    state.workspaceHasExtras = false;
     state.trainDebugPayload = null;
     state.serverTrainingPick = null;
     state.serverCategoryNext = null;
@@ -2034,6 +2049,7 @@
 
   function applyWorkspaceExtras(data, u) {
     if (!data || state.selectedUsername !== u) return;
+    var gotExtra = false;
 
     if (data.heatmap) applyServerHeatmapPayload(data.heatmap);
 
@@ -2043,36 +2059,173 @@
     }
 
     var train = data.trainingNext;
-    if (train && train.server) {
-      state.serverTrainingPick = attachTrainingPickReasonText(train.server);
-      state.trainDebugPayload = {
-        ok: true,
-        username: u,
-        at: train.at || data.at,
-        note: train.note,
-        trainingDayMode: train.trainingDayMode,
-        levelTrainingCurrentLevel: train.levelTrainingCurrentLevel,
-        levelTrainingCurrentL: train.levelTrainingCurrentL,
-        server: state.serverTrainingPick,
-        recentTraining: train.recentTraining || [],
-      };
+    if (train) {
+      gotExtra = true;
+      if (train.server) {
+        state.serverTrainingPick = attachTrainingPickReasonText(train.server);
+        state.trainDebugPayload = {
+          ok: true,
+          username: u,
+          at: train.at || data.at,
+          note: train.note,
+          trainingDayMode: train.trainingDayMode,
+          levelTrainingCurrentLevel: train.levelTrainingCurrentLevel,
+          levelTrainingCurrentL: train.levelTrainingCurrentL,
+          server: state.serverTrainingPick,
+          recentTraining: train.recentTraining || [],
+        };
+      }
     }
 
-    if (data.categoryNext && data.categoryNext.ok && data.categoryNext.byCategory) {
-      state.serverCategoryNext = data.categoryNext.byCategory;
-    } else {
-      state.serverCategoryNext = null;
+    if (data.categoryNext) {
+      gotExtra = true;
+      if (data.categoryNext.ok && data.categoryNext.byCategory) {
+        state.serverCategoryNext = data.categoryNext.byCategory;
+      } else {
+        state.serverCategoryNext = null;
+      }
     }
 
-    var plan = data.practicePlan;
-    state.practiceAdviceLoading = false;
-    if (plan && plan.ok) {
-      state.practiceAdvice = plan;
-      state.practiceAdviceError = '';
-    } else {
-      state.practiceAdvice = null;
-      state.practiceAdviceError = (plan && plan.error) || '任务单加载失败';
+    if (data.practicePlan) {
+      gotExtra = true;
+      var plan = data.practicePlan;
+      state.practiceAdviceLoading = false;
+      if (plan && plan.ok) {
+        state.practiceAdvice = plan;
+        state.practiceAdviceError = '';
+      } else {
+        state.practiceAdvice = null;
+        state.practiceAdviceError = (plan && plan.error) || '任务单加载失败';
+      }
     }
+
+    if (gotExtra) state.workspaceHasExtras = true;
+  }
+
+  function isFetchAbortError(e) {
+    if (!e) return false;
+    if (e.name === 'AbortError') return true;
+    var msg = String(e.message || e);
+    return msg === 'The user aborted a request.' || /aborted/i.test(msg);
+  }
+
+  function workspacePartsForTab(tab) {
+    if (tab === 'stats') return 'core';
+    if (tab === 'train-debug') return 'core,extras';
+    return 'runs';
+  }
+
+  function fetchStudentWorkspace(username, parts, signal) {
+    var q = '?parts=' + encodeURIComponent(parts || 'full');
+    return apiFetch('/api/admin/student-workspace/' + encodeURIComponent(username) + q, {
+      signal: signal,
+    });
+  }
+
+  function renderActiveStudentPanels() {
+    var tab = activeTabId();
+    if (tab === 'stats') {
+      ensureStudentStatsBuilt();
+      renderStatsPanel();
+      redrawAllStatsCharts();
+      return;
+    }
+    if (tab === 'runs') {
+      renderRunsTable();
+      return;
+    }
+    if (tab === 'wrong') {
+      renderWrongBook();
+      return;
+    }
+    if (tab === 'expand-wrong') {
+      renderExpandWrongBook();
+      return;
+    }
+    if (tab === 'div-wrong') {
+      renderDivisibilityWrongBook();
+      return;
+    }
+    if (tab === 'task-history') {
+      renderTaskHistoryPanel();
+      return;
+    }
+    if (tab === 'train-debug') {
+      if (state.trainDebugPayload) {
+        renderTrainDebugPanel(state.trainDebugPayload);
+      } else {
+        void fetchAndRenderTrainDebug();
+      }
+      return;
+    }
+    if (tab === 'monthly-report') {
+      void loadMonthlyReports();
+      return;
+    }
+  }
+
+  function applyStudentWorkspaceCore(data, u) {
+    if (!data || state.selectedUsername !== u) return;
+    if (Object.prototype.hasOwnProperty.call(data, 'runs')) {
+      var runs = Array.isArray(data.runs) ? data.runs.slice() : [];
+      if (runs.length > 1) {
+        var needSort = false;
+        for (var i = 1; i < runs.length; i += 1) {
+          if ((runs[i - 1].ts || 0) < (runs[i].ts || 0)) {
+            needSort = true;
+            break;
+          }
+        }
+        if (needSort) {
+          runs.sort(function (a, b) {
+            return (b.ts || 0) - (a.ts || 0);
+          });
+        }
+      }
+      state.runs = runs;
+    }
+    state.userDetail = data && data.user ? data.user : state.userDetail;
+    state.statsBuiltFor = '';
+    state.agg = null;
+    if (data.aggByCategory && typeof data.aggByCategory === 'object') {
+      state.aggByCategory = data.aggByCategory;
+    } else if (Object.prototype.hasOwnProperty.call(data, 'aggByCategory')) {
+      state.aggByCategory = {};
+    }
+    state.chartModel = null;
+    if (data.heatmap) {
+      applyServerHeatmapPayload(data.heatmap);
+    } else if (data.parts && data.parts.heatmap) {
+      state.heat = null;
+      state.heatByCategory = {};
+      state.heatmapFromServer = false;
+    }
+    state.loadedStudentUsername = u;
+    applyWorkspaceExtras(data, u);
+  }
+
+  function loadStudentWorkspaceExtras(u, seq) {
+    if (!u) return Promise.resolve();
+    var ac = state.studentLoadAbort;
+    return fetchStudentWorkspace(u, 'extras', ac && ac.signal)
+      .then(function (extra) {
+        if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
+        applyWorkspaceExtras(extra, u);
+        if (activeTabId() === 'stats') {
+          renderStatsPanel();
+        } else if (activeTabId() === 'train-debug' && state.trainDebugPayload) {
+          renderTrainDebugPanel(state.trainDebugPayload);
+        }
+      })
+      .catch(function (e) {
+        if (isFetchAbortError(e)) return;
+        if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
+        state.practiceAdviceLoading = false;
+        if (!state.practiceAdvice) {
+          state.practiceAdviceError = (e && e.message) || '任务单加载失败';
+        }
+        if (activeTabId() === 'stats') renderStatsPanel();
+      });
   }
 
   function ensureStudentStatsBuilt() {
@@ -2161,83 +2314,51 @@
       errEl.style.display = 'none';
       errEl.textContent = '';
     }
-    return apiFetch('/api/admin/student-workspace/' + encodeURIComponent(u))
+
+    if (state.studentLoadAbort) {
+      try {
+        state.studentLoadAbort.abort();
+      } catch (eAbort) {
+        /* ignore */
+      }
+    }
+    var ac =
+      typeof AbortController !== 'undefined' ? new AbortController() : null;
+    state.studentLoadAbort = ac;
+    var seq = (state.studentLoadSeq = (state.studentLoadSeq || 0) + 1);
+    var tab = activeTabId();
+    var parts = workspacePartsForTab(tab);
+    var wantExtrasLater = parts === 'core';
+
+    state.practiceAdvice = null;
+    state.practiceAdviceError = '';
+    state.practiceAdviceLoading = wantExtrasLater || tab === 'stats' || tab === 'train-debug';
+    state.serverTrainingPick = null;
+    state.serverCategoryNext = null;
+    state.trainDebugPayload = null;
+    state.workspaceHasExtras = false;
+    if (parts.indexOf('core') >= 0 || parts === 'full') {
+      state.heat = null;
+      state.heatByCategory = {};
+      state.heatmapFromServer = false;
+      state.aggByCategory = {};
+    }
+
+    return fetchStudentWorkspace(u, parts, ac && ac.signal)
       .then(function (data) {
-        if (state.selectedUsername !== u) return;
-        var runs = Array.isArray(data.runs) ? data.runs.slice() : [];
-        // 服务端已按 ts 降序；仅在偶发乱序时再排
-        if (runs.length > 1) {
-          var needSort = false;
-          for (var i = 1; i < runs.length; i += 1) {
-            if ((runs[i - 1].ts || 0) < (runs[i].ts || 0)) {
-              needSort = true;
-              break;
-            }
-          }
-          if (needSort) {
-            runs.sort(function (a, b) {
-              return (b.ts || 0) - (a.ts || 0);
-            });
-          }
+        if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
+        applyStudentWorkspaceCore(data, u);
+        if (!wantExtrasLater) {
+          state.practiceAdviceLoading = false;
         }
-        state.runs = runs;
-        state.userDetail = data && data.user ? data.user : null;
-        state.statsBuiltFor = '';
-        state.agg = null;
-        state.aggByCategory = {};
-        state.chartModel = null;
-        state.heat = null;
-        state.heatByCategory = {};
-        state.practiceAdvice = null;
-        state.practiceAdviceError = '';
-        state.practiceAdviceLoading = true;
-        state.serverTrainingPick = null;
-        state.serverCategoryNext = null;
-        state.trainDebugPayload = null;
-        state.heatmapFromServer = false;
-        state.loadedStudentUsername = u;
-
-        applyWorkspaceExtras(data, u);
-
-        renderRunsTable();
-        renderWrongBook();
-        renderExpandWrongBook();
-        renderDivisibilityWrongBook();
-        renderTaskHistoryPanel();
-
-        if (activeTabId() === 'stats') {
-          ensureStudentStatsBuilt();
-          renderStatsPanel();
-          redrawAllStatsCharts();
-        } else if (activeTabId() === 'train-debug') {
-          if (state.trainDebugPayload) {
-            renderTrainDebugPanel(state.trainDebugPayload);
-          } else {
-            void fetchAndRenderTrainDebug();
-          }
-        } else if (activeTabId() === 'task-history') {
-          renderTaskHistoryPanel();
-        } else if (activeTabId() === 'monthly-report') {
-          void loadMonthlyReports();
-        } else {
-          var statsWrap = document.getElementById('jml-report-stats-body');
-          if (statsWrap) {
-            statsWrap.innerHTML =
-              '<div class="jml-report-empty">切换到「数据分析」时再计算热图与图表</div>';
-          }
-          if (state.trainDebugPayload) {
-            renderTrainDebugPlaceholder('切换到「训练选关Debug」可查看（已随工作台预载）');
-          } else {
-            renderTrainDebugPlaceholder('切换到「训练选关Debug」时再拉取服务器选关');
-          }
-          var monthlyWrap = document.getElementById('jml-report-monthly-body');
-          if (monthlyWrap) {
-            monthlyWrap.innerHTML =
-              '<div class="jml-report-empty">切换到「月度报告」时再加载列表</div>';
-          }
+        renderActiveStudentPanels();
+        if (wantExtrasLater) {
+          return loadStudentWorkspaceExtras(u, seq);
         }
       })
       .catch(function (e) {
+        if (isFetchAbortError(e)) return;
+        if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
         if (errEl) {
           errEl.textContent = e.message || String(e);
           errEl.style.display = 'block';

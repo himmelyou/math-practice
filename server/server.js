@@ -971,8 +971,11 @@ function computePracticePlanForUsername(username, opts) {
   }
 }
 
-function buildTrainingNextDebugBlock(username, user, runs) {
-  const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
+function buildTrainingNextDebugBlock(username, user, runs, heatPayloadOpt) {
+  const heatPayload =
+    heatPayloadOpt && heatPayloadOpt.ok
+      ? heatPayloadOpt
+      : buildHeatmapPayloadFromRuns(username, runs);
   const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
   const cellsSummary = cells.map((c) => {
     const p = c && c.p != null && Number.isFinite(Number(c.p)) ? Math.round(Number(c.p) * 1000) / 1000 : null;
@@ -1070,96 +1073,187 @@ function buildTrainingNextDebugBlock(username, user, runs) {
       typeof user.levelTrainingCurrentLevel === "number" && user.levelTrainingCurrentLevel >= 0
         ? user.levelTrainingCurrentLevel + 1
         : null,
+    levelTrainingUnlockedMax:
+      typeof user.levelTrainingUnlockedMax === "number" ? user.levelTrainingUnlockedMax : null,
+    levelTrainingUnlockedL:
+      typeof user.levelTrainingUnlockedMax === "number" && user.levelTrainingUnlockedMax >= 0
+        ? user.levelTrainingUnlockedMax > 15
+          ? 16
+          : user.levelTrainingUnlockedMax + 1
+        : null,
     server: serverBlock,
     recentTraining: trainingRuns,
   };
 }
 
 /**
- * 管理端学员工作台：runs 读一次，热图算一次，附带选关/任务单/报表聚合。
+ * 解析工作台 ?parts=
+ * - full（默认）：全部
+ * - core：user + runs + heatmap + agg（数据分析首包）
+ * - extras：practicePlan + trainingNext + categoryNext（内部仍算热图，不回传 runs/热图）
+ * - runs：仅 user + runs
+ * 也可逗号组合：core,trainingNext 等
+ */
+function parseWorkspaceParts(partsQuery) {
+  const raw = String(partsQuery == null || partsQuery === "" ? "full" : partsQuery)
+    .split(",")
+    .map((s) => String(s || "").trim())
+    .filter(Boolean);
+  const set = new Set(raw.length ? raw : ["full"]);
+  const has = (k) => set.has(k);
+  if (has("full")) {
+    return {
+      runs: true,
+      heatmap: true,
+      agg: true,
+      trainingNext: true,
+      categoryNext: true,
+      practicePlan: true,
+    };
+  }
+  const core = has("core");
+  const extras = has("extras");
+  return {
+    runs: core || has("runs") || has("user"),
+    heatmap: core || has("heatmap"),
+    agg: core || has("agg"),
+    trainingNext: extras || has("trainingNext"),
+    categoryNext: extras || has("categoryNext"),
+    practicePlan: extras || has("practicePlan"),
+  };
+}
+
+/**
+ * 管理端学员工作台：runs 读一次；按 parts 按需算热图/聚合/任务单/选关。
  * runs 默认瘦身（无 attempts）。
  */
 function buildStudentWorkspaceForUsername(username, opts) {
   opts = opts || {};
   const includeAttempts = opts.includeAttempts === true;
+  const parts = opts.parts || parseWorkspaceParts("full");
   const usersData = readJson(USERS_FILE, { users: [] });
   const user = usersData.users.find((u) => u.username === username);
   if (!user) return { ok: false, status: 404, error: "用户不存在" };
 
-  const runs = getNormalizedUserRunsSorted(username);
-  if (ensureUserClearedFlagsFromRuns(user, runs)) {
+  const needRuns =
+    parts.runs ||
+    parts.heatmap ||
+    parts.agg ||
+    parts.trainingNext ||
+    parts.categoryNext ||
+    parts.practicePlan;
+  const runs = needRuns ? getNormalizedUserRunsSorted(username) : [];
+  if (needRuns && ensureUserClearedFlagsFromRuns(user, runs)) {
     writeJson(USERS_FILE, usersData);
   }
 
-  const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
-  const trainDebug = buildTrainingNextDebugBlock(username, user, runs);
+  const needHeat =
+    parts.heatmap || parts.trainingNext || parts.practicePlan;
+  const heatPayload = needHeat ? buildHeatmapPayloadFromRuns(username, runs) : null;
 
-  const planOut = computePracticePlanForUsername(username, {
-    runs,
-    heatPayload,
-    snapshot: true,
-  });
-
-  let categoryNext = null;
-  try {
-    const built = computeSpecialCategoryNextLevels({
-      user,
-      runs,
-      cohorts: {
-        decimal: readCohortDecimalResultForHeatmap(),
-        perfectSquare: readCohortPerfectSquareResultForHeatmap(),
-        divisibility: readCohortDivisibilityResultForHeatmap(),
-        factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
-      },
-    });
-    categoryNext = {
-      ok: true,
-      byCategory: built.byCategory || {},
-      profile: {
-        levelDecimalCurrentLevel: user.levelDecimalCurrentLevel,
-        levelDecimalUnlockedMax: user.levelDecimalUnlockedMax,
-        levelPerfectSquareCurrentLevel: user.levelPerfectSquareCurrentLevel,
-        levelPerfectSquareUnlockedMax: user.levelPerfectSquareUnlockedMax,
-        levelDivisibilityCurrentLevel: user.levelDivisibilityCurrentLevel,
-        levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
-        levelFactorsMultiplesCurrentLevel: user.levelFactorsMultiplesCurrentLevel,
-        levelFactorsMultiplesUnlockedMax: user.levelFactorsMultiplesUnlockedMax,
-      },
-    };
-  } catch (e) {
-    categoryNext = {
-      ok: false,
-      error: e && e.message ? e.message : "选关计算失败",
-      byCategory: {},
-    };
+  let trainDebug = null;
+  if (parts.trainingNext) {
+    trainDebug = buildTrainingNextDebugBlock(username, user, runs, heatPayload);
   }
 
-  const aggBuilt = buildAggByCategoryFromRuns(runs);
+  let planOut = null;
+  if (parts.practicePlan) {
+    planOut = computePracticePlanForUsername(username, {
+      runs,
+      heatPayload,
+      snapshot: true,
+    });
+  }
 
-  return {
+  let categoryNext = null;
+  if (parts.categoryNext) {
+    try {
+      const built = computeSpecialCategoryNextLevels({
+        user,
+        runs,
+        cohorts: {
+          decimal: readCohortDecimalResultForHeatmap(),
+          perfectSquare: readCohortPerfectSquareResultForHeatmap(),
+          divisibility: readCohortDivisibilityResultForHeatmap(),
+          factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
+        },
+      });
+      categoryNext = {
+        ok: true,
+        byCategory: built.byCategory || {},
+        profile: {
+          levelDecimalCurrentLevel: user.levelDecimalCurrentLevel,
+          levelDecimalUnlockedMax: user.levelDecimalUnlockedMax,
+          levelPerfectSquareCurrentLevel: user.levelPerfectSquareCurrentLevel,
+          levelPerfectSquareUnlockedMax: user.levelPerfectSquareUnlockedMax,
+          levelDivisibilityCurrentLevel: user.levelDivisibilityCurrentLevel,
+          levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
+          levelFactorsMultiplesCurrentLevel: user.levelFactorsMultiplesCurrentLevel,
+          levelFactorsMultiplesUnlockedMax: user.levelFactorsMultiplesUnlockedMax,
+        },
+      };
+    } catch (e) {
+      categoryNext = {
+        ok: false,
+        error: e && e.message ? e.message : "选关计算失败",
+        byCategory: {},
+      };
+    }
+  }
+
+  let aggBuilt = null;
+  if (parts.agg) {
+    aggBuilt = buildAggByCategoryFromRuns(runs);
+  }
+
+  const out = {
     ok: true,
     username,
     at: new Date().toISOString(),
     user: safeUser(user),
-    runs: includeAttempts ? runs : runs.map(slimRunForAdminReport),
-    runsSlimmed: !includeAttempts,
-    heatmap: heatPayload,
-    aggByCategory: aggBuilt.ok ? aggBuilt.byCategory : {},
-    aggOk: !!aggBuilt.ok,
-    trainingNext: {
+    parts: {
+      runs: !!parts.runs,
+      heatmap: !!parts.heatmap,
+      agg: !!parts.agg,
+      trainingNext: !!parts.trainingNext,
+      categoryNext: !!parts.categoryNext,
+      practicePlan: !!parts.practicePlan,
+    },
+  };
+
+  if (parts.runs) {
+    out.runs = includeAttempts ? runs : runs.map(slimRunForAdminReport);
+    out.runsSlimmed = !includeAttempts;
+  }
+  if (parts.heatmap && heatPayload) {
+    out.heatmap = heatPayload;
+  }
+  if (parts.agg) {
+    out.aggByCategory = aggBuilt && aggBuilt.ok ? aggBuilt.byCategory : {};
+    out.aggOk = !!(aggBuilt && aggBuilt.ok);
+  }
+  if (parts.trainingNext && trainDebug) {
+    out.trainingNext = {
       ok: !!trainDebug.ok,
       at: trainDebug.at,
       note: trainDebug.note,
       levelTrainingCurrentLevel: trainDebug.levelTrainingCurrentLevel,
+      levelTrainingUnlockedMax: trainDebug.levelTrainingUnlockedMax,
+      levelTrainingUnlockedL: trainDebug.levelTrainingUnlockedL,
       levelTrainingCurrentL: trainDebug.levelTrainingCurrentL,
       server: trainDebug.server,
       recentTraining: trainDebug.recentTraining,
-    },
-    categoryNext: categoryNext,
-    practicePlan: planOut.ok
+    };
+  }
+  if (parts.categoryNext) {
+    out.categoryNext = categoryNext;
+  }
+  if (parts.practicePlan) {
+    out.practicePlan = planOut && planOut.ok
       ? adminPracticePlanPayload(planOut.advice)
-      : { ok: false, error: planOut.error || "任务单计算失败" },
-  };
+      : { ok: false, error: (planOut && planOut.error) || "任务单计算失败" };
+  }
+  return out;
 }
 
 function computeHeatmapL16PassedFromRuns(runs) {
@@ -2340,7 +2434,8 @@ app.post("/api/register", async (req, res) => {
     comboBest: 0,
     levelChallengeLastLevel: 0,
     levelChallengeBestLevel: 0,
-    levelTrainingCurrentLevel: -1,
+    levelTrainingCurrentLevel: 0,
+    levelTrainingUnlockedMax: 0,
     levelExpandBracketsCurrentLevel: 0,
     levelExpandBracketsUnlockedMax: 0,
     levelPerfectSquareCurrentLevel: 0,
@@ -2665,7 +2760,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "bestMemoryInstantSpan", "bestMemoryWorkingSpan", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "bestMemoryInstantSpan", "bestMemoryWorkingSpan", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelTrainingUnlockedMax", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -4358,7 +4453,8 @@ app.post("/api/admin/users", async (req, res) => {
     comboBest: 0,
     levelChallengeLastLevel: 0,
     levelChallengeBestLevel: 0,
-    levelTrainingCurrentLevel: -1,
+    levelTrainingCurrentLevel: 0,
+    levelTrainingUnlockedMax: 0,
     levelExpandBracketsCurrentLevel: 0,
     levelExpandBracketsUnlockedMax: 0,
     levelPerfectSquareCurrentLevel: 0,
@@ -4754,8 +4850,9 @@ app.get("/api/admin/student-workspace/:username", (req, res) => {
   const includeAttempts =
     String((req.query && req.query.attempts) || "") === "1" ||
     String((req.query && req.query.includeAttempts) || "") === "1";
+  const parts = parseWorkspaceParts(req.query && req.query.parts);
   try {
-    const out = buildStudentWorkspaceForUsername(username, { includeAttempts });
+    const out = buildStudentWorkspaceForUsername(username, { includeAttempts, parts });
     if (!out.ok) {
       return res.status(out.status || 500).json({ ok: false, error: out.error || "加载失败" });
     }
