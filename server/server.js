@@ -24,6 +24,8 @@ const { buildUserHeatmapsCached } = require("./user-heatmap");
 const { createHeatmapUserCache } = require("./heatmap-user-cache");
 const { buildUserAggCached } = require("./user-agg");
 const { createAggUserCache } = require("./agg-user-cache");
+const statsView = require("./stats-view");
+
 
 const overviewUserIndex = require("./overview-user-index");
 const {
@@ -1149,8 +1151,8 @@ function buildTrainingNextDebugBlock(username, user, runs, heatPayloadOpt) {
 /**
  * 解析工作台 ?parts=
  * - full（默认）：全部
- * - core：user + runs + heatmap + agg（数据分析首包）
- * - extras：practicePlan + trainingNext + categoryNext（内部仍算热图，不回传 runs/热图）
+ * - core：user + heatmap + agg（统计首包；不回传 runs）
+ * - extras：practicePlan + trainingNext + categoryNext
  * - runs：仅 user + runs
  * 也可逗号组合：core,trainingNext 等
  */
@@ -1174,7 +1176,7 @@ function parseWorkspaceParts(partsQuery) {
   const core = has("core");
   const extras = has("extras");
   return {
-    runs: core || has("runs") || has("user"),
+    runs: has("runs") || has("user"),
     heatmap: core || has("heatmap"),
     agg: core || has("agg"),
     trainingNext: extras || has("trainingNext"),
@@ -1184,8 +1186,8 @@ function parseWorkspaceParts(partsQuery) {
 }
 
 /**
- * 管理端学员工作台：runs 读一次；按 parts 按需算热图/聚合/任务单/选关。
- * runs 默认瘦身（无 attempts）。
+ * 管理端学员工作台：按 parts 按需返回。
+ * core（热图+折线）优先物化命中零读 runs；runs 仅在 parts.runs 时回传。
  */
 function buildStudentWorkspaceForUsername(username, opts) {
   opts = opts || {};
@@ -1195,32 +1197,73 @@ function buildStudentWorkspaceForUsername(username, opts) {
   const user = usersData.users.find((u) => u.username === username);
   if (!user) return { ok: false, status: 404, error: "用户不存在" };
 
-  // extras（任务单/选关）在有热图快照时可零读 runs；core/agg/返回 runs 仍需读盘
-  const extrasOnly =
-    (parts.practicePlan || parts.trainingNext || parts.categoryNext) &&
-    !parts.runs &&
-    !parts.heatmap &&
-    !parts.agg;
+  const wantStats = !!(parts.heatmap || parts.agg);
+  const wantExtras = !!(parts.practicePlan || parts.trainingNext || parts.categoryNext);
+  const extrasOnly = wantExtras && !parts.runs && !wantStats;
+
   let heatPayload = null;
-  if (parts.heatmap || parts.trainingNext || parts.practicePlan || parts.categoryNext) {
-    if (extrasOnly) {
-      heatPayload = buildHeatmapPayloadFromCacheOnly(username);
+  let aggByCategory = null;
+  let aggOk = false;
+  let selectionHint = null;
+  let statsRevision = statsView.computeStatsRevision(user);
+  let statsCacheHit = false;
+  let userDirty = false;
+
+  if (wantStats) {
+    const cached = statsView.tryLoadStatsViewFromCache({
+      username,
+      user,
+      heatmapCache: heatmapUserCache,
+      aggCache: aggUserCache,
+    });
+    if (cached && cached.fresh) {
+      heatPayload = cached.heatPayload;
+      aggByCategory = cached.aggByCategory || {};
+      aggOk = !!cached.aggOk;
+      selectionHint = cached.selectionHint;
+      statsRevision = cached.statsRevision || statsRevision;
+      statsCacheHit = true;
     }
-  }
-  const needRuns =
-    parts.runs ||
-    parts.agg ||
-    (parts.heatmap && !heatPayload) ||
-    ((parts.trainingNext || parts.practicePlan || parts.categoryNext) && !heatPayload);
-  const runs = needRuns ? getNormalizedUserRunsSorted(username) : [];
-  if (needRuns && ensureUserClearedFlagsFromRuns(user, runs)) {
-    writeJson(USERS_FILE, usersData);
+  } else if (extrasOnly) {
+    heatPayload = buildHeatmapPayloadFromCacheOnly(username);
   }
 
-  if ((parts.heatmap || parts.trainingNext || parts.practicePlan || parts.categoryNext) && !heatPayload) {
+  const needRuns =
+    parts.runs ||
+    (wantStats && !statsCacheHit) ||
+    (wantExtras && !heatPayload);
+  let runs = needRuns ? getNormalizedUserRunsSorted(username) : [];
+  if (needRuns && ensureUserClearedFlagsFromRuns(user, runs)) {
+    userDirty = true;
+  }
+
+  if (wantStats && !statsCacheHit) {
+    const built = statsView.materializeStatsViewFromRuns({
+      username,
+      user,
+      runs,
+      heatmapCache: heatmapUserCache,
+      aggCache: aggUserCache,
+      cohortsByCategory: cohortsByCategoryForHeatmap(),
+    });
+    heatPayload = built.heatPayload;
+    aggByCategory = built.aggByCategory || {};
+    aggOk = !!built.aggOk;
+    selectionHint = built.selectionHint;
+    statsRevision = built.statsRevision || statsView.computeStatsRevision(user);
+    userDirty = true;
+  } else if ((wantExtras || parts.heatmap) && !heatPayload) {
     heatPayload = runs.length
       ? buildHeatmapPayloadFromRuns(username, runs)
       : buildHeatmapPayloadFromCacheOnly(username);
+  }
+
+  if (!selectionHint && user.statsSelectionHint) {
+    selectionHint = user.statsSelectionHint;
+  }
+
+  if (userDirty) {
+    writeJson(USERS_FILE, usersData);
   }
 
   let trainDebug = null;
@@ -1274,9 +1317,10 @@ function buildStudentWorkspaceForUsername(username, opts) {
     }
   }
 
-  let aggBuilt = null;
-  if (parts.agg) {
-    aggBuilt = buildAggByCategoryFromRuns(runs, { username });
+  if (parts.agg && aggByCategory == null) {
+    const aggBuilt = buildAggByCategoryFromRuns(runs, { username });
+    aggByCategory = aggBuilt && aggBuilt.ok ? aggBuilt.byCategory : {};
+    aggOk = !!(aggBuilt && aggBuilt.ok);
   }
 
   const out = {
@@ -1284,6 +1328,9 @@ function buildStudentWorkspaceForUsername(username, opts) {
     username,
     at: new Date().toISOString(),
     user: safeUser(user),
+    statsRevision: statsRevision,
+    statsCacheHit: !!statsCacheHit,
+    selectionHint: selectionHint || null,
     parts: {
       runs: !!parts.runs,
       heatmap: !!parts.heatmap,
@@ -1302,8 +1349,8 @@ function buildStudentWorkspaceForUsername(username, opts) {
     out.heatmap = heatPayload;
   }
   if (parts.agg) {
-    out.aggByCategory = aggBuilt && aggBuilt.ok ? aggBuilt.byCategory : {};
-    out.aggOk = !!(aggBuilt && aggBuilt.ok);
+    out.aggByCategory = aggByCategory || {};
+    out.aggOk = !!aggOk;
   }
   if (parts.trainingNext && trainDebug) {
     out.trainingNext = {
@@ -3847,6 +3894,29 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
         username,
         eIdx && eIdx.message ? eIdx.message : eIdx
       );
+    }
+    if (!comboOnly) {
+      try {
+        const runsForStats = allRunsAfterWrite || runsStore.getUserRuns(username);
+        statsView.refreshStatsViewAfterRun({
+          username,
+          user: u,
+          runEntry,
+          runs: runsForStats.map((r) => ({
+            ...r,
+            mode: normalizeRunMode(r.mode),
+          })),
+          heatmapCache: heatmapUserCache,
+          aggCache: aggUserCache,
+          cohortsByCategory: cohortsByCategoryForHeatmap(),
+        });
+      } catch (eStats) {
+        console.warn(
+          "[stats-view]",
+          username,
+          eStats && eStats.message ? eStats.message : eStats
+        );
+      }
     }
     if (!comboOnly) {
     u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);

@@ -33,8 +33,10 @@ function createHeatmapUserCache(opts) {
       byCategory: {},
       categories: [],
       maxRunTsByCategory: {},
+      selectionHint: null,
     };
   }
+
 
   function get(username) {
     const name = String(username || "");
@@ -66,6 +68,8 @@ function createHeatmapUserCache(opts) {
         doc.maxRunTsByCategory && typeof doc.maxRunTsByCategory === "object"
           ? doc.maxRunTsByCategory
           : {},
+      selectionHint:
+        doc.selectionHint && typeof doc.selectionHint === "object" ? doc.selectionHint : null,
     });
   }
 

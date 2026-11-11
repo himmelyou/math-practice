@@ -232,6 +232,13 @@ function buildUserHeatmapsCached(opts) {
         byCategory: byCategory,
         categories: categoriesMeta,
         maxRunTsByCategory: maxRunTsByCategory,
+        selectionHint:
+          (opts.selectionHint && typeof opts.selectionHint === "object"
+            ? opts.selectionHint
+            : null) ||
+          (snap && snap.selectionHint && typeof snap.selectionHint === "object"
+            ? snap.selectionHint
+            : null),
       });
     } catch (e) {
       console.warn("[user-heatmap] cache set failed", username, e && e.message ? e.message : e);

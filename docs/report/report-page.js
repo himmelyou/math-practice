@@ -129,6 +129,12 @@
     statsLevelIndex: 0,
     chartCategoryId: 'arithmetic',
     expandedCategoryId: 'arithmetic',
+    selectionHint: null,
+    statsRevision: 0,
+    runsLoadedFor: '',
+    /** 多学员 LRU：username → bag；切换已打开过的人可零请求 */
+    studentBagCache: Object.create(null),
+    studentBagCacheOrder: [],
     loadError: '',
     cohort: null,
     cohortByCategory: {},
@@ -987,10 +993,30 @@
     }
     if (state.loadedStudentUsername !== state.selectedUsername) {
       if (next === 'task-history') renderTaskHistoryPanel();
+      if (tryAdoptStudentBagCache(state.selectedUsername)) {
+        renderActiveStudentPanels();
+        if (
+          (next === 'stats' || next === 'train-debug') &&
+          !state.workspaceHasExtras
+        ) {
+          void loadStudentWorkspaceExtras(state.selectedUsername, state.studentLoadSeq);
+        }
+        if (
+          (next === 'runs' || next === 'train-debug') &&
+          state.runsLoadedFor !== state.selectedUsername
+        ) {
+          void loadStudentRunsOnly();
+        }
+        return;
+      }
       void loadStudentData();
       return;
     }
     if (next === 'runs') {
+      if (state.runsLoadedFor !== state.selectedUsername) {
+        void loadStudentRunsOnly();
+        return;
+      }
       renderRunsTable();
       return;
     }
@@ -1021,7 +1047,13 @@
     }
     if (next === 'train-debug') {
       if (!state.heatmapFromServer || !state.trainDebugPayload) {
-        void loadStudentData();
+        void loadStudentData({ force: !state.heatmapFromServer });
+        return;
+      }
+      if (state.runsLoadedFor !== state.selectedUsername) {
+        void loadStudentRunsOnly().then(function () {
+          void loadTrainDebug(false);
+        });
         return;
       }
       void loadTrainDebug(false);
@@ -1958,6 +1990,119 @@
     return null;
   }
 
+  var STUDENT_BAG_CACHE_MAX = 12;
+
+  function expectedStudentRevision(username) {
+    if (!username) return 0;
+    for (var i = 0; i < state.overviewRows.length; i += 1) {
+      var row = state.overviewRows[i];
+      if (row && row.username === username) {
+        return Number(row.lastGameTs || row.createdAt) || 0;
+      }
+    }
+    var meta = findUserMeta(username);
+    return Number(meta && meta.lastGameTs) || 0;
+  }
+
+  function snapshotStudentBag(username) {
+    var u = username || state.loadedStudentUsername;
+    if (!u) return null;
+    return {
+      username: u,
+      revision:
+        Number(state.userDetail && state.userDetail.lastGameTs) ||
+        Number(state.statsRevision) ||
+        expectedStudentRevision(u) ||
+        0,
+      runs: Array.isArray(state.runs) ? state.runs.slice() : [],
+      runsLoadedFor: state.runsLoadedFor === u ? u : '',
+      userDetail: state.userDetail,
+      aggByCategory: state.aggByCategory || {},
+      heat: state.heat,
+      heatByCategory: state.heatByCategory || {},
+      heatmapFromServer: !!state.heatmapFromServer,
+      cohortByCategory: state.cohortByCategory || {},
+      selectionHint: state.selectionHint,
+      statsRevision: Number(state.statsRevision) || 0,
+      statsBuiltFor: state.statsBuiltFor,
+      agg: state.agg,
+      chartModel: state.chartModel,
+      statsLevelIndex: state.statsLevelIndex,
+      chartCategoryId: state.chartCategoryId,
+      expandedCategoryId: state.expandedCategoryId,
+      workspaceHasExtras: !!state.workspaceHasExtras,
+      practiceAdvice: state.practiceAdvice,
+      practiceAdviceError: state.practiceAdviceError || '',
+      trainDebugPayload: state.trainDebugPayload,
+      serverTrainingPick: state.serverTrainingPick,
+      serverCategoryNext: state.serverCategoryNext,
+    };
+  }
+
+  function putStudentBagCache(username, bag) {
+    if (!username || !bag) return;
+    state.studentBagCache[username] = bag;
+    var order = state.studentBagCacheOrder.filter(function (x) {
+      return x !== username;
+    });
+    order.push(username);
+    while (order.length > STUDENT_BAG_CACHE_MAX) {
+      var drop = order.shift();
+      if (drop && drop !== username) delete state.studentBagCache[drop];
+    }
+    state.studentBagCacheOrder = order;
+  }
+
+  function invalidateStudentBagCache(username) {
+    if (!username) return;
+    delete state.studentBagCache[username];
+    state.studentBagCacheOrder = state.studentBagCacheOrder.filter(function (x) {
+      return x !== username;
+    });
+  }
+
+  function restoreStudentBag(bag) {
+    if (!bag) return;
+    state.runs = Array.isArray(bag.runs) ? bag.runs.slice() : [];
+    state.runsLoadedFor = bag.runsLoadedFor || '';
+    state.userDetail = bag.userDetail || null;
+    state.aggByCategory = bag.aggByCategory || {};
+    state.heat = bag.heat || null;
+    state.heatByCategory = bag.heatByCategory || {};
+    state.heatmapFromServer = !!bag.heatmapFromServer;
+    state.cohortByCategory = bag.cohortByCategory || {};
+    state.selectionHint = bag.selectionHint || null;
+    state.statsRevision = Number(bag.statsRevision) || Number(bag.revision) || 0;
+    state.statsBuiltFor = bag.statsBuiltFor || '';
+    state.agg = bag.agg || null;
+    state.chartModel = bag.chartModel || null;
+    state.statsLevelIndex = bag.statsLevelIndex || 0;
+    state.chartCategoryId = bag.chartCategoryId || 'arithmetic';
+    state.expandedCategoryId = bag.expandedCategoryId || 'arithmetic';
+    state.workspaceHasExtras = !!bag.workspaceHasExtras;
+    state.practiceAdvice = bag.practiceAdvice || null;
+    state.practiceAdviceError = bag.practiceAdviceError || '';
+    state.practiceAdviceLoading = false;
+    state.trainDebugPayload = bag.trainDebugPayload || null;
+    state.serverTrainingPick = bag.serverTrainingPick || null;
+    state.serverCategoryNext = bag.serverCategoryNext || null;
+    state.loadedStudentUsername = bag.username || '';
+  }
+
+  /** @returns {boolean} 是否已用本地 bag 恢复 */
+  function tryAdoptStudentBagCache(username) {
+    if (!username) return false;
+    var bag = state.studentBagCache[username];
+    if (!bag || !bag.heatmapFromServer) return false;
+    var expect = expectedStudentRevision(username);
+    var bagRev = Number(bag.revision) || Number(bag.statsRevision) || 0;
+    // overview 尚无 lastGameTs 时：有 bag 仍可复用；有 expect 则必须一致
+    if (expect > 0 && bagRev > 0 && bagRev !== expect) return false;
+    restoreStudentBag(bag);
+    putStudentBagCache(username, bag);
+    return true;
+  }
+
   function showOverviewTabChrome() {
     document.querySelectorAll('.jml-tab').forEach(function (btn) {
       btn.classList.toggle('active', btn.getAttribute('data-tab') === 'overview');
@@ -2183,29 +2328,47 @@
     }
   }
 
+  function applyRunsFromWorkspace(data, u) {
+    if (!data || !Object.prototype.hasOwnProperty.call(data, 'runs')) return;
+    var runs = Array.isArray(data.runs) ? data.runs.slice() : [];
+    if (runs.length > 1) {
+      var needSort = false;
+      for (var i = 1; i < runs.length; i += 1) {
+        if ((runs[i - 1].ts || 0) < (runs[i].ts || 0)) {
+          needSort = true;
+          break;
+        }
+      }
+      if (needSort) {
+        runs.sort(function (a, b) {
+          return (b.ts || 0) - (a.ts || 0);
+        });
+      }
+    }
+    state.runs = runs;
+    state.runsLoadedFor = u;
+  }
+
   function applyStudentWorkspaceCore(data, u) {
     if (!data || state.selectedUsername !== u) return;
     if (Object.prototype.hasOwnProperty.call(data, 'runs')) {
-      var runs = Array.isArray(data.runs) ? data.runs.slice() : [];
-      if (runs.length > 1) {
-        var needSort = false;
-        for (var i = 1; i < runs.length; i += 1) {
-          if ((runs[i - 1].ts || 0) < (runs[i].ts || 0)) {
-            needSort = true;
-            break;
-          }
-        }
-        if (needSort) {
-          runs.sort(function (a, b) {
-            return (b.ts || 0) - (a.ts || 0);
-          });
-        }
-      }
-      state.runs = runs;
+      applyRunsFromWorkspace(data, u);
+    } else if (state.loadedStudentUsername !== u) {
+      state.runs = [];
+      state.runsLoadedFor = '';
     }
     state.userDetail = data && data.user ? data.user : state.userDetail;
     state.statsBuiltFor = '';
     state.agg = null;
+    state.selectionHint =
+      data.selectionHint && typeof data.selectionHint === 'object'
+        ? data.selectionHint
+        : null;
+    state.statsRevision =
+      Number(data.statsRevision) ||
+      Number(data.user && data.user.lastGameTs) ||
+      expectedStudentRevision(u) ||
+      0;
     if (data.aggByCategory && typeof data.aggByCategory === 'object') {
       state.aggByCategory = data.aggByCategory;
     } else if (Object.prototype.hasOwnProperty.call(data, 'aggByCategory')) {
@@ -2221,6 +2384,7 @@
     }
     state.loadedStudentUsername = u;
     applyWorkspaceExtras(data, u);
+    putStudentBagCache(u, snapshotStudentBag(u));
   }
 
   function loadStudentWorkspaceExtras(u, seq) {
@@ -2230,6 +2394,9 @@
       .then(function (extra) {
         if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
         applyWorkspaceExtras(extra, u);
+        if (state.loadedStudentUsername === u) {
+          putStudentBagCache(u, snapshotStudentBag(u));
+        }
         if (activeTabId() === 'stats') {
           renderStatsPanel();
         } else if (activeTabId() === 'train-debug' && state.trainDebugPayload) {
@@ -2249,7 +2416,8 @@
 
   function ensureStudentStatsBuilt() {
     var u = state.loadedStudentUsername || state.selectedUsername;
-    if (!u || !state.runs) return;
+    if (!u) return;
+    if (!Array.isArray(state.runs)) state.runs = [];
     if (state.statsBuiltFor === u && state.aggByCategory && Object.keys(state.aggByCategory).length) {
       return;
     }
@@ -2261,7 +2429,7 @@
       state.aggByCategory = {};
     }
     if (Agg && HM && HM.getHeatmapCategories) {
-      if (!hasServerAgg) {
+      if (!hasServerAgg && runs.length) {
         HM.getHeatmapCategories().forEach(function (cat) {
           state.aggByCategory[cat.id] = Agg.aggregateFromRuns(runs, {
             modes: cat.modes,
@@ -2269,9 +2437,15 @@
           });
         });
       }
-      var sel = HM.findLatestHeatmapRelatedSelection
-        ? HM.findLatestHeatmapRelatedSelection(runs)
-        : { categoryId: 'arithmetic', levelIndex: 0 };
+      var sel =
+        state.selectionHint && state.selectionHint.categoryId
+          ? {
+              categoryId: state.selectionHint.categoryId,
+              levelIndex: Number(state.selectionHint.levelIndex) || 0,
+            }
+          : HM.findLatestHeatmapRelatedSelection && runs.length
+            ? HM.findLatestHeatmapRelatedSelection(runs)
+            : { categoryId: 'arithmetic', levelIndex: 0 };
       state.expandedCategoryId = sel.categoryId;
       state.chartCategoryId = sel.categoryId;
       var chartAgg = state.aggByCategory[sel.categoryId];
@@ -2321,18 +2495,78 @@
     state.statsBuiltFor = u;
   }
 
-  function loadStudentData() {
+  function loadStudentRunsOnly() {
+    var u = state.selectedUsername;
+    if (!u) return Promise.resolve();
+    var ac = state.studentLoadAbort;
+    var seq = state.studentLoadSeq;
+    return fetchStudentWorkspace(u, 'runs', ac && ac.signal)
+      .then(function (data) {
+        if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
+        if (data && data.user) state.userDetail = data.user;
+        applyRunsFromWorkspace(data, u);
+        if (state.loadedStudentUsername === u) {
+          putStudentBagCache(u, snapshotStudentBag(u));
+        }
+        if (activeTabId() === 'runs') renderRunsTable();
+      })
+      .catch(function (e) {
+        if (isFetchAbortError(e)) return;
+        if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
+        var errEl = document.getElementById('jml-report-student-error');
+        if (errEl) {
+          errEl.textContent = e.message || String(e);
+          errEl.style.display = 'block';
+        }
+      });
+  }
+
+  function loadStudentData(opts) {
+    opts = opts || {};
+    var force = opts.force === true;
     var u = state.selectedUsername;
     if (!u) {
       clearPanels();
       syncRefreshStudentBtn(false);
-      return;
+      return Promise.resolve();
     }
     var errEl = document.getElementById('jml-report-student-error');
     if (errEl) {
       errEl.style.display = 'none';
       errEl.textContent = '';
     }
+
+    if (
+      state.loadedStudentUsername &&
+      state.loadedStudentUsername !== u &&
+      state.heatmapFromServer
+    ) {
+      putStudentBagCache(
+        state.loadedStudentUsername,
+        snapshotStudentBag(state.loadedStudentUsername)
+      );
+    }
+
+    if (!force && tryAdoptStudentBagCache(u)) {
+      renderActiveStudentPanels();
+      var tab0 = activeTabId();
+      var tasks = [];
+      if (
+        (tab0 === 'stats' || tab0 === 'train-debug') &&
+        !state.workspaceHasExtras
+      ) {
+        tasks.push(loadStudentWorkspaceExtras(u, state.studentLoadSeq));
+      }
+      if (
+        (tab0 === 'runs' || tab0 === 'train-debug') &&
+        state.runsLoadedFor !== u
+      ) {
+        tasks.push(loadStudentRunsOnly());
+      }
+      return tasks.length ? Promise.all(tasks) : Promise.resolve();
+    }
+
+    if (force) invalidateStudentBagCache(u);
 
     if (state.studentLoadAbort) {
       try {
@@ -2356,11 +2590,18 @@
     state.serverCategoryNext = null;
     state.trainDebugPayload = null;
     state.workspaceHasExtras = false;
+    state.selectionHint = null;
     if (parts.indexOf('core') >= 0 || parts === 'full') {
       state.heat = null;
       state.heatByCategory = {};
       state.heatmapFromServer = false;
       state.aggByCategory = {};
+    }
+    if (parts === 'runs' || parts.indexOf('runs') >= 0) {
+      /* runs-only tab */
+    } else {
+      state.runs = [];
+      state.runsLoadedFor = '';
     }
 
     return fetchStudentWorkspace(u, parts, ac && ac.signal)
@@ -2371,9 +2612,17 @@
           state.practiceAdviceLoading = false;
         }
         renderActiveStudentPanels();
+        var follow = [];
         if (wantExtrasLater) {
-          return loadStudentWorkspaceExtras(u, seq);
+          follow.push(loadStudentWorkspaceExtras(u, seq));
         }
+        if (
+          (tab === 'runs' || tab === 'train-debug') &&
+          state.runsLoadedFor !== u
+        ) {
+          follow.push(loadStudentRunsOnly());
+        }
+        if (follow.length) return Promise.all(follow);
       })
       .catch(function (e) {
         if (isFetchAbortError(e)) return;
@@ -4054,7 +4303,7 @@
           });
           return;
         }
-        var p = loadStudentData();
+        var p = loadStudentData({ force: true });
         if (!p || typeof p.finally !== 'function') {
           refreshStudent.textContent = prevLabel;
           syncRefreshStudentBtn(false);
