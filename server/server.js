@@ -25,6 +25,8 @@ const { createHeatmapUserCache } = require("./heatmap-user-cache");
 const { buildUserAggCached } = require("./user-agg");
 const { createAggUserCache } = require("./agg-user-cache");
 const statsView = require("./stats-view");
+const { createAdminUsersIndex } = require("./admin-users-index");
+
 
 
 const overviewUserIndex = require("./overview-user-index");
@@ -472,6 +474,31 @@ const aggUserCache = createAggUserCache({
   readJson,
   writeJson,
 });
+const adminUsersIndex = createAdminUsersIndex({
+  dataDir: DATA_DIR,
+  readJson,
+  writeJson,
+});
+
+function syncAdminUsersIndexFromUser(u) {
+  try {
+    if (u && u.username) adminUsersIndex.upsertUser(u);
+  } catch (e) {
+    console.warn("[admin-users-index] upsert", e && e.message ? e.message : e);
+  }
+}
+
+function rebuildAdminUsersIndexFromDisk() {
+  try {
+    const data = readJson(USERS_FILE, { users: [] });
+    return adminUsersIndex.rebuildFromUsers(Array.isArray(data.users) ? data.users : []);
+  } catch (e) {
+    console.warn("[admin-users-index] rebuild", e && e.message ? e.message : e);
+    return [];
+  }
+}
+
+
 
 const monthlySnapshotWriter = createMonthlySnapshotWriter({
   store: monthlySnapshotStore,
@@ -2581,9 +2608,11 @@ app.post("/api/register", async (req, res) => {
   };
   data.users.push(newUser);
   writeJson(USERS_FILE, data);
+  syncAdminUsersIndexFromUser(newUser);
   const token = setAuthCookie(res, name);
   res.json({ ok: true, user: safeUserForStudent(newUser), token });
 });
+
 
 // ========== 学员登录 ==========
 app.post("/api/login", async (req, res) => {
@@ -2911,6 +2940,12 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
   writeJson(USERS_FILE, data);
   data.users[idx].avatarId = resolveUserAvatarIdOrEmpty(data.users[idx]);
   const outUser = data.users[idx];
+  if (
+    touched.indexOf("nickname") >= 0 ||
+    touched.indexOf("totalScore") >= 0
+  ) {
+    syncAdminUsersIndexFromUser(outUser);
+  }
   res.json({
     ok: true,
     patch: pickStudentUserPatch(outUser, touched),
@@ -2918,6 +2953,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
 });
 
 // ========== 学员修改密码，需登录且只能修改自己 ==========
+
 app.post("/api/user/:username/change-password", requireStudentAuth, ensureOwnData, async (req, res) => {
   const { username } = req.params;
   const { currentPassword, newPassword } = req.body || {};
@@ -4062,6 +4098,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
         console.warn("[monthly-snapshot]", username, e && e.message ? e.message : e);
       }
     }
+    syncAdminUsersIndexFromUser(u);
     const sync = buildRunSyncForStudent(u, runEntry.mode);
     if (newlyUnlocked.length) sync.newAchievements = newlyUnlocked;
     return res.json({ ok: true, sync });
@@ -4071,6 +4108,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
 
 /**
  * 学员端排行榜 JSON：list 仅含全榜前 RANKING_PUBLIC_MAX；myRank/myEntry 按全榜排序计算。
+
  * @param {Array} sortedRows 已排序的全榜行（原始数据）
  * @param {string} usernameQuery req.query.username
  * @param {{ getUsername?: (row: unknown) => string, getRank?: (row: unknown, index: number) => number, toEntry: (row: unknown, rank: number) => object|null }} options
@@ -4337,47 +4375,35 @@ app.get("/api/combo-ranking", (req, res) => {
 });
 
 // ========== 管理员：获取所有学员 ==========
-/** 账号管理表行：只返回列表需要的标量，避免整包用户 + 全量 runs */
+/** 账号管理表行（投影同形；重建时从胖 user 映射） */
 function adminUsersListRow(u) {
-  return {
-    username: u && u.username ? String(u.username) : "",
-    nickname: typeof (u && u.nickname) === "string" ? u.nickname.trim() : "",
-    adminNote: typeof (u && u.adminNote) === "string" ? u.adminNote.trim() : "",
-    grade: u && u.grade != null && u.grade !== "" ? u.grade : null,
-    totalScore: Number(u && u.totalScore) || 0,
-    lastGameTs: Number(u && u.lastGameTs) || 0,
-    createdAt: Number(u && u.createdAt) || 0,
-    isTester: !!(u && u.isTester),
-    isVip: !!(u && u.isVip),
-  };
+  return adminUsersIndex.toListRow(u);
 }
 
 app.get("/api/admin/users", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const data = readJson(USERS_FILE, { users: [] });
-  const list = Array.isArray(data.users) ? data.users : [];
-  let backfilled = 0;
-  // 优先用局入库时写入的 lastGameTs；旧号缺失时扫一次 runs 并回写，避免每次列表都读全库对局
-  list.forEach((u) => {
-    if (!u || !u.username) return;
-    if (Number(u.lastGameTs) > 0) return;
-    const ts = latestRunTsFromRuns(runsStore.getUserRuns(u.username));
-    if (ts > 0) {
-      u.lastGameTs = ts;
-      backfilled += 1;
-    }
-  });
-  if (backfilled > 0) {
-    writeJson(USERS_FILE, data);
+  const forceRebuild = String(req.query.rebuild || "") === "1";
+  let users;
+  let rebuilt = false;
+  if (forceRebuild) {
+    const data = readJson(USERS_FILE, { users: [] });
+    users = adminUsersIndex.rebuildFromUsers(Array.isArray(data.users) ? data.users : []);
+    rebuilt = true;
+  } else {
+    const listed = adminUsersIndex.listOrRebuild(function () {
+      const data = readJson(USERS_FILE, { users: [] });
+      return Array.isArray(data.users) ? data.users : [];
+    });
+    users = listed.users;
+    rebuilt = !!listed.rebuilt;
   }
-  const users = list.map(adminUsersListRow);
   res.json({
     ok: true,
     users,
     gradeBulkUpgrade: getGradeBulkUpgradeStatus(),
-    lastGameTsBackfilled: backfilled,
+    indexRebuilt: rebuilt,
   });
 });
 
@@ -4436,6 +4462,7 @@ app.post("/api/admin/users/bulk-upgrade-grade", (req, res) => {
   });
 
   writeJson(USERS_FILE, data);
+  adminUsersIndex.rebuildFromUsers(data.users);
   const meta = readAdminMeta();
   meta.lastGradeBulkUpgradeAt = now;
   writeAdminMeta(meta);
@@ -4452,6 +4479,7 @@ app.post("/api/admin/users/bulk-upgrade-grade", (req, res) => {
     gradeBulkUpgrade: nextStatus,
   });
 });
+
 
 // ========== 管理员：学员概览表（各模式进度、未上线天数） ==========
 // 可选 ?username=xxx：只算该学员一行（管理页深链 / 切换单人）
@@ -4651,6 +4679,7 @@ app.post("/api/admin/users", async (req, res) => {
     createdAt: Date.now(),
   });
   writeJson(USERS_FILE, data);
+  syncAdminUsersIndexFromUser(data.users[data.users.length - 1]);
   res.json({ ok: true, users: data.users.map(safeUser) });
 });
 
@@ -4688,6 +4717,7 @@ app.put("/api/admin/users/:username", async (req, res) => {
     }
   }
   writeJson(USERS_FILE, data);
+  syncAdminUsersIndexFromUser(data.users[idx]);
   res.json({ ok: true, user: safeUser(data.users[idx]) });
 });
 
@@ -4715,6 +4745,11 @@ function purgeUserCompletely(username) {
   }
   data.users.splice(idx, 1);
   writeJson(USERS_FILE, data);
+  try {
+    adminUsersIndex.removeUser(name);
+  } catch (eIdx) {
+    console.warn("[admin-users-index] remove", eIdx && eIdx.message ? eIdx.message : eIdx);
+  }
 
   const runList = runsStore.getUserRuns(name);
   const runsRemoved = runList.length;
@@ -5182,17 +5217,22 @@ app.get("/api/admin/user-list", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const data = readJson(USERS_FILE, { users: [] });
-  const users = data.users
+  const listed = adminUsersIndex.listOrRebuild(function () {
+    const data = readJson(USERS_FILE, { users: [] });
+    return Array.isArray(data.users) ? data.users : [];
+  });
+  const users = (listed.users || [])
     .map((u) => ({
       username: u.username,
       nickname: typeof u.nickname === "string" ? u.nickname.trim() : "",
       adminNote: typeof u.adminNote === "string" ? u.adminNote.trim() : "",
       isVip: u.isVip === true,
+      lastGameTs: Number(u.lastGameTs) || 0,
     }))
     .sort((a, b) => String(a.username || "").localeCompare(String(b.username || "")));
   res.json({ ok: true, users });
 });
+
 
 /** 报表难度热图：全体常模（仅 survival/level/training） */
 const COHORT_LEVEL_COUNT = 16;
@@ -6033,6 +6073,7 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
     if (body.users) {
       const u = body.users;
       writeJson(USERS_FILE, u.users && Array.isArray(u.users) ? u : { users: Array.isArray(u) ? u : [] });
+      rebuildAdminUsersIndexFromDisk();
       restored.push("users");
     }
     if (body.runs) {

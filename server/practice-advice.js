@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.41：平方 L2+ 任务侧按超前（不开新；有数据黄橙才推）。
+ * 练习建议 v0.42：特殊/小数硬留按今日已结案消耗，重开不再重复占格。
+ * v0.41：平方 L2+ 任务侧按超前（不开新；有数据黄橙才推）。
  * v0.40：开新关/超前进队闸与模式梯子一致（准≥95% 且未过慢）。
  * v0.39：次日首开/刷新整单重算；去掉失败钟与补格；间隔破例排队尾。
  * v0.38：质数合数通关判定与成就对齐（cleared/perfect 或 score≥250）。
@@ -8,7 +9,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.41-provisional";
+  var RULE_VERSION = "0.42-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -1213,18 +1214,59 @@
     return out;
   }
 
+  function isSpecialModeAction(action) {
+    if (!Modes || !Modes.SPECIAL_ORDER || !action) return false;
+    return Modes.SPECIAL_ORDER.indexOf(action) >= 0;
+  }
+
+  function isDecimalAction(action) {
+    return action === "decimal";
+  }
+
+  /** 今日留牌已占用的硬留：特殊四选一 / 小数（按中国日历日）。 */
+  function countTodaySlotSpend(plan, dayKey) {
+    var spend = { special: 0, decimal: 0, arith: 0 };
+    if (!dayKey) return spend;
+    (plan && plan.tasks ? plan.tasks : []).forEach(function (t) {
+      if (!t || (t.status !== "success" && t.status !== "fail")) return;
+      if (t.chinaDay !== dayKey) return;
+      if (isDecimalAction(t.action)) spend.decimal += 1;
+      else if (isSpecialModeAction(t.action)) spend.special += 1;
+      else spend.arith += 1;
+    });
+    return spend;
+  }
+
+  function isArithSeed(seed) {
+    return (
+      !!seed &&
+      (seed.kind === "training" ||
+        seed.kind === "open" ||
+        seed.kind === "scan" ||
+        seed.kind === "wrongbook")
+    );
+  }
+
+  function isDecimalSeed(seed) {
+    return !!(seed && seed.modeId === "decimal");
+  }
+
+  function isSpecialSeed(seed) {
+    if (!seed || isArithSeed(seed) || isDecimalSeed(seed)) return false;
+    return seed.kind === "mode" || seed.kind === "mode_open";
+  }
+
   function uniqueSeeds(ctx) {
     var budget = resolveSlotBudget(ctx.grade, ctx.rows);
     var cooldownHint = ctx._cooldownSeq || [];
-
-    function isArithSeed(seed) {
-      return seed.kind === "training" || seed.kind === "open" || seed.kind === "scan" || seed.kind === "wrongbook";
-    }
+    var spend = ctx.daySlotSpend || { special: 0, decimal: 0, arith: 0 };
+    var specialLeft = Math.max(0, (budget.special || 0) - (spend.special || 0));
+    var decimalLeft = Math.max(0, (budget.decimal || 0) - (spend.decimal || 0));
 
     var reservedSpecial =
-      budget.special > 0 ? pickSpecialReserve(ctx, cooldownHint) : null;
+      specialLeft > 0 ? pickSpecialReserve(ctx, cooldownHint) : null;
     var reservedDecimal =
-      budget.decimal > 0 ? pickDecimalReserve(ctx, cooldownHint) : null;
+      decimalLeft > 0 ? pickDecimalReserve(ctx, cooldownHint) : null;
 
     var stream = [];
     if (ctx.wrongbookNeeded) stream.push({ kind: "wrongbook" });
@@ -1333,16 +1375,36 @@
     for (ai = 0; ai < arithSeeds.length && arithN < arithPrefer; ai += 1) {
       if (take(arithSeeds[ai])) arithN += 1;
     }
+    var specialTaken = 0;
+    var decimalTaken = 0;
     var otherRoom = INCOMPLETE_SIZE - picked.length;
     var reserveQueue = [];
     if (reservedSpecial) reserveQueue.push(reservedSpecial);
     if (reservedDecimal) reserveQueue.push(reservedDecimal);
     var oi;
     for (oi = 0; oi < reserveQueue.length && otherRoom > 0; oi += 1) {
-      if (take(reserveQueue[oi])) otherRoom -= 1;
+      var rSeed = reserveQueue[oi];
+      if (isSpecialSeed(rSeed) && specialTaken >= specialLeft) continue;
+      if (isDecimalSeed(rSeed) && decimalTaken >= decimalLeft) continue;
+      if (take(rSeed)) {
+        otherRoom -= 1;
+        if (isSpecialSeed(rSeed)) specialTaken += 1;
+        if (isDecimalSeed(rSeed)) decimalTaken += 1;
+      }
     }
     for (oi = 0; oi < otherSeeds.length && otherRoom > 0; oi += 1) {
-      if (take(otherSeeds[oi])) otherRoom -= 1;
+      var oSeed = otherSeeds[oi];
+      if (isSpecialSeed(oSeed) && specialTaken >= specialLeft) continue;
+      if (isDecimalSeed(oSeed) && decimalTaken >= decimalLeft) continue;
+      if (take(oSeed)) {
+        otherRoom -= 1;
+        if (isSpecialSeed(oSeed)) specialTaken += 1;
+        if (isDecimalSeed(oSeed)) decimalTaken += 1;
+      }
+    }
+    /** 特殊/小数今日硬留已用完时，剩余空位继续用四则候选填满。 */
+    for (; ai < arithSeeds.length && picked.length < INCOMPLETE_SIZE; ai += 1) {
+      take(arithSeeds[ai]);
     }
     return picked;
   }
@@ -1539,6 +1601,7 @@
     });
     ctx.wrongbookSticky = stickyWrong;
     ctx._cooldownSeq = archive.concat(board);
+    ctx.daySlotSpend = countTodaySlotSpend(plan, day);
     plan._adviceCtx = ctx;
     /** 今日留牌占配额；开单时按剩余额度发新卡。正常路径不「补空格」。 */
     var maxOpen = maxOpenForDay(plan, ts);
@@ -2873,6 +2936,7 @@
     COMPLETED_MAX: COMPLETED_MAX,
     needsDailyIssue: needsDailyIssue,
     todayClosedCount: todayClosedCount,
+    countTodaySlotSpend: countTodaySlotSpend,
     maxOpenForDay: maxOpenForDay,
     SAME_TASK_GAP: SAME_TASK_GAP,
     SCAN_CLEAR_IMPROVE: SCAN_CLEAR_IMPROVE,
