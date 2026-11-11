@@ -74,16 +74,23 @@ function createAdminUsersIndex(opts) {
     return doc.users;
   }
 
+  /**
+   * 增量更新一行。若投影尚不存在，返回 false（禁止用空列表建「假全量」）。
+   * 调用方应先 rebuildFromUsers 再 upsert。
+   */
   function upsertUser(userOrRow) {
-    if (!userOrRow || !userOrRow.username) return;
+    if (!userOrRow || !userOrRow.username) return false;
+    const doc = readRaw();
+    if (!doc) return false;
     const row = toListRow(userOrRow);
-    const doc = readRaw() || emptyDoc();
     const list = Array.isArray(doc.users) ? doc.users.slice() : [];
     const idx = list.findIndex((r) => r && r.username === row.username);
     if (idx >= 0) list[idx] = row;
     else list.push(row);
     writeDoc(list);
+    return true;
   }
+
 
   function removeUser(username) {
     const name = String(username || "");
@@ -129,18 +136,27 @@ function createAdminUsersIndex(opts) {
   }
 
   /**
-   * 列表读取：有投影直接返回；否则用 rebuildFromUsers 回调重建一次。
+   * 列表读取。
    * @param {() => Array} loadFullUsers
+   * @param {{ reconcile?: boolean }} [opts] reconcile=true 时与 users 真源对人数，偏少则重建
    */
-  function listOrRebuild(loadFullUsers) {
+  function listOrRebuild(loadFullUsers, opts) {
+    opts = opts || {};
     const existing = getUsers();
-    if (existing) {
+    const reconcile = opts.reconcile === true;
+    if (existing && !reconcile) {
       return { users: existing, rebuilt: false };
     }
     const full = typeof loadFullUsers === "function" ? loadFullUsers() : [];
+    const fullCount = (Array.isArray(full) ? full : []).filter((u) => u && u.username).length;
+    if (existing && existing.length >= fullCount) {
+      return { users: existing, rebuilt: false };
+    }
     const users = rebuildFromUsers(full);
     return { users: users, rebuilt: true };
   }
+
+
 
   return {
     SCHEMA_VERSION,

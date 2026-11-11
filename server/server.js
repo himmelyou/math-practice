@@ -482,7 +482,11 @@ const adminUsersIndex = createAdminUsersIndex({
 
 function syncAdminUsersIndexFromUser(u) {
   try {
-    if (u && u.username) adminUsersIndex.upsertUser(u);
+    if (!u || !u.username) return;
+    if (!adminUsersIndex.upsertUser(u)) {
+      rebuildAdminUsersIndexFromDisk();
+      adminUsersIndex.upsertUser(u);
+    }
   } catch (e) {
     console.warn("[admin-users-index] upsert", e && e.message ? e.message : e);
   }
@@ -497,6 +501,26 @@ function rebuildAdminUsersIndexFromDisk() {
     return [];
   }
 }
+
+/** 进程内首次拉账号列表时与 users.json 对账一次，修掉写瘦的投影 */
+let adminUsersIndexReconciled = false;
+
+function loadAdminUsersIndexForApi(forceRebuild) {
+  const loadFull = function () {
+    const data = readJson(USERS_FILE, { users: [] });
+    return Array.isArray(data.users) ? data.users : [];
+  };
+  if (forceRebuild) {
+    const users = adminUsersIndex.rebuildFromUsers(loadFull());
+    adminUsersIndexReconciled = true;
+    return { users: users, rebuilt: true };
+  }
+  const needReconcile = !adminUsersIndexReconciled;
+  const listed = adminUsersIndex.listOrRebuild(loadFull, { reconcile: needReconcile });
+  adminUsersIndexReconciled = true;
+  return listed;
+}
+
 
 
 
@@ -4385,27 +4409,15 @@ app.get("/api/admin/users", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const forceRebuild = String(req.query.rebuild || "") === "1";
-  let users;
-  let rebuilt = false;
-  if (forceRebuild) {
-    const data = readJson(USERS_FILE, { users: [] });
-    users = adminUsersIndex.rebuildFromUsers(Array.isArray(data.users) ? data.users : []);
-    rebuilt = true;
-  } else {
-    const listed = adminUsersIndex.listOrRebuild(function () {
-      const data = readJson(USERS_FILE, { users: [] });
-      return Array.isArray(data.users) ? data.users : [];
-    });
-    users = listed.users;
-    rebuilt = !!listed.rebuilt;
-  }
+  const listed = loadAdminUsersIndexForApi(forceRebuild);
   res.json({
     ok: true,
-    users,
+    users: listed.users,
     gradeBulkUpgrade: getGradeBulkUpgradeStatus(),
-    indexRebuilt: rebuilt,
+    indexRebuilt: !!listed.rebuilt,
   });
 });
+
 
 /**
  * 一键升级年级：已选年级 +1；12 清空为未设置；学年内（9/1–次年8/31）最多一次。
@@ -5217,10 +5229,7 @@ app.get("/api/admin/user-list", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
-  const listed = adminUsersIndex.listOrRebuild(function () {
-    const data = readJson(USERS_FILE, { users: [] });
-    return Array.isArray(data.users) ? data.users : [];
-  });
+  const listed = loadAdminUsersIndexForApi(false);
   const users = (listed.users || [])
     .map((u) => ({
       username: u.username,
