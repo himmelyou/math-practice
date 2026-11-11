@@ -17,7 +17,7 @@ function clampInt(n, lo, hi) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function buildCategoryHeat(HM, runs, cohort, categoryId) {
+function buildCategoryHeat(HM, runs, cohort, categoryId, prebuiltHeat) {
   const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory(categoryId) : null;
   const levelCount =
     cat && cat.levelCount > 0
@@ -34,6 +34,9 @@ function buildCategoryHeat(HM, runs, cohort, categoryId) {
   const modes = cat && cat.modes ? cat.modes : [categoryId];
   const capMs =
     cohort && Number(cohort.timeSpentMsCap) > 0 ? Number(cohort.timeSpentMsCap) : DEFAULT_CAP_MS;
+  if (prebuiltHeat && Array.isArray(prebuiltHeat.cells)) {
+    return { heat: prebuiltHeat, levelCount, modes, capMs };
+  }
   const heat = HM.buildHeatmapCells({
     runs: runs || [],
     cohort: cohort && cohort.ok ? cohort : null,
@@ -60,7 +63,7 @@ function pickLadderBeforeClear(HM, opts) {
   const unlockedMax = opts.unlockedMax;
   const categoryId = opts.categoryId;
   const mode = opts.mode || categoryId;
-  const { heat } = buildCategoryHeat(HM, opts.runs, opts.cohort, categoryId);
+  const { heat } = buildCategoryHeat(HM, opts.runs, opts.cohort, categoryId, opts.heat);
 
   if (typeof HM.recommendSpecialModeLadderLevel !== "function") {
     const U = Math.min(unlockedMax, playableMax);
@@ -125,7 +128,7 @@ function computeDecimalBrushLevel(opts) {
     opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
       ? Math.max(0, Math.floor(Number(opts.playableMax)))
       : DEFAULT_DECIMAL_MAX;
-  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "decimal");
+  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "decimal", opts.heat);
   const poolMax = Math.max(
     0,
     Math.min(playableMax, levelCount - 1, Math.floor(Number(opts.poolMax) || 0))
@@ -174,6 +177,7 @@ function computeDecimalNextLevel(opts) {
     return pickLadderBeforeClear(HM, {
       runs: opts.runs,
       cohort: opts.cohort,
+      heat: opts.heat,
       unlockedMax,
       playableMax,
       categoryId: "decimal",
@@ -184,6 +188,7 @@ function computeDecimalNextLevel(opts) {
   const brush = computeDecimalBrushLevel({
     runs: opts.runs,
     cohort: opts.cohort,
+    heat: opts.heat,
     poolMax: playableMax,
     playableMax,
   });
@@ -244,7 +249,7 @@ function computeDivisibilityPostClearLevel(opts) {
     };
   }
 
-  const { heat } = buildCategoryHeat(HM, opts.runs, opts.cohort, "divisibility");
+  const { heat } = buildCategoryHeat(HM, opts.runs, opts.cohort, "divisibility", opts.heat);
   const pick =
     typeof HM.recommendDivisibilityPostClearLevel === "function"
       ? HM.recommendDivisibilityPostClearLevel(heat)
@@ -296,6 +301,7 @@ function computeDivisibilityNextLevel(opts) {
     return pickLadderBeforeClear(HM, {
       runs: opts.runs,
       cohort: opts.cohort,
+      heat: opts.heat,
       unlockedMax,
       playableMax,
       categoryId: "divisibility",
@@ -306,6 +312,7 @@ function computeDivisibilityNextLevel(opts) {
   const post = computeDivisibilityPostClearLevel({
     runs: opts.runs,
     cohort: opts.cohort,
+    heat: opts.heat,
     unlockedMax,
     playableMax,
   });
@@ -351,7 +358,7 @@ function computePerfectSquareBrushLevel(opts) {
     opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
       ? Math.max(0, Math.floor(Number(opts.playableMax)))
       : DEFAULT_PS_MAX;
-  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "perfectSquare");
+  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "perfectSquare", opts.heat);
   const poolMax = Math.max(
     0,
     Math.min(playableMax, levelCount - 1, Math.floor(Number(opts.poolMax) || 0))
@@ -400,6 +407,7 @@ function computePerfectSquareNextLevel(opts) {
     return pickLadderBeforeClear(HM, {
       runs: opts.runs,
       cohort: opts.cohort,
+      heat: opts.heat,
       unlockedMax,
       playableMax,
       categoryId: "perfectSquare",
@@ -410,6 +418,7 @@ function computePerfectSquareNextLevel(opts) {
   const brush = computePerfectSquareBrushLevel({
     runs: opts.runs,
     cohort: opts.cohort,
+    heat: opts.heat,
     poolMax: playableMax,
     playableMax,
   });
@@ -457,7 +466,13 @@ function computeFactorsMultiplesBrushLevel(opts) {
     opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
       ? Math.max(0, Math.floor(Number(opts.playableMax)))
       : DEFAULT_FM_MAX;
-  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "factorsMultiples");
+  const { heat, levelCount } = buildCategoryHeat(
+    HM,
+    opts.runs,
+    opts.cohort,
+    "factorsMultiples",
+    opts.heat
+  );
   const poolMax = Math.max(
     0,
     Math.min(playableMax, levelCount - 1, Math.floor(Number(opts.poolMax) || 0))
@@ -506,6 +521,7 @@ function computeFactorsMultiplesNextLevel(opts) {
     return pickLadderBeforeClear(HM, {
       runs: opts.runs,
       cohort: opts.cohort,
+      heat: opts.heat,
       unlockedMax,
       playableMax,
       categoryId: "factorsMultiples",
@@ -516,6 +532,7 @@ function computeFactorsMultiplesNextLevel(opts) {
   const brush = computeFactorsMultiplesBrushLevel({
     runs: opts.runs,
     cohort: opts.cohort,
+    heat: opts.heat,
     poolMax: playableMax,
     playableMax,
   });
@@ -544,21 +561,34 @@ function computeFactorsMultiplesNextLevel(opts) {
   };
 }
 
+function heatFromPayload(heatmapPayload, categoryId) {
+  const block =
+    heatmapPayload &&
+    heatmapPayload.byCategory &&
+    heatmapPayload.byCategory[categoryId]
+      ? heatmapPayload.byCategory[categoryId]
+      : null;
+  return block && block.heat && Array.isArray(block.heat.cells) ? block.heat : null;
+}
+
 /**
  * 从 user 档案字段组装特殊模式推荐（不含四则）。
  * @param {object} opts
  * @param {object} opts.user
- * @param {Array} opts.runs
+ * @param {Array} [opts.runs]
  * @param {object} opts.cohorts { decimal, perfectSquare, divisibility, factorsMultiples }
+ * @param {object} [opts.heatmapPayload] 有则优先用快照热图，可不再扫 runs
  */
 function computeSpecialCategoryNextLevels(opts) {
   opts = opts || {};
   const user = opts.user || {};
   const runs = opts.runs || [];
   const cohorts = opts.cohorts || {};
+  const heatPayload = opts.heatmapPayload || null;
 
   const decimal = computeDecimalNextLevel({
     runs,
+    heat: heatFromPayload(heatPayload, "decimal"),
     cohort: cohorts.decimal || null,
     unlockedMax:
       typeof user.levelDecimalUnlockedMax === "number" ? user.levelDecimalUnlockedMax : 0,
@@ -567,6 +597,7 @@ function computeSpecialCategoryNextLevels(opts) {
   });
   const perfectSquare = computePerfectSquareNextLevel({
     runs,
+    heat: heatFromPayload(heatPayload, "perfectSquare"),
     cohort: cohorts.perfectSquare || null,
     unlockedMax:
       typeof user.levelPerfectSquareUnlockedMax === "number"
@@ -579,6 +610,7 @@ function computeSpecialCategoryNextLevels(opts) {
   });
   const divisibility = computeDivisibilityNextLevel({
     runs,
+    heat: heatFromPayload(heatPayload, "divisibility"),
     cohort: cohorts.divisibility || null,
     unlockedMax:
       typeof user.levelDivisibilityUnlockedMax === "number"
@@ -591,6 +623,7 @@ function computeSpecialCategoryNextLevels(opts) {
   });
   const factorsMultiples = computeFactorsMultiplesNextLevel({
     runs,
+    heat: heatFromPayload(heatPayload, "factorsMultiples"),
     cohort: cohorts.factorsMultiples || null,
     unlockedMax:
       typeof user.levelFactorsMultiplesUnlockedMax === "number"

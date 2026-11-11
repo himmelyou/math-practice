@@ -390,7 +390,10 @@
     return null;
   }
 
-  function bestClearedLevelSec(runs) {
+  function bestClearedLevelSec(runs, overrideSec) {
+    if (overrideSec != null && Number.isFinite(Number(overrideSec)) && Number(overrideSec) > 0) {
+      return Number(overrideSec);
+    }
     var best = null;
     (runs || []).forEach(function (r) {
       if (normalizeRunMode(r && r.mode) !== "level" || r.cleared !== true) return;
@@ -413,8 +416,8 @@
     return sum * SCAN_CLEAR_ITEMS * SCAN_CLEAR_OVERHEAD;
   }
 
-  function retryClearInfo(rows, runs) {
-    var recordSec = bestClearedLevelSec(runs);
+  function retryClearInfo(rows, runs, overrideSec) {
+    var recordSec = bestClearedLevelSec(runs, overrideSec);
     var estimateSec = estimateClearSec(rows);
     if (recordSec == null || estimateSec == null) return null;
     return {
@@ -424,9 +427,9 @@
     };
   }
 
-  function clearEstimateInfo(rows, runs) {
+  function clearEstimateInfo(rows, runs, overrideSec) {
     var estimateSec = estimateClearSec(rows);
-    var recordSec = bestClearedLevelSec(runs);
+    var recordSec = bestClearedLevelSec(runs, overrideSec);
     if (estimateSec == null) return null;
     var ratio = recordSec != null && recordSec > 0 ? estimateSec / recordSec : null;
     return {
@@ -2485,7 +2488,10 @@
     return Number.isFinite(score) && score >= PRIME_CLEAR_SCORE;
   }
 
-  function detectPrimeFlags(runs) {
+  function detectPrimeFlags(runs, override) {
+    if (override && (override.played === true || override.cleared === true || override.fromIndex === true)) {
+      return { played: !!override.played, cleared: !!override.cleared };
+    }
     var played = false;
     var cleared = false;
     (runs || []).forEach(function (r) {
@@ -2500,8 +2506,12 @@
     opts = opts || {};
     var rows = buildRows(opts.grade, opts.cells);
     var profile = classifyProfile(rows);
-    var retry = retryClearInfo(rows, opts.runs);
-    var clearEstimate = clearEstimateInfo(rows, opts.runs);
+    var clearBestSec =
+      opts.levelClearBestSec != null && Number.isFinite(Number(opts.levelClearBestSec))
+        ? Number(opts.levelClearBestSec)
+        : null;
+    var retry = retryClearInfo(rows, opts.runs, clearBestSec);
+    var clearEstimate = clearEstimateInfo(rows, opts.runs, clearBestSec);
     var scan = resolveScanTarget(rows, opts);
     if (opts.hasClearedLevel === true && retry && retry.improve) {
       scan = {
@@ -2526,7 +2536,15 @@
         : 0;
     var wrongMin = Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30;
     var modeCells = opts.modeCells && typeof opts.modeCells === "object" ? opts.modeCells : {};
-    var primeFlags = detectPrimeFlags(opts.runs);
+    var primeOverride = null;
+    if (opts.primePlayed != null || opts.primeCleared != null || opts.primeFromIndex === true) {
+      primeOverride = {
+        played: opts.primePlayed === true,
+        cleared: opts.primeCleared === true,
+        fromIndex: true,
+      };
+    }
+    var primeFlags = detectPrimeFlags(opts.runs, primeOverride);
     var modePacks = {};
     if (Modes) {
       ["decimal", "perfectSquare", "divisibility", "factorsMultiples"].forEach(function (id) {

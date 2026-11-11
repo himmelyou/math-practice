@@ -990,6 +990,22 @@
       void loadStudentData();
       return;
     }
+    if (next === 'runs') {
+      renderRunsTable();
+      return;
+    }
+    if (next === 'wrong') {
+      renderWrongBook();
+      return;
+    }
+    if (next === 'expand-wrong') {
+      renderExpandWrongBook();
+      return;
+    }
+    if (next === 'div-wrong') {
+      renderDivisibilityWrongBook();
+      return;
+    }
     if (next === 'stats') {
       if (!state.heatmapFromServer) {
         void loadStudentData();
@@ -1001,6 +1017,7 @@
       if (!state.workspaceHasExtras) {
         void loadStudentWorkspaceExtras(state.selectedUsername, state.studentLoadSeq);
       }
+      return;
     }
     if (next === 'train-debug') {
       if (!state.heatmapFromServer || !state.trainDebugPayload) {
@@ -1008,9 +1025,11 @@
         return;
       }
       void loadTrainDebug(false);
+      return;
     }
     if (next === 'task-history') {
       renderTaskHistoryPanel();
+      return;
     }
     if (next === 'monthly-report') {
       void loadMonthlyReports();

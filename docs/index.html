@@ -44,6 +44,8 @@
       --jml-stem-weight: 700;
       /* C 类提示句题干（略小于 A） */
       --jml-prompt-stem-size: clamp(1.05rem, 4.2vw, 1.35rem);
+      /* 二选一选项按钮（整除 / 因数倍数 / 错题练习共用） */
+      --jml-choice-btn-size: clamp(0.95rem, 3.8vw, 1.15rem);
       /* 题干内数字高亮（中文黑、数字蓝） */
       --jml-stem-num-color: #0d47a1;
     }
@@ -1955,12 +1957,25 @@
       font-variant-numeric: tabular-nums;
       padding-inline: 0.14em;
     }
-    /* C 类：短句提示题干（整除 / 因数倍数选择与填空） */
+    /* C 类：短句提示题干（整除 / 因数倍数选择与填空 / 错题练习选择题） */
     .question-text.jml-prompt-stem {
       font-size: var(--jml-prompt-stem-size);
       font-weight: var(--jml-stem-weight);
       color: var(--text-main);
       line-height: 1.25;
+      white-space: normal;
+      text-overflow: clip;
+      overflow-wrap: anywhere;
+    }
+    /* 二选一选项：正式模式与错题练习共用字号变量 */
+    .div-choice-btn {
+      padding: 10px 8px;
+      font-size: var(--jml-choice-btn-size);
+      font-weight: 700;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+      white-space: normal;
+      line-height: 1.2;
     }
     .question-text.rule-hint {
       width: 100%;
@@ -3711,6 +3726,20 @@
       margin-top: 14px;
       padding-top: 14px;
     }
+    /* 错题练习选择题：压过四则 A 类题干（nowrap + stem-size），改走 C 类共用变量 */
+    #game-card.choice-play-card.game-card--playing > .question-body > .question-text.jml-prompt-stem,
+    .game-section.wrong-practice-active #game-card.choice-play-card #question-text.jml-prompt-stem {
+      flex: 1 1 auto;
+      min-height: 0;
+      font-size: var(--jml-prompt-stem-size);
+      font-weight: var(--jml-stem-weight);
+      line-height: 1.25;
+      white-space: normal;
+      text-overflow: clip;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
     .wrong-result-ok-row {
       margin-top: 12px;
       display: flex;
@@ -3809,6 +3838,7 @@
       --expand-card-prestart-height: clamp(130px, 24svh, 170px);
       --jml-stem-size: clamp(1.05rem, 4vw, 1.4rem);
       --jml-prompt-stem-size: clamp(0.95rem, 3.8vw, 1.15rem);
+      --jml-choice-btn-size: clamp(0.9rem, 3.4vw, 1.05rem);
       --jml-kbd-key-h: 36px;
       --jml-kbd-gap: 4px;
       --jml-kbd-card-pad-y: 5px;
@@ -4154,6 +4184,9 @@
       min-width: 0;
       min-height: 2.6em;
     }
+    .choice-play-card .button-row.div-choice-row .div-choice-btn {
+      font-size: var(--jml-choice-btn-size);
+    }
     .choice-play-card .input-row {
       width: min(94%, 384px);
       max-width: 100%;
@@ -4291,14 +4324,7 @@
       flex-direction: column;
       gap: 8px;
     }
-    /* C 题干样式见 .jml-prompt-stem */
-    .divisibility-page .button-row.div-choice-row .btn-primary {
-      padding: 10px 8px;
-      font-size: clamp(0.95rem, 3.8vw, 1.15rem);
-      font-weight: 700;
-      letter-spacing: 0;
-      font-variant-numeric: tabular-nums;
-    }
+    /* C 题干 / 选项字号见 .jml-prompt-stem、.div-choice-btn（--jml-choice-btn-size） */
     .div-choice-btn.div-choice-wrong {
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
       box-shadow: none !important;
@@ -4378,13 +4404,7 @@
       color: var(--text-main);
       line-height: 1.25;
     }
-    .factors-multiples-page .button-row.div-choice-row .btn-primary {
-      padding: 10px 8px;
-      font-size: clamp(0.95rem, 3.8vw, 1.15rem);
-      font-weight: 700;
-      letter-spacing: 0;
-      font-variant-numeric: tabular-nums;
-    }
+    /* FM 选项字号见共用 .div-choice-btn */
     .factors-multiples-page .fm-choice-wrong,
     .factors-multiples-page .div-choice-btn.fm-choice-wrong {
       background: linear-gradient(135deg, #e53935, #ff7961) !important;
@@ -7095,10 +7115,19 @@
       setWrongPracticeChoiceLocked(false);
     }
 
+    function clearWrongPracticeChoiceChrome() {
+      const gameCard = document.getElementById("game-card");
+      if (gameCard) gameCard.classList.remove("choice-play-card");
+      if (dom.questionText) dom.questionText.classList.remove("jml-prompt-stem");
+    }
+
     function syncWrongPracticeSurface() {
       const entry = wrongPracticeQueue[wrongPracticeIndex];
       const isChoice = wrongPracticeEntryIsChoice(entry);
       const gameCard = document.getElementById("game-card");
+      if (dom.questionText) {
+        dom.questionText.classList.toggle("jml-prompt-stem", isChoice);
+      }
       if (isChoice) {
         setGameCardActionSlot("choice");
         setSoftKeyboardVisible(false);
@@ -14634,12 +14663,30 @@
     function showWrongPracticeCurrentQuestion() {
       const entry = wrongPracticeQueue[wrongPracticeIndex];
       if (!entry) return;
+      const stem = wrongPracticeQuestionText(entry);
       currentQuestion = {
-        text: wrongPracticeQuestionText(entry),
+        text: stem,
         answer: wrongPracticeExpectedValue(entry),
       };
-      renderQuestion(currentQuestion);
-      if (dom.questionSubtext) dom.questionSubtext.textContent = "";
+      const isChoice = wrongPracticeEntryIsChoice(entry);
+      if (dom.answerInput) dom.answerInput.value = "";
+      clearMainPrestartQuestionChrome();
+      if (dom.questionSubtext) {
+        dom.questionSubtext.textContent = "";
+        dom.questionSubtext.classList.remove("question-refresh-hidden");
+      }
+      if (isChoice) {
+        // 选择题干走 C 类共用模块（与整除/因数正式页同一变量），勿用四则 A 类 nowrap
+        questionShownAt = Date.now();
+        if (dom.questionText) {
+          dom.questionText.classList.add("jml-prompt-stem");
+          dom.questionText.classList.remove("question-refresh-hidden");
+          setStemHtml(dom.questionText, stem);
+        }
+      } else {
+        if (dom.questionText) dom.questionText.classList.remove("jml-prompt-stem");
+        renderQuestion(currentQuestion);
+      }
       setFeedback("", null);
       syncWrongPracticeSurface();
       updateWrongPracticeStatusUI();
@@ -14776,6 +14823,7 @@
         setSoftKeyboardVisible(false);
         setGameCardActionSlot("start");
         if (dom.gameSection) dom.gameSection.classList.remove("wrong-practice-active");
+        clearWrongPracticeChoiceChrome();
 
         // 零错误：清空错题本，并解锁正常模式
         if (isPerfectAllCorrect && !isGuestMode) {
@@ -15366,6 +15414,7 @@
       if (gameMode === "wrong") {
         gameMode = "survival";
         if (dom.gameSection) dom.gameSection.classList.remove("wrong-practice-active");
+        clearWrongPracticeChoiceChrome();
         if (dom.timerChip) dom.timerChip.style.display = "";
         const statusGrid = document.getElementById("status-grid");
         if (statusGrid) statusGrid.style.display = "";
@@ -15394,6 +15443,7 @@
         dom.gameSection.classList.remove("visible");
         dom.gameSection.classList.remove("wrong-practice-active");
       }
+      clearWrongPracticeChoiceChrome();
       if (dom.expandSection) {
         dom.expandSection.classList.remove("visible");
         dom.expandSection.style.display = "none";

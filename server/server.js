@@ -20,8 +20,11 @@ const { buildStudentOverviewRows } = require("./student-overview");
 const { buildTrafficStats } = require("./traffic-stats");
 const dedupeUsernames = require("./dedupe-usernames");
 const { attachHeatBaselineBeforeWrite } = require("./heat-baseline-at-append");
-const { buildUserHeatmapsByCategory } = require("./user-heatmap");
-const { getJmlStatsAggregate } = require("./load-jml-stats-aggregate");
+const { buildUserHeatmapsCached } = require("./user-heatmap");
+const { createHeatmapUserCache } = require("./heatmap-user-cache");
+const { buildUserAggCached } = require("./user-agg");
+const { createAggUserCache } = require("./agg-user-cache");
+
 const overviewUserIndex = require("./overview-user-index");
 const {
   computeDecimalNextLevel,
@@ -457,6 +460,17 @@ const monthlySnapshotStore = createMonthlySnapshotStore({
   readJson,
   writeJson,
 });
+const heatmapUserCache = createHeatmapUserCache({
+  dataDir: DATA_DIR,
+  readJson,
+  writeJson,
+});
+const aggUserCache = createAggUserCache({
+  dataDir: DATA_DIR,
+  readJson,
+  writeJson,
+});
+
 const monthlySnapshotWriter = createMonthlySnapshotWriter({
   store: monthlySnapshotStore,
   // 惰性：cohortsByCategoryForHeatmap 在下方才声明
@@ -874,17 +888,25 @@ function getNormalizedUserRunsSorted(username) {
     .sort((a, b) => (b.ts || 0) - (a.ts || 0));
 }
 
-function buildHeatmapPayloadFromRuns(username, runs) {
-  const built = buildUserHeatmapsByCategory({
+function buildHeatmapPayloadFromRuns(username, runs, opts) {
+  opts = opts || {};
+  const built = buildUserHeatmapsCached({
+    username: username,
     runs: Array.isArray(runs) ? runs : [],
     cohortsByCategory: cohortsByCategoryForHeatmap(),
+    cache: heatmapUserCache,
+    force: opts.force === true,
   });
   return {
     ok: !!built.ok,
     error: built.error || null,
     username,
     at: new Date().toISOString(),
-    source: "server_buildUserHeatmapsByCategory",
+    source: built.cacheHit
+      ? "server_heatmap_user_cache"
+      : "server_buildUserHeatmapsCached",
+    cacheHit: !!built.cacheHit,
+    rebuiltCategories: Array.isArray(built.rebuiltCategories) ? built.rebuiltCategories : [],
     categories: built.categories || [],
     byCategory: built.byCategory || {},
   };
@@ -894,75 +916,97 @@ function buildHeatmapPayloadForUsername(username) {
   return buildHeatmapPayloadFromRuns(username, getNormalizedUserRunsSorted(username));
 }
 
-/** 报表折线用：服务端按分类聚合并去掉 attempts 依赖 */
-function buildAggByCategoryFromRuns(runs) {
-  let Agg;
-  try {
-    Agg = getJmlStatsAggregate();
-  } catch (e) {
-    return { ok: false, error: (e && e.message) || "aggregate unavailable", byCategory: {} };
-  }
-  if (!Agg || typeof Agg.aggregateFromRuns !== "function") {
-    return { ok: false, error: "aggregate API incomplete", byCategory: {} };
-  }
-  const fallbackCats = [
-    { id: "arithmetic", modes: ["survival", "level", "training"], levelCount: 16 },
-    { id: "decimal", modes: ["decimal"], levelCount: 6 },
-    { id: "perfectSquare", modes: ["perfectSquare"], levelCount: 4 },
-    { id: "divisibility", modes: ["divisibility"], levelCount: 4 },
-    { id: "factorsMultiples", modes: ["factorsMultiples"], levelCount: 6 },
-  ];
-  let categories = fallbackCats;
-  try {
-    const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
-    const HM = getJmlStatsHeatmap();
-    if (HM && typeof HM.getHeatmapCategories === "function") {
-      const list = HM.getHeatmapCategories();
-      if (Array.isArray(list) && list.length) categories = list;
-    }
-  } catch (e) {
-    categories = fallbackCats;
-  }
-  const byCategory = {};
-  categories.forEach(function (cat) {
-    if (!cat || !cat.id) return;
-    byCategory[cat.id] = Agg.aggregateFromRuns(runs, {
-      modes: cat.modes,
-      levelCount: cat.levelCount,
-    });
-  });
-  return { ok: true, byCategory: byCategory, categories: categories };
+/** 仅读热图快照（不扫 runs）；无快照返回 null */
+function buildHeatmapPayloadFromCacheOnly(username) {
+  const snap = heatmapUserCache.get(username);
+  if (!snap || !snap.byCategory || typeof snap.byCategory !== "object") return null;
+  const keys = Object.keys(snap.byCategory);
+  if (!keys.length) return null;
+  return {
+    ok: true,
+    error: null,
+    username,
+    at: new Date().toISOString(),
+    source: "server_heatmap_user_cache_only",
+    cacheHit: true,
+    rebuiltCategories: [],
+    categories: Array.isArray(snap.categories) ? snap.categories : [],
+    byCategory: snap.byCategory,
+  };
 }
+
+function bumpPracticeAdviceIndexesAfterRun(u, runEntry) {
+  if (!u || !runEntry) return;
+  const mode = normalizeRunMode(runEntry.mode);
+  if (mode === "level" && runEntry.cleared === true) {
+    const sec = Number(runEntry.survivalTimeSec);
+    if (Number.isFinite(sec) && sec > 0) {
+      const prev = Number(u.levelClearBestSec);
+      if (!(Number.isFinite(prev) && prev > 0) || sec < prev) {
+        u.levelClearBestSec = sec;
+      }
+    }
+  }
+  if (mode === "primeComposite") {
+    u.primeCompositePlayed = true;
+    const cleared =
+      runEntry.cleared === true ||
+      runEntry.perfect === true ||
+      (Number.isFinite(Number(runEntry.score)) && Number(runEntry.score) >= 250);
+    if (cleared) u.primeCompositeCleared = true;
+  }
+}
+
+/** 报表折线用：按学员落盘；无新局复用，有新局只合并增量 */
+function buildAggByCategoryFromRuns(runs, opts) {
+  opts = opts || {};
+  return buildUserAggCached({
+    username: opts.username,
+    runs: Array.isArray(runs) ? runs : [],
+    cache: aggUserCache,
+    force: opts.force === true,
+  });
+}
+
 
 function computePracticePlanForUsername(username, opts) {
   opts = opts || {};
   const usersData = readJson(USERS_FILE, { users: [] });
   const user = usersData.users.find((u) => u.username === username);
   if (!user) return { ok: false, status: 404, error: "用户不存在" };
-  const runs = Array.isArray(opts.runs)
-    ? opts.runs
-    : getNormalizedUserRunsSorted(username);
-  if (ensureUserClearedFlagsFromRuns(user, runs)) {
+  const snapshot = opts.snapshot === true;
+  const heatFromOpts = opts.heatPayload && opts.heatPayload.ok ? opts.heatPayload : null;
+  let runs = Array.isArray(opts.runs) ? opts.runs : null;
+  // 报表 snapshot：热图已有时可不读 runs（索引字段 + 热图 cells）
+  if (runs == null && !(snapshot && heatFromOpts)) {
+    runs = getNormalizedUserRunsSorted(username);
+  }
+  if (!Array.isArray(runs)) runs = [];
+  if (runs.length && ensureUserClearedFlagsFromRuns(user, runs)) {
     writeJson(USERS_FILE, usersData);
   }
   const heatPayload =
-    opts.heatPayload && opts.heatPayload.ok
-      ? opts.heatPayload
-      : buildHeatmapPayloadFromRuns(username, runs);
+    heatFromOpts ||
+    (runs.length
+      ? buildHeatmapPayloadFromRuns(username, runs)
+      : buildHeatmapPayloadFromCacheOnly(username));
+  if (!heatPayload || !heatPayload.ok) {
+    return { ok: false, status: 500, error: "暂无热图，无法生成任务单" };
+  }
   const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
   const modeCells = practicePlanService.modeCellsFromHeatmapPayload(heatPayload);
   try {
     const advice = practicePlanService.computePracticePlanForUser({
       username,
       user,
-      runs,
+      runs: snapshot ? [] : runs,
       cells,
       modeCells,
       wrongAnswersVisible: visibleWrongAnswers(user).length,
       heatmapPayload: heatPayload,
       store: practicePlanStore,
       resetIncomplete: opts.resetIncomplete === true,
-      snapshot: opts.snapshot === true,
+      snapshot: snapshot,
     });
     return { ok: true, advice, heatPayload, runs, user };
   } catch (e) {
@@ -971,11 +1015,47 @@ function computePracticePlanForUsername(username, opts) {
   }
 }
 
+function mapTrainingRunDebugRow(r) {
+  const m = r && r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
+  return {
+    ts: (r && r.ts) || 0,
+    iso: r && r.ts ? new Date(r.ts).toISOString() : "",
+    maxLevel: r && r.maxLevel,
+    L: (Number(r && r.maxLevel) || 0) + 1,
+    cleared: !!(r && r.cleared === true),
+    abandoned: !!(r && (r.abandoned === true || !!(m && m.abandoned))),
+    wrongCount: r && r.wrongCount,
+    runBrushMode: !!(m && m.runBrushMode),
+    autoPickLevel: m && m.autoPickLevel != null ? m.autoPickLevel : null,
+    autoPickL: m && m.autoPickLevel != null ? Number(m.autoPickLevel) + 1 : null,
+    pickedLevel: m && m.pickedLevel != null ? m.pickedLevel : null,
+    pickedL: m && m.pickedLevel != null ? Number(m.pickedLevel) + 1 : null,
+    manualOverride: !!(m && m.manualOverride),
+    pickMode: m && m.pickMode != null ? m.pickMode : null,
+    effectivePickMode: m && m.effectivePickMode != null ? m.effectivePickMode : null,
+    pickReason: m && m.pickReason != null ? String(m.pickReason) : "",
+    entrySource: m && m.entrySource != null ? String(m.entrySource) : "",
+    dayMode: m && m.dayMode != null ? String(m.dayMode) : "",
+    frontierLevel: m && m.frontierLevel != null ? m.frontierLevel : null,
+    heatLevel: m && m.heatLevel != null ? m.heatLevel : null,
+    runKind: m && m.runKind != null ? String(m.runKind) : "",
+    dayStateAfter: m && m.dayStateAfter && typeof m.dayStateAfter === "object" ? m.dayStateAfter : null,
+    heatAvgSecAtStart: m && m.heatAvgSecAtStart != null ? m.heatAvgSecAtStart : null,
+    runAvgSec: m && m.runAvgSec != null ? m.runAvgSec : null,
+  };
+}
+
 function buildTrainingNextDebugBlock(username, user, runs, heatPayloadOpt) {
+  const runList = Array.isArray(runs) ? runs : [];
   const heatPayload =
     heatPayloadOpt && heatPayloadOpt.ok
       ? heatPayloadOpt
-      : buildHeatmapPayloadFromRuns(username, runs);
+      : runList.length
+        ? buildHeatmapPayloadFromRuns(username, runList)
+        : buildHeatmapPayloadFromCacheOnly(username);
+  if (!heatPayload || !heatPayload.ok) {
+    return { ok: false, error: "暂无热图", server: { ok: false, error: "暂无热图" }, recentTraining: [] };
+  }
   const cells = practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload);
   const cellsSummary = cells.map((c) => {
     const p = c && c.p != null && Number.isFinite(Number(c.p)) ? Math.round(Number(c.p) * 1000) / 1000 : null;
@@ -996,45 +1076,25 @@ function buildTrainingNextDebugBlock(username, user, runs, heatPayloadOpt) {
     };
   });
 
-  const trainingRuns = runs
-    .filter((r) => String(r && r.mode ? r.mode : "").toLowerCase() === "training")
-    .filter((r) => r && r.comboOnly !== true)
-    .slice()
-    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
-    .slice(0, 12)
-    .map((r) => {
-      const m = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
-      return {
-        ts: r.ts || 0,
-        iso: r.ts ? new Date(r.ts).toISOString() : "",
-        maxLevel: r.maxLevel,
-        L: (Number(r.maxLevel) || 0) + 1,
-        cleared: r.cleared === true,
-        abandoned: r.abandoned === true || !!(m && m.abandoned),
-        wrongCount: r.wrongCount,
-        runBrushMode: !!(m && m.runBrushMode),
-        autoPickLevel: m && m.autoPickLevel != null ? m.autoPickLevel : null,
-        autoPickL: m && m.autoPickLevel != null ? Number(m.autoPickLevel) + 1 : null,
-        pickedLevel: m && m.pickedLevel != null ? m.pickedLevel : null,
-        pickedL: m && m.pickedLevel != null ? Number(m.pickedLevel) + 1 : null,
-        manualOverride: !!(m && m.manualOverride),
-        pickMode: m && m.pickMode != null ? m.pickMode : null,
-        effectivePickMode: m && m.effectivePickMode != null ? m.effectivePickMode : null,
-        pickReason: m && m.pickReason != null ? String(m.pickReason) : "",
-        entrySource: m && m.entrySource != null ? String(m.entrySource) : "",
-        dayMode: m && m.dayMode != null ? String(m.dayMode) : "",
-        frontierLevel: m && m.frontierLevel != null ? m.frontierLevel : null,
-        heatLevel: m && m.heatLevel != null ? m.heatLevel : null,
-        runKind: m && m.runKind != null ? String(m.runKind) : "",
-        dayStateAfter: m && m.dayStateAfter && typeof m.dayStateAfter === "object" ? m.dayStateAfter : null,
-        heatAvgSecAtStart: m && m.heatAvgSecAtStart != null ? m.heatAvgSecAtStart : null,
-        runAvgSec: m && m.runAvgSec != null ? m.runAvgSec : null,
-      };
-    });
+  let trainingRuns = [];
+  if (Array.isArray(user && user.recentTrainingRuns) && user.recentTrainingRuns.length) {
+    trainingRuns = user.recentTrainingRuns
+      .filter((r) => r && r.comboOnly !== true)
+      .slice(0, 12)
+      .map(mapTrainingRunDebugRow);
+  } else if (runList.length) {
+    trainingRuns = runList
+      .filter((r) => String(r && r.mode ? r.mode : "").toLowerCase() === "training")
+      .filter((r) => r && r.comboOnly !== true)
+      .slice()
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      .slice(0, 12)
+      .map(mapTrainingRunDebugRow);
+  }
 
   let taskPick = null;
   try {
-    taskPick = recommendTrainingLevelForUser(username, user, runs);
+    taskPick = recommendTrainingLevelForUser(username, user, runList, heatPayload);
   } catch (eTask) {
     taskPick = null;
   }
@@ -1135,21 +1195,33 @@ function buildStudentWorkspaceForUsername(username, opts) {
   const user = usersData.users.find((u) => u.username === username);
   if (!user) return { ok: false, status: 404, error: "用户不存在" };
 
+  // extras（任务单/选关）在有热图快照时可零读 runs；core/agg/返回 runs 仍需读盘
+  const extrasOnly =
+    (parts.practicePlan || parts.trainingNext || parts.categoryNext) &&
+    !parts.runs &&
+    !parts.heatmap &&
+    !parts.agg;
+  let heatPayload = null;
+  if (parts.heatmap || parts.trainingNext || parts.practicePlan || parts.categoryNext) {
+    if (extrasOnly) {
+      heatPayload = buildHeatmapPayloadFromCacheOnly(username);
+    }
+  }
   const needRuns =
     parts.runs ||
-    parts.heatmap ||
     parts.agg ||
-    parts.trainingNext ||
-    parts.categoryNext ||
-    parts.practicePlan;
+    (parts.heatmap && !heatPayload) ||
+    ((parts.trainingNext || parts.practicePlan || parts.categoryNext) && !heatPayload);
   const runs = needRuns ? getNormalizedUserRunsSorted(username) : [];
   if (needRuns && ensureUserClearedFlagsFromRuns(user, runs)) {
     writeJson(USERS_FILE, usersData);
   }
 
-  const needHeat =
-    parts.heatmap || parts.trainingNext || parts.practicePlan;
-  const heatPayload = needHeat ? buildHeatmapPayloadFromRuns(username, runs) : null;
+  if ((parts.heatmap || parts.trainingNext || parts.practicePlan || parts.categoryNext) && !heatPayload) {
+    heatPayload = runs.length
+      ? buildHeatmapPayloadFromRuns(username, runs)
+      : buildHeatmapPayloadFromCacheOnly(username);
+  }
 
   let trainDebug = null;
   if (parts.trainingNext) {
@@ -1171,6 +1243,7 @@ function buildStudentWorkspaceForUsername(username, opts) {
       const built = computeSpecialCategoryNextLevels({
         user,
         runs,
+        heatmapPayload: heatPayload,
         cohorts: {
           decimal: readCohortDecimalResultForHeatmap(),
           perfectSquare: readCohortPerfectSquareResultForHeatmap(),
@@ -1203,7 +1276,7 @@ function buildStudentWorkspaceForUsername(username, opts) {
 
   let aggBuilt = null;
   if (parts.agg) {
-    aggBuilt = buildAggByCategoryFromRuns(runs);
+    aggBuilt = buildAggByCategoryFromRuns(runs, { username });
   }
 
   const out = {
@@ -2890,12 +2963,25 @@ function openTrainingLevelFromSavedPlan(username, nowTs) {
   return null;
 }
 
-function recommendTrainingLevelForUser(username, user, runs) {
+function recommendTrainingLevelForUser(username, user, runs, heatPayloadOpt) {
   const nowTs = Date.now();
-  const heatPayload = buildHeatmapPayloadFromRuns(username, runs);
+  const runList = Array.isArray(runs) ? runs : [];
+  const heatPayload =
+    heatPayloadOpt && heatPayloadOpt.ok
+      ? heatPayloadOpt
+      : runList.length
+        ? buildHeatmapPayloadFromRuns(username, runList)
+        : buildHeatmapPayloadFromCacheOnly(username);
+  if (!heatPayload || !heatPayload.ok) {
+    return { ok: false, levelIndex: null, levelLabel: "", source: "", reason: "no_heatmap" };
+  }
   const stored = practicePlanStore.get(username);
   const savedPlan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
   const Advice = practicePlanService.Advice;
+  const levelBest =
+    user && user.levelChallengeBestLevel != null && Number.isFinite(Number(user.levelChallengeBestLevel))
+      ? Math.floor(Number(user.levelChallengeBestLevel))
+      : practicePlanService.levelBestFromRuns(runList);
   let pick = null;
   try {
     pick = Advice.recommendTrainingLevel({
@@ -2903,12 +2989,16 @@ function recommendTrainingLevelForUser(username, user, runs) {
       grade: user && user.grade != null ? user.grade : null,
       cells: practicePlanService.arithmeticCellsFromHeatmapPayload(heatPayload),
       modeCells: practicePlanService.modeCellsFromHeatmapPayload(heatPayload),
-      runs: runs || [],
+      runs: runList,
       savedPlan,
       wrongAnswersVisible: visibleWrongAnswers(user).length,
       hasClearedLevel: !!(user && user.hasClearedLevel === true),
       levelChallengeBestLevel: user && user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
-      levelBestFromRuns: practicePlanService.levelBestFromRuns(runs || []),
+      levelBestFromRuns: levelBest,
+      levelClearBestSec: user && user.levelClearBestSec != null ? user.levelClearBestSec : null,
+      primePlayed: !!(user && user.primeCompositePlayed === true),
+      primeCleared: !!(user && user.primeCompositeCleared === true),
+      primeFromIndex: true,
       nowTs,
     });
   } catch (ePick) {
@@ -3750,6 +3840,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
         cohort: readCohortResultForHeatmap(),
         capMs: COHORT_MAX_TIME_SPENT_MS,
       });
+      bumpPracticeAdviceIndexesAfterRun(u, runEntry);
     } catch (eIdx) {
       console.warn(
         "[overview-index]",

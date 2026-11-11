@@ -119,17 +119,48 @@ function computePracticePlanForUser(opts) {
   const store = opts.store;
   const stored = store && username ? store.get(username) : null;
   const savedPlan = stored && stored.plan && typeof stored.plan === "object" ? stored.plan : null;
+  const snapshot = opts.snapshot === true;
 
   const hasClearedLevel =
     user.hasClearedLevel === true ||
-    runs.some(function (r) {
-      return String(r && r.mode ? r.mode : "").toLowerCase() === "level" && r.cleared === true;
-    });
+    (!snapshot &&
+      runs.some(function (r) {
+        return String(r && r.mode ? r.mode : "").toLowerCase() === "level" && r.cleared === true;
+      }));
 
   const wrongAnswersVisible =
     opts.wrongAnswersVisible != null
       ? Number(opts.wrongAnswersVisible)
       : visibleArithmeticWrongCount(user);
+
+  let levelBest =
+    opts.levelBestFromRuns != null && Number.isFinite(Number(opts.levelBestFromRuns))
+      ? Math.floor(Number(opts.levelBestFromRuns))
+      : null;
+  if (levelBest == null && user.levelChallengeBestLevel != null && Number.isFinite(Number(user.levelChallengeBestLevel))) {
+    levelBest = Math.floor(Number(user.levelChallengeBestLevel));
+  }
+  if (levelBest == null && runs.length) {
+    levelBest = levelBestFromRuns(runs);
+  }
+
+  let levelClearBestSec =
+    opts.levelClearBestSec != null && Number.isFinite(Number(opts.levelClearBestSec))
+      ? Number(opts.levelClearBestSec)
+      : null;
+  if (
+    levelClearBestSec == null &&
+    user.levelClearBestSec != null &&
+    Number.isFinite(Number(user.levelClearBestSec)) &&
+    Number(user.levelClearBestSec) > 0
+  ) {
+    levelClearBestSec = Number(user.levelClearBestSec);
+  }
+
+  const primeFromIndex =
+    user.primeCompositePlayed === true ||
+    user.primeCompositeCleared === true ||
+    opts.primeFromIndex === true;
 
   const advice = Advice.computePracticeAdvice({
     username: username,
@@ -139,11 +170,15 @@ function computePracticePlanForUser(opts) {
     wrongAnswersVisible: wrongAnswersVisible,
     hasClearedLevel: hasClearedLevel,
     levelChallengeBestLevel: user.levelChallengeBestLevel != null ? user.levelChallengeBestLevel : null,
-    levelBestFromRuns: levelBestFromRuns(runs),
-    runs: runs,
+    levelBestFromRuns: levelBest,
+    levelClearBestSec: levelClearBestSec,
+    primePlayed: user.primeCompositePlayed === true || opts.primePlayed === true,
+    primeCleared: user.primeCompositeCleared === true || opts.primeCleared === true,
+    primeFromIndex: primeFromIndex,
+    runs: snapshot ? [] : runs,
     savedPlan: savedPlan,
     resetIncomplete: opts.resetIncomplete === true,
-    snapshot: opts.snapshot === true,
+    snapshot: snapshot,
     nowTs: opts.nowTs != null ? Number(opts.nowTs) : Date.now(),
   });
 
@@ -161,6 +196,7 @@ module.exports = {
   arithmeticCellsFromHeatmapPayload,
   modeCellsFromHeatmapPayload,
   visibleArithmeticWrongCount,
+  levelBestFromRuns,
   computePracticePlanForUser,
   studentPayload,
 };
