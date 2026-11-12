@@ -27,7 +27,6 @@
       <div class="jml-admin-toolbar">
         <a class="jml-toolbar-link" href="../admin/index.html">后台管理</a>
         <button type="button" class="jml-btn" id="jml-cohort-rebuild-btn" title="全量重扫 runs 并写入四则+小数+平方数+整除常模快照（与定时过期逻辑相同）">刷新全体常模</button>
-        <button type="button" class="jml-btn" id="jml-advice-indexes-backfill-btn" title="全员从 runs 回填质数合数 played/cleared 与闯关最快通关秒（只升不降）">回填练习索引</button>
         <button type="button" class="jml-btn" id="jml-report-lang-btn" aria-label="Switch language">English</button>
         <button type="button" class="jml-btn" onclick="AdminAuth.logout()">退出会话</button>
       </div>
@@ -134,7 +133,7 @@
   <script src="../stats-aggregate-browser.js?v=53"></script>
   <script src="../stats-heatmap-browser.js?v=75"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=114"></script>
+  <script src="report-page.js?v=115"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

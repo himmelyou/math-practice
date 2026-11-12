@@ -1022,104 +1022,6 @@ function bumpPracticeAdviceIndexesAfterRun(u, runEntry) {
   }
 }
 
-/**
- * 从 runs 回填练习建议索引（只升不降）：质数合数 played/cleared、闯关最快通关秒。
- * @returns {{ changed: boolean, primePlayed: boolean, primeCleared: boolean, levelClearBestSec: number|null }}
- */
-function recomputePracticeAdviceIndexesFromRuns(u, runs) {
-  const empty = {
-    changed: false,
-    primePlayed: false,
-    primeCleared: false,
-    levelClearBestSec: null,
-  };
-  if (!u) return empty;
-  let primePlayed = false;
-  let primeCleared = false;
-  let bestSec = null;
-  (runs || []).forEach((r) => {
-    if (!r || r.comboOnly === true) return;
-    const mode = normalizeRunMode(r.mode);
-    if (mode === "primeComposite") {
-      primePlayed = true;
-      if (isPrimeCompositeClearedForAdviceIndex(r)) primeCleared = true;
-    } else if (mode === "level" && r.cleared === true) {
-      const sec = runDurationSecForAdviceIndex(r);
-      if (sec != null && (bestSec == null || sec < bestSec)) bestSec = sec;
-    }
-  });
-  let changed = false;
-  if (primePlayed && u.primeCompositePlayed !== true) {
-    u.primeCompositePlayed = true;
-    changed = true;
-  }
-  if (primeCleared && u.primeCompositeCleared !== true) {
-    u.primeCompositeCleared = true;
-    changed = true;
-  }
-  if (bestSec != null) {
-    const prev = Number(u.levelClearBestSec);
-    if (!(Number.isFinite(prev) && prev > 0) || bestSec < prev) {
-      u.levelClearBestSec = bestSec;
-      changed = true;
-    }
-  }
-  return {
-    changed,
-    primePlayed: u.primeCompositePlayed === true,
-    primeCleared: u.primeCompositeCleared === true,
-    levelClearBestSec:
-      u.levelClearBestSec != null && Number.isFinite(Number(u.levelClearBestSec))
-        ? Number(u.levelClearBestSec)
-        : null,
-  };
-}
-
-/** 全员从 runs 回填练习建议索引，写入 users.json */
-function backfillPracticeAdviceIndexesFromAllRuns() {
-  const usersData = readJson(USERS_FILE, { users: [] });
-  const byName = Object.create(null);
-  (usersData.users || []).forEach((u) => {
-    if (u && u.username) byName[String(u.username)] = u;
-  });
-  let usernamesScanned = 0;
-  let usersChanged = 0;
-  let primePlayedSet = 0;
-  let primeClearedSet = 0;
-  let levelClearBestSet = 0;
-  runsStore.forEachUserRuns((username, runs) => {
-    usernamesScanned += 1;
-    const u = byName[String(username || "")];
-    if (!u) return;
-    const beforePlayed = u.primeCompositePlayed === true;
-    const beforeCleared = u.primeCompositeCleared === true;
-    const beforeSec =
-      u.levelClearBestSec != null && Number.isFinite(Number(u.levelClearBestSec))
-        ? Number(u.levelClearBestSec)
-        : null;
-    const out = recomputePracticeAdviceIndexesFromRuns(u, runs);
-    if (!out.changed) return;
-    usersChanged += 1;
-    if (!beforePlayed && u.primeCompositePlayed === true) primePlayedSet += 1;
-    if (!beforeCleared && u.primeCompositeCleared === true) primeClearedSet += 1;
-    const afterSec =
-      u.levelClearBestSec != null && Number.isFinite(Number(u.levelClearBestSec))
-        ? Number(u.levelClearBestSec)
-        : null;
-    if (afterSec != null && afterSec !== beforeSec) levelClearBestSet += 1;
-  });
-  if (usersChanged > 0) writeJson(USERS_FILE, usersData);
-  return {
-    ok: true,
-    usernamesScanned,
-    usersTotal: (usersData.users || []).length,
-    usersChanged,
-    primePlayedSet,
-    primeClearedSet,
-    levelClearBestSet,
-  };
-}
-
 /** 报表折线用：按学员落盘；无新局复用，有新局只合并增量 */
 function buildAggByCategoryFromRuns(runs, opts) {
   opts = opts || {};
@@ -5564,23 +5466,6 @@ app.get("/api/admin/stats/level-cohort", (req, res) => {
     expiresAt: builtAt + COHORT_STATS_TTL_MS,
     servedFromCache: false,
   });
-});
-
-/** 管理：从全员 runs 回填质数合数索引 + 闯关最快通关秒（只升不降） */
-app.post("/api/admin/practice-advice-indexes/backfill", (req, res) => {
-  if (!checkAdminPin(req)) {
-    return res.status(403).json({ ok: false, error: "需要管理员口令" });
-  }
-  try {
-    const stats = backfillPracticeAdviceIndexesFromAllRuns();
-    return res.json(stats);
-  } catch (e) {
-    console.warn(
-      "[practice-advice-indexes/backfill]",
-      e && e.message ? e.message : e
-    );
-    return res.status(500).json({ ok: false, error: "练习索引回填失败" });
-  }
 });
 
 app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {

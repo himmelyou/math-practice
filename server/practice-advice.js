@@ -1,5 +1,5 @@
 /**
- * 练习建议 v0.44：质数通关标与 runs 合并（索引 false 不再短路扫局）。
+ * 练习建议 v0.45：质数合数信用户索引（回填后）；无索引时再扫 runs。
  * v0.43：质数合数五年级起；特殊序改为平方→整除→质数→因倍。
  * v0.42：特殊/小数硬留按今日已结案消耗，重开不再重复占格。
  * v0.41：平方 L2+ 任务侧按超前（不开新；有数据黄橙才推）。
@@ -11,7 +11,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.44-provisional";
+  var RULE_VERSION = "0.45-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -2553,13 +2553,13 @@
     return Number.isFinite(score) && score >= PRIME_CLEAR_SCORE;
   }
 
-  /**
-   * 用户索引上的 played/cleared 与 runs 取并集。
-   * 注意：索引缺标（false/未写）时仍必须扫局；旧逻辑用 fromIndex 短路会把已通关当成「开新」。
-   */
+  /** 有用户索引（fromIndex）时信索引；否则扫 runs。 */
   function detectPrimeFlags(runs, override) {
-    var played = !!(override && override.played === true);
-    var cleared = !!(override && override.cleared === true);
+    if (override && (override.played === true || override.cleared === true || override.fromIndex === true)) {
+      return { played: !!override.played, cleared: !!override.cleared };
+    }
+    var played = false;
+    var cleared = false;
     (runs || []).forEach(function (r) {
       if (normalizeRunMode(r && r.mode) !== "primecomposite") return;
       played = true;
@@ -2603,10 +2603,11 @@
     var wrongMin = Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30;
     var modeCells = opts.modeCells && typeof opts.modeCells === "object" ? opts.modeCells : {};
     var primeOverride = null;
-    if (opts.primePlayed === true || opts.primeCleared === true) {
+    if (opts.primePlayed != null || opts.primeCleared != null || opts.primeFromIndex === true) {
       primeOverride = {
         played: opts.primePlayed === true,
         cleared: opts.primeCleared === true,
+        fromIndex: opts.primeFromIndex === true,
       };
     }
     var primeFlags = detectPrimeFlags(opts.runs, primeOverride);

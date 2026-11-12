@@ -4420,51 +4420,6 @@
           });
       });
     }
-    var adviceIndexesBackfill = document.getElementById('jml-advice-indexes-backfill-btn');
-    if (adviceIndexesBackfill) {
-      adviceIndexesBackfill.addEventListener('click', function () {
-        if (adviceIndexesBackfill.disabled) return;
-        adviceIndexesBackfill.disabled = true;
-        var prevLabel = adviceIndexesBackfill.textContent;
-        adviceIndexesBackfill.textContent = '回填中…';
-        apiFetch('/api/admin/practice-advice-indexes/backfill', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: '{}',
-        })
-          .then(function (d) {
-            if (!d || !d.ok) {
-              window.alert((d && d.error) || '练习索引回填失败');
-              return;
-            }
-            window.alert(
-              '练习索引回填完成\n' +
-                '扫描 ' +
-                (d.usernamesScanned || 0) +
-                ' 人 runs / 账号 ' +
-                (d.usersTotal || 0) +
-                '\n' +
-                '改写 ' +
-                (d.usersChanged || 0) +
-                ' 人\n' +
-                '质数 played +' +
-                (d.primePlayedSet || 0) +
-                ' · cleared +' +
-                (d.primeClearedSet || 0) +
-                '\n' +
-                '闯关最快秒更新 ' +
-                (d.levelClearBestSet || 0)
-            );
-          })
-          .catch(function (e) {
-            window.alert(e.message || String(e));
-          })
-          .finally(function () {
-            adviceIndexesBackfill.disabled = false;
-            adviceIndexesBackfill.textContent = prevLabel;
-          });
-      });
-    }
   }
 
   window.JmlReportPage = {
