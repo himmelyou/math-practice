@@ -1,7 +1,8 @@
 /**
  * 多模式入队：年级先验、槽位预算、模式元数据（供 practice-advice.js）。
  */
-var SPECIAL_ORDER = ["primeComposite", "perfectSquare", "divisibility", "factorsMultiples"];
+/** 简→难；质数合数五年级起，夹在整除与因数倍数之间 */
+var SPECIAL_ORDER = ["perfectSquare", "divisibility", "primeComposite", "factorsMultiples"];
 
 var MODE_META = {
   decimal: {
@@ -93,7 +94,7 @@ function modeCurriculumPrior(modeId, grade, levelIndex) {
   }
 
   if (modeId === "primeComposite") {
-    if (g <= 1) return "blocked";
+    if (g < 5) return "blocked";
     return "learned";
   }
 
