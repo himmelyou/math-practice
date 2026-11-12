@@ -51,9 +51,10 @@ var MODE_META = {
 var WRONGBOOK_MIN = 30;
 
 /**
+ * 年级只定特殊/小数「至少硬留」；四则硬留改由练习建议按热图熟练度算。
+ * 未全开热图：五格全四则（arith=5，特殊/小数 0）。
  * @param {number|string} grade
  * @param {{ arithFullyUnlocked?: boolean }} [opts]
- * 硬留前提：四则 L1–L16 热图全部激活；未满则不硬留（arith=5）。
  */
 function slotBudget(grade, opts) {
   opts = opts || {};
@@ -62,9 +63,9 @@ function slotBudget(grade, opts) {
   }
   var g = Number(grade);
   if (!Number.isInteger(g) || g < 0) return { arith: 5, special: 0, decimal: 0 };
-  if (g >= 4) return { arith: 3, special: 1, decimal: 1 };
-  if (g >= 3) return { arith: 4, special: 1, decimal: 0 };
-  return { arith: 5, special: 0, decimal: 0 };
+  if (g >= 4) return { arith: 0, special: 1, decimal: 1 };
+  if (g >= 3) return { arith: 0, special: 1, decimal: 0 };
+  return { arith: 0, special: 0, decimal: 0 };
 }
 
 function modeLevelLabel(modeId, levelIndex) {

@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.45：质数合数信用户索引（回填后）；无索引时再扫 runs。
+ * 练习建议 v0.46：四则硬留按「不熟练 / 黄橙」两档熟练度；全绿不硬留；自由格不封顶特殊/小数。
+ * v0.45：质数合数信用户索引（回填后）；无索引时再扫 runs。
  * v0.43：质数合数五年级起；特殊序改为平方→整除→质数→因倍。
  * v0.42：特殊/小数硬留按今日已结案消耗，重开不再重复占格。
  * v0.41：平方 L2+ 任务侧按超前（不开新；有数据黄橙才推）。
@@ -11,7 +12,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.45-provisional";
+  var RULE_VERSION = "0.46-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -701,7 +702,7 @@
     return row.p != null && Number.isFinite(Number(row.p));
   }
 
-  /** 与学员概览 fluent 相同：未标流畅的四则档都算未达标（含无数据）。 */
+  /** 不熟练：无数据 / 准<95% / +1sd 过慢（与概览未 fluent 同）。 */
   function arithUnfluentCount(rows) {
     var n = 0;
     var list = rows || [];
@@ -710,6 +711,36 @@
       if (!r || r.fluent !== true) n += 1;
     }
     return n;
+  }
+
+  /** 黄橙：无数据，或热图黄/橙（准不够，或 timePct≥50 / 过慢）。含「准够但仍偏慢」的黄档。 */
+  function arithYellowOrangeCount(rows) {
+    var n = 0;
+    var list = rows || [];
+    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+      var r = list[i];
+      if (!r || r.stage === "no_data") {
+        n += 1;
+        continue;
+      }
+      if (r.band === "yellow" || r.band === "orange") n += 1;
+      else if (r.stage === "weak" || r.stage === "shaky") n += 1;
+      else if (r.fluent !== true) n += 1;
+    }
+    return n;
+  }
+
+  /**
+   * 四则硬留格数（含错题/闯关/四则训练）。
+   * 未全开热图 → 5；已全开：max(不熟练, 黄橙≥3 ? 3 : 黄橙)，全绿 → 0。
+   */
+  function arithSlotReserve(rows) {
+    if (!arithHeatmapFullyUnlocked(rows)) return INCOMPLETE_SIZE;
+    var unfluent = arithUnfluentCount(rows);
+    var yellowOrange = arithYellowOrangeCount(rows);
+    var floor =
+      yellowOrange >= 3 ? Math.max(unfluent, 3) : Math.max(unfluent, yellowOrange);
+    return Math.min(INCOMPLETE_SIZE, Math.max(0, floor));
   }
 
   /** 校内已激活均流畅（未过慢）时，可把符合条件的超前黄橙进队。 */
@@ -1348,12 +1379,12 @@
     }
 
     /**
-     * 四则未流畅关先占座：错题/闯关/四则至少 min(未达标, 5) 格，且不少于年级四则预算。
-     * 其它模式坐剩余格。四则候选不够时，剩余格仍给其它模式，不留空。
+     * 四则硬留按熟练度（不熟练/黄橙）；年级预算只保证特殊/小数至少各留（若有额度）。
+     * 硬留之外的自由格按流优先级填，特殊/小数不再封顶；仍不够才回填四则。
      */
-    var gap = arithUnfluentCount(ctx.rows || []);
-    var arithFloor = Math.min(gap, INCOMPLETE_SIZE);
-    var arithPrefer = Math.min(INCOMPLETE_SIZE, Math.max(budget.arith, arithFloor));
+    var arithPrefer = arithSlotReserve(ctx.rows || []);
+    if ((ctx.wrongbookNeeded || ctx.wrongbookSticky) && arithPrefer < 1) arithPrefer = 1;
+    if (needScan && arithPrefer < 1) arithPrefer = 1;
     var arithSeeds = [];
     var otherSeeds = [];
     stream.forEach(function (seed) {
@@ -1384,6 +1415,7 @@
     if (reservedSpecial) reserveQueue.push(reservedSpecial);
     if (reservedDecimal) reserveQueue.push(reservedDecimal);
     var oi;
+    /** 年级硬留下限：先各占特殊/小数额度内的 1 格（今日未耗尽时）。 */
     for (oi = 0; oi < reserveQueue.length && otherRoom > 0; oi += 1) {
       var rSeed = reserveQueue[oi];
       if (isSpecialSeed(rSeed) && specialTaken >= specialLeft) continue;
@@ -1394,17 +1426,11 @@
         if (isDecimalSeed(rSeed)) decimalTaken += 1;
       }
     }
+    /** 自由格：其它模式洞/开新/绿补按流顺序填，不再用 specialLeft/decimalLeft 封顶。 */
     for (oi = 0; oi < otherSeeds.length && otherRoom > 0; oi += 1) {
-      var oSeed = otherSeeds[oi];
-      if (isSpecialSeed(oSeed) && specialTaken >= specialLeft) continue;
-      if (isDecimalSeed(oSeed) && decimalTaken >= decimalLeft) continue;
-      if (take(oSeed)) {
-        otherRoom -= 1;
-        if (isSpecialSeed(oSeed)) specialTaken += 1;
-        if (isDecimalSeed(oSeed)) decimalTaken += 1;
-      }
+      if (take(otherSeeds[oi])) otherRoom -= 1;
     }
-    /** 特殊/小数今日硬留已用完时，剩余空位继续用四则候选填满。 */
+    /** 自由格仍空时回填四则候选。 */
     for (; ai < arithSeeds.length && picked.length < INCOMPLETE_SIZE; ai += 1) {
       take(arithSeeds[ai]);
     }
@@ -2646,6 +2672,9 @@
       modePacks: modePacks,
       slotBudget: resolveSlotBudget(opts.grade, rows),
       arithFullyUnlocked: arithHeatmapFullyUnlocked(rows),
+      arithUnfluent: arithUnfluentCount(rows),
+      arithYellowOrange: arithYellowOrangeCount(rows),
+      arithReserve: arithSlotReserve(rows),
     };
   }
 
