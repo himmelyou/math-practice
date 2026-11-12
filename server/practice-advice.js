@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.46：四则硬留按「不熟练 / 黄橙」两档熟练度；全绿不硬留；自由格不封顶特殊/小数。
+ * 练习建议 v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
+ * v0.46：四则硬留按「不熟练 / 黄橙」两档熟练度；全绿不硬留；自由格不封顶特殊/小数。
  * v0.45：质数合数信用户索引（回填后）；无索引时再扫 runs。
  * v0.43：质数合数五年级起；特殊序改为平方→整除→质数→因倍。
  * v0.42：特殊/小数硬留按今日已结案消耗，重开不再重复占格。
@@ -12,7 +13,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.46-provisional";
+  var RULE_VERSION = "0.47-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -1379,17 +1380,15 @@
     }
 
     /**
-     * 四则硬留按熟练度（不熟练/黄橙）；年级预算只保证特殊/小数至少各留（若有额度）。
-     * 硬留之外的自由格按流优先级填，特殊/小数不再封顶；仍不够才回填四则。
+     * 1) 四则硬留（熟练度）；2) 年级特殊/小数至少硬留；
+     * 3) 自由格按 stream 全局优先级混排四则+其它（不再只填其它、最后才回填四则）。
      */
     var arithPrefer = arithSlotReserve(ctx.rows || []);
     if ((ctx.wrongbookNeeded || ctx.wrongbookSticky) && arithPrefer < 1) arithPrefer = 1;
     if (needScan && arithPrefer < 1) arithPrefer = 1;
     var arithSeeds = [];
-    var otherSeeds = [];
     stream.forEach(function (seed) {
       if (isArithSeed(seed)) arithSeeds.push(seed);
-      else otherSeeds.push(seed);
     });
 
     var picked = [];
@@ -1426,13 +1425,10 @@
         if (isDecimalSeed(rSeed)) decimalTaken += 1;
       }
     }
-    /** 自由格：其它模式洞/开新/绿补按流顺序填，不再用 specialLeft/decimalLeft 封顶。 */
-    for (oi = 0; oi < otherSeeds.length && otherRoom > 0; oi += 1) {
-      if (take(otherSeeds[oi])) otherRoom -= 1;
-    }
-    /** 自由格仍空时回填四则候选。 */
-    for (; ai < arithSeeds.length && picked.length < INCOMPLETE_SIZE; ai += 1) {
-      take(arithSeeds[ai]);
+    /** 自由格：沿全局优先级流继续取（含四则黄橙/开新/绿补与其它模式）。 */
+    var si;
+    for (si = 0; si < stream.length && picked.length < INCOMPLETE_SIZE; si += 1) {
+      take(stream[si]);
     }
     return picked;
   }
