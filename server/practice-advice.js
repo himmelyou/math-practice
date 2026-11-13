@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
+ * 练习建议 v0.48：特殊硬留同模式黄洞冷却时改试下一格，不整档跳到绿补。
+ * v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
  * v0.46：四则硬留按「不熟练 / 黄橙」两档熟练度；全绿不硬留；自由格不封顶特殊/小数。
  * v0.45：质数合数信用户索引（回填后）；无索引时再扫 runs。
  * v0.43：质数合数五年级起；特殊序改为平方→整除→质数→因倍。
@@ -13,7 +14,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.47-provisional";
+  var RULE_VERSION = "0.48-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -962,23 +963,38 @@
     if (!Modes) return null;
     var order = Modes.SPECIAL_ORDER;
     var tiers = ["hole", "open", "ahead", "fill"];
+    function okSeed(seed) {
+      return !!(seed && !(cooldownSeq && keyTooSoon(seedKey(seed), cooldownSeq)));
+    }
     var t;
     var m;
+    var i;
     for (t = 0; t < tiers.length; t += 1) {
       for (m = 0; m < order.length; m += 1) {
         var pack = ctx.modePacks && ctx.modePacks[order[m]];
         if (!pack) continue;
-        var seed = null;
-        if (tiers[t] === "hole" && pack.schoolHoles && pack.schoolHoles.length) {
-          seed = { kind: "mode", modeId: pack.modeId, row: sortHolesWorstFirst(pack.schoolHoles)[0] };
+        /** 同模式按差→好试完；最差格冷却时改下一格，不整档跳到绿补。 */
+        if (tiers[t] === "hole") {
+          var holes = sortHolesWorstFirst(pack.schoolHoles || []);
+          for (i = 0; i < holes.length; i += 1) {
+            var hSeed = { kind: "mode", modeId: pack.modeId, row: holes[i] };
+            if (okSeed(hSeed)) return hSeed;
+          }
         } else if (tiers[t] === "open" && pack.openRow) {
-          seed = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
-        } else if (tiers[t] === "ahead" && pack.aheadHoles && pack.aheadHoles.length) {
-          seed = { kind: "mode", modeId: pack.modeId, row: sortHolesWorstFirst(pack.aheadHoles)[0] };
-        } else if (tiers[t] === "fill" && pack.fillers && pack.fillers.length) {
-          seed = { kind: "mode", modeId: pack.modeId, row: pack.fillers[0] };
+          var oSeed = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
+          if (okSeed(oSeed)) return oSeed;
+        } else if (tiers[t] === "ahead") {
+          var ahead = sortHolesWorstFirst(pack.aheadHoles || []);
+          for (i = 0; i < ahead.length; i += 1) {
+            var aSeed = { kind: "mode", modeId: pack.modeId, row: ahead[i] };
+            if (okSeed(aSeed)) return aSeed;
+          }
+        } else if (tiers[t] === "fill") {
+          for (i = 0; i < (pack.fillers || []).length; i += 1) {
+            var fSeed = { kind: "mode", modeId: pack.modeId, row: pack.fillers[i] };
+            if (okSeed(fSeed)) return fSeed;
+          }
         }
-        if (seed && !(cooldownSeq && keyTooSoon(seedKey(seed), cooldownSeq))) return seed;
       }
     }
     return null;
