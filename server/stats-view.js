@@ -28,12 +28,13 @@ function listCategories() {
     if (Array.isArray(list) && list.length) return list;
   }
   return [
-    { id: "arithmetic", modes: ["survival", "level", "training"], levelCount: 16 },
+    { id: "arithmetic", modes: ["survival", "level", "training"], levelCount: 20 },
     { id: "decimal", modes: ["decimal"], levelCount: 6 },
     { id: "perfectSquare", modes: ["perfectSquare"], levelCount: 4 },
     { id: "divisibility", modes: ["divisibility"], levelCount: 4 },
     { id: "factorsMultiples", modes: ["factorsMultiples"], levelCount: 6 },
   ];
+
 }
 
 function categoryForMode(mode) {

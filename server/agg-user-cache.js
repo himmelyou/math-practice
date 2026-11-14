@@ -5,7 +5,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const SCHEMA_VERSION = 1;
+/** v2：四则 levelCount 与热图对齐为 20（旧 v1 仅 16 档，L17+ 折线无桶） */
+const SCHEMA_VERSION = 2;
 
 function createAggUserCache(opts) {
   const dataDir = opts.dataDir;

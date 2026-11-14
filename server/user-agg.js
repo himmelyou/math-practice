@@ -5,12 +5,13 @@ const { getJmlStatsAggregate } = require("./load-jml-stats-aggregate");
 const { maxRunTsForModes } = require("./user-heatmap");
 
 const FALLBACK_CATEGORIES = [
-  { id: "arithmetic", modes: ["survival", "level", "training"], levelCount: 16 },
+  { id: "arithmetic", modes: ["survival", "level", "training"], levelCount: 20 },
   { id: "decimal", modes: ["decimal"], levelCount: 6 },
   { id: "perfectSquare", modes: ["perfectSquare"], levelCount: 4 },
   { id: "divisibility", modes: ["divisibility"], levelCount: 4 },
   { id: "factorsMultiples", modes: ["factorsMultiples"], levelCount: 6 },
 ];
+
 
 function emptyLevelAgg() {
   return { total: 0, correct: 0, totalTimeMs: 0, sumLnMs: 0, nSpeed: 0 };
@@ -195,14 +196,24 @@ function buildUserAggCached(opts) {
       snap && snap.maxRunTsByCategory && Number(snap.maxRunTsByCategory[cat.id]) > 0
         ? Number(snap.maxRunTsByCategory[cat.id])
         : 0;
-    const hasBlock = !!(snap && snap.byCategory && snap.byCategory[cat.id]);
-    if (force || !hasBlock) {
+    const block = snap && snap.byCategory ? snap.byCategory[cat.id] : null;
+    const hasBlock = !!block;
+    const wantLevels = Number(cat.levelCount) > 0 ? Math.floor(Number(cat.levelCount)) : 0;
+    const haveLevels =
+      block && Number(block.levelCount) > 0
+        ? Math.floor(Number(block.levelCount))
+        : block && Array.isArray(block.byLevel)
+          ? block.byLevel.length
+          : 0;
+    const levelCountStale = wantLevels > 0 && haveLevels > 0 && haveLevels < wantLevels;
+    if (force || !hasBlock || levelCountStale) {
       dirtyIds.push(cat.id);
       fullRebuildIds[cat.id] = true;
     } else if (maxTs > prevTs) {
       dirtyIds.push(cat.id);
     }
   });
+
 
   if (snap && dirtyIds.length === 0) {
     return {

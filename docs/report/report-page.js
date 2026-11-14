@@ -2473,7 +2473,7 @@
       state.chartModel =
         chartAgg && chartAgg.hasAny
           ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
-              levelCount: chartCat.levelCount || 16,
+              levelCount: chartCat.levelCount || 20,
             })
           : null;
     } else if (Agg) {
@@ -4355,7 +4355,7 @@
         var catId = cell.getAttribute('data-category-id') || 'arithmetic';
         var idx = parseInt(cell.getAttribute('data-level-index'), 10);
         var cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(catId) : null;
-        var maxIdx = cat ? cat.levelCount - 1 : 15;
+        var maxIdx = cat ? cat.levelCount - 1 : 19;
         if (!Number.isFinite(idx) || idx < 0 || idx > maxIdx) return;
         state.chartCategoryId = catId;
         state.statsLevelIndex = idx;
@@ -4364,7 +4364,7 @@
         state.cohort = (state.cohortByCategory && state.cohortByCategory[catId]) || state.cohort;
         if (state.agg && state.agg.hasAny) {
           state.chartModel = AggInner.buildChartSeries(state.agg.byDay, state.statsLevelIndex, {
-            levelCount: cat ? cat.levelCount : 16,
+            levelCount: cat ? cat.levelCount : 20,
           });
         } else {
           state.chartModel = null;
