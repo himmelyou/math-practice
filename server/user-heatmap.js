@@ -196,8 +196,16 @@ function buildUserHeatmapsCached(opts) {
       snap && snap.maxRunTsByCategory && Number(snap.maxRunTsByCategory[cat.id]) > 0
         ? Number(snap.maxRunTsByCategory[cat.id])
         : 0;
-    const hasBlock = !!(snap && snap.byCategory && snap.byCategory[cat.id] && snap.byCategory[cat.id].heat);
-    if (force || !hasBlock || maxTs > prevTs) dirtyIds.push(cat.id);
+    const block = snap && snap.byCategory && snap.byCategory[cat.id];
+    const heat = block && block.heat;
+    const hasBlock = !!(heat && Array.isArray(heat.cells));
+    const expectLc =
+      cat.levelCount > 0 && Number.isFinite(Number(cat.levelCount))
+        ? Math.floor(Number(cat.levelCount))
+        : 0;
+    const cachedLc = hasBlock ? heat.cells.length : 0;
+    const levelCountMismatch = expectLc > 0 && cachedLc !== expectLc;
+    if (force || !hasBlock || maxTs > prevTs || levelCountMismatch) dirtyIds.push(cat.id);
   });
 
   if (snap && dirtyIds.length === 0) {

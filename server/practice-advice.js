@@ -25,11 +25,14 @@
   }
   /**
    * 任务/开新关只看「内容已上线」档。
-   * 框架期 = 16（L1–L16）；L17 上线后改为 17（与 JmlArithmetic.CONTENT_MAX_INDEX+1 同步）。
-   * 隐藏档 L17+ 在内容上线且学员已解锁后，可作四则开新关。
+   * 当前 = 17（L1–L17，与 JmlArithmetic.CONTENT_MAX_INDEX+1 同步）；L18 上线后改为 18。
+   * 隐藏档在内容上线且学员已解锁后，可作四则开新关。
+   * 闯关封顶 / 「其它模式入队」仍按公开档 L1–L16（ARITH_PUBLIC_LEVEL_COUNT）。
    */
-  var LEVEL_COUNT = 16;
+  var LEVEL_COUNT = 17;
   var ARITH_CONTENT_MAX_INDEX = LEVEL_COUNT - 1;
+  var ARITH_PUBLIC_LEVEL_COUNT = 16;
+  var ARITH_PUBLIC_MAX_INDEX = ARITH_PUBLIC_LEVEL_COUNT - 1;
   var ARITH_TOTAL_LEVEL_COUNT = 20;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
@@ -487,11 +490,11 @@
     return m + "分" + (r < 10 ? "0" : "") + r + "秒";
   }
 
-  /** 过 Ln：须打完该关。L16 看 cleared；其余看 maxLevel 是否到达下一关。 */
+  /** 过 Ln：须打完该关。公开顶关 L16 看 cleared；其余看 maxLevel 是否到达下一关。 */
   function passedScanTarget(run, scanLevelIndex) {
     if (scanLevelIndex == null || !Number.isFinite(Number(scanLevelIndex))) return false;
     var idx = clampLevel(scanLevelIndex);
-    if (idx >= LEVEL_COUNT - 1) return !!(run && run.cleared === true);
+    if (idx >= ARITH_PUBLIC_MAX_INDEX) return !!(run && run.cleared === true);
     var reached = summarizeRun(run, null).maxLevel;
     return reached != null && reached >= idx + 1;
   }
@@ -1045,11 +1048,11 @@
     });
   }
 
-  /** 四则 L1–L16 热图均已激活（有数据）；特殊/小数硬留前提。 */
+  /** 四则公开档 L1–L16 热图均已激活（有数据）；特殊/小数硬留前提。不含隐藏 L17+。 */
   function arithHeatmapFullyUnlocked(rows) {
     var list = rows || [];
-    if (list.length < LEVEL_COUNT) return false;
-    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+    if (list.length < ARITH_PUBLIC_LEVEL_COUNT) return false;
+    for (var i = 0; i < ARITH_PUBLIC_LEVEL_COUNT; i += 1) {
       var r = list[i];
       if (!r || !r.stage || r.stage === "no_data") return false;
     }
@@ -2412,7 +2415,7 @@
     }
     if (task.successKind === "level_reach") {
       var lab = task.scanLevelLabel || levelLabel(task.scanLevelIndex);
-      if (task.scanLevelIndex >= LEVEL_COUNT - 1) {
+      if (task.scanLevelIndex >= ARITH_PUBLIC_MAX_INDEX) {
         return "成功：本局闯关通关（通过 L16）";
       }
       return "成功：本局通过 " + lab + "（须打完该关，不是摸到）";
@@ -2626,8 +2629,8 @@
     var scan = resolveScanTarget(rows, opts);
     if (opts.hasClearedLevel === true && retry && retry.improve) {
       scan = {
-        levelIndex: LEVEL_COUNT - 1,
-        levelLabel: levelLabel(LEVEL_COUNT - 1),
+        levelIndex: ARITH_PUBLIC_MAX_INDEX,
+        levelLabel: levelLabel(ARITH_PUBLIC_MAX_INDEX),
         kind: "retry_clear",
         estimateSec: retry.estimateSec,
         recordSec: retry.recordSec,
@@ -2984,6 +2987,8 @@
     FAIL_PRACTICE_DAYS: FAIL_PRACTICE_DAYS,
     LEVEL_COUNT: LEVEL_COUNT,
     ARITH_CONTENT_MAX_INDEX: ARITH_CONTENT_MAX_INDEX,
+    ARITH_PUBLIC_LEVEL_COUNT: ARITH_PUBLIC_LEVEL_COUNT,
+    ARITH_PUBLIC_MAX_INDEX: ARITH_PUBLIC_MAX_INDEX,
     ARITH_TOTAL_LEVEL_COUNT: ARITH_TOTAL_LEVEL_COUNT,
     INCOMPLETE_SIZE: INCOMPLETE_SIZE,
     DAILY_TASK_QUOTA: DAILY_TASK_QUOTA,

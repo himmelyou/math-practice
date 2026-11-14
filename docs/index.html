@@ -5924,7 +5924,7 @@
   <script src="stats-heatmap-browser.js?v=77"></script>
   <script src="stats-aggregate-browser.js?v=53"></script>
   <script src="stats-chart-browser.js?v=59"></script>
-  <script src="shared/arithmetic-questions.js?v=49"></script>
+  <script src="shared/arithmetic-questions.js?v=50"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
   <script src="shared/soft-keyboard.js?v=42"></script>
   <script src="shared/answer-input.js?v=41"></script>
@@ -6053,7 +6053,7 @@
       { upgradeAccuracy: 0.95 }, // L14
       { upgradeAccuracy: 0.95 }, // L15
       { upgradeAccuracy: 0.95 }, // L16
-      { upgradeAccuracy: 0.95 }, // L17（隐藏；推天花板前不可玩）
+      { upgradeAccuracy: 0.95 }, // L17（隐藏训练档；已推天花板）
     ];
 
     // ===== 后台访问口令与登录状态（仅前端保护，防止普通学生误进）=====
@@ -6216,7 +6216,7 @@
      * 四则关卡分层（与 JmlArithmetic 一致）：
      * - 公开档 0–15（L16）：闯关/生存封顶
      * - 隐藏档 16–19（L17–L20）：仅训练解锁；内容未上线时不可选、不提示解锁
-     * - CONTENT_MAX：框架期=15；L17 上线后改为 16（推天花板）
+     * - CONTENT_MAX：当前=16（L17 可玩）；L18 上线后改为 17
      */
     const TRAINING_PUBLIC_MAX =
       (window.JmlArithmetic && window.JmlArithmetic.PUBLIC_MAX_INDEX != null)

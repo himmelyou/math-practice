@@ -5,7 +5,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const SCHEMA_VERSION = 1;
+/** v2：四则热图格数 16→20（含隐藏档）；旧快照一律作废重算 */
+const SCHEMA_VERSION = 2;
 
 function createHeatmapUserCache(opts) {
   const dataDir = opts.dataDir;

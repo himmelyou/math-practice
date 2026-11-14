@@ -5,7 +5,7 @@
  * - 公开档 L1–L16（index 0–15）：闯关 / 生存封顶
  * - 隐藏档 L17–L20（index 16–19）：仅训练可解锁；热图格始终存在（管理端全显）
  * - LEVEL_DEFS：已上线出题的档（含已写好、待推天花板的隐藏档）；L18–L20 仍仅占位标签
- * - 内容天花板 CONTENT_MAX_INDEX：框架期 = 15（L16）；L17 出题已落地但未推天花板前仍为 15
+ * - 内容天花板 CONTENT_MAX_INDEX：已推到 16（L17 可玩）；L18+ 仍待上线
  *   解锁可提前记到 TOTAL；可玩 / 「解锁新等级」文案 / 学员热图显隐藏格
  *   都只到 min(已解锁, CONTENT_MAX_INDEX)
  */
@@ -17,10 +17,10 @@
   /** 全谱最高 index = L20 */
   var TOTAL_MAX_INDEX = 19;
   /**
-   * 学员可玩最高 index。出题可先于天花板落地（管理端出题纸可印）；
-   * L17 检验通过后改为 16 即推天花板。
+   * 学员可玩最高 index（含已上线隐藏档）。
+   * L18 题目上线后改为 17，以此类推。
    */
-  var CONTENT_MAX_INDEX = 15;
+  var CONTENT_MAX_INDEX = 16;
   var PUBLIC_LEVEL_COUNT = PUBLIC_MAX_INDEX + 1;
   var TOTAL_LEVEL_COUNT = TOTAL_MAX_INDEX + 1;
 
@@ -1562,7 +1562,7 @@
 
   /**
    * 尚未写入 LEVEL_DEFS 的隐藏档占位（热图全谱用）。
-   * L17 已进 LEVEL_DEFS；推天花板前 CONTENT_MAX 仍为 15，学员不可选。
+   * L17 已进 LEVEL_DEFS 且 CONTENT_MAX=16；L18–L20 仍仅标签。
    */
   var HIDDEN_LEVEL_STUB_LABELS = [
     "L18 ·（未上线）",
@@ -1600,7 +1600,7 @@
     TOTAL_MAX_INDEX: TOTAL_MAX_INDEX,
     TOTAL_LEVEL_COUNT: TOTAL_LEVEL_COUNT,
     L17_LEVEL_INDEX: L17_LEVEL_INDEX,
-    /** 改此值推学员可玩天花板（框架期 15；检验通过后 L17 → 16） */
+    /** 改此值推学员可玩天花板（当前 16=L17；L18 上线 → 17） */
     CONTENT_MAX_INDEX: CONTENT_MAX_INDEX,
     LEVEL_LABELS: LEVEL_LABELS,
     LEVEL_LABELS_TOTAL: LEVEL_LABELS_TOTAL,
