@@ -1528,26 +1528,40 @@
     }
   }
 
-  function formatL17UnlockBackfillStatus(data, applied) {
-    var samples = Array.isArray(data.changed) ? data.changed : [];
-    var names = samples
-      .slice(0, 8)
+  function formatDecreaseToLevelLines(data) {
+    var rows = Array.isArray(data.decreaseToLevelOrdered) ? data.decreaseToLevelOrdered : [];
+    if (!rows.length && data.decreaseToLevel && typeof data.decreaseToLevel === 'object') {
+      rows = Object.keys(data.decreaseToLevel)
+        .sort()
+        .map(function (k) {
+          return { level: k, count: data.decreaseToLevel[k] };
+        });
+    }
+    if (!rows.length) return '（无降档）';
+    return rows
       .map(function (row) {
-        return row && row.username ? row.username : '';
+        return row.level + ' × ' + row.count;
       })
-      .filter(Boolean)
-      .join(', ');
+      .join('，');
+  }
+
+  function formatL17UnlockBackfillStatus(data, applied) {
     return (
-      (applied ? 'L17 解锁回填完成' : 'L17 解锁预览') +
+      (applied ? '训练解锁重算完成' : '训练解锁预览') +
       '：学员 ' +
       (data.usersScanned || 0) +
-      ' · 需改 ' +
+      ' · 改动 ' +
       (data.changedCount || 0) +
       ' · 补旗 ' +
       (data.flagFromRuns || 0) +
-      ' · 抬解锁 ' +
-      (data.unlockBumped || 0) +
-      (names ? ' · 例 ' + names + (data.changedCount > 8 ? '…' : '') : '')
+      ' · 升 ' +
+      (data.unlockIncreased || 0) +
+      ' · 降 ' +
+      (data.unlockDecreased || 0) +
+      ' · 修 tip ' +
+      (data.tipFixed || 0) +
+      ' · 降到：' +
+      formatDecreaseToLevelLines(data)
     );
   }
 
@@ -1555,13 +1569,14 @@
     try {
       if (
         !confirm(
-          '将预览：已通关 L16 但未解锁 L17 的账号（补 trainingL16Cleared / 抬 unlockedMax→16）。\n\n' +
-            '不会立刻写盘。预览后再确认是否应用。操作前请先备份。是否继续预览？'
+          '将预览：按通关证据重算全员训练 unlockedMax（可下调误抬的 L17）。\n\n' +
+            '只认 trainingL16Cleared / runs 通关，不再用 tip=-1。\n' +
+            '不会立刻写盘。预览会列出降到各等级人数。操作前请先备份。是否继续预览？'
         )
       ) {
         return;
       }
-      setStatus('L17 解锁回填预览中…', '');
+      setStatus('训练解锁重算预览中…', '');
       var preview = await apiFetch('/api/admin/maintenance/backfill-training-l17-unlock', {
         method: 'POST',
         body: JSON.stringify({ dryRun: true }),
@@ -1571,20 +1586,28 @@
       }
       setStatus(formatL17UnlockBackfillStatus(preview, false), 'ok');
       if (!(preview.changedCount > 0)) return;
+      var decLines = formatDecreaseToLevelLines(preview);
       if (
         !confirm(
           '预览需改 ' +
             preview.changedCount +
-            ' 人（补旗 ' +
+            ' 人\n' +
+            '升 ' +
+            (preview.unlockIncreased || 0) +
+            ' · 降 ' +
+            (preview.unlockDecreased || 0) +
+            ' · 补旗 ' +
             (preview.flagFromRuns || 0) +
-            ' · 抬解锁 ' +
-            (preview.unlockBumped || 0) +
-            '）。\n\n确认写盘？'
+            ' · 修 tip ' +
+            (preview.tipFixed || 0) +
+            '\n\n降到各等级：\n' +
+            decLines +
+            '\n\n确认写盘？'
         )
       ) {
         return;
       }
-      setStatus('L17 解锁回填写入中…', '');
+      setStatus('训练解锁重算写入中…', '');
       var applied = await apiFetch('/api/admin/maintenance/backfill-training-l17-unlock', {
         method: 'POST',
         body: JSON.stringify({ dryRun: false }),

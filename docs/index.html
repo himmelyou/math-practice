@@ -13307,10 +13307,8 @@
       if (typeof user.levelTrainingUnlockedMax !== "number" || !Number.isFinite(user.levelTrainingUnlockedMax)) {
         let seed = 0;
         const tip = user.levelTrainingCurrentLevel;
-        // tip=-1 → 旧「全通」哨兵，记 L17 已解锁（index 16）
-        if (tip === -1) {
-          seed = TRAINING_PUBLIC_MAX + 1;
-        } else if (typeof tip === "number" && tip >= 0) {
+        // tip=-1 不可靠，不当解锁证据；缺省 unlockedMax 时只用 tip≥0 / 闯关进度
+        if (typeof tip === "number" && tip >= 0) {
           seed = Math.min(TRAINING_UNLOCK_CAP, Math.floor(tip));
         }
         const chBest = Math.max(
@@ -13326,11 +13324,8 @@
           Math.max(0, Math.floor(user.levelTrainingUnlockedMax))
         );
       }
-      // 通关旗已亮但 unlockedMax 未回填时抬到 L17 位（与服务端 ensureTrainingUnlockedMaxForL16Clear 对齐）
-      if (
-        user.levelTrainingUnlockedMax < TRAINING_PUBLIC_MAX + 1 &&
-        (user.trainingL16Cleared === true || user.levelTrainingCurrentLevel === -1)
-      ) {
+      // 通关旗已亮但 unlockedMax 未回填时抬到 L17 位（只认 trainingL16Cleared）
+      if (user.levelTrainingUnlockedMax < TRAINING_PUBLIC_MAX + 1 && user.trainingL16Cleared === true) {
         user.levelTrainingUnlockedMax = TRAINING_PUBLIC_MAX + 1;
       }
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;

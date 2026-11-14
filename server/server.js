@@ -1251,10 +1251,12 @@ function parseWorkspaceParts(partsQuery) {
 /**
  * 管理端学员工作台：按 parts 按需返回。
  * core（热图+折线）优先物化命中零读 runs；runs 仅在 parts.runs 时回传。
+ * forceStats：跳过热图/折线快照，用当前常模全量重算该学员（报表「刷新」用）。
  */
 function buildStudentWorkspaceForUsername(username, opts) {
   opts = opts || {};
   const includeAttempts = opts.includeAttempts === true;
+  const forceStats = opts.forceStats === true;
   const parts = opts.parts || parseWorkspaceParts("full");
   const usersData = readJson(USERS_FILE, { users: [] });
   const user = usersData.users.find((u) => u.username === username);
@@ -1272,7 +1274,7 @@ function buildStudentWorkspaceForUsername(username, opts) {
   let statsCacheHit = false;
   let userDirty = false;
 
-  if (wantStats) {
+  if (wantStats && !forceStats) {
     const cached = statsView.tryLoadStatsViewFromCache({
       username,
       user,
@@ -1293,14 +1295,14 @@ function buildStudentWorkspaceForUsername(username, opts) {
 
   const needRuns =
     parts.runs ||
-    (wantStats && !statsCacheHit) ||
+    (wantStats && (!statsCacheHit || forceStats)) ||
     (wantExtras && !heatPayload);
   let runs = needRuns ? getNormalizedUserRunsSorted(username) : [];
   if (needRuns && ensureUserClearedFlagsFromRuns(user, runs)) {
     userDirty = true;
   }
 
-  if (wantStats && !statsCacheHit) {
+  if (wantStats && (!statsCacheHit || forceStats)) {
     const built = statsView.materializeStatsViewFromRuns({
       username,
       user,
@@ -1308,12 +1310,14 @@ function buildStudentWorkspaceForUsername(username, opts) {
       heatmapCache: heatmapUserCache,
       aggCache: aggUserCache,
       cohortsByCategory: cohortsByCategoryForHeatmap(),
+      force: forceStats,
     });
     heatPayload = built.heatPayload;
     aggByCategory = built.aggByCategory || {};
     aggOk = !!built.aggOk;
     selectionHint = built.selectionHint;
     statsRevision = built.statsRevision || statsView.computeStatsRevision(user);
+    statsCacheHit = false;
     userDirty = true;
   } else if ((wantExtras || parts.heatmap) && !heatPayload) {
     heatPayload = runs.length
@@ -1454,15 +1458,19 @@ function computeHeatmapL16PassedFromRuns(runs) {
   );
 }
 
+/** 训练内容天花板 index（L17 已上线=16；与 JmlArithmetic.CONTENT_MAX_INDEX 同步） */
+const TRAINING_CONTENT_MAX_INDEX = SURVIVAL_UNLOCK_L16_INDEX + 1;
+/** unlockedMax 可记到 L20 全通位 */
+const TRAINING_UNLOCK_CAP = SURVIVAL_UNLOCK_L16_INDEX + 5; // 15+5=20
+
 /**
- * L16 通关旗 / 旧 tip=-1 → unlockedMax 至少记到 L17 位（16）。
- * 历史账号：管理端「回填 L17 解锁」；此处保证报分/重算升起通关旗后不漏记。
+ * 仅认 L16 通关旗 → unlockedMax 至少 L17 位（16）。
+ * 不再把 tip=-1 当通关证据（该哨兵在存量数据里大量误标）。
  */
 function ensureTrainingUnlockedMaxForL16Clear(u) {
   if (!u) return false;
+  if (u.trainingL16Cleared !== true) return false;
   const l17Unlock = SURVIVAL_UNLOCK_L16_INDEX + 1; // 16
-  const tip = u.levelTrainingCurrentLevel;
-  if (!(u.trainingL16Cleared === true || tip === -1)) return false;
   const cur =
     typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
       ? Math.floor(u.levelTrainingUnlockedMax)
@@ -1472,19 +1480,83 @@ function ensureTrainingUnlockedMaxForL16Clear(u) {
   return true;
 }
 
+function runsMaxTrainingLevel(runs) {
+  let best = -1;
+  (runs || []).forEach((r) => {
+    if (normalizeRunMode(r && r.mode) !== "training") return;
+    const ml = Number(r && r.maxLevel);
+    if (!Number.isFinite(ml)) return;
+    if (ml > best) best = Math.floor(ml);
+  });
+  return best;
+}
+
 /**
- * 全体回填：缺 L16 通关旗则扫 runs 补旗；有证据则抬 unlockedMax→16。
- * dryRun=true 只预览不写盘。
+ * 按通关证据 + 训练/闯关进度重算 unlockedMax（可升可降）。
+ * 有 L16 通关 → 至少 16，并保留已高于 16 的合法进度；无通关 → 封顶公开档 15。
+ */
+function computeTrainingUnlockedMaxFromEvidence(u, runs) {
+  const publicMax = SURVIVAL_UNLOCK_L16_INDEX; // 15
+  const l17Unlock = publicMax + 1; // 16
+  const hasClear = u.trainingL16Cleared === true || runsHaveTrainingL16Cleared(runs);
+  const maxTrain = runsMaxTrainingLevel(runs);
+  const tip = u.levelTrainingCurrentLevel;
+  const chBest = Math.min(
+    publicMax,
+    Math.max(
+      0,
+      Math.floor(Number(u.levelChallengeBestLevel) || 0),
+      Math.floor(Number(u.levelChallengeLastLevel) || 0)
+    )
+  );
+
+  let derived = 0;
+  if (typeof tip === "number" && Number.isFinite(tip) && tip >= 0) {
+    derived = Math.max(derived, Math.floor(tip));
+  }
+  if (maxTrain >= 0) derived = Math.max(derived, maxTrain);
+  derived = Math.max(derived, chBest);
+
+  if (hasClear) {
+    const cur =
+      typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
+        ? Math.floor(u.levelTrainingUnlockedMax)
+        : 0;
+    const keepHigh = cur > l17Unlock ? cur : l17Unlock;
+    return Math.min(TRAINING_UNLOCK_CAP, Math.max(l17Unlock, keepHigh, Math.min(publicMax, derived)));
+  }
+  return Math.min(publicMax, Math.max(0, derived));
+}
+
+function trainingUnlockToLevelLabel(unlockIndex) {
+  const n = Math.floor(Number(unlockIndex));
+  if (!Number.isFinite(n) || n < 0) return "?";
+  if (n <= SURVIVAL_UNLOCK_L16_INDEX) return "L" + (n + 1);
+  if (n === SURVIVAL_UNLOCK_L16_INDEX + 1) return "L17已解锁";
+  if (n === SURVIVAL_UNLOCK_L16_INDEX + 2) return "L18已解锁";
+  if (n === SURVIVAL_UNLOCK_L16_INDEX + 3) return "L19已解锁";
+  if (n === SURVIVAL_UNLOCK_L16_INDEX + 4) return "L20已解锁";
+  if (n >= TRAINING_UNLOCK_CAP) return "L20全通位";
+  return "idx" + n;
+}
+
+/**
+ * 全体重算训练解锁水位（可降）：补 L16 通关旗；按证据写 unlockedMax / tip。
+ * dryRun=true 只预览不写盘；回报降到各等级的人数。
  */
 function backfillTrainingL17UnlockAll(opts) {
   const dryRun = !!(opts && opts.dryRun);
   const data = readJson(USERS_FILE, { users: [] });
   const users = Array.isArray(data.users) ? data.users : [];
-  const l17Unlock = SURVIVAL_UNLOCK_L16_INDEX + 1;
   const changed = [];
   let scannedRuns = 0;
   let flagFromRuns = 0;
-  let unlockBumped = 0;
+  let unlockIncreased = 0;
+  let unlockDecreased = 0;
+  let unlockUnchanged = 0;
+  let tipFixed = 0;
+  const decreaseToLevel = {};
+  const increaseToLevel = {};
 
   users.forEach((u) => {
     if (!u || !u.username) return;
@@ -1492,32 +1564,68 @@ function backfillTrainingL17UnlockAll(opts) {
       typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
         ? Math.floor(u.levelTrainingUnlockedMax)
         : null;
-    let setFlagFromRuns = false;
-    if (u.trainingL16Cleared !== true) {
-      scannedRuns += 1;
-      const runs = runsStore.getUserRuns(u.username);
-      if (runsHaveTrainingL16Cleared(runs)) {
-        u.trainingL16Cleared = true;
-        setFlagFromRuns = true;
-        flagFromRuns += 1;
-      }
-    }
-    const tip = u.levelTrainingCurrentLevel;
-    const evidence = u.trainingL16Cleared === true || tip === -1;
-    if (!evidence) return;
+    const beforeTip =
+      typeof u.levelTrainingCurrentLevel === "number" && Number.isFinite(u.levelTrainingCurrentLevel)
+        ? Math.floor(u.levelTrainingCurrentLevel)
+        : null;
 
-    const bumpedUnlock = ensureTrainingUnlockedMaxForL16Clear(u);
-    if (bumpedUnlock) unlockBumped += 1;
-    if (!setFlagFromRuns && !bumpedUnlock) return;
+    scannedRuns += 1;
+    const runs = runsStore.getUserRuns(u.username);
+    let setFlagFromRuns = false;
+    if (u.trainingL16Cleared !== true && runsHaveTrainingL16Cleared(runs)) {
+      u.trainingL16Cleared = true;
+      setFlagFromRuns = true;
+      flagFromRuns += 1;
+    }
+
+    const afterUnlock = computeTrainingUnlockedMaxFromEvidence(u, runs);
+    const tipCap =
+      u.trainingL16Cleared === true ? TRAINING_CONTENT_MAX_INDEX : SURVIVAL_UNLOCK_L16_INDEX;
+    let nextTip;
+    if (typeof beforeTip === "number" && beforeTip >= 0 && beforeTip <= afterUnlock) {
+      nextTip = Math.min(beforeTip, afterUnlock, tipCap);
+    } else {
+      // tip 缺省 / -1 / 高于解锁 → 收到重算后的可玩 tip
+      nextTip = Math.min(afterUnlock, tipCap);
+    }
+
+    const unlockChanged = beforeUnlock !== afterUnlock;
+    const tipChanged = beforeTip !== nextTip;
+    if (!setFlagFromRuns && !unlockChanged && !tipChanged) {
+      unlockUnchanged += 1;
+      return;
+    }
+
+    if (unlockChanged) {
+      const beforeNum = beforeUnlock == null ? -1 : beforeUnlock;
+      if (afterUnlock > beforeNum) {
+        unlockIncreased += 1;
+        const lab = trainingUnlockToLevelLabel(afterUnlock);
+        increaseToLevel[lab] = (increaseToLevel[lab] || 0) + 1;
+      } else if (afterUnlock < beforeNum) {
+        unlockDecreased += 1;
+        const lab = trainingUnlockToLevelLabel(afterUnlock);
+        decreaseToLevel[lab] = (decreaseToLevel[lab] || 0) + 1;
+      }
+    } else {
+      unlockUnchanged += 1;
+    }
+
+    if (tipChanged) tipFixed += 1;
+
+    u.levelTrainingUnlockedMax = afterUnlock;
+    u.levelTrainingCurrentLevel = nextTip;
 
     changed.push({
       username: u.username,
       beforeUnlock,
-      afterUnlock:
-        typeof u.levelTrainingUnlockedMax === "number" ? u.levelTrainingUnlockedMax : beforeUnlock,
-      tip: tip == null ? null : tip,
+      afterUnlock,
+      beforeTip,
+      afterTip: nextTip,
       setFlagFromRuns,
-      bumpedUnlock,
+      unlockChanged,
+      tipChanged,
+      hasL16Clear: u.trainingL16Cleared === true,
     });
   });
 
@@ -1525,20 +1633,40 @@ function backfillTrainingL17UnlockAll(opts) {
     writeJson(USERS_FILE, data);
   }
 
+  const sortLevelKeys = (obj) =>
+    Object.keys(obj).sort((a, b) => {
+      const na = Number(String(a).replace(/\D/g, "")) || 0;
+      const nb = Number(String(b).replace(/\D/g, "")) || 0;
+      return na - nb;
+    });
+
   return {
     ok: true,
     dryRun,
     usersScanned: users.length,
-    runsScannedForMissingFlag: scannedRuns,
+    runsScanned: scannedRuns,
     flagFromRuns,
-    unlockBumped,
+    unlockIncreased,
+    unlockDecreased,
+    unlockUnchanged,
+    tipFixed,
     changedCount: changed.length,
+    decreaseToLevel,
+    increaseToLevel,
+    decreaseToLevelOrdered: sortLevelKeys(decreaseToLevel).map((k) => ({
+      level: k,
+      count: decreaseToLevel[k],
+    })),
+    increaseToLevelOrdered: sortLevelKeys(increaseToLevel).map((k) => ({
+      level: k,
+      count: increaseToLevel[k],
+    })),
     changed: changed.slice(0, 80),
     note:
       dryRun
-        ? "dry-run：未写盘。确认后去掉 dryRun 再执行。"
+        ? "dry-run：未写盘。按通关证据重算 unlockedMax（可降）；tip=-1 不再当通关。"
         : changed.length
-          ? "已写入 users.json（只升不降）。"
+          ? "已写入 users.json（按证据重算，可降）。"
           : "无需改动。",
   };
 }
@@ -5179,9 +5307,16 @@ app.get("/api/admin/student-workspace/:username", (req, res) => {
   const includeAttempts =
     String((req.query && req.query.attempts) || "") === "1" ||
     String((req.query && req.query.includeAttempts) || "") === "1";
+  const forceStats =
+    String((req.query && req.query.force) || "") === "1" ||
+    String((req.query && req.query.forceStats) || "") === "1";
   const parts = parseWorkspaceParts(req.query && req.query.parts);
   try {
-    const out = buildStudentWorkspaceForUsername(username, { includeAttempts, parts });
+    const out = buildStudentWorkspaceForUsername(username, {
+      includeAttempts,
+      parts,
+      forceStats,
+    });
     if (!out.ok) {
       return res.status(out.status || 500).json({ ok: false, error: out.error || "加载失败" });
     }
@@ -5191,6 +5326,7 @@ app.get("/api/admin/student-workspace/:username", (req, res) => {
     return res.status(500).json({ ok: false, error: "学员工作台计算失败" });
   }
 });
+
 
 app.get("/api/admin/student-detail/:username", (req, res) => {
   if (!checkAdminPin(req)) {

@@ -2279,8 +2279,10 @@
     return 'runs';
   }
 
-  function fetchStudentWorkspace(username, parts, signal) {
+  function fetchStudentWorkspace(username, parts, signal, opts) {
+    opts = opts || {};
     var q = '?parts=' + encodeURIComponent(parts || 'full');
+    if (opts.force === true) q += '&force=1';
     return apiFetch('/api/admin/student-workspace/' + encodeURIComponent(username) + q, {
       signal: signal,
     });
@@ -2387,10 +2389,10 @@
     putStudentBagCache(u, snapshotStudentBag(u));
   }
 
-  function loadStudentWorkspaceExtras(u, seq) {
+  function loadStudentWorkspaceExtras(u, seq, opts) {
     if (!u) return Promise.resolve();
     var ac = state.studentLoadAbort;
-    return fetchStudentWorkspace(u, 'extras', ac && ac.signal)
+    return fetchStudentWorkspace(u, 'extras', ac && ac.signal, opts)
       .then(function (extra) {
         if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
         applyWorkspaceExtras(extra, u);
@@ -2604,7 +2606,7 @@
       state.runsLoadedFor = '';
     }
 
-    return fetchStudentWorkspace(u, parts, ac && ac.signal)
+    return fetchStudentWorkspace(u, parts, ac && ac.signal, { force: force })
       .then(function (data) {
         if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
         applyStudentWorkspaceCore(data, u);
@@ -2614,7 +2616,7 @@
         renderActiveStudentPanels();
         var follow = [];
         if (wantExtrasLater) {
-          follow.push(loadStudentWorkspaceExtras(u, seq));
+          follow.push(loadStudentWorkspaceExtras(u, seq, { force: force }));
         }
         if (
           (tab === 'runs' || tab === 'train-debug') &&

@@ -331,7 +331,7 @@
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-rebuild-monthly-snapshots" class="jml-btn jml-btn-primary" title="全体学员：按每月末局重建热图与概览同口径 progress（从 runs 倒推；覆盖其快照）">重建全体月度快照</button>
-          <button type="button" id="jml-btn-backfill-training-l17-unlock" class="jml-btn" title="已无错通关 L16 但 unlockedMax 未抬到 16 的账号：补旗并解锁 L17">回填 L17 解锁</button>
+          <button type="button" id="jml-btn-backfill-training-l17-unlock" class="jml-btn" title="按通关证据重算全员训练 unlockedMax（可降）；修正误抬的 L17">重算训练解锁</button>
         </div>
         <div class="jml-placeholder-panel" style="margin-top:16px;">
           <p><strong>重建全体月度快照</strong></p>
@@ -340,11 +340,12 @@
             <li>progress 按该月末局 asOf 从 runs 倒推概览同口径水位</li>
             <li>覆盖全体有用户名的学员；学员多时可能较慢</li>
           </ol>
-          <p><strong>回填 L17 解锁</strong></p>
+          <p><strong>重算训练解锁</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
-            <li>缺 <code>trainingL16Cleared</code> 时扫 runs：训练 L16 无错通关则补旗</li>
-            <li>有通关旗或旧 tip=<code>-1</code> 时，把 <code>levelTrainingUnlockedMax</code> 抬到 16（只升不降）</li>
-            <li>会先 dry-run 预览人数，确认后再写盘</li>
+            <li>扫 runs 补 <code>trainingL16Cleared</code>（训练 L16 cleared 局）</li>
+            <li>有通关证据 → <code>unlockedMax≥16</code>（L17）；无证据 → 按训练/闯关进度重算并<strong>封顶 L16</strong>（可下调）</li>
+            <li>不再把 tip=<code>-1</code> 当通关；异常 tip 一并修好</li>
+            <li>先 dry-run：汇报降到各等级人数，确认后再写盘</li>
           </ol>
           <p class="muted" style="margin:0;">操作前请先在「系统备份」Tab 下载备份。</p>
         </div>
@@ -362,7 +363,7 @@
 
   <script src="../shared/app-version.js?v=133"></script>
   <script>
-    window.JML_ADMIN_STATIC_REV = "51";
+    window.JML_ADMIN_STATIC_REV = "52";
     (function () {
       var el = document.getElementById("jml-admin-version");
       if (!el) return;
@@ -388,7 +389,7 @@
   <script src="../shared/fraction-questions.js?v=4"></script>
   <script src="../shared/factors-multiples-questions.js?v=12"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=56"></script>
+    <script src="admin-panel.js?v=57"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=32"></script>
   <script src="admin-achievements.js?v=9"></script>
