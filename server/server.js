@@ -89,9 +89,9 @@ const WRONG_ANSWER_MODES = new Set([
   "factorsMultiples",
 ]);
 const WRONG_ANSWER_LEVEL_MAX = {
-  survival: 15,
+  survival: 15, // 闯关/生存公开档顶 L16
   level: 15,
-  training: 15,
+  training: 19, // 训练含隐藏档至 L20
   decimal: 5,
   perfectSquare: 3,
   divisibility: 4,

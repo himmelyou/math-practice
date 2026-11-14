@@ -263,7 +263,11 @@
     var rem = foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0));
     var severity = Math.max(timePctVal(row), accuracySeverity(row));
     var band = row.fluent === true ? 0 : HOLE_UNFLUENT_BAND;
-    return band + rem * HOLE_LEVEL_WEIGHT + severity;
+    var score = band + rem * HOLE_LEVEL_WEIGHT + severity;
+    // 隐藏档（L17+）降一档剩余步权重，排在同严重度的公开顶关（如 L16）之后
+    var li = row.levelIndex != null ? Math.floor(Number(row.levelIndex)) : -1;
+    if (li >= ARITH_PUBLIC_LEVEL_COUNT) score -= HOLE_LEVEL_WEIGHT;
+    return score;
   }
 
   /** 已学流畅档：准度离 97% + 地基加权速度项 + 样本偏薄。越大越该补进未完成。 */
@@ -420,10 +424,11 @@
     return best;
   }
 
+  /** 闯关全通估时：只加总公开档 L1–L16（隐藏档不进闯关）。 */
   function estimateClearSec(rows) {
     var sum = 0;
     var list = rows || [];
-    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+    for (var i = 0; i < ARITH_PUBLIC_LEVEL_COUNT; i += 1) {
       var row = list[i];
       var sec = row && row.avgSec != null && Number.isFinite(Number(row.avgSec)) ? Number(row.avgSec) : null;
       if (sec == null || sec <= 0) return null;
@@ -714,22 +719,22 @@
     return row.p != null && Number.isFinite(Number(row.p));
   }
 
-  /** 不熟练：无数据 / 准<95% / +1sd 过慢（与概览未 fluent 同）。 */
+  /** 不熟练：无数据 / 准<95% / +1sd 过慢（与概览未 fluent 同）。只计公开档 L1–L16。 */
   function arithUnfluentCount(rows) {
     var n = 0;
     var list = rows || [];
-    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+    for (var i = 0; i < ARITH_PUBLIC_LEVEL_COUNT; i += 1) {
       var r = list[i];
       if (!r || r.fluent !== true) n += 1;
     }
     return n;
   }
 
-  /** 黄橙：无数据，或热图黄/橙（准不够，或 timePct≥50 / 过慢）。含「准够但仍偏慢」的黄档。 */
+  /** 黄橙：无数据，或热图黄/橙（准不够，或 timePct≥50 / 过慢）。含「准够但仍偏慢」的黄档。只计公开档 L1–L16。 */
   function arithYellowOrangeCount(rows) {
     var n = 0;
     var list = rows || [];
-    for (var i = 0; i < LEVEL_COUNT; i += 1) {
+    for (var i = 0; i < ARITH_PUBLIC_LEVEL_COUNT; i += 1) {
       var r = list[i];
       if (!r || r.stage === "no_data") {
         n += 1;
@@ -745,6 +750,7 @@
   /**
    * 四则硬留格数（含错题/闯关/四则训练）。
    * 未全开热图 → 5；已全开：max(不熟练, 黄橙≥3 ? 3 : 黄橙)，全绿 → 0。
+   * 熟练度只看公开档；隐藏 L17+ 不抬硬留。
    */
   function arithSlotReserve(rows) {
     if (!arithHeatmapFullyUnlocked(rows)) return INCOMPLETE_SIZE;

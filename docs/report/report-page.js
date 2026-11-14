@@ -72,9 +72,9 @@
   };
 
   var WRONG_ANSWER_LEVEL_MAX = {
-    survival: 15,
+    survival: 15, // 闯关/生存公开档顶 L16
     level: 15,
-    training: 15,
+    training: 19, // 训练含隐藏档至 L20
     decimal: 5,
     perfectSquare: 3,
     factorsMultiples: 5,
@@ -1257,7 +1257,7 @@
     }
     var li =
       server.levelIndex != null && Number.isFinite(Number(server.levelIndex))
-        ? Math.min(15, Math.max(0, Math.floor(Number(server.levelIndex))))
+        ? Math.min(19, Math.max(0, Math.floor(Number(server.levelIndex))))
         : null;
     if (li == null) {
       return { ok: false, error: 'no_pick', todayKey: server.todayKey || '' };
@@ -3315,7 +3315,7 @@
   function formatArithmeticNextBadgeHtml() {
     var sp = state.serverTrainingPick;
     if (sp && sp.ok !== false && sp.levelIndex != null && Number.isFinite(Number(sp.levelIndex))) {
-      var recK = Math.min(15, Math.max(0, Math.floor(Number(sp.levelIndex))));
+      var recK = Math.min(19, Math.max(0, Math.floor(Number(sp.levelIndex))));
       var isBrush = !!(sp.brushMode || sp.dayMode === 'heat' || sp.mode === 'brush');
       var modeLabel = isBrush ? rt('stats.heat.mode.brush') : rt('stats.heat.mode.daily');
       return formatCategoryNextBadgeHtml('L' + (recK + 1), modeLabel, rt('stats.heat.legend.recommend'));

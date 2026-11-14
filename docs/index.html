@@ -7440,7 +7440,7 @@
       if (!isDailyTaskPlay() || dailyTaskPlay.action !== "training") return false;
       const lv = Number(dailyTaskPlay.levelIndex);
       if (!Number.isFinite(lv)) return false;
-      currentLevelIndex = Math.min(15, Math.max(0, Math.floor(lv)));
+      currentLevelIndex = clampTrainingPlayableLevel(lv);
       trainingAutoPickLevelIndex = currentLevelIndex;
       lastTrainingEntrySource = "daily_task";
       refreshDailyTaskPlayFromAdvice();
@@ -13395,9 +13395,9 @@
     ]);
     const WRONGBOOK_EXCLUDED_MODES = new Set(["divisibility"]);
     const WRONG_ANSWER_LEVEL_MAX = {
-      survival: 15,
+      survival: 15, // 闯关/生存公开档顶 L16
       level: 15,
-      training: 15,
+      training: 19, // 训练含隐藏档至 L20
       decimal: 5,
       perfectSquare: 3,
       factorsMultiples: 5,
@@ -15242,7 +15242,7 @@
       dom.answerInput.disabled = true;
       updateLevelStatusUI();
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
-      const persistIdx = Math.min(15, Math.max(0, Math.max(maxLevelThisRun, currentLevelIndex)));
+      const persistIdx = clampPublicLevel(Math.max(maxLevelThisRun, currentLevelIndex));
       if (abandoned) {
         // 放弃：保存进度、写入 runs，不计分、不写错题本
         saveLevelChallengeLastLevel(persistIdx);
@@ -17989,7 +17989,7 @@
     }
 
     function saveLevelChallengeBestLevel(reachedLevel) {
-      const idx = Math.min(15, Math.max(0, reachedLevel));
+      const idx = clampPublicLevel(reachedLevel);
       const cur = getLevelChallengeBestLevel();
       if (idx <= cur) return;
       if (isGuestMode) {
@@ -18099,7 +18099,7 @@
         st.brushPoolMax =
           result.brushPoolMax != null && Number.isFinite(Number(result.brushPoolMax))
             ? Math.min(TRAINING_CONTENT_MAX, Math.max(0, Math.floor(Number(result.brushPoolMax))))
-            : 15;
+            : TRAINING_CONTENT_MAX;
         st.lastCompletedTrack = "brush";
         st.lastRun = null;
       }
@@ -18122,15 +18122,15 @@
       const today = getLocalTrainingDayKey();
       let st = loadTrainingFlowState();
       const pick = lastTrainingPickResult || {};
-      const playedLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
-      const autoLv = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
+      const playedLv = clampTrainingPlayableLevel(currentLevelIndex);
+      const autoLv = clampTrainingPlayableLevel(trainingAutoPickLevelIndex);
       const F =
         pick.frontierLevel != null && Number.isFinite(Number(pick.frontierLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(pick.frontierLevel))))
+          ? clampTrainingPlayableLevel(pick.frontierLevel)
           : null;
       const H =
         pick.heatLevel != null && Number.isFinite(Number(pick.heatLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(pick.heatLevel))))
+          ? clampTrainingPlayableLevel(pick.heatLevel)
           : null;
       const beforeMode = st.dayMode === "heat" ? "heat" : "frontier";
       if (HM && typeof HM.applyTrainingDayModeAfterRun === "function") {
@@ -18155,17 +18155,17 @@
     function snapshotTrainingRunStartMeta() {
       const st = loadTrainingFlowState();
       const pick = lastTrainingPickResult;
-      const autoLv = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
-      const playedLv = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const autoLv = clampTrainingPlayableLevel(trainingAutoPickLevelIndex);
+      const playedLv = clampTrainingPlayableLevel(currentLevelIndex);
       const manualOverride = playedLv !== autoLv;
       const dayMode = st.dayMode === "heat" ? "heat" : "frontier";
       const F =
         pick && pick.frontierLevel != null && Number.isFinite(Number(pick.frontierLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(pick.frontierLevel))))
+          ? clampTrainingPlayableLevel(pick.frontierLevel)
           : null;
       const H =
         pick && pick.heatLevel != null && Number.isFinite(Number(pick.heatLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(pick.heatLevel))))
+          ? clampTrainingPlayableLevel(pick.heatLevel)
           : null;
       const heatSpeed = captureTrainingHeatSpeedMeta(playedLv);
       return {
@@ -18198,8 +18198,8 @@
       const base = trainingRunStartMeta ? Object.assign({}, trainingRunStartMeta) : snapshotTrainingRunStartMeta();
       const playedLv =
         base.pickedLevel != null && Number.isFinite(Number(base.pickedLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(base.pickedLevel))))
-          : Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+          ? clampTrainingPlayableLevel(base.pickedLevel)
+          : clampTrainingPlayableLevel(currentLevelIndex);
       const runSpeed = captureTrainingRunSpeedMeta(playedLv, currentRunAttempts);
       const dayMode = st.dayMode === "heat" ? "heat" : "frontier";
       const meta = Object.assign({}, base, runSpeed, extra || {}, {
@@ -18221,7 +18221,7 @@
       const st = loadTrainingFlowState();
       st.dayKey = getLocalTrainingDayKey();
       st.lastRun = {
-        levelIndex: Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0))),
+        levelIndex: clampTrainingPlayableLevel(levelIndex),
         passed: !!passed,
         failCount: Math.max(0, Math.floor(Number(failCount) || 0)),
       };
@@ -18234,8 +18234,8 @@
     }
 
     function isTrainingManualLevelOverride() {
-      const played = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
-      const auto = Math.min(15, Math.max(0, Math.floor(Number(trainingAutoPickLevelIndex) || 0)));
+      const played = clampTrainingPlayableLevel(currentLevelIndex);
+      const auto = clampTrainingPlayableLevel(trainingAutoPickLevelIndex);
       return played !== auto;
     }
 
@@ -18244,14 +18244,14 @@
       const st = loadTrainingFlowState();
       if (st.dayMode === "heat" || trainingSessionBrushMode) return true;
       const pick = lastTrainingPickResult || {};
-      const played = Math.min(15, Math.max(0, Math.floor(Number(currentLevelIndex) || 0)));
+      const played = clampTrainingPlayableLevel(currentLevelIndex);
       const H =
         pick.heatLevel != null && Number.isFinite(Number(pick.heatLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(pick.heatLevel))))
+          ? clampTrainingPlayableLevel(pick.heatLevel)
           : null;
       const F =
         pick.frontierLevel != null && Number.isFinite(Number(pick.frontierLevel))
-          ? Math.min(15, Math.max(0, Math.floor(Number(pick.frontierLevel))))
+          ? clampTrainingPlayableLevel(pick.frontierLevel)
           : null;
       if (H != null && played === H && (F == null || played !== F)) return true;
       return false;
@@ -18353,7 +18353,7 @@
     }
 
     function writeTrainingNextEntryCache(levelIndex, brushMode) {
-      const li = Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0)));
+      const li = clampTrainingPlayableLevel(levelIndex);
       trainingNextEntryCache = {
         dayKey: getLocalTrainingDayKey(),
         levelIndex: li,
@@ -18444,7 +18444,7 @@
 
     function applyServerTrainingNextLevel(data) {
       if (!data || data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
-      const levelIndex = Math.min(15, Math.max(0, Math.floor(Number(data.levelIndex))));
+      const levelIndex = clampTrainingPlayableLevel(data.levelIndex);
       lastTrainingEntrySource = "server";
       const dayMode = data.dayMode === "heat" || data.dayMode === "frontier"
         ? data.dayMode
@@ -18570,7 +18570,7 @@
       lastTrainingEntrySource = "fallback";
       trainingSessionBrushMode = false;
       const saved = getLevelTrainingCurrentLevel();
-      const idx = saved >= 0 ? Math.min(15, Math.max(0, saved)) : 0;
+      const idx = saved >= 0 ? clampTrainingPlayableLevel(saved) : 0;
       return { levelIndex: idx, brushMode: false };
     }
 
@@ -18597,7 +18597,7 @@
       }
       const saved = getLevelTrainingCurrentLevel();
       if (saved >= 0) {
-        const idx = Math.min(15, Math.max(0, saved));
+        const idx = clampTrainingPlayableLevel(saved);
         trainingAutoPickLevelIndex = idx;
         return idx;
       }
@@ -18614,7 +18614,7 @@
       trainingSessionBrushMode = false;
       const savedFb = getLevelTrainingCurrentLevel();
       if (savedFb >= 0) {
-        const idx = Math.min(15, Math.max(0, savedFb));
+        const idx = clampTrainingPlayableLevel(savedFb);
         trainingAutoPickLevelIndex = idx;
         return idx;
       }
@@ -18859,19 +18859,19 @@
         const g = Agg.geoMeanSecFromAttempts(attempts, {
           levelIndex: levelIndex,
           maxTimeSpentMs: maxTimeMs,
-          levelCount: 16,
+          levelCount: TRAINING_TOTAL_MAX + 1,
         });
         return g && g.meanLn != null ? g.meanLn : null;
       }
       const cap = Number(maxTimeMs) > 0 ? Number(maxTimeMs) : 60 * 1000;
-      const lv = Math.min(15, Math.max(0, Math.floor(Number(levelIndex) || 0)));
+      const lv = clampTrainingPlayableLevel(levelIndex);
       let sum = 0;
       let n = 0;
       const list = Array.isArray(attempts) ? attempts : [];
       for (let i = 0; i < list.length; i++) {
         const a = list[i];
         if (!a || a.correct !== true) continue;
-        const aLv = Math.min(15, Math.max(0, Math.floor(Number(a.levelIndex) || 0)));
+        const aLv = clampTrainingPlayableLevel(a.levelIndex);
         if (aLv !== lv) continue;
         const ms = Number(a.timeSpentMs);
         if (!(ms > 0 && ms <= cap && Number.isFinite(ms))) continue;
