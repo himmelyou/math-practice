@@ -12848,6 +12848,20 @@
         cachedUser.heatmapL16Passed = data.heatmapL16Passed === true;
         cachedUser.levelChallengeBestLevel = typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0;
         if (data.survivalUnlocked === true) cachedUser.survivalUnlocked = true;
+        if (
+          typeof data.levelTrainingUnlockedMax === "number" &&
+          Number.isFinite(data.levelTrainingUnlockedMax)
+        ) {
+          cachedUser.levelTrainingUnlockedMax = Math.min(
+            TRAINING_UNLOCK_CAP,
+            Math.max(
+              Math.floor(Number(cachedUser.levelTrainingUnlockedMax) || 0),
+              Math.floor(data.levelTrainingUnlockedMax)
+            )
+          );
+        }
+        // 旗已亮但 unlockedMax 未回填时，本地先抬到 L17 位
+        ensureUserProgressDefault(cachedUser);
         updateSurvivalButtonLabel();
       } catch (e) {
         console.warn("刷新生存解锁状态失败", e);
@@ -13293,8 +13307,8 @@
       if (typeof user.levelTrainingUnlockedMax !== "number" || !Number.isFinite(user.levelTrainingUnlockedMax)) {
         let seed = 0;
         const tip = user.levelTrainingCurrentLevel;
-        // tip=-1 + L16 通关旗 → 记 L17 已解锁（index 16）；内容未上线仍不可选
-        if (tip === -1 && (user.trainingL16Cleared === true || user.heatmapL16Passed === true)) {
+        // tip=-1 → 旧「全通」哨兵，记 L17 已解锁（index 16）
+        if (tip === -1) {
           seed = TRAINING_PUBLIC_MAX + 1;
         } else if (typeof tip === "number" && tip >= 0) {
           seed = Math.min(TRAINING_UNLOCK_CAP, Math.floor(tip));
@@ -13311,6 +13325,13 @@
           TRAINING_UNLOCK_CAP,
           Math.max(0, Math.floor(user.levelTrainingUnlockedMax))
         );
+      }
+      // 通关旗已亮但 unlockedMax 未回填时抬到 L17 位（与服务端 ensureTrainingUnlockedMaxForL16Clear 对齐）
+      if (
+        user.levelTrainingUnlockedMax < TRAINING_PUBLIC_MAX + 1 &&
+        (user.trainingL16Cleared === true || user.levelTrainingCurrentLevel === -1)
+      ) {
+        user.levelTrainingUnlockedMax = TRAINING_PUBLIC_MAX + 1;
       }
       if (typeof user.levelExpandBracketsCurrentLevel !== "number") user.levelExpandBracketsCurrentLevel = 0;
       if (typeof user.levelExpandBracketsUnlockedMax !== "number") {

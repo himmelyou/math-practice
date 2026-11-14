@@ -1454,6 +1454,95 @@ function computeHeatmapL16PassedFromRuns(runs) {
   );
 }
 
+/**
+ * L16 通关旗 / 旧 tip=-1 → unlockedMax 至少记到 L17 位（16）。
+ * 历史账号：管理端「回填 L17 解锁」；此处保证报分/重算升起通关旗后不漏记。
+ */
+function ensureTrainingUnlockedMaxForL16Clear(u) {
+  if (!u) return false;
+  const l17Unlock = SURVIVAL_UNLOCK_L16_INDEX + 1; // 16
+  const tip = u.levelTrainingCurrentLevel;
+  if (!(u.trainingL16Cleared === true || tip === -1)) return false;
+  const cur =
+    typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
+      ? Math.floor(u.levelTrainingUnlockedMax)
+      : -1;
+  if (cur >= l17Unlock) return false;
+  u.levelTrainingUnlockedMax = l17Unlock;
+  return true;
+}
+
+/**
+ * 全体回填：缺 L16 通关旗则扫 runs 补旗；有证据则抬 unlockedMax→16。
+ * dryRun=true 只预览不写盘。
+ */
+function backfillTrainingL17UnlockAll(opts) {
+  const dryRun = !!(opts && opts.dryRun);
+  const data = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(data.users) ? data.users : [];
+  const l17Unlock = SURVIVAL_UNLOCK_L16_INDEX + 1;
+  const changed = [];
+  let scannedRuns = 0;
+  let flagFromRuns = 0;
+  let unlockBumped = 0;
+
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    const beforeUnlock =
+      typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
+        ? Math.floor(u.levelTrainingUnlockedMax)
+        : null;
+    let setFlagFromRuns = false;
+    if (u.trainingL16Cleared !== true) {
+      scannedRuns += 1;
+      const runs = runsStore.getUserRuns(u.username);
+      if (runsHaveTrainingL16Cleared(runs)) {
+        u.trainingL16Cleared = true;
+        setFlagFromRuns = true;
+        flagFromRuns += 1;
+      }
+    }
+    const tip = u.levelTrainingCurrentLevel;
+    const evidence = u.trainingL16Cleared === true || tip === -1;
+    if (!evidence) return;
+
+    const bumpedUnlock = ensureTrainingUnlockedMaxForL16Clear(u);
+    if (bumpedUnlock) unlockBumped += 1;
+    if (!setFlagFromRuns && !bumpedUnlock) return;
+
+    changed.push({
+      username: u.username,
+      beforeUnlock,
+      afterUnlock:
+        typeof u.levelTrainingUnlockedMax === "number" ? u.levelTrainingUnlockedMax : beforeUnlock,
+      tip: tip == null ? null : tip,
+      setFlagFromRuns,
+      bumpedUnlock,
+    });
+  });
+
+  if (!dryRun && changed.length) {
+    writeJson(USERS_FILE, data);
+  }
+
+  return {
+    ok: true,
+    dryRun,
+    usersScanned: users.length,
+    runsScannedForMissingFlag: scannedRuns,
+    flagFromRuns,
+    unlockBumped,
+    changedCount: changed.length,
+    changed: changed.slice(0, 80),
+    note:
+      dryRun
+        ? "dry-run：未写盘。确认后去掉 dryRun 再执行。"
+        : changed.length
+          ? "已写入 users.json（只升不降）。"
+          : "无需改动。",
+  };
+}
+
 /** 从 runs 重算生存解锁相关标记（只升不降）；返回是否改动 user */
 function recomputeSurvivalUnlockFlags(u, runs) {
   if (!u) return false;
@@ -1472,6 +1561,7 @@ function recomputeSurvivalUnlockFlags(u, runs) {
     u.heatmapL16Passed = true;
     changed = true;
   }
+  if (ensureTrainingUnlockedMaxForL16Clear(u)) changed = true;
   return changed;
 }
 
@@ -3663,6 +3753,24 @@ app.post("/api/admin/maintenance/rebuild-monthly-snapshots-testers", (req, res) 
     errors: allErrors,
     note: "progress 为概览同口径水位（闯关/生存/质数/平方/整除/因倍/小数/拆括号）；按月末 asOf 从 runs 倒推；已覆盖全体学员",
   });
+});
+
+/** 维护：已通关 L16 的账号补 levelTrainingUnlockedMax→16（L17 解锁位） */
+app.post("/api/admin/maintenance/backfill-training-l17-unlock", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  // 默认 dry-run；显式 dryRun:false 或 apply:true 才写盘
+  const dryRun = !(body.dryRun === false || body.apply === true);
+  try {
+    return res.json(backfillTrainingL17UnlockAll({ dryRun }));
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: "回填失败：" + (e && e.message ? e.message : String(e)),
+    });
+  }
 });
 
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
@@ -6237,6 +6345,8 @@ app.get("/api/user/:username/survival-eligibility", requireStudentAuth, ensureOw
     trainingL16Cleared: u.trainingL16Cleared === true,
     heatmapL16Passed: u.heatmapL16Passed === true,
     levelChallengeBestLevel: typeof u.levelChallengeBestLevel === "number" ? u.levelChallengeBestLevel : 0,
+    levelTrainingUnlockedMax:
+      typeof u.levelTrainingUnlockedMax === "number" ? u.levelTrainingUnlockedMax : null,
     eligible: userEligibleForSurvivalUnlock(u),
   });
 });

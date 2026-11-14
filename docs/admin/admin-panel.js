@@ -1528,6 +1528,76 @@
     }
   }
 
+  function formatL17UnlockBackfillStatus(data, applied) {
+    var samples = Array.isArray(data.changed) ? data.changed : [];
+    var names = samples
+      .slice(0, 8)
+      .map(function (row) {
+        return row && row.username ? row.username : '';
+      })
+      .filter(Boolean)
+      .join(', ');
+    return (
+      (applied ? 'L17 解锁回填完成' : 'L17 解锁预览') +
+      '：学员 ' +
+      (data.usersScanned || 0) +
+      ' · 需改 ' +
+      (data.changedCount || 0) +
+      ' · 补旗 ' +
+      (data.flagFromRuns || 0) +
+      ' · 抬解锁 ' +
+      (data.unlockBumped || 0) +
+      (names ? ' · 例 ' + names + (data.changedCount > 8 ? '…' : '') : '')
+    );
+  }
+
+  async function backfillTrainingL17Unlock() {
+    try {
+      if (
+        !confirm(
+          '将预览：已通关 L16 但未解锁 L17 的账号（补 trainingL16Cleared / 抬 unlockedMax→16）。\n\n' +
+            '不会立刻写盘。预览后再确认是否应用。操作前请先备份。是否继续预览？'
+        )
+      ) {
+        return;
+      }
+      setStatus('L17 解锁回填预览中…', '');
+      var preview = await apiFetch('/api/admin/maintenance/backfill-training-l17-unlock', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: true }),
+      });
+      if (!preview || preview.ok !== true) {
+        throw new Error((preview && preview.error) || '预览失败');
+      }
+      setStatus(formatL17UnlockBackfillStatus(preview, false), 'ok');
+      if (!(preview.changedCount > 0)) return;
+      if (
+        !confirm(
+          '预览需改 ' +
+            preview.changedCount +
+            ' 人（补旗 ' +
+            (preview.flagFromRuns || 0) +
+            ' · 抬解锁 ' +
+            (preview.unlockBumped || 0) +
+            '）。\n\n确认写盘？'
+        )
+      ) {
+        return;
+      }
+      setStatus('L17 解锁回填写入中…', '');
+      var applied = await apiFetch('/api/admin/maintenance/backfill-training-l17-unlock', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: false }),
+      });
+      if (!applied || applied.ok !== true) {
+        throw new Error((applied && applied.error) || '回填失败');
+      }
+      setStatus(formatL17UnlockBackfillStatus(applied, true), 'ok');
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   function i18nTextareaValue(id) {
     var el = document.getElementById(id);
     return el ? String(el.value || "") : "";
@@ -1753,6 +1823,10 @@
     var rebuildMonthlySnapshotsBtn = document.getElementById('jml-btn-rebuild-monthly-snapshots');
     if (rebuildMonthlySnapshotsBtn) {
       rebuildMonthlySnapshotsBtn.addEventListener('click', rebuildMonthlySnapshotsAll);
+    }
+    var backfillL17UnlockBtn = document.getElementById('jml-btn-backfill-training-l17-unlock');
+    if (backfillL17UnlockBtn) {
+      backfillL17UnlockBtn.addEventListener('click', backfillTrainingL17Unlock);
     }
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);
