@@ -1202,8 +1202,8 @@ function buildTrainingNextDebugBlock(username, user, runs, heatPayloadOpt) {
       typeof user.levelTrainingUnlockedMax === "number" ? user.levelTrainingUnlockedMax : null,
     levelTrainingUnlockedL:
       typeof user.levelTrainingUnlockedMax === "number" && user.levelTrainingUnlockedMax >= 0
-        ? user.levelTrainingUnlockedMax > 15
-          ? 16
+        ? user.levelTrainingUnlockedMax > 19
+          ? 20
           : user.levelTrainingUnlockedMax + 1
         : null,
     server: serverBlock,
@@ -3070,7 +3070,8 @@ function openTrainingLevelFromSavedPlan(username, nowTs) {
     if (t.status !== "active" && t.status !== "pending") continue;
     const raw = Number(t.levelIndex);
     if (!Number.isFinite(raw)) continue;
-    const levelIndex = Math.min(15, Math.max(0, Math.floor(raw)));
+    // 与隐藏档全谱对齐；任务侧是否开出 L17+ 由 practice-advice LEVEL_COUNT/天花板决定
+    const levelIndex = Math.min(19, Math.max(0, Math.floor(raw)));
     return {
       ok: true,
       levelIndex,
@@ -5256,7 +5257,8 @@ app.get("/api/admin/user-list", (req, res) => {
 
 
 /** 报表难度热图：全体常模（仅 survival/level/training） */
-const COHORT_LEVEL_COUNT = 16;
+/** 四则 cohort 与热图一致：L1–L20（隐藏档可无样本） */
+const COHORT_LEVEL_COUNT = 20;
 const COHORT_MIN_ATTEMPTS_PER_USER_LEVEL = 10;
 /** 单题耗时上限：超过则该答对记录不纳入「速度」常模与个人 ln(t)，排除挂机/异常长暂停 */
 const COHORT_MAX_TIME_SPENT_MS = 60 * 1000;

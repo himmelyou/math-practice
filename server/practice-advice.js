@@ -23,7 +23,14 @@
   } catch (eModes) {
     Modes = null;
   }
+  /**
+   * 任务/开新关只看「内容已上线」档。
+   * 框架期 = 16（L1–L16）；L17 上线后改为 17（与 JmlArithmetic.CONTENT_MAX_INDEX+1 同步）。
+   * 隐藏档 L17+ 在内容上线且学员已解锁后，可作四则开新关。
+   */
   var LEVEL_COUNT = 16;
+  var ARITH_CONTENT_MAX_INDEX = LEVEL_COUNT - 1;
+  var ARITH_TOTAL_LEVEL_COUNT = 20;
   var HEAT_P_ORANGE = 0.9;
   var HEAT_P_YELLOW = 0.95;
   /** 绿档补格权重：离此越远越先补；不是任务及格线 */
@@ -2975,6 +2982,9 @@
     SPEED_RATIO: SPEED_RATIO,
     FAIL_GAMES_PER_DAY: FAIL_GAMES_PER_DAY,
     FAIL_PRACTICE_DAYS: FAIL_PRACTICE_DAYS,
+    LEVEL_COUNT: LEVEL_COUNT,
+    ARITH_CONTENT_MAX_INDEX: ARITH_CONTENT_MAX_INDEX,
+    ARITH_TOTAL_LEVEL_COUNT: ARITH_TOTAL_LEVEL_COUNT,
     INCOMPLETE_SIZE: INCOMPLETE_SIZE,
     DAILY_TASK_QUOTA: DAILY_TASK_QUOTA,
     COMPLETED_MAX: COMPLETED_MAX,

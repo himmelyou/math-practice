@@ -8,7 +8,11 @@
  * 指数衰减，半衰期 14 天（λ = ln2 / 14）。同一局内多题共享同一 run.ts → 同一天，符合按天口径。
  */
 (function (global) {
-  var LEVEL_COUNT = 16;
+  /**
+   * 四则热图格数 = L1–L20（含隐藏档）。
+   * 可玩/学员显隐由 JmlArithmetic.CONTENT_MAX_INDEX + 解锁控制；本模块只负责格子算法。
+   */
+  var LEVEL_COUNT = 20;
   var DECIMAL_LEVEL_COUNT = 6;
   var PERFECT_SQUARE_LEVEL_COUNT = 4;
   var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 按除数拆入 Z1–Z4

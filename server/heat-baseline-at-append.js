@@ -5,7 +5,8 @@
  */
 const heatmapStats = require("./stats-heatmap");
 
-const ARITH_LEVEL_COUNT = 16;
+/** 与热图一致：L1–L20（含隐藏档空格） */
+const ARITH_LEVEL_COUNT = 20;
 const DECIMAL_LEVEL_COUNT = 6;
 const PERFECT_SQUARE_LEVEL_COUNT = 4;
 const DIVISIBILITY_HEAT_LEVEL_COUNT = 4;

@@ -15,15 +15,15 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <!-- JML-ADMIN-STATIC-REV: 48 · 一键升级年级 -->
-  <meta name="jml-admin-static-rev" content="48" />
+  <!-- JML-ADMIN-STATIC-REV: 49 · L17 出题纸 -->
+  <meta name="jml-admin-static-rev" content="49" />
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css?v=2" />
   <link rel="stylesheet" href="admin-panel.css?v=46" />
   <link rel="stylesheet" href="admin-worksheet.css?v=27" />
 </head>
 <body>
-  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-48</p>
+  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-49</p>
   <div id="admin-gate-root"></div>
 
   <div id="admin-app" class="jml-shell" hidden>
@@ -251,13 +251,13 @@
 
       <div id="panel-worksheet" class="jml-tab-panel hidden" data-panel="worksheet" role="tabpanel">
         <p class="jml-worksheet-hint">
-          按主站规则随机出题。四则 / 小数每页 30 题，拆括号每页 20 题，整除 / 因数倍数每页 24 题（左右分栏），分数 F1–F4 每页 24 题（两类上下各 12）；X 混合卷一套两页（约分/比大小/加减/乘/除各 8，「页数」=套数）。可先填姓名再打印，或打印后手写。
+          按主站规则随机出题。四则 L1–L17（L17 出题已落地，学员端天花板未推，仅此处可印检验）/ 小数每页 30 题，拆括号每页 20 题，整除 / 因数倍数每页 24 题（左右分栏），分数 F1–F4 每页 24 题（两类上下各 12）；X 混合卷一套两页（约分/比大小/加减/乘/除各 8，「页数」=套数）。可先填姓名再打印，或打印后手写。
         </p>
         <div class="jml-worksheet-controls">
           <div class="jml-worksheet-field">
             <label for="jml-ws-mode">题型</label>
             <select id="jml-ws-mode" aria-label="题型">
-              <option value="arithmetic">四则运算（L1–L16）</option>
+              <option value="arithmetic">四则运算（L1–L17）</option>
               <option value="expandBrackets">拆括号（L1–L5）</option>
               <option value="decimal">小数运算（D1–D6）</option>
               <option value="divisibility">整除判断（Z1–Z5）</option>
@@ -374,7 +374,7 @@
     })();
   </script>
   <script src="../shared/admin-auth.js?v=21"></script>
-  <script src="../shared/arithmetic-questions.js?v=47"></script>
+  <script src="../shared/arithmetic-questions.js?v=49"></script>
   <script src="../shared/expand-brackets-questions.js?v=48"></script>
   <script src="../shared/decimal-questions.js?v=51"></script>
   <script src="../shared/divisibility-questions.js?v=5"></script>
@@ -383,7 +383,7 @@
   <script src="../shared/admin-image-normalize.js?v=1"></script>
     <script src="admin-panel.js?v=55"></script>
   <script src="admin-traffic.js?v=1"></script>
-  <script src="admin-worksheet.js?v=31"></script>
+  <script src="admin-worksheet.js?v=32"></script>
   <script src="admin-achievements.js?v=9"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {

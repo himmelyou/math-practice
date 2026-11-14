@@ -1,7 +1,29 @@
 /**
- * 四则运算 L1–L16 出题（与主站 docs/index.html 内联块同源，合并前请 diff）
+ * 四则运算出题（与主站 docs/index.html 内联块同源，合并前请 diff）
+ *
+ * 关卡分层：
+ * - 公开档 L1–L16（index 0–15）：闯关 / 生存封顶
+ * - 隐藏档 L17–L20（index 16–19）：仅训练可解锁；热图格始终存在（管理端全显）
+ * - LEVEL_DEFS：已上线出题的档（含已写好、待推天花板的隐藏档）；L18–L20 仍仅占位标签
+ * - 内容天花板 CONTENT_MAX_INDEX：框架期 = 15（L16）；L17 出题已落地但未推天花板前仍为 15
+ *   解锁可提前记到 TOTAL；可玩 / 「解锁新等级」文案 / 学员热图显隐藏格
+ *   都只到 min(已解锁, CONTENT_MAX_INDEX)
  */
 (function (global) {
+  /** 公开可玩（闯关/生存）最高 index = L16 */
+  var PUBLIC_MAX_INDEX = 15;
+  /** 隐藏档起点 index = L17 */
+  var HIDDEN_START_INDEX = 16;
+  /** 全谱最高 index = L20 */
+  var TOTAL_MAX_INDEX = 19;
+  /**
+   * 学员可玩最高 index。出题可先于天花板落地（管理端出题纸可印）；
+   * L17 检验通过后改为 16 即推天花板。
+   */
+  var CONTENT_MAX_INDEX = 15;
+  var PUBLIC_LEVEL_COUNT = PUBLIC_MAX_INDEX + 1;
+  var TOTAL_LEVEL_COUNT = TOTAL_MAX_INDEX + 1;
+
   function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
@@ -756,8 +778,90 @@
               baseLevelId: this.id
             };
           }
+        },
+        {
+          id: "L17",
+          name: "第 17 级 · 最高四位数加减",
+          description:
+            "三/四位数加减五层等额：3+4、4+3、4+4、4−4、4−3；加法和不超过 9999。",
+          operations: ["+", "-"],
+          min: 100,
+          max: 9999,
+          generateQuestion() {
+            return generateL17Question();
+          }
         }
       ];
+
+  /** L17：五层各 20%；加法结果 ≤9999（不进位到五位数） */
+  var L17_STRATA = ["3+4", "4+3", "4+4", "4-4", "4-3"];
+
+  function generateL17Question() {
+    var stratum = L17_STRATA[randomInt(0, L17_STRATA.length - 1)];
+    var a;
+    var b;
+    var op;
+    var answer;
+    var attempt;
+    for (attempt = 0; attempt < 100; attempt += 1) {
+      if (stratum === "3+4") {
+        a = randomInt(100, 999);
+        b = randomInt(1000, 9999);
+        if (a + b > 9999) continue;
+        op = "+";
+        answer = a + b;
+      } else if (stratum === "4+3") {
+        a = randomInt(1000, 9999);
+        b = randomInt(100, 999);
+        if (a + b > 9999) continue;
+        op = "+";
+        answer = a + b;
+      } else if (stratum === "4+4") {
+        a = randomInt(1000, 9999);
+        b = randomInt(1000, 9999);
+        if (a + b > 9999) continue;
+        op = "+";
+        answer = a + b;
+      } else if (stratum === "4-4") {
+        a = randomInt(1000, 9999);
+        b = randomInt(1000, 9999);
+        if (a < b) {
+          var tmp = a;
+          a = b;
+          b = tmp;
+        }
+        op = "-";
+        answer = a - b;
+      } else {
+        a = randomInt(1000, 9999);
+        b = randomInt(100, 999);
+        op = "-";
+        answer = a - b;
+      }
+      return {
+        a: a,
+        b: b,
+        op: op,
+        text: a + " " + op + " " + b + " = ?",
+        answer: answer,
+        baseLevelId: "L17",
+        stratum: stratum
+      };
+    }
+    a = 4826;
+    b = 317;
+    op = "-";
+    answer = a - b;
+    return {
+      a: a,
+      b: b,
+      op: op,
+      text: a + " " + op + " " + b + " = ?",
+      answer: answer,
+      baseLevelId: "L17",
+      stratum: "4-3"
+    };
+  }
 
   function clampLevelIndex(i) {
     return Math.max(0, Math.min(LEVEL_DEFS.length - 1, Math.floor(Number(i) || 0)));
@@ -784,7 +888,8 @@
   var L14_LEVEL_INDEX = 13;
   var L14_QUOTIENT_MIN = 11;
   var L14_QUOTIENT_MAX = 99;
-  var DEDUP_LEVEL_INDICES = [4, 5, 6, 7, 8, 11, 14, 15];
+  var L17_LEVEL_INDEX = 16;
+  var DEDUP_LEVEL_INDICES = [4, 5, 6, 7, 8, 11, 14, 15, L17_LEVEL_INDEX];
   var DEDUP_MAX_RETRIES = 100;
   var DEFAULT_SEGMENT_COUNT = 30;
   var l1Deck = [];
@@ -1455,9 +1560,53 @@
     return (level.id || "") + " · " + shortName;
   });
 
+  /**
+   * 尚未写入 LEVEL_DEFS 的隐藏档占位（热图全谱用）。
+   * L17 已进 LEVEL_DEFS；推天花板前 CONTENT_MAX 仍为 15，学员不可选。
+   */
+  var HIDDEN_LEVEL_STUB_LABELS = [
+    "L18 ·（未上线）",
+    "L19 ·（未上线）",
+    "L20 ·（未上线）",
+  ];
+  var LEVEL_LABELS_TOTAL = LEVEL_LABELS.concat(HIDDEN_LEVEL_STUB_LABELS);
+
+  function isContentOnline(levelIndex) {
+    var i = Math.floor(Number(levelIndex) || 0);
+    return i >= 0 && i <= CONTENT_MAX_INDEX;
+  }
+
+  function isHiddenLevel(levelIndex) {
+    var i = Math.floor(Number(levelIndex) || 0);
+    return i >= HIDDEN_START_INDEX && i <= TOTAL_MAX_INDEX;
+  }
+
+  /** 学员热图是否展示该格：公开档始终；隐藏档须内容已上线且已解锁 */
+  function studentHeatCellVisible(levelIndex, unlockedMaxRaw) {
+    var i = Math.floor(Number(levelIndex) || 0);
+    if (i < 0 || i > TOTAL_MAX_INDEX) return false;
+    if (i <= PUBLIC_MAX_INDEX) return true;
+    if (!isContentOnline(i)) return false;
+    var u = Math.max(0, Math.floor(Number(unlockedMaxRaw) || 0));
+    return i <= u;
+  }
+
   global.JmlArithmetic = {
+    /** 已有出题器的档数（含待推天花板的隐藏档；与 LEVEL_DEFS.length 一致） */
     LEVEL_COUNT: LEVEL_DEFS.length,
+    PUBLIC_MAX_INDEX: PUBLIC_MAX_INDEX,
+    PUBLIC_LEVEL_COUNT: PUBLIC_LEVEL_COUNT,
+    HIDDEN_START_INDEX: HIDDEN_START_INDEX,
+    TOTAL_MAX_INDEX: TOTAL_MAX_INDEX,
+    TOTAL_LEVEL_COUNT: TOTAL_LEVEL_COUNT,
+    L17_LEVEL_INDEX: L17_LEVEL_INDEX,
+    /** 改此值推学员可玩天花板（框架期 15；检验通过后 L17 → 16） */
+    CONTENT_MAX_INDEX: CONTENT_MAX_INDEX,
     LEVEL_LABELS: LEVEL_LABELS,
+    LEVEL_LABELS_TOTAL: LEVEL_LABELS_TOTAL,
+    isContentOnline: isContentOnline,
+    isHiddenLevel: isHiddenLevel,
+    studentHeatCellVisible: studentHeatCellVisible,
     L1_LEVEL_INDEX: L1_LEVEL_INDEX,
     L1_NO_CARRY_POOL_SIZE: L1_NO_CARRY_POOL_SIZE,
     L1_CARRY_POOL_SIZE: L1_CARRY_POOL_SIZE,

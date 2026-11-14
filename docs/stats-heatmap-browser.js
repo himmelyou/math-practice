@@ -6,7 +6,11 @@
  * 训练选关与热图格子数据以服务器 API 为准。
  */
 (function (global) {
-  var LEVEL_COUNT = 16;
+  /**
+   * 四则热图格数 = L1–L20（含隐藏档）。
+   * 可玩/学员显隐由 JmlArithmetic.CONTENT_MAX_INDEX + 解锁控制；本模块只负责格子算法。
+   */
+  var LEVEL_COUNT = 20;
   var DECIMAL_LEVEL_COUNT = 6;
   var PERFECT_SQUARE_LEVEL_COUNT = 4;
   var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 按除数拆入 Z1–Z4

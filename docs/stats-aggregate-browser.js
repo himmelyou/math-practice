@@ -5,7 +5,8 @@
  * 速度口径：仅答对计入；几何均（exp(mean(ln(ms)))）；timeSpentMs > cap（默认 60s）剔除。
  */
 (function (global) {
-  var LEVEL_COUNT = 16;
+  /** 与热图一致：L1–L20 */
+  var LEVEL_COUNT = 20;
   var DECIMAL_LEVEL_COUNT = 6;
   /** 折线图：该难度下「够格入选」的最近多少个日历日（无则向前不填充） */
   var CHART_PRACTICE_DAYS = 14;
