@@ -3726,9 +3726,9 @@
       margin-top: 14px;
       padding-top: 14px;
     }
-    /* 错题练习选择题：压过四则 A 类题干（nowrap + stem-size），改走 C 类共用变量 */
+    /* C 类题干：正式模式选择题 / 错题本里同类题（含 FM 填空）共用变量，压过四则 A 类 nowrap */
     #game-card.choice-play-card.game-card--playing > .question-body > .question-text.jml-prompt-stem,
-    .game-section.wrong-practice-active #game-card.choice-play-card #question-text.jml-prompt-stem {
+    .game-section.wrong-practice-active #game-card.game-card--playing #question-text.jml-prompt-stem {
       flex: 1 1 auto;
       min-height: 0;
       font-size: var(--jml-prompt-stem-size);
@@ -7148,9 +7148,11 @@
     function syncWrongPracticeSurface() {
       const entry = wrongPracticeQueue[wrongPracticeIndex];
       const isChoice = wrongPracticeEntryIsChoice(entry);
+      // 因数倍数（选择+最小公倍填空）与正式模式同一套 C 类题干
+      const usePromptStem = wrongPracticeModeKey(entry) === "factorsmultiples";
       const gameCard = document.getElementById("game-card");
       if (dom.questionText) {
-        dom.questionText.classList.toggle("jml-prompt-stem", isChoice);
+        dom.questionText.classList.toggle("jml-prompt-stem", usePromptStem);
       }
       if (isChoice) {
         setGameCardActionSlot("choice");
