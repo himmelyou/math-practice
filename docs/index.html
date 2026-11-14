@@ -6209,8 +6209,9 @@
     const LEVEL_CHALLENGE_EXT_PER_LEVEL = 10;
     const LEVEL_CHALLENGE_DECK_PER_LEVEL = 20;
     const TRAINING_MAIN_PER_RUN = 20;
+    /** @deprecated 训练已取消加题；旧草稿 resume 仍可读 */
     const TRAINING_EXT_PER_RUN = 10;
-    const TRAINING_DECK_PER_RUN = 30;
+    const TRAINING_DECK_PER_RUN = TRAINING_MAIN_PER_RUN;
     const TRAINING_PASS_ACCURACY = 0.95;
     /**
      * 四则关卡分层（与 JmlArithmetic 一致）：
@@ -6290,7 +6291,7 @@
     let wrongPracticeResults = [];
     let trainingQuestionIndex = 0;
     let trainingCorrectCount = 0;
-    /** 训练：主段 / 附加段（20+10，牌库 30 题） */
+    /** 训练：固定 20 题；extension 字段仅兼容旧草稿 */
     let trainingMainAnswered = 0;
     let trainingExtensionAnswered = 0;
     let trainingPhase = "main";
@@ -9490,7 +9491,15 @@
       levelRunWrongItems = Array.isArray(d.levelRunWrongItems) ? d.levelRunWrongItems.slice() : [];
       trainingMainAnswered = Math.max(0, Math.floor(Number(d.trainingMainAnswered) || 0));
       trainingExtensionAnswered = Math.max(0, Math.floor(Number(d.trainingExtensionAnswered) || 0));
-      trainingPhase = d.trainingPhase === "extension" ? "extension" : "main";
+      // 旧「错1加10」草稿：并入主段计数，不再进入加题段
+      if (d.trainingPhase === "extension") {
+        trainingMainAnswered = Math.min(
+          TRAINING_MAIN_PER_RUN,
+          trainingMainAnswered + trainingExtensionAnswered
+        );
+        trainingExtensionAnswered = 0;
+      }
+      trainingPhase = "main";
       trainingQuestionIndex = Math.max(0, Math.floor(Number(d.trainingQuestionIndex) || 0));
       trainingCorrectCount = Math.max(0, Math.floor(Number(d.trainingCorrectCount) || 0));
       trainingRunWrongItems = Array.isArray(d.trainingRunWrongItems) ? d.trainingRunWrongItems.slice() : [];
@@ -11371,7 +11380,7 @@
         "game.training.pickingLevel": "正在選關…",
         "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
         "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
-        "game.training.subtitle.dailyRules": "當日闖關：按梯子頂 M 穩關或開 M+1；20 題全對則結束，錯 1 題再加 10 題，錯 2 題及以上則結束；達標線 ≥95%，否則同關再練（3 敗進刷熱圖）；M 以下掉線在刷熱圖 pool 內補。",
+        "game.training.subtitle.dailyRules": "訓練：每局固定 20 題；達標線 ≥95%；前沿 0/1 錯可解鎖下一關；未達標可同關再練（3 敗進刷熱圖）。",
         "game.display.levelOrdinal": "第 {n} 級",
         "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
         "game.display.percent": "{pct}%",
@@ -12111,7 +12120,7 @@
         "game.training.pickingLevel": "Waiting…",
         "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
         "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
-        "game.training.subtitle.dailyRules": "Daily: stabilize ladder top M or open M+1; clear 20/20 to finish, or 10+10 with one mistake; two or more wrong ends the run; pass at ≥95%, else retry (3 fails → brush); regressions below M are fixed in the brush pool.",
+        "game.training.subtitle.dailyRules": "Training: fixed 20 questions per run; pass at ≥95%; 0/1 wrong at the frontier unlocks the next level; retry the same level if below (3 fails → brush).",
         "game.display.levelOrdinal": "Level {n}",
         "game.over.levelRunBestTitle": "Best this run: level {n}",
         "game.display.percent": "{pct}%",
@@ -14023,21 +14032,13 @@
     }
 
     function formatTrainingProgressText() {
-      const main = trainingMainAnswered + "/" + TRAINING_MAIN_PER_RUN;
-      if (trainingPhase !== "extension") return main;
-      return main + " · " + trainingExtensionAnswered + "/" + TRAINING_EXT_PER_RUN;
+      return trainingMainAnswered + "/" + TRAINING_MAIN_PER_RUN;
     }
 
     function getTrainingQuestionProgressSubtext() {
-      if (trainingPhase === "main") {
-        return tf("game.training.questionProgress", {
-          n: trainingMainAnswered + 1,
-          total: TRAINING_MAIN_PER_RUN,
-        });
-      }
       return tf("game.training.questionProgress", {
-        n: trainingExtensionAnswered + 1,
-        total: TRAINING_EXT_PER_RUN,
+        n: Math.min(TRAINING_MAIN_PER_RUN, trainingMainAnswered + 1),
+        total: TRAINING_MAIN_PER_RUN,
       });
     }
 
@@ -15003,27 +15004,12 @@
         recordWrongAnswer(question.text, question.answer, userAnswer);
       }
 
-      if (trainingPhase === "main") {
-        trainingMainAnswered += 1;
-        trainingQuestionIndex += 1;
-        if (trainingMainAnswered >= TRAINING_MAIN_PER_RUN) {
-          if (runWrongCount === 0) {
-            finishTrainingRunEarly();
-            return;
-          }
-          if (runWrongCount >= 2) {
-            finishTrainingRunEarly();
-            return;
-          }
-          trainingPhase = "extension";
-        }
-      } else {
-        trainingExtensionAnswered += 1;
-        trainingQuestionIndex += 1;
-        if (trainingExtensionAnswered >= TRAINING_EXT_PER_RUN) {
-          finishTrainingRunEarly();
-          return;
-        }
+      trainingMainAnswered += 1;
+      trainingQuestionIndex += 1;
+      // 固定 20 题结束（不再因错 1 加 10）
+      if (trainingMainAnswered >= TRAINING_MAIN_PER_RUN) {
+        finishTrainingRunEarly();
+        return;
       }
 
       updateTrainingStatusUI();
