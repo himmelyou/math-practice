@@ -2825,6 +2825,13 @@
   function formatDailyTaskGoalText(step) {
     if (!step) return '';
     if (step.tileGoal) return String(step.tileGoal);
+    if (
+      step.action === 'wrongbook' ||
+      step.successKind === 'wrongbook_session' ||
+      step.successKind === 'wrongbook_clear'
+    ) {
+      return '完成一次练习';
+    }
     if (step.successKind === 'level_reach') {
       if (step.scanKind === 'retry_clear') return '通关L16';
       return step.scanLevelLabel ? '过' + step.scanLevelLabel : '过关';

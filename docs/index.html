@@ -7919,6 +7919,13 @@
 
     function dailyTaskGoalText(step) {
       if (!step) return "";
+      if (
+        step.action === "wrongbook" ||
+        step.successKind === "wrongbook_session" ||
+        step.successKind === "wrongbook_clear"
+      ) {
+        return t("dailyTasks.goal.wrongbook");
+      }
       if (step.successKind === "level_reach") {
         if (step.scanKind === "retry_clear") return t("dailyTasks.goal.clearL16");
         if (step.scanLevelLabel) return tf("dailyTasks.goal.passLevel", { level: step.scanLevelLabel });
@@ -11292,6 +11299,7 @@
         "dailyTasks.goal.speedNoSec": "均速↓ 且準≥{acc}",
         "dailyTasks.goal.acc": "準≥{acc}",
         "dailyTasks.goal.accUp": "準度↑",
+        "dailyTasks.goal.wrongbook": "完成一次練習（做對清掉）",
         "dailyTasks.prog.done": "完成",
         "dailyTasks.prog.none": "未練",
         "dailyTasks.prog.tried": "已試 {n} 局",
@@ -11868,6 +11876,7 @@
         "dailyTasks.goal.speedNoSec": "Faster, acc ≥{acc}",
         "dailyTasks.goal.acc": "Acc ≥{acc}",
         "dailyTasks.goal.accUp": "Accuracy up",
+        "dailyTasks.goal.wrongbook": "Finish one practice (correct ones cleared)",
         "dailyTasks.prog.done": "Done",
         "dailyTasks.prog.none": "Not started",
         "dailyTasks.prog.tried": "{n} runs",
@@ -12962,6 +12971,28 @@
         wrongAnswers: Array.isArray(data.wrongAnswers) ? data.wrongAnswers : [],
         wrongAnswersClearedBeforeTs: Number(data.wrongAnswersClearedBeforeTs) || 0,
       };
+    }
+
+    /** 错题练习结算：删做对的 ts；sessionCompleted 时任务记一次成功 */
+    async function apiResolveWrongPractice(username, correctTs, sessionCompleted) {
+      const base = getApiBase();
+      if (!base) return null;
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(username) + "/wrong-answers/resolve-practice",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+          body: JSON.stringify({
+            correctTs: Array.isArray(correctTs) ? correctTs : [],
+            sessionCompleted: sessionCompleted !== false,
+          }),
+          credentials: "include",
+        }
+      );
+      const data = await res.json();
+      if (res.status === 401) { handleAuthRequired(); return null; }
+      if (!data || !data.ok) return null;
+      return data;
     }
 
     async function apiPostExpandBracketsWrongAnswer(username, entry) {
@@ -14823,6 +14854,7 @@
         answer: correctLabel,
         studentAnswer: studentLabel,
         correct: correct,
+        ts: Number(q && q.ts) || 0,
       });
       if (correct) {
         setFeedback(t("game.feedback.correctHtml"), "correct");
@@ -14857,7 +14889,6 @@
       setWrongPracticeChoiceLocked(true);
       const correctCount = wrongPracticeResults.filter(r => r.correct).length;
       const total = wrongPracticeResults.length;
-      const isPerfectAllCorrect = total > 0 && correctCount === total;
       let html = "<div style='text-align:left;max-height:50vh;overflow:auto;padding:0 4px;'>";
       html += "<p style='font-weight:600;margin-bottom:12px;'>" + escapeHtml(tf("wrongPractice.resultSummary", { correct: correctCount, total })) + "</p>";
       wrongPracticeResults.forEach((r) => {
@@ -14885,38 +14916,48 @@
         if (dom.gameSection) dom.gameSection.classList.remove("wrong-practice-active");
         clearWrongPracticeChoiceChrome();
 
-        // 零错误：清空错题本，并解锁正常模式
-        if (isPerfectAllCorrect && !isGuestMode) {
+        // 做对的按 ts 清掉，做错的留着；完成一次即任务成功（首页自点同规则）
+        if (!isGuestMode) {
           const name = loadCurrentUsername();
           if (name) {
+            const correctTs = wrongPracticeResults
+              .filter((r) => r && r.correct && Number(r.ts) > 0)
+              .map((r) => Number(r.ts));
             try {
-              const cleared = await apiClearWrongAnswers(name);
-              if (cleared && cachedUser) {
-                if (Array.isArray(cleared.wrongAnswers)) {
-                  cachedUser.wrongAnswers = cleared.wrongAnswers;
+              const resolved = await apiResolveWrongPractice(name, correctTs, true);
+              if (resolved && cachedUser) {
+                if (Array.isArray(resolved.wrongAnswers)) {
+                  cachedUser.wrongAnswers = resolved.wrongAnswers;
                 }
-                cachedUser.wrongAnswersClearedBeforeTs =
-                  Number(cleared.wrongAnswersClearedBeforeTs) || 0;
+                if (resolved.wrongAnswersClearedBeforeTs != null) {
+                  cachedUser.wrongAnswersClearedBeforeTs =
+                    Number(resolved.wrongAnswersClearedBeforeTs) || 0;
+                }
+              }
+              if (resolved && resolved.practicePlan) {
+                lastDailyTaskAdvice = resolved.practicePlan;
+              } else {
+                try {
+                  const advice = await loadDailyTaskAdvice();
+                  if (advice) lastDailyTaskAdvice = advice;
+                } catch (e2) {
+                  /* 任务单刷新失败不挡回错题本 */
+                }
               }
             } catch (e) {
-              console.warn("清空错题本失败", e);
-            }
-            try {
-              await loadDailyTaskAdvice();
-            } catch (e2) {
-              /* 错题任务跟局：清空后刷新任务单 */
+              console.warn("错题练习结算失败", e);
             }
           }
-          showHome();
-          updateTrainingButtonLabel();
-          updateRankingButtonLabel();
-          updateWrongbookBadge();
-          return;
         }
 
-        // 非零错误：留在错题本
-        showWrongbookViewFast();
+        updateTrainingButtonLabel();
+        updateRankingButtonLabel();
         updateWrongbookBadge();
+        if (getWrongPracticeCandidates().length > 0) {
+          showWrongbookViewFast();
+        } else {
+          showHome();
+        }
       };
     }
 

@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.48：特殊硬留同模式黄洞冷却时改试下一格，不整档跳到绿补。
+ * 练习建议 v0.49：错题任务完成一次练习即成功；练习做对清题、做错保留。
+ * v0.48：特殊硬留同模式黄洞冷却时改试下一格，不整档跳到绿补。
  * v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
  * v0.46：四则硬留按「不熟练 / 黄橙」两档熟练度；全绿不硬留；自由格不封顶特殊/小数。
  * v0.45：质数合数信用户索引（回填后）；无索引时再扫 runs。
@@ -14,7 +15,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.48-provisional";
+  var RULE_VERSION = "0.49-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -1710,6 +1711,10 @@
     return taskKey("training", seed.row && seed.row.levelIndex);
   }
 
+  function isWrongbookSuccessKind(kind) {
+    return kind === "wrongbook_session" || kind === "wrongbook_clear";
+  }
+
   function makeWrongbookTask(plan, ctx) {
     var n = ctx && ctx.wrongAnswersVisible != null ? Number(ctx.wrongAnswersVisible) : 0;
     return {
@@ -1720,7 +1725,7 @@
       levelIndex: null,
       levelLabel: "错题本",
       status: "pending",
-      successKind: "wrongbook_clear",
+      successKind: "wrongbook_session",
       baseline: {
         p: null,
         timePct: null,
@@ -1739,7 +1744,7 @@
       closedAt: null,
       closeReason: "",
       title: "错题本（四则）",
-      detail: "可练错题 " + n + " 道；本模式全对清空才算完成，错一题则错题仍在。未清空可继续尝试",
+      detail: "可练错题 " + n + " 道；完成一次练习即成功。做对的清掉，做错的留着。",
     };
   }
 
@@ -2006,7 +2011,7 @@
   }
 
   function evaluateSuccess(task, run, stats) {
-    if (task.successKind === "wrongbook_clear") return false;
+    if (isWrongbookSuccessKind(task.successKind)) return false;
     if (task.action === "primeComposite") {
       return isPrimeCompositeClearedRun(run);
     }
@@ -2035,14 +2040,23 @@
     return "";
   }
 
-  function settleWrongbookTasks(plan, ctx, nowTs, lastFollow) {
+  function settleWrongbookTasks(plan, ctx, nowTs, lastFollow, flags) {
+    flags = flags || {};
+    var sessionDone = flags.wrongbookSessionDone === true;
     var open = openTasks(plan);
     var i;
     for (i = 0; i < open.length; i += 1) {
       var t = open[i];
       if (!t || t.action !== "wrongbook") continue;
-      if ((ctx.wrongAnswersVisible || 0) > 0) continue;
-      pushEvent(plan, "follow", (t.title || "错题本") + " 成功（已清空）", nowTs);
+      if (!isWrongbookSuccessKind(t.successKind) && t.action !== "wrongbook") continue;
+      /** 完成一次练习即成功；旧「全清」路径：可见错题已空也算成功。 */
+      if (!sessionDone && (ctx.wrongAnswersVisible || 0) > 0) continue;
+      pushEvent(
+        plan,
+        "follow",
+        (t.title || "错题本") + (sessionDone ? " 成功（完成一次练习）" : " 成功（已清空）"),
+        nowTs
+      );
       if (lastFollow) {
         lastFollow.kind = "success";
         lastFollow.taskId = t.id || "";
@@ -2261,7 +2275,7 @@
     else if (!Array.isArray(plan.history)) plan.history = [];
     if (username) plan.username = username;
     activateFirst(plan.tasks);
-    if (settleWrongbookTasks(plan, ctx, nowTs, lastFollow)) {
+    if (settleWrongbookTasks(plan, ctx, nowTs, lastFollow, flags)) {
       rebuilt = true;
     }
     var after = Number(plan.lastProcessedTs || plan.issuedAt || 0);
@@ -2413,8 +2427,8 @@
 
   function successCopy(task) {
     if (!task) return "";
-    if (task.successKind === "wrongbook_clear") {
-      return "成功：错题本本局全对并清空可练错题";
+    if (isWrongbookSuccessKind(task.successKind)) {
+      return "成功：完成一次错题练习（做对的已清掉）";
     }
     if (task.action === "primeComposite") {
       return "成功：本局质数合数通关";
@@ -2454,8 +2468,8 @@
   }
 
   function failCopy(task) {
-    if (task && task.successKind === "wrongbook_clear") {
-      return "错题任务：未全对清空可继续尝试；次日开单时按最新情况重排";
+    if (task && isWrongbookSuccessKind(task.successKind)) {
+      return "错题任务：再练一次也可；次日开单时按最新情况重排";
     }
     return "未达可继续尝试；次日进每日任务或管理页刷新时按最新情况重开";
   }
@@ -2476,7 +2490,7 @@
   }
 
   function untilCopy(task) {
-    if (task.successKind === "wrongbook_clear") return "错题本全对清空即成功";
+    if (isWrongbookSuccessKind(task.successKind)) return "完成一次错题练习即成功";
     if (task.action === "primeComposite") return "质数合数通关即成功";
     if (task.successKind === "level_reach") {
       if (task.scanKind === "retry_clear") return "通关 L16 即成功";
@@ -2512,7 +2526,7 @@
 
   function tileGoal(t) {
     if (!t) return "";
-    if (t.successKind === "wrongbook_clear") return "全对清空";
+    if (isWrongbookSuccessKind(t.successKind)) return "完成一次";
     if (t.action === "primeComposite") return "通关";
     if (t.successKind === "level_reach") {
       if (t.scanKind === "retry_clear") return "通关L16";
@@ -2713,6 +2727,7 @@
     var sync = syncPlan(opts.savedPlan || null, ctx, opts.runs || [], nowTs, opts.username || "", {
       resetIncomplete: opts.resetIncomplete === true,
       snapshot: opts.snapshot === true,
+      wrongbookSessionDone: opts.wrongbookSessionDone === true,
     });
     var plan = sync.plan;
     var reasons = [];

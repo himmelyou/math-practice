@@ -179,6 +179,7 @@ function computePracticePlanForUser(opts) {
     savedPlan: savedPlan,
     resetIncomplete: opts.resetIncomplete === true,
     snapshot: snapshot,
+    wrongbookSessionDone: opts.wrongbookSessionDone === true,
     nowTs: opts.nowTs != null ? Number(opts.nowTs) : Date.now(),
   });
 

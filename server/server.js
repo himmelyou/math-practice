@@ -175,7 +175,7 @@ function visibleWrongAnswers(user) {
   return list.filter((w) => (Number(w && w.ts) || 0) > clearedBefore);
 }
 
-/** 练习全对「清空」：不删数组，游标推进到当前可见集最新一条 ts */
+/** 练习全对「清空」：不删数组，游标推进到当前可见集最新一条 ts（旧路径保留） */
 function markWrongAnswersCleared(user) {
   const list = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
   const prev = getWrongAnswersClearedBeforeTs(user);
@@ -186,6 +186,24 @@ function markWrongAnswersCleared(user) {
   });
   user.wrongAnswersClearedBeforeTs = maxTs;
   return maxTs;
+}
+
+/** 错题练习：按 ts 删掉做对的条目，做错的保留。返回删除条数。 */
+function removeWrongAnswersByTs(user, tsList) {
+  if (!user) return 0;
+  if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
+  const want = Object.create(null);
+  (Array.isArray(tsList) ? tsList : []).forEach((raw) => {
+    const ts = Number(raw);
+    if (Number.isFinite(ts) && ts > 0) want[ts] = true;
+  });
+  if (!Object.keys(want).length) return 0;
+  const before = user.wrongAnswers.length;
+  user.wrongAnswers = user.wrongAnswers.filter((w) => {
+    const ts = Number(w && w.ts) || 0;
+    return !want[ts];
+  });
+  return Math.max(0, before - user.wrongAnswers.length);
 }
 
 /** 学员端 API：wrongAnswers 仅为游标后可见集；库存仍在 user.wrongAnswers；附带拆括号/整除错题供错题本 tab */
@@ -1072,6 +1090,7 @@ function computePracticePlanForUsername(username, opts) {
       store: practicePlanStore,
       resetIncomplete: opts.resetIncomplete === true,
       snapshot: snapshot,
+      wrongbookSessionDone: opts.wrongbookSessionDone === true,
     });
     return { ok: true, advice, heatPayload, runs, user };
   } catch (e) {
@@ -2973,6 +2992,46 @@ app.delete("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnDat
   markWrongAnswersCleared(u);
   writeJson(USERS_FILE, data);
   res.json({ ok: true, ...wrongAnswersPayload(u) });
+});
+
+/**
+ * 错题练习结算：删除做对的条目；sessionCompleted 时将每日任务错题本记为成功（完成一次即可）。
+ */
+app.post("/api/user/:username/wrong-answers/resolve-practice", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const correctTs = Array.isArray(body.correctTs) ? body.correctTs : [];
+  const sessionCompleted = body.sessionCompleted !== false;
+  const data = readJson(USERS_FILE, { users: [] });
+  const idx = data.users.findIndex((u) => u.username === username);
+  if (idx === -1) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  const u = data.users[idx];
+  if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
+  const removed = removeWrongAnswersByTs(u, correctTs);
+  writeJson(USERS_FILE, data);
+  let advice = null;
+  if (sessionCompleted) {
+    try {
+      const out = computePracticePlanForUsername(username, {
+        wrongbookSessionDone: true,
+      });
+      if (out && out.ok) advice = practicePlanService.studentPayload(out.advice);
+    } catch (e) {
+      console.warn(
+        "[wrong-answers/resolve-practice]",
+        e && e.message ? e.message : e
+      );
+    }
+  }
+  res.json({
+    ok: true,
+    removed,
+    sessionCompleted: !!sessionCompleted,
+    ...wrongAnswersPayload(u),
+    practicePlan: advice,
+  });
 });
 
 app.post("/api/user/:username/expand-brackets-wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
