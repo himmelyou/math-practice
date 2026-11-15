@@ -19,9 +19,9 @@
       --muted: #607d8b;
       --border-radius: 14px;
       --shadow-soft: 0 10px 25px rgba(0, 0, 0, 0.08);
-      /* 开局题卡：封顶对齐常见手机满意高度；中间 .question-body 随题卡剩余空间伸缩 */
-      --game-card-playing-max: clamp(168px, 38vh, 260px);
-      --game-card-playing-min: 148px;
+      /* 局中题卡：确认从键盘挪到题卡后，把原确认行高度加回题卡，题目区才能保住上下空隙 */
+      --game-card-playing-max: clamp(218px, 42vh, 310px);
+      --game-card-playing-min: 198px;
       --expand-card-prestart-height: clamp(190px, 30vh, 240px);
       /* 软键盘键高（矮屏 media 会覆盖） */
       --jml-kbd-key-h: 45px;
@@ -3842,8 +3842,8 @@
 
     /* 局中装不下时由 JS 加 html.jml-play-compact（不靠 max-height 猜测） */
     html.jml-play-compact {
-      --game-card-playing-min: 118px;
-      --game-card-playing-max: clamp(128px, 28svh, 190px);
+      --game-card-playing-min: 168px;
+      --game-card-playing-max: clamp(178px, 32svh, 240px);
       --expand-card-prestart-height: clamp(130px, 24svh, 170px);
       --jml-stem-size: clamp(1.05rem, 4vw, 1.4rem);
       --jml-prompt-stem-size: clamp(0.95rem, 3.8vw, 1.15rem);
