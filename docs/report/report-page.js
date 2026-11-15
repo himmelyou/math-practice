@@ -661,7 +661,7 @@
       inner =
         '<a class="jml-report-user-link" href="?user=' +
         encodeURIComponent(r.username) +
-        '">' +
+        '&tab=stats">' +
         escapeHtml(r.username) +
         '</a>';
     } else if (colId === 'grade') {
@@ -750,11 +750,6 @@
 
   function filterOverviewRows() {
     var rows = Array.isArray(state.overviewRows) ? state.overviewRows.slice() : [];
-    if (state.selectedUsername) {
-      return rows.filter(function (r) {
-        return r && r.username === state.selectedUsername;
-      });
-    }
     var q = getFilterInput() ? getFilterInput().value.trim().toLowerCase() : '';
     return rows.filter(function (r) {
       if (!r || !r.username) return false;
@@ -790,16 +785,53 @@
     state.overviewRows = next;
   }
 
-  function syncUserQueryInUrl(username) {
+  var REPORT_TAB_IDS = {
+    overview: true,
+    runs: true,
+    'task-history': true,
+    wrong: true,
+    'expand-wrong': true,
+    'div-wrong': true,
+    stats: true,
+    'monthly-report': true,
+    'train-debug': true,
+  };
+
+  function getTabFromUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var t = String(params.get('tab') || '').trim();
+      return REPORT_TAB_IDS[t] ? t : '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function syncReportQueryInUrl(opts) {
+    opts = opts || {};
     try {
       var url = new URL(window.location.href);
-      if (username) url.searchParams.set('user', username);
-      else url.searchParams.delete('user');
+      if (Object.prototype.hasOwnProperty.call(opts, 'username')) {
+        if (opts.username) url.searchParams.set('user', String(opts.username));
+        else url.searchParams.delete('user');
+      }
+      if (Object.prototype.hasOwnProperty.call(opts, 'tab')) {
+        var tab = String(opts.tab || '');
+        if (tab && tab !== 'overview' && REPORT_TAB_IDS[tab]) {
+          url.searchParams.set('tab', tab);
+        } else {
+          url.searchParams.delete('tab');
+        }
+      }
       var qs = url.searchParams.toString();
       history.replaceState(null, '', url.pathname + (qs ? '?' + qs : '') + url.hash);
     } catch (e) {
       /* ignore */
     }
+  }
+
+  function syncUserQueryInUrl(username) {
+    syncReportQueryInUrl({ username: username || '' });
   }
 
   /**
@@ -866,11 +898,9 @@
       });
   }
 
-  /** 按当前下拉选中：全员或缺人时补拉 */
+  /** 概览始终拉全员（列表靠范围+关键词筛选；选中学员只高亮） */
   function ensureOverviewForCurrentSelection(force) {
-    var u = state.selectedUsername || '';
-    if (!u) return loadOverview({ force: !!force });
-    return loadOverview({ username: u, force: !!force });
+    return loadOverview({ force: !!force });
   }
 
   function renderOverviewTable() {
@@ -899,10 +929,16 @@
         return overviewHeaderCell(id);
       })
       .join('');
+    var selUser = state.selectedUsername || '';
     var body = list
       .map(function (r) {
+        var selected = !!(selUser && r.username === selUser);
         return (
-          '<tr>' +
+          '<tr class="' +
+          (selected ? 'jml-ov-row-selected' : '') +
+          '" data-username="' +
+          escapeHtml(r.username || '') +
+          '">' +
           colOrder
             .map(function (id) {
               return overviewCellHtml(id, r);
@@ -920,6 +956,16 @@
       '</tr></thead><tbody>' +
       body +
       '</tbody></table></div>';
+    if (selUser) {
+      var selRow = wrap.querySelector('tr.jml-ov-row-selected');
+      if (selRow && typeof selRow.scrollIntoView === 'function') {
+        try {
+          selRow.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        } catch (eScroll) {
+          /* ignore */
+        }
+      }
+    }
   }
 
   function applyLocalAdminNote(username, adminNote) {
@@ -982,6 +1028,7 @@
     document.querySelectorAll('.jml-tab-panel').forEach(function (p) {
       p.classList.toggle('hidden', p.getAttribute('data-panel') !== next);
     });
+    syncReportQueryInUrl({ tab: next });
     syncRefreshStudentBtn(false);
     if (next === 'overview') {
       void ensureOverviewForCurrentSelection(false);
@@ -2131,15 +2178,29 @@
     sel.value = username;
   }
 
-  /** 深链首屏：不依赖 user-list / i18n，立刻拉单人概览并上屏 */
-  function bootstrapDeepLinkOverview(username) {
+  /**
+   * 深链首屏：有 user 时默认进数据分析（可用 ?tab= 覆盖）。
+   * 概览在后台拉全员，供切回时筛选/高亮。
+   */
+  function bootstrapDeepLink(username) {
     if (!username) return Promise.resolve();
     state.selectedUsername = username;
-    syncUserQueryInUrl(username);
     seedSelectWithUsername(username);
     syncRefreshStudentBtn(false);
-    showOverviewTabChrome();
-    return loadOverview({ username: username, force: false });
+    var tab = getTabFromUrl() || 'stats';
+    syncReportQueryInUrl({ username: username, tab: tab });
+    void loadOverview({ force: false });
+    if (tab === 'overview') {
+      showOverviewTabChrome();
+      return Promise.resolve();
+    }
+    switchTab(tab);
+    return Promise.resolve();
+  }
+
+  /** @deprecated 兼容旧名 */
+  function bootstrapDeepLinkOverview(username) {
+    return bootstrapDeepLink(username);
   }
 
   /** user-list 回来后：校验学员、补全下拉；detail 放到空闲时再拉 */
@@ -2188,8 +2249,12 @@
 
   function applyUserFromUrl() {
     var target = getUserFromUrl();
-    if (!target) return;
-    void bootstrapDeepLinkOverview(target);
+    if (!target) {
+      var tabOnly = getTabFromUrl();
+      if (tabOnly && tabOnly !== 'overview') switchTab(tabOnly);
+      return;
+    }
+    void bootstrapDeepLink(target);
     if (state.usersAll && state.usersAll.length) {
       finalizeDeepLinkAfterUserList(target);
     }
@@ -4253,7 +4318,9 @@
         syncUserQueryInUrl(state.selectedUsername);
         syncRefreshStudentBtn(true);
         if (!state.selectedUsername) {
-          // 回到全员：缺全员缓存时再拉
+          if (activeTabId() === 'overview') {
+            renderOverviewTable();
+          }
           var pAll = ensureOverviewForCurrentSelection(false);
           if (pAll && typeof pAll.finally === 'function') {
             pAll.finally(function () {
@@ -4264,15 +4331,10 @@
           }
           return;
         }
+        // 概览页选人：跳转数据分析；其它 Tab 直接拉该学员
         if (activeTabId() === 'overview') {
-          var pOv = ensureOverviewForCurrentSelection(false);
-          if (pOv && typeof pOv.finally === 'function') {
-            pOv.finally(function () {
-              syncRefreshStudentBtn(false);
-            });
-          } else {
-            syncRefreshStudentBtn(false);
-          }
+          switchTab('stats');
+          syncRefreshStudentBtn(false);
           return;
         }
         var p = loadStudentData();
@@ -4436,11 +4498,16 @@
       bindEvents();
 
       var urlUser = getUserFromUrl();
-      // 深链：立刻拉单人概览上屏，不挡在 i18n / user-list 后面
+      // 深链：有 user 默认进数据分析；可用 ?tab= 覆盖
       if (urlUser) {
-        void bootstrapDeepLinkOverview(urlUser);
+        void bootstrapDeepLink(urlUser);
       } else {
-        showOverviewTabChrome();
+        var tabOnly = getTabFromUrl();
+        if (tabOnly && tabOnly !== 'overview') {
+          switchTab(tabOnly);
+        } else {
+          showOverviewTabChrome();
+        }
       }
 
       // 其余冷启动并行后台做

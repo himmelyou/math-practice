@@ -281,7 +281,11 @@
       var tdUser = document.createElement('td');
       var userLink = document.createElement('a');
       userLink.className = 'jml-user-report-link';
-      userLink.href = '../report/index.html?user=' + encodeURIComponent(username);
+      userLink.href =
+        '../report/index.html?user=' +
+        encodeURIComponent(username) +
+        '&tab=stats';
+
       userLink.textContent = username || '';
       userLink.title = '查看学员数据';
       tdUser.appendChild(userLink);

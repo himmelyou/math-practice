@@ -176,6 +176,14 @@
   font-size: 12px;
 }
 
+.jml-report-overview-table tr.jml-ov-row-selected > td {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.jml-report-overview-table tr.jml-ov-row-selected > td:first-child {
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
 .jml-report-overview-table th,
 .jml-report-overview-table td {
   white-space: nowrap;
