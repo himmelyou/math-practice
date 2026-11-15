@@ -1,5 +1,6 @@
 /**
  * 标准软键盘卡片：反馈区 + 按键区、布局挂载、绑定、i18n
+ * 确认键在题卡输入框下方（data-jml-soft-kbd-enter），不在键盘底行。
  */
 (function (global) {
   var LAYOUT_KEYS = {
@@ -69,6 +70,30 @@
     return card ? card.querySelector("[data-jml-soft-kbd-keys]") : null;
   }
 
+  function resolveEnterBtn(options, inputEl) {
+    options = options || {};
+    if (options.enterBtn) return options.enterBtn;
+    if (options.enterBtnSelector && global.document) {
+      return global.document.querySelector(options.enterBtnSelector);
+    }
+    if (inputEl && inputEl.closest) {
+      var scope =
+        inputEl.closest(".game-card-action-anchor") ||
+        inputEl.closest(".input-row") ||
+        inputEl.closest("form") ||
+        inputEl.parentElement;
+      if (scope) {
+        if (scope.matches && scope.matches("[data-jml-soft-kbd-enter]")) return scope;
+        var inScope = scope.querySelector("[data-jml-soft-kbd-enter]");
+        if (inScope) return inScope;
+        if (scope.parentElement) {
+          return scope.parentElement.querySelector("[data-jml-soft-kbd-enter]");
+        }
+      }
+    }
+    return null;
+  }
+
   function renderKey(k) {
     if (k === "back") {
       return '<button type="button" class="soft-kbd-key soft-kbd-key-back" data-key="back"></button>';
@@ -86,9 +111,13 @@
       '<div class="soft-kbd" data-jml-soft-kbd-keys>' +
       '<div class="soft-kbd-grid">' +
       gridHtml +
-      '</div><div class="soft-kbd-enter-row"><button type="button" class="soft-kbd-enter" data-key="enter"></button></div>' +
-      "</div>"
+      "</div></div>"
     );
+  }
+
+  function applyEnterI18n(enterBtn, t) {
+    if (!enterBtn || typeof t !== "function") return;
+    enterBtn.textContent = t("softkbd.confirm");
   }
 
   function applyI18n(cardEl, t) {
@@ -99,8 +128,6 @@
     kbdEl.setAttribute("aria-label", t("softkbd.aria"));
     var back = kbdEl.querySelector('.soft-kbd-key[data-key="back"]');
     if (back) back.textContent = t("softkbd.delete");
-    var enter = kbdEl.querySelector('.soft-kbd-enter[data-key="enter"]');
-    if (enter) enter.textContent = t("softkbd.confirm");
   }
 
   function applyI18nAfterMount(cardEl, t) {
@@ -113,7 +140,9 @@
     layout = resolveLayout(card, layout);
     var mounted = card.getAttribute("data-jml-soft-kbd-mounted") === "1";
     var mountedLayout = card.getAttribute("data-jml-soft-kbd-layout");
-    if (mounted && mountedLayout === layout) {
+    // 旧版底行确认仍在 DOM 时强制重挂，避免热更新/长会话残留
+    var staleEnter = !!(card.querySelector && card.querySelector(".soft-kbd-enter-row, .soft-kbd-enter"));
+    if (mounted && mountedLayout === layout && !staleEnter) {
       applyI18nAfterMount(card, t);
       return;
     }
@@ -131,6 +160,10 @@
     var list = global.document ? global.document.querySelectorAll(".soft-kbd-card[data-jml-soft-kbd-mounted='1']") : [];
     for (var i = 0; i < list.length; i += 1) {
       applyI18n(list[i], t);
+    }
+    var enters = global.document ? global.document.querySelectorAll("[data-jml-soft-kbd-enter]") : [];
+    for (var j = 0; j < enters.length; j += 1) {
+      applyEnterI18n(enters[j], t);
     }
   }
 
@@ -151,11 +184,23 @@
     if (type === "incorrect") el.classList.add("incorrect");
   }
 
+  function bindEnterBtn(enterBtn, onEnter, t) {
+    if (!enterBtn) return;
+    applyEnterI18n(enterBtn, resolveT(t));
+    if (typeof onEnter !== "function") return;
+    if (enterBtn.__jmlSoftKbdEnterBound) return;
+    enterBtn.addEventListener("click", function () {
+      onEnter();
+    });
+    enterBtn.__jmlSoftKbdEnterBound = true;
+  }
+
   function bind(options) {
     options = options || {};
     var cardEl = resolveCard(options.cardEl || options.kbdEl);
     var inputEl = options.inputEl;
     var onEnter = options.onEnter;
+    var enterBtn = resolveEnterBtn(options, inputEl);
     if (!cardEl) return null;
     var wantLayout =
       options.layout && LAYOUT_KEYS[options.layout] ? options.layout : resolveLayout(cardEl, options.layout);
@@ -163,6 +208,7 @@
     // 已绑定且布局未变：只刷新文案；布局切换时 remount 并重新绑定
     if (cardEl.__jmlSoftKbdBound && mountedLayout === wantLayout) {
       applyI18nAfterMount(cardEl, options.t);
+      bindEnterBtn(enterBtn, onEnter, options.t);
       return cardEl;
     }
     ensureMounted(cardEl, wantLayout, options.t);
@@ -179,14 +225,11 @@
         inputEl.value = backspace(inputEl.value);
         return;
       }
-      if (k === "enter") {
-        if (typeof onEnter === "function") onEnter();
-        return;
-      }
       if (/^[0-9]$/.test(k) || (k === "." && allowDecimal)) {
         inputEl.value = append(inputEl.value, k, allowDecimal);
       }
     });
+    bindEnterBtn(enterBtn, onEnter, options.t);
     cardEl.__jmlSoftKbdBound = true;
     return cardEl;
   }
@@ -197,6 +240,7 @@
     backspace: backspace,
     append: append,
     resolveCard: resolveCard,
+    resolveEnterBtn: resolveEnterBtn,
     getFeedbackEl: getFeedbackEl,
     ensureMounted: ensureMounted,
     setCardVisible: setCardVisible,

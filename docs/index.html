@@ -2069,6 +2069,33 @@
       margin-top: 0;
       box-sizing: border-box;
     }
+    /* 输入框 + 确认（确认已从软键盘底行挪到题卡内，避免误触） */
+    .input-row.input-row--stack {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .jml-answer-confirm {
+      width: 100%;
+      flex: none;
+      min-height: 2.25em;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 14px;
+      font-size: 0.94rem;
+      font-weight: 900;
+      font-family: inherit;
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: #fff;
+      box-shadow: none;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+    .jml-answer-confirm:active {
+      transform: scale(0.98);
+    }
 
     input[data-jml-answer-input] {
       flex: 1;
@@ -2403,24 +2430,6 @@
       display: block;
       height: var(--jml-kbd-key-h);
       min-height: var(--jml-kbd-key-h);
-    }
-    .soft-kbd-enter-row {
-      margin-top: var(--jml-kbd-gap);
-    }
-    .soft-kbd-enter {
-      width: 100%;
-      border-radius: 14px;
-      padding: 0;
-      height: var(--jml-kbd-key-h);
-      min-height: var(--jml-kbd-key-h);
-      font-size: 0.94rem;
-      font-weight: 900;
-      background: linear-gradient(135deg, var(--primary), var(--primary-light));
-      color: #fff;
-      box-shadow: none;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: manipulation;
     }
 
     .soft-kbd-card .soft-kbd-feedback {
@@ -3859,8 +3868,10 @@
     html.jml-play-compact .soft-kbd-key {
       font-size: 0.9rem;
     }
-    html.jml-play-compact .soft-kbd-enter {
+    html.jml-play-compact .jml-answer-confirm {
       font-size: 0.88rem;
+      min-height: 2.1em;
+      padding: 6px 10px;
     }
 
     /* 质数合数：布局对齐 game-play-body + recent-card（与主游戏/拆括号一致） */
@@ -4806,8 +4817,9 @@
 
       <form id="answer-form" class="answer-form" action="javascript:void(0);">
           <div class="game-card-action-anchor">
-            <div class="input-row" id="answer-input-row" style="display:none">
+            <div class="input-row input-row--stack" id="answer-input-row" style="display:none">
               <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="numeric" />
+              <button type="button" class="jml-answer-confirm" data-jml-soft-kbd-enter>确认</button>
             </div>
             <div class="button-row div-choice-row" id="wrong-practice-choice-row" style="display:none;">
               <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-a">—</button>
@@ -5273,8 +5285,9 @@
 
         <form id="ps-answer-form" class="answer-form" action="javascript:void(0);">
           <div class="game-card-action-anchor">
-            <div class="input-row" id="ps-answer-input-row" style="display:none;">
+            <div class="input-row input-row--stack" id="ps-answer-input-row" style="display:none;">
               <input id="ps-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+              <button type="button" class="jml-answer-confirm" data-jml-soft-kbd-enter>确认</button>
             </div>
             <div class="button-row" id="ps-start-row">
               <button type="button" class="btn-primary" id="ps-start-btn">开始挑战</button>
@@ -5368,8 +5381,9 @@
 
         <form id="mt-answer-form" class="answer-form" action="javascript:void(0);">
           <div class="game-card-action-anchor">
-            <div class="input-row" id="mt-answer-input-row" style="display:none;">
+            <div class="input-row input-row--stack" id="mt-answer-input-row" style="display:none;">
               <input id="mt-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+              <button type="button" class="jml-answer-confirm" data-jml-soft-kbd-enter>确认</button>
             </div>
             <div class="button-row" id="mt-next-row" style="display:none;">
               <button type="button" class="btn-primary" id="mt-next-btn">下一个数字</button>
@@ -5615,8 +5629,9 @@
           </div>
           <form id="fm-answer-form" class="answer-form" action="javascript:void(0);">
             <div class="game-card-action-anchor">
-              <div class="input-row" id="fm-answer-input-row">
+              <div class="input-row input-row--stack" id="fm-answer-input-row">
                 <input id="fm-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="integer" />
+                <button type="button" class="jml-answer-confirm" data-jml-soft-kbd-enter>确认</button>
               </div>
             </div>
           </form>
@@ -5717,8 +5732,9 @@
 
         <form id="dec-answer-form" class="answer-form" action="javascript:void(0);">
           <div class="game-card-action-anchor">
-            <div class="input-row" id="dec-answer-input-row" style="display:none;">
+            <div class="input-row input-row--stack" id="dec-answer-input-row" style="display:none;">
               <input id="dec-answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="decimal" />
+              <button type="button" class="jml-answer-confirm" data-jml-soft-kbd-enter>确认</button>
             </div>
             <div class="button-row" id="dec-start-row">
               <button type="button" class="btn-primary" id="dec-start-btn">开始挑战</button>
@@ -5926,7 +5942,7 @@
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=50"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
-  <script src="shared/soft-keyboard.js?v=42"></script>
+  <script src="shared/soft-keyboard.js?v=43"></script>
   <script src="shared/answer-input.js?v=41"></script>
   <script src="shared/perfect-square-questions.js?v=44"></script>
   <script src="shared/divisibility-questions.js?v=5"></script>
