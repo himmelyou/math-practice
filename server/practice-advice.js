@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.49：错题任务完成一次练习即成功；练习做对清题、做错保留。
+ * 练习建议 v0.50：未通关摸底闯关默认可排垫后；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开。
+ * v0.49：错题任务完成一次练习即成功；练习做对清题、做错保留。
  * v0.48：特殊硬留同模式黄洞冷却时改试下一格，不整档跳到绿补。
  * v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
  * v0.46：四则硬留按「不熟练 / 黄橙」两档熟练度；全绿不硬留；自由格不封顶特殊/小数。
@@ -15,7 +16,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.49-provisional";
+  var RULE_VERSION = "0.50-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -375,8 +376,8 @@
     return top;
   }
 
-  /** 合格线 Ln = 须通过 Ln。取历史最高与热图连续准≥95%顶的 max。无历史且 L1 不够 95% 时目标仍是 L1。 */
-  function resolveScanTarget(rows, opts) {
+  /** 原闯关纪录最高关（0-based）；无纪录返回 null。合格线与「全绿提权」共用。 */
+  function resolveLevelBestIndex(opts) {
     opts = opts || {};
     var hist = null;
     if (opts.levelChallengeBestLevel != null && Number.isFinite(Number(opts.levelChallengeBestLevel))) {
@@ -386,6 +387,32 @@
       var fromRuns = Math.floor(Number(opts.levelBestFromRuns));
       if (hist == null || fromRuns > hist) hist = fromRuns;
     }
+    return hist != null && hist >= 0 ? hist : null;
+  }
+
+  /**
+   * L1～原最高关（含）均为绿快：准≥95% 且 timePct&lt;50。
+   * 无纪录、缺数据、或缺分位 → false（摸底闯关仍可排，但不提权）。
+   */
+  function foundationGreenThroughBest(rows, bestIdx) {
+    if (bestIdx == null || !Number.isFinite(Number(bestIdx)) || Number(bestIdx) < 0) return false;
+    var top = Math.floor(Number(bestIdx));
+    var list = rows || [];
+    for (var i = 0; i <= top; i += 1) {
+      var r = list[i];
+      if (!r || !(r.n > 0)) return false;
+      var p = r.p != null && Number.isFinite(Number(r.p)) ? Number(r.p) : null;
+      if (p == null || p < HEAT_P_YELLOW) return false;
+      var tp = r.timePct != null && Number.isFinite(Number(r.timePct)) ? Number(r.timePct) : null;
+      if (tp == null || tp >= FAST_TIME_PCT) return false;
+    }
+    return true;
+  }
+
+  /** 合格线 Ln = 须通过 Ln。取历史最高与热图连续准≥95%顶的 max。无历史且 L1 不够 95% 时目标仍是 L1。 */
+  function resolveScanTarget(rows, opts) {
+    opts = opts || {};
+    var hist = resolveLevelBestIndex(opts);
     var accTop = accConsecutiveTopIndex(rows);
     var heatIdx = accTop >= 0 ? accTop : null;
     var idx;
@@ -1351,7 +1378,8 @@
       }
     }
     var needScan = scanIsNeeded(ctx);
-    var n = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : 0;
+    /** 未通关且 L1～原纪录全绿：闯关提到四则训练前；否则垫后（有空格才上）。 */
+    var elevateScan = needScan && !isRetryClearScan(ctx) && !!ctx.scanElevate;
 
     if (heatmapIsEmpty(ctx.rows)) {
       if (needScan) stream.push({ kind: "scan", scan: ctx.scan });
@@ -1361,15 +1389,8 @@
       holes.slice(1).forEach(function (r) {
         stream.push({ kind: "training", row: r });
       });
-    } else if (needScan) {
-      holes.forEach(function (r) {
-        if (r.levelIndex <= n) stream.push({ kind: "training", row: r });
-      });
-      stream.push({ kind: "scan", scan: ctx.scan });
-      holes.forEach(function (r) {
-        if (r.levelIndex > n) stream.push({ kind: "training", row: r });
-      });
     } else {
+      if (elevateScan) stream.push({ kind: "scan", scan: ctx.scan });
       holes.forEach(function (r) {
         stream.push({ kind: "training", row: r });
       });
@@ -1410,6 +1431,10 @@
       listOtherModeSeeds(ctx, "fill").forEach(function (s) {
         stream.push(s);
       });
+    }
+    /** 未通关默认：闯关垫在训练/绿补之后，有空格才进五格。 */
+    if (needScan && !heatmapIsEmpty(ctx.rows) && !isRetryClearScan(ctx) && !elevateScan) {
+      stream.push({ kind: "scan", scan: ctx.scan });
     }
 
     /**
@@ -1522,45 +1547,31 @@
     return !!(t && (t.key === "level" || t.action === "level"));
   }
 
-  function doneHasTrainingLevel(done, levelIndex) {
-    var k = taskKey("training", levelIndex);
-    return (done || []).some(function (t) {
-      return t && t.key === k;
-    });
-  }
-
-  /** 未完成里关号≤n 且不在冷却窗的训练，必须排在闯关前面。冲榜闯关不走这条。 */
-  function placeScanAfterPrereqs(next, done, scanLevelIndex) {
+  /**
+   * 未通关摸底闯关位置（开单/日切/重新开单时）：
+   * - 默认垫后（有空格才上）；
+   * - L1～原纪录全绿则提到错题之后、四则训练之前。
+   * 冲榜不走这条。
+   */
+  function placeScanByPriority(next, ctx) {
     var list = (next || []).slice();
-    var scanIdx = -1;
+    var si = -1;
     for (var i = 0; i < list.length; i += 1) {
       if (isScanTask(list[i])) {
-        scanIdx = i;
+        si = i;
         break;
       }
     }
-    if (scanIdx < 0 || scanLevelIndex == null) return list;
-    var prereq = [];
-    var kept = [];
-    list.forEach(function (t, idx) {
-      if (idx === scanIdx) {
-        kept.push(t);
-        return;
-      }
-      var low =
-        t.action === "training" && t.levelIndex != null && t.levelIndex <= scanLevelIndex;
-      if (low && !doneHasTrainingLevel(done, t.levelIndex)) prereq.push(t);
-      else kept.push(t);
-    });
-    var newScanIdx = -1;
-    for (var j = 0; j < kept.length; j += 1) {
-      if (isScanTask(kept[j])) {
-        newScanIdx = j;
-        break;
-      }
+    if (si < 0) return list;
+    var scan = list.splice(si, 1)[0];
+    if (ctx && ctx.scanElevate) {
+      var at = 0;
+      while (at < list.length && list[at] && list[at].action === "wrongbook") at += 1;
+      list.splice(at, 0, scan);
+      return list;
     }
-    if (newScanIdx < 0) return list;
-    return kept.slice(0, newScanIdx).concat(prereq, kept.slice(newScanIdx));
+    list.push(scan);
+    return list;
   }
 
   /** 冲榜闯关：有黄橙洞则第二格，全绿则队头。 */
@@ -1692,9 +1703,8 @@
         if (isTodayBoardClosed(t, day)) todays.push(t);
         else opens.push(t);
       });
-      var scanN = ctx.scan && ctx.scan.levelIndex != null ? ctx.scan.levelIndex : null;
       if (isRetryClearScan(ctx)) opens = placeRetryScanSecond(opens, ctx);
-      else opens = placeScanAfterPrereqs(opens, archive.concat(todays), scanN);
+      else opens = placeScanByPriority(opens, ctx);
       board = todays.concat(opens);
     }
     plan.tasks = archive.concat(board);
@@ -2646,6 +2656,9 @@
         : null;
     var retry = retryClearInfo(rows, opts.runs, clearBestSec);
     var clearEstimate = clearEstimateInfo(rows, opts.runs, clearBestSec);
+    var levelBestIndex = resolveLevelBestIndex(opts);
+    var scanElevate =
+      opts.hasClearedLevel !== true && foundationGreenThroughBest(rows, levelBestIndex);
     var scan = resolveScanTarget(rows, opts);
     if (opts.hasClearedLevel === true && retry && retry.improve) {
       scan = {
@@ -2697,6 +2710,8 @@
       profile: profile,
       scan: scan,
       hasClearedLevel: opts.hasClearedLevel === true,
+      levelBestIndex: levelBestIndex,
+      scanElevate: scanElevate,
       schoolHoles: groups.schoolHoles,
       aheadHoles: groups.aheadHoles,
       aheadNoData: groups.aheadNoData,
@@ -2798,8 +2813,11 @@
             "acc_pass_target",
             "闯关须过 " +
               ctx.scan.levelLabel +
-              "（连续准度顶与历史最高取 max，不计分位）",
-            "Q5：未完成里关号≤目标且刚练过的除外，排在闯关前"
+              "（连续准度顶与历史最高取 max，不计分位）" +
+              (ctx.scanElevate
+                ? "；L1～原纪录全绿，闯关提到训练前"
+                : "；默认垫后，有空格才上"),
+            "v0.50：种子流不按 ≤n 拆开；全绿提权见 R-scan-elevate"
           )
         );
       }
@@ -2869,7 +2887,7 @@
         "hybrid_task_list",
         "一条队列：未完成最多 " +
           INCOMPLETE_SIZE +
-          " 条且不重复（黄橙优先；有闯关时关号≤目标的训练先占格）。同 key 默认隔 " +
+          " 条且不重复（黄橙按洞分；未通关闯关默认垫后，全绿快可提权）。同 key 默认隔 " +
           SAME_TASK_GAP +
           " 条；冷却窗最多 " +
           COMPLETED_MAX +
@@ -3039,6 +3057,8 @@
     canScheduleAheadHoles: canScheduleAheadHoles,
     aheadHoleEligible: aheadHoleEligible,
     arithUnfluentCount: arithUnfluentCount,
+    resolveLevelBestIndex: resolveLevelBestIndex,
+    foundationGreenThroughBest: foundationGreenThroughBest,
     resolveScanTarget: resolveScanTarget,
     passedScanTarget: passedScanTarget,
     estimateClearSec: estimateClearSec,
