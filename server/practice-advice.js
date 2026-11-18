@@ -1,5 +1,7 @@
 /**
- * 练习建议 v0.50：未通关摸底闯关默认可排垫后；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开。
+ * 练习建议 v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线；洞分公式同 v0.51。
+ * v0.51：四则洞分改为 rem×100+(100−准%)×10+分位×5；取消未流畅整段。
+ * v0.50：未通关摸底闯关默认可排垫后；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开。
  * v0.49：错题任务完成一次练习即成功；练习做对清题、做错保留。
  * v0.48：特殊硬留同模式黄洞冷却时改试下一格，不整档跳到绿补。
  * v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
@@ -8,15 +10,15 @@
  * v0.43：质数合数五年级起；特殊序改为平方→整除→质数→因倍。
  * v0.42：特殊/小数硬留按今日已结案消耗，重开不再重复占格。
  * v0.41：平方 L2+ 任务侧按超前（不开新；有数据黄橙才推）。
- * v0.40：开新关/超前进队闸与模式梯子一致（准≥95% 且未过慢）。
+ * v0.40：开新关/超前进队闸与模式梯子同（准≥95% 且未过慢）。
  * v0.39：次日首开/刷新整单重算；去掉失败钟与补格；间隔破例排队尾。
  * v0.38：质数合数通关判定与成就对齐（cleared/perfect 或 score≥250）。
  * v0.37：已通关后，平台型和底板型都只在预估 ≤ 纪录 85% 时排冲榜闯关。
- * v0.36：黄橙排序改为先未达标，再靠前。
+ * v0.36：黄橙排序改为先未达标，再靠前（v0.51 起洞分公式已换）。
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.50-provisional";
+  var RULE_VERSION = "0.52-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -51,12 +53,14 @@
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
   var FOUNDATION_RATIO = 1.15;
-  /** 黄橙洞分：每档剩余步的权重，大于严重度全距（0–100），靠前一档压过后一档 */
-  var HOLE_LEVEL_WEIGHT = 100;
-  /** 未达概览 fluent 的关整段排在「已流畅但仍黄」之前 */
-  var HOLE_UNFLUENT_BAND = 10000;
-  /** 兼容旧输出字段；洞分不再用这个小步长 */
-  var HOLE_FOUNDATION_STEP = HOLE_LEVEL_WEIGHT;
+  /** 黄橙洞分权重（v0.51）：rem×100 + (100−准%)×10 + 分位×5 */
+  var HOLE_REM_WEIGHT = 100;
+  var HOLE_ACC_WEIGHT = 10;
+  var HOLE_SPEED_WEIGHT = 5;
+  /** 兼容旧字段名 */
+  var HOLE_LEVEL_WEIGHT = HOLE_REM_WEIGHT;
+  var HOLE_UNFLUENT_BAND = 0;
+  var HOLE_FOUNDATION_STEP = HOLE_REM_WEIGHT;
   /** Q6 已废：准度不再小步。常量仅兼容旧输出字段。 */
   var ACC_STEP = 0.015;
   /** Q7：速度任务：本局均速 ≤ 基线 × 此系数；对照 timePct − 步长（现为达均速） */
@@ -214,62 +218,117 @@
   }
 
   /**
-   * 加减 / 乘除两条进度线，在 L15–L16 汇合。
-   * L5 与 L6、L7 与 L8 同深（不强制先加后减）。
-   * remaining = 本线后面还有几档 + 混合 2 档（地基越前权重越大）。
+   * 加减 / 乘除两条进度线；顶台 L13–L16 rem=0（乘除难 / 两步难同属顶格）。
+   * L5 与 L6、L7 与 L8 同深；L17+ 挂加减线为负。
+   * 跨线不对齐：L5≠L10，L9≠L13。
    */
-  var ADD_TRACK_GROUPS = [[1], [2], [3], [4], [5, 6], [7, 8], [9], [12]];
-  var MUL_TRACK_GROUPS = [[10], [11], [13], [14]];
-  var MIX_TRACK_GROUPS = [[15], [16]];
+  var ADD_TRACK_GROUPS = [
+    [1],
+    [2],
+    [3],
+    [4],
+    [5, 6],
+    [7, 8],
+    [9],
+    [12],
+    [13, 14, 15, 16],
+    [17],
+    [18],
+    [19],
+    [20],
+  ];
+  var MUL_TRACK_GROUPS = [[10], [11], [13, 14, 15, 16]];
+  /** 顶台锚点：组内含此关即 tip（L13–L16 同组 rem=0） */
+  var REM_TIP_LEVEL = 16;
 
-  function remainingInGroups(groups, L, extra) {
+  /**
+   * 其它模式 rem（不借四则号）。tip = 该线顶档关号。
+   * 平方：L1→分出 L2/L4，L2→L3（顶）；L2 与 L4 同深。L2+ 任务先验仍为超前。
+   * 因倍：Y3 后分出 Y4/Y5 同深，Y6 为顶。
+   */
+  var MODE_REM_TRACKS = {
+    decimal: { tip: 6, groups: [[1], [2], [3], [4], [5], [6]] },
+    perfectSquare: { tip: 3, groups: [[1], [2, 4], [3]] },
+    divisibility: { tip: 4, groups: [[1], [2], [3], [4]] },
+    factorsMultiples: { tip: 6, groups: [[1], [2], [3], [4, 5], [6]] },
+    primeComposite: { tip: 1, groups: [[1]] },
+  };
+
+  function remFromTip(groups, L, tipLevel) {
+    var tipLv = tipLevel != null ? tipLevel : REM_TIP_LEVEL;
+    var tip = -1;
     var i;
     for (i = 0; i < groups.length; i += 1) {
-      if (groups[i].indexOf(L) !== -1) return groups.length - 1 - i + extra;
+      if (groups[i].indexOf(tipLv) !== -1) {
+        tip = i;
+        break;
+      }
+    }
+    if (tip < 0) tip = groups.length - 1;
+    for (i = 0; i < groups.length; i += 1) {
+      if (groups[i].indexOf(L) !== -1) return tip - i;
     }
     return null;
   }
 
   function foundationRemaining(levelIndexOrL) {
     var n = Math.floor(Number(levelIndexOrL) || 0);
-    var L = n >= 1 && n <= LEVEL_COUNT ? n : n + 1;
-    var add = remainingInGroups(ADD_TRACK_GROUPS, L, MIX_TRACK_GROUPS.length);
+    var L = n >= 1 && n <= ARITH_TOTAL_LEVEL_COUNT ? n : n + 1;
+    var add = remFromTip(ADD_TRACK_GROUPS, L, REM_TIP_LEVEL);
     if (add != null) return add;
-    var mul = remainingInGroups(MUL_TRACK_GROUPS, L, MIX_TRACK_GROUPS.length);
+    var mul = remFromTip(MUL_TRACK_GROUPS, L, REM_TIP_LEVEL);
     if (mul != null) return mul;
-    var mix = remainingInGroups(MIX_TRACK_GROUPS, L, 0);
-    if (mix != null) return mix;
     return 0;
   }
 
-  /** 慢区：timePct × 1.15^剩余步；已快（<40）关掉低级优势，只比分位。 */
+  function modeFoundationRemaining(modeId, levelIndexOrL) {
+    var track = MODE_REM_TRACKS[modeId];
+    if (!track || !track.groups) return 0;
+    var n = Math.floor(Number(levelIndexOrL) || 0);
+    var L = n >= 1 ? n : n + 1;
+    var rem = remFromTip(track.groups, L, track.tip);
+    return rem == null ? 0 : rem;
+  }
+
+  function foundationRemainingForRow(row) {
+    if (!row) return 0;
+    var L = row.L != null ? row.L : row.levelIndex != null ? Math.floor(Number(row.levelIndex)) + 1 : 0;
+    var modeId = row.modeId;
+    if (modeId && modeId !== "training" && MODE_REM_TRACKS[modeId]) {
+      return modeFoundationRemaining(modeId, L);
+    }
+    return foundationRemaining(L);
+  }
+
+  /** 慢区：timePct × 1.15^rem；已快（<40）关掉低级优势，只比分位。 */
   function speedFoundationTerm(row) {
     var tp = timePctVal(row);
     if (tp < FOUNDATION_FAST_PCT) return tp;
-    return tp * Math.pow(FOUNDATION_RATIO, foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0)));
+    return tp * Math.pow(FOUNDATION_RATIO, foundationRemainingForRow(row));
   }
 
-  /** 准度离 95% 的缺口，封顶 100，与速度分位同一把尺子。 */
+  /** 准度离 95% 的缺口，封顶 100（旧洞分 / 兼容输出仍用）。 */
   function accuracySeverity(row) {
     var p = row && row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
+    if (p > 1) p = p / 100;
     if (p >= HEAT_P_YELLOW) return 0;
     return Math.min(100, ((HEAT_P_YELLOW - p) / (1 - HEAT_P_YELLOW)) * 100);
   }
 
   /**
-   * 黄橙排序：未达标（非 fluent）整段在前；段内剩余步权重大于严重度。
-   * 严重度 = max(速度分位, 准度缺口)，不相加。极慢和准度不够同一类问题。
+   * 黄橙洞分（v0.51/v0.52）：rem×100 + (100−准%)×10 + 分位×5。
+   * rem：四则见 foundationRemaining；其它模式见 modeFoundationRemaining（单线、末档=0）。
    */
   function holeScore(row) {
     if (!row || (row.stage !== "weak" && row.stage !== "shaky")) return 0;
-    var rem = foundationRemaining(row.L || (row.levelIndex != null ? row.levelIndex + 1 : 0));
-    var severity = Math.max(timePctVal(row), accuracySeverity(row));
-    var band = row.fluent === true ? 0 : HOLE_UNFLUENT_BAND;
-    var score = band + rem * HOLE_LEVEL_WEIGHT + severity;
-    // 隐藏档（L17+）降一档剩余步权重，排在同严重度的公开顶关（如 L16）之后
-    var li = row.levelIndex != null ? Math.floor(Number(row.levelIndex)) : -1;
-    if (li >= ARITH_PUBLIC_LEVEL_COUNT) score -= HOLE_LEVEL_WEIGHT;
-    return score;
+    var rem = foundationRemainingForRow(row);
+    var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 1;
+    if (p > 1) p = p / 100;
+    if (p < 0) p = 0;
+    if (p > 1) p = 1;
+    var pPct = p * 100;
+    var tp = timePctVal(row);
+    return rem * HOLE_REM_WEIGHT + (100 - pPct) * HOLE_ACC_WEIGHT + tp * HOLE_SPEED_WEIGHT;
   }
 
   /** 已学流畅档：准度离 97% + 地基加权速度项 + 样本偏薄。越大越该补进未完成。 */
@@ -2769,14 +2828,18 @@
         FOUNDATION_FAST_PCT +
         " 只比分位；否则 ×" +
         FOUNDATION_RATIO +
-        "^本线剩余步（加减/乘除汇合 L15–L16）",
+        "^本线 rem（L16=0；加减含 L17+）",
       "Q13 黄橙与热图二维上色对齐：橙=准<90%或timePct≥" +
         HEAT_PCT_PLUS1 +
         "；黄=准<95%或timePct≥" +
         FAST_TIME_PCT +
-        "。洞分=未达标档+" +
-        HOLE_LEVEL_WEIGHT +
-        "×剩余步+max(速度分位,准度缺口)。未达标整段在前；靠前一档压过后一档；准度和极慢取更严重的一项",
+        "。洞分=rem×" +
+        HOLE_REM_WEIGHT +
+        "+(100−准%)×" +
+        HOLE_ACC_WEIGHT +
+        "+分位×" +
+        HOLE_SPEED_WEIGHT +
+        "（v0.52；顶台 L13–L16 rem=0；其它模式单线末档=0；L17+ 负）",
       "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
@@ -3041,11 +3104,18 @@
     FOUNDATION_FAST_PCT: FOUNDATION_FAST_PCT,
     FOUNDATION_RATIO: FOUNDATION_RATIO,
     HOLE_FOUNDATION_STEP: HOLE_FOUNDATION_STEP,
+    HOLE_REM_WEIGHT: HOLE_REM_WEIGHT,
+    HOLE_ACC_WEIGHT: HOLE_ACC_WEIGHT,
+    HOLE_SPEED_WEIGHT: HOLE_SPEED_WEIGHT,
+    HOLE_LEVEL_WEIGHT: HOLE_LEVEL_WEIGHT,
+    HOLE_UNFLUENT_BAND: HOLE_UNFLUENT_BAND,
     curriculumPrior: curriculumPrior,
     classifyStage: classifyStage,
     classifyProfile: classifyProfile,
     heatBand: heatBand,
     foundationRemaining: foundationRemaining,
+    modeFoundationRemaining: modeFoundationRemaining,
+    foundationRemainingForRow: foundationRemainingForRow,
     fillerScore: fillerScore,
     holeScore: holeScore,
     successKindForRow: successKindForRow,
