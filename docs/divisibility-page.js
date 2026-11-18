@@ -750,7 +750,9 @@
     let speedMeta = null;
     if (typeof deps.buildSingleLevelSpeedMeta === "function") {
       try {
-        speedMeta = await deps.buildSingleLevelSpeedMeta("divisibility", startLevel, divAttempts.slice());
+        speedMeta = await deps.buildSingleLevelSpeedMeta("divisibility", startLevel, divAttempts.slice(), {
+          durationSec: durationSec,
+        });
       } catch (e) {
         console.warn("整除局速度快照失败", e);
       }

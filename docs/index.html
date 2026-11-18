@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=133"></script>
+  <script src="shared/app-version.js?v=137"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -5933,7 +5933,7 @@
   <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=73"></script>
-  <script src="stats-heatmap-browser.js?v=78"></script>
+  <script src="stats-heatmap-browser.js?v=79"></script>
   <script src="stats-aggregate-browser.js?v=54"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=50"></script>
@@ -18847,11 +18847,14 @@
     }
 
     /**
-     * 小数 / 平方数 / 整除 Z1–Z4：本局均速 + 开局加权速客户端诊断快照。
+     * 小数 / 平方数 / 整除 Z1–Z4 / 因倍：本局均速 + 开局加权速客户端诊断快照。
      * 入库权威 heatAvgSecAtStart 由服务端 append 前按既有 runs 计算。
      * 整除 Z5 不写速度字段（Report 显示 —）。
+     * 二选一（整除 / 因倍 Y1–Y2）：本局均速 = 整局时长/题数（与热图速度口径一致）。
+     * @param {object} [opts] { durationSec }
      */
-    async function buildSingleLevelSpeedMeta(mode, levelIndex, attempts) {
+    async function buildSingleLevelSpeedMeta(mode, levelIndex, attempts, opts) {
+      opts = opts || {};
       const m = normalizeAppendRunMode(mode);
       const lv = Math.max(0, Math.floor(Number(levelIndex) || 0));
       if (m === "divisibility" && lv >= 4) {
@@ -18879,6 +18882,8 @@
             ? 6
             : 4;
       const modes = cat && Array.isArray(cat.modes) ? cat.modes : [m];
+      const choiceRunSpeed =
+        m === "divisibility" || (m === "factorsMultiples" && lv <= 1);
 
       let heatMeanLnAtStartClient = null;
       let heatAvgSecAtStartClient = null;
@@ -18914,7 +18919,15 @@
 
       let runMeanLn = null;
       let runAvgSec = null;
-      if (Agg && typeof Agg.geoMeanSecFromAttempts === "function") {
+      const durationSec = Number(opts.durationSec);
+      const attemptN = Array.isArray(attempts) ? attempts.length : 0;
+      if (choiceRunSpeed && Number.isFinite(durationSec) && durationSec > 0 && attemptN > 0) {
+        const msPerQ = (durationSec * 1000) / attemptN;
+        if (msPerQ > 0 && Number.isFinite(msPerQ) && msPerQ <= capMs) {
+          runMeanLn = Math.log(msPerQ);
+          runAvgSec = secFromMeanLn(runMeanLn);
+        }
+      } else if (Agg && typeof Agg.geoMeanSecFromAttempts === "function") {
         const g = Agg.geoMeanSecFromAttempts(attempts, {
           levelIndex: lv,
           maxTimeSpentMs: capMs,

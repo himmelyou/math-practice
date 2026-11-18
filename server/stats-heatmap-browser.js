@@ -15,8 +15,10 @@
   var LEVEL_COUNT = 20;
   var DECIMAL_LEVEL_COUNT = 6;
   var PERFECT_SQUARE_LEVEL_COUNT = 4;
-  var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 按除数拆入 Z1–Z4
+  var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 冲记录，不进热图
   var FACTORS_MULTIPLES_LEVEL_COUNT = 6;
+  /** 因倍 Y1–Y2 二选一走「按局」口径；Y3–Y6 填空仍按题 */
+  var FACTORS_MULTIPLES_CHOICE_LEVEL_MAX = 1; // inclusive
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
@@ -70,11 +72,19 @@
     },
   ];
 
-  /** 质数合数 Y0：按局统计；&lt;10 题放弃局不计；窗 10 局；题数加权 + 天衰减 */
+  /** 质数合数 Y0 / 二选一档：按局统计；&lt;10 题不计；窗 10 局；题数加权 + 天衰减 */
   var PRIME_RUN_MIN_ATTEMPTS = 10;
   var PRIME_WINDOW_RUNS = 10;
   /** 题均耗时上限（排除挂机）；超过则该局不进速度侧 */
   var PRIME_MS_PER_Q_CAP = 60 * 1000;
+  /** 二选一（整除 Z1–Z4 / 因倍 Y1–Y2 / 质数）：与质数同窗 */
+  var CHOICE_RUN_MIN_ATTEMPTS = 10;
+  var CHOICE_WINDOW_RUNS = 10;
+  /** 速度入选：局正确率下限（准度进窗不过此筛） */
+  var CHOICE_SPEED_MIN_ACCURACY = 0.9;
+  var CHOICE_MS_PER_Q_CAP = 60 * 1000;
+  /** 窗内无合格速度局时，比分/上色用的速度分位（越大越慢） */
+  var MISSING_SPEED_TIME_PCT = 100;
 
   function normalizeMode(mode) {
     return String(mode || 'survival')
@@ -149,9 +159,68 @@
     return null;
   }
 
+  function runCorrectCount(r) {
+    var n = 0;
+    var list = r && Array.isArray(r.attempts) ? r.attempts : [];
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i] && list[i].correct === true) n += 1;
+    }
+    return n;
+  }
+
+  function runAccuracy(r) {
+    var n = runAttemptCount(r);
+    if (!(n > 0)) return null;
+    return runCorrectCount(r) / n;
+  }
+
+  function isChoiceSpeedEligible(p, msPerQ, msCap) {
+    var cap = Number(msCap) > 0 ? Number(msCap) : CHOICE_MS_PER_Q_CAP;
+    if (p == null || !Number.isFinite(Number(p)) || Number(p) < CHOICE_SPEED_MIN_ACCURACY) return false;
+    if (msPerQ == null || !Number.isFinite(Number(msPerQ)) || !(Number(msPerQ) > 0)) return false;
+    if (Number(msPerQ) > cap) return false;
+    return true;
+  }
+
+  /** 整除局 → 热图档；Z5（index≥4）返回 null（不进热图） */
+  function resolveDivisibilityRunHeatLevel(r) {
+    if (!r) return null;
+    var meta = r.trainingMeta && typeof r.trainingMeta === 'object' ? r.trainingMeta : null;
+    var raw = meta && meta.pickedLevel != null ? meta.pickedLevel : r.maxLevel;
+    var lv = Math.floor(Number(raw));
+    if (!Number.isFinite(lv) || lv < 0) return null;
+    if (lv >= DIVISIBILITY_LEVEL_COUNT) return null;
+    return lv;
+  }
+
+  function resolveFactorsMultiplesRunHeatLevel(r) {
+    if (!r) return null;
+    var meta = r.trainingMeta && typeof r.trainingMeta === 'object' ? r.trainingMeta : null;
+    var raw = meta && meta.pickedLevel != null ? meta.pickedLevel : r.maxLevel;
+    var lv = Math.floor(Number(raw));
+    if (!Number.isFinite(lv) || lv < 0) return null;
+    if (lv >= FACTORS_MULTIPLES_LEVEL_COUNT) return null;
+    return lv;
+  }
+
+  /**
+   * 速度缺失时分位按 100；有 meanLn 则正常算分位/过慢。
+   * @returns {{ timePct: number|null, tooSlow: boolean|null }}
+   */
+  function applyChoiceSpeedPercentile(active, meanLn, lnQ) {
+    if (!active) return { timePct: null, tooSlow: null };
+    if (meanLn != null && Number.isFinite(Number(meanLn))) {
+      return {
+        timePct: lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null,
+        tooSlow: isTooSlowMeanLn(meanLn, lnQ),
+      };
+    }
+    return { timePct: MISSING_SPEED_TIME_PCT, tooSlow: true };
+  }
+
   /** 质数合数合格局：mode 匹配且 attempt≥10（&lt;10 的放弃局不计） */
   function isPrimeQualifyingRun(r) {
-    if (!r || r.comboOnly === true) return false;
+    if (!r || r.comboOnly === true || r.abandoned === true) return false;
     if (normalizeMode(r.mode) !== 'primecomposite') return false;
     return runAttemptCount(r) >= PRIME_RUN_MIN_ATTEMPTS;
   }
@@ -258,7 +327,8 @@
       sumW2 += w * w;
       if (minAge === null || ageDays < minAge) minAge = ageDays;
       if (maxAge === null || ageDays > maxAge) maxAge = ageDays;
-      if (it.msPerQ != null && Number.isFinite(it.msPerQ) && it.msPerQ > 0 && it.msPerQ <= msCap) {
+      // 速度：仅局准≥90% 且题均耗时≤cap
+      if (isChoiceSpeedEligible(it.p, it.msPerQ, msCap)) {
         sumWLnDen += w;
         sumWLn += w * Math.log(it.msPerQ);
       }
@@ -267,8 +337,9 @@
     var p = sumW > 0 ? sumWP / sumW : null;
     var meanLn = sumWLnDen > 0 ? sumWLn / sumWLnDen : null;
     var active = slice.length >= 1;
-    var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
-    var tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
+    var speedGate = applyChoiceSpeedPercentile(active, meanLn, lnQ);
+    var timePct = speedGate.timePct;
+    var tooSlow = speedGate.tooSlow;
     var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
     var fluent = accurate && tooSlow !== true;
     var avgSecText = '-';
@@ -566,9 +637,159 @@
   }
 
   /**
+   * 二选一按局近窗：准度=窗内全部局；速度=窗内准≥90% 局的整局时长/题数。
+   * @returns {Array<{ n, weightedP, meanLnCorrect, sumW, nEff, minAgeDays, maxAgeDays, sampleUnit }>}
+   */
+  function personalWeightedByChoiceRuns(filteredRuns, opts) {
+    opts = opts || {};
+    var levelCount =
+      opts.levelCount > 0 && Number.isFinite(Number(opts.levelCount))
+        ? Math.floor(Number(opts.levelCount))
+        : 1;
+    var nowMs = Number(opts.nowTs) && Number.isFinite(Number(opts.nowTs)) ? Number(opts.nowTs) : Date.now();
+    var halfLife =
+      Number(opts.halfLifeDays) > 0 && Number.isFinite(Number(opts.halfLifeDays))
+        ? Number(opts.halfLifeDays)
+        : PERSONAL_HALF_LIFE_DAYS;
+    var lambda = Math.LN2 / halfLife;
+    var windowMax =
+      Number(opts.windowRuns) > 0
+        ? Math.min(50, Math.floor(Number(opts.windowRuns)))
+        : CHOICE_WINDOW_RUNS;
+    var msCap = Number(opts.msPerQCap) > 0 ? Number(opts.msPerQCap) : CHOICE_MS_PER_Q_CAP;
+    var resolveRunLevel = typeof opts.resolveRunLevel === 'function' ? opts.resolveRunLevel : null;
+    var levelFilter = typeof opts.levelFilter === 'function' ? opts.levelFilter : null;
+
+    var byLevelLists = [];
+    var li;
+    for (li = 0; li < levelCount; li += 1) byLevelLists.push([]);
+
+    (filteredRuns || []).forEach(function (r) {
+      if (!r || r.comboOnly === true || r.abandoned === true) return;
+      var n = runAttemptCount(r);
+      if (!(n >= CHOICE_RUN_MIN_ATTEMPTS)) return;
+      if (!Array.isArray(r.attempts) || !r.attempts.length) return;
+      var lv = resolveRunLevel ? resolveRunLevel(r) : Math.floor(Number(r.maxLevel) || 0);
+      if (lv == null || !Number.isFinite(lv) || lv < 0 || lv >= levelCount) return;
+      if (levelFilter && !levelFilter(lv)) return;
+      var correct = runCorrectCount(r);
+      var p = correct / n;
+      var durSec = runDurationSec(r);
+      var msPerQ = durSec != null && n > 0 ? (durSec * 1000) / n : null;
+      byLevelLists[lv].push({
+        runTs: Number(r.ts) || 0,
+        n: n,
+        p: p,
+        msPerQ: msPerQ,
+      });
+    });
+
+    var by = [];
+    for (var k = 0; k < levelCount; k += 1) {
+      if (levelFilter && !levelFilter(k)) {
+        by.push({
+          n: 0,
+          weightedP: null,
+          meanLnCorrect: null,
+          sumW: 0,
+          nEff: 0,
+          minAgeDays: null,
+          maxAgeDays: null,
+          sampleUnit: 'runs',
+        });
+        continue;
+      }
+      var allQual = byLevelLists[k];
+      allQual.sort(function (a, b) {
+        return a.runTs - b.runTs;
+      });
+      var slice = allQual.length > windowMax ? allQual.slice(allQual.length - windowMax) : allQual;
+      var sumW = 0;
+      var sumWP = 0;
+      var sumWLn = 0;
+      var sumWLnDen = 0;
+      var sumW2 = 0;
+      var minAge = null;
+      var maxAge = null;
+      for (var j = 0; j < slice.length; j += 1) {
+        var it = slice[j];
+        var ageDays = it.runTs > 0 ? Math.max(0, Math.floor((nowMs - it.runTs) / MS_PER_DAY)) : 0;
+        var w = Math.exp(-lambda * ageDays) * it.n;
+        if (!(w > 0) || !Number.isFinite(w)) continue;
+        sumW += w;
+        sumWP += w * it.p;
+        sumW2 += w * w;
+        if (minAge === null || ageDays < minAge) minAge = ageDays;
+        if (maxAge === null || ageDays > maxAge) maxAge = ageDays;
+        if (isChoiceSpeedEligible(it.p, it.msPerQ, msCap)) {
+          sumWLnDen += w;
+          sumWLn += w * Math.log(it.msPerQ);
+        }
+      }
+      by.push({
+        n: slice.length,
+        weightedP: sumW > 0 ? sumWP / sumW : null,
+        meanLnCorrect: sumWLnDen > 0 ? sumWLn / sumWLnDen : null,
+        sumW: sumW,
+        nEff: sumW2 > 0 && sumW > 0 ? (sumW * sumW) / sumW2 : slice.length,
+        minAgeDays: minAge,
+        maxAgeDays: maxAge,
+        sampleUnit: 'runs',
+      });
+    }
+    return by;
+  }
+
+  function cellFromWeightedBucket(k, b, cohortRow, minActiveN, useChoiceSpeedGate) {
+    var p = b.weightedP;
+    var pText = p != null ? (Math.round(p * 1000) / 10).toFixed(1) + '%' : '-';
+    var meanLn = b.meanLnCorrect;
+    var active = b.n >= minActiveN;
+    var lnQ = cohortRow && cohortRow.cohortLnTimeCorrect ? cohortRow.cohortLnTimeCorrect : null;
+    var timePct;
+    var tooSlow;
+    if (useChoiceSpeedGate) {
+      var gate = applyChoiceSpeedPercentile(active, meanLn, lnQ);
+      timePct = gate.timePct;
+      tooSlow = gate.tooSlow;
+    } else {
+      timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
+      tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
+    }
+    var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
+    var fluent = accurate && tooSlow !== true;
+    var avgSecText = '-';
+    if (meanLn != null && Number.isFinite(meanLn)) {
+      var geoMeanMs = Math.exp(meanLn);
+      var secDisplay = geoMeanMs / 1000;
+      if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
+        avgSecText = String(Math.round(secDisplay * 10) / 10) + 's';
+      }
+    }
+    return {
+      levelIndex: k,
+      active: active,
+      n: b.n,
+      p: p,
+      pText: pText,
+      meanLnCorrect: meanLn,
+      medianLnCorrect: meanLn,
+      timePct: timePct,
+      tooSlow: tooSlow,
+      accurate: accurate,
+      fluent: fluent,
+      nEff: b.nEff != null ? Math.round(b.nEff * 10) / 10 : null,
+      ageDaysMin: b.minAgeDays,
+      ageDaysMax: b.maxAgeDays,
+      avgSecText: avgSecText,
+      sampleUnit: b.sampleUnit || 'attempts',
+    };
+  }
+
+  /**
    * @param {object} opts
    * @param {Array} opts.runs
-   * @param {object|null} ops.cohort
+   * @param {object|null} opts.cohort
    * @param {number} [opts.levelCount] 默认 16
    * @param {string[]} [opts.modes] 默认 survival/level/training
    * @param {number} [opts.minAttempts]
@@ -585,14 +806,17 @@
         : LEVEL_COUNT;
     var modes = opts.modes || ['survival', 'level', 'training'];
     var runs = filterRunsByModes(opts.runs, modes);
+    var modeKey =
+      modes.length === 1
+        ? String(modes[0] || '')
+            .toLowerCase()
+            .replace(/[_-]/g, '')
+        : '';
+    var isDivisibility = modeKey === 'divisibility';
+    var isFactorsMultiples = modeKey === 'factorsmultiples';
     var resolveLevelIndex = opts.resolveAttemptLevelIndex;
     if (typeof resolveLevelIndex !== 'function') {
-      var onlyDiv =
-        modes.length === 1 &&
-        String(modes[0] || '')
-          .toLowerCase()
-          .replace(/[_-]/g, '') === 'divisibility';
-      if (onlyDiv) resolveLevelIndex = resolveDivisibilityAttemptLevel;
+      if (isDivisibility) resolveLevelIndex = resolveDivisibilityAttemptLevel;
     }
     var cohort = opts.cohort && opts.cohort.ok ? opts.cohort : null;
     var minAttempts =
@@ -608,71 +832,87 @@
       Number(opts.personalWindowAttempts) > 0 ? Math.floor(Number(opts.personalWindowAttempts)) : PERSONAL_WINDOW_ATTEMPTS;
     var halfLifeDays =
       Number(opts.personalHalfLifeDays) > 0 ? Number(opts.personalHalfLifeDays) : PERSONAL_HALF_LIFE_DAYS;
-
-    var by = personalWeightedByLevel(
-      runs,
-      maxTimeMs,
-      nowMs,
-      windowAttempts,
-      halfLifeDays,
-      levelCount,
-      resolveLevelIndex
-    );
     var cohortLevels = cohort && Array.isArray(cohort.levels) ? cohort.levels : [];
 
     var cells = [];
-    for (var k = 0; k < levelCount; k++) {
-      var b = by[k];
-      var p = b.weightedP;
-      var pText = p != null ? (Math.round(p * 1000) / 10).toFixed(1) + '%' : '-';
-      var meanLn = b.meanLnCorrect;
-      var active = b.n >= minAttempts;
+    var personalWindowRuns = null;
 
-      var cohortRow = cohortLevels[k] || {};
-      var lnQ = cohortRow.cohortLnTimeCorrect || null;
-
-      var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
-      var tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
-      var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
-      // 无常模 mean/σ 时 tooSlow=null，准确即视为流畅（开顶口径；刷热图熟练顶另见 isCellHeatMastered）
-      var fluent = accurate && tooSlow !== true;
-
-      var avgSecText = '-';
-      if (meanLn != null && Number.isFinite(meanLn)) {
-        var geoMeanMs = Math.exp(meanLn);
-        var secDisplay = geoMeanMs / 1000;
-        if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
-          avgSecText = String(Math.round(secDisplay * 10) / 10) + 's';
+    if (isDivisibility) {
+      // 整除：近 10 局；Z5 不进；速度准≥90%；缺失分位=100。active≥1 局
+      personalWindowRuns = CHOICE_WINDOW_RUNS;
+      var divBy = personalWeightedByChoiceRuns(runs, {
+        levelCount: levelCount,
+        nowTs: nowMs,
+        halfLifeDays: halfLifeDays,
+        windowRuns: CHOICE_WINDOW_RUNS,
+        msPerQCap: maxTimeMs,
+        resolveRunLevel: resolveDivisibilityRunHeatLevel,
+      });
+      for (var dk = 0; dk < levelCount; dk += 1) {
+        cells.push(cellFromWeightedBucket(dk, divBy[dk], cohortLevels[dk] || {}, 1, true));
+      }
+    } else if (isFactorsMultiples) {
+      // Y1–Y2 按局；Y3–Y6 按题（近 200）
+      personalWindowRuns = CHOICE_WINDOW_RUNS;
+      var fmChoiceBy = personalWeightedByChoiceRuns(runs, {
+        levelCount: levelCount,
+        nowTs: nowMs,
+        halfLifeDays: halfLifeDays,
+        windowRuns: CHOICE_WINDOW_RUNS,
+        msPerQCap: maxTimeMs,
+        resolveRunLevel: resolveFactorsMultiplesRunHeatLevel,
+        levelFilter: function (lv) {
+          return lv >= 0 && lv <= FACTORS_MULTIPLES_CHOICE_LEVEL_MAX;
+        },
+      });
+      var fmAttemptResolve = function (a) {
+        var li = Math.floor(Number(a && a.levelIndex));
+        if (!Number.isFinite(li) || li <= FACTORS_MULTIPLES_CHOICE_LEVEL_MAX) return null;
+        if (li >= levelCount) return null;
+        return li;
+      };
+      var fmAttemptBy = personalWeightedByLevel(
+        runs,
+        maxTimeMs,
+        nowMs,
+        windowAttempts,
+        halfLifeDays,
+        levelCount,
+        fmAttemptResolve
+      );
+      for (var fk = 0; fk < levelCount; fk += 1) {
+        if (fk <= FACTORS_MULTIPLES_CHOICE_LEVEL_MAX) {
+          cells.push(cellFromWeightedBucket(fk, fmChoiceBy[fk], cohortLevels[fk] || {}, 1, true));
+        } else {
+          cells.push(cellFromWeightedBucket(fk, fmAttemptBy[fk], cohortLevels[fk] || {}, minAttempts, false));
         }
       }
-
-      cells.push({
-        levelIndex: k,
-        active: active,
-        n: b.n,
-        p: p,
-        pText: pText,
-        meanLnCorrect: meanLn,
-        medianLnCorrect: meanLn,
-        timePct: timePct,
-        tooSlow: tooSlow,
-        accurate: accurate,
-        fluent: fluent,
-        nEff: b.nEff != null ? Math.round(b.nEff * 10) / 10 : null,
-        ageDaysMin: b.minAgeDays,
-        ageDaysMax: b.maxAgeDays,
-        avgSecText: avgSecText,
-      });
+    } else {
+      var by = personalWeightedByLevel(
+        runs,
+        maxTimeMs,
+        nowMs,
+        windowAttempts,
+        halfLifeDays,
+        levelCount,
+        resolveLevelIndex
+      );
+      for (var k = 0; k < levelCount; k++) {
+        cells.push(cellFromWeightedBucket(k, by[k], cohortLevels[k] || {}, minAttempts, false));
+      }
     }
+
     return {
       cells: cells,
-      minAttempts: minAttempts,
+      minAttempts: isDivisibility ? 1 : isFactorsMultiples ? minAttempts : minAttempts,
       maxTimeSpentMs: maxTimeMs,
       cohortLoaded: !!cohort,
       personalWindowAttempts: windowAttempts,
+      personalWindowRuns: personalWindowRuns,
       personalHalfLifeDays: halfLifeDays,
       personalNowTs: nowMs,
       levelCount: levelCount,
+      sampleUnit: isDivisibility ? 'runs' : isFactorsMultiples ? 'mixed' : 'attempts',
     };
   }
 
@@ -1504,15 +1744,27 @@
     PRIME_RUN_MIN_ATTEMPTS: PRIME_RUN_MIN_ATTEMPTS,
     PRIME_WINDOW_RUNS: PRIME_WINDOW_RUNS,
     PRIME_MS_PER_Q_CAP: PRIME_MS_PER_Q_CAP,
+    CHOICE_RUN_MIN_ATTEMPTS: CHOICE_RUN_MIN_ATTEMPTS,
+    CHOICE_WINDOW_RUNS: CHOICE_WINDOW_RUNS,
+    CHOICE_SPEED_MIN_ACCURACY: CHOICE_SPEED_MIN_ACCURACY,
+    CHOICE_MS_PER_Q_CAP: CHOICE_MS_PER_Q_CAP,
+    MISSING_SPEED_TIME_PCT: MISSING_SPEED_TIME_PCT,
+    FACTORS_MULTIPLES_CHOICE_LEVEL_MAX: FACTORS_MULTIPLES_CHOICE_LEVEL_MAX,
     normalizeMode: normalizeMode,
     filterRunsByModes: filterRunsByModes,
     filterArithmeticRuns: filterArithmeticRuns,
     filterDecimalRuns: filterDecimalRuns,
     runAttemptCount: runAttemptCount,
+    runCorrectCount: runCorrectCount,
+    runAccuracy: runAccuracy,
+    runDurationSec: runDurationSec,
+    resolveDivisibilityRunHeatLevel: resolveDivisibilityRunHeatLevel,
+    resolveFactorsMultiplesRunHeatLevel: resolveFactorsMultiplesRunHeatLevel,
     isPrimeQualifyingRun: isPrimeQualifyingRun,
     hasPrimeQualifyingHistory: hasPrimeQualifyingHistory,
     buildPrimeY0Cell: buildPrimeY0Cell,
     attachPrimeY0ToFactorsHeat: attachPrimeY0ToFactorsHeat,
+    personalWeightedByChoiceRuns: personalWeightedByChoiceRuns,
     heatCellsForDisplay: heatCellsForDisplay,
     buildHeatmapCells: buildHeatmapCells,
     recommendLevelIndex: recommendLevelIndex,

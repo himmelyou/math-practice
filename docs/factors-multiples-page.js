@@ -875,7 +875,8 @@
         speedMeta = await deps.buildSingleLevelSpeedMeta(
           "factorsMultiples",
           startLevel,
-          fmAttempts.slice()
+          fmAttempts.slice(),
+          { durationSec: durationSec }
         );
       } catch (e) {
         console.warn("因数倍数局速度快照失败", e);

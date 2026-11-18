@@ -1144,6 +1144,7 @@ function runAttemptCountForPrimeIndex(run) {
 
 function isPrimeQualifyingRunForIndex(run) {
   if (!run) return false;
+  if (run.comboOnly === true || run.abandoned === true) return false;
   if (normalizeRunMode(run.mode) !== "primeComposite") return false;
   return runAttemptCountForPrimeIndex(run) >= PRIME_PLAYED_MIN_ATTEMPTS;
 }
@@ -6227,13 +6228,95 @@ app.get("/api/admin/stats/perfect-square-cohort", (req, res) => {
 
 /** 整除全体常模（热图 Z1–Z4；Z5 按除数拆入） */
 const COHORT_DIVISIBILITY_LEVEL_COUNT = DIVISIBILITY_HEATMAP_LEVEL_COUNT;
+const CHOICE_SPEED_MIN_ACCURACY = 0.9;
+const CHOICE_RUN_MIN_ATTEMPTS = 10;
+
+/** 二选一局 → 热图档；Z5（≥4）不进 */
+function resolveDivisibilityRunHeatLevelForCohort(r) {
+  if (!r) return null;
+  const meta = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
+  const raw = meta && meta.pickedLevel != null ? meta.pickedLevel : r.maxLevel;
+  const lv = Math.floor(Number(raw));
+  if (!Number.isFinite(lv) || lv < 0) return null;
+  if (lv >= COHORT_DIVISIBILITY_LEVEL_COUNT) return null;
+  return lv;
+}
+
+function resolveFactorsMultiplesRunHeatLevelForCohort(r) {
+  if (!r) return null;
+  const meta = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
+  const raw = meta && meta.pickedLevel != null ? meta.pickedLevel : r.maxLevel;
+  const lv = Math.floor(Number(raw));
+  if (!Number.isFinite(lv) || lv < 0 || lv > 5) return null;
+  return lv;
+}
+
+function runAttemptCountForChoiceCohort(run) {
+  if (!run) return 0;
+  if (Array.isArray(run.attempts)) return run.attempts.length;
+  const n = Number(run.attemptCount);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
+function runCorrectCountForChoiceCohort(run) {
+  let n = 0;
+  const list = run && Array.isArray(run.attempts) ? run.attempts : [];
+  for (let i = 0; i < list.length; i += 1) {
+    if (list[i] && list[i].correct === true) n += 1;
+  }
+  return n;
+}
+
+/**
+ * 二选一速度常模：每人每档 1 票 = 合格速度局（题数≥10 且准≥90%）的 ln(整局ms/题) 均值。
+ * @param {{ mode: string, levelCount: number, resolveRunLevel: Function, levelFilter?: (lv:number)=>boolean }} opts
+ */
+function collectPersonChoiceRunMeanLnByLevel(opts) {
+  opts = opts || {};
+  const modeWant = normalizeRunMode(opts.mode);
+  const levelCount = Math.max(1, Math.floor(Number(opts.levelCount) || 1));
+  const resolveRunLevel = opts.resolveRunLevel;
+  const levelFilter = typeof opts.levelFilter === "function" ? opts.levelFilter : null;
+  const personLnByLevel = Array.from({ length: levelCount }, () => []);
+
+  runsStore.forEachUserRuns((username, runs) => {
+    void username;
+    const perLevel = Array.from({ length: levelCount }, () => []);
+    (runs || []).forEach((r) => {
+      if (normalizeRunMode(r.mode) !== modeWant) return;
+      if (r.comboOnly === true || r.abandoned === true) return;
+      const n = runAttemptCountForChoiceCohort(r);
+      if (n < CHOICE_RUN_MIN_ATTEMPTS) return;
+      if (!Array.isArray(r.attempts) || !r.attempts.length) return;
+      const lv = resolveRunLevel(r);
+      if (lv == null || !Number.isFinite(lv) || lv < 0 || lv >= levelCount) return;
+      if (levelFilter && !levelFilter(lv)) return;
+      const correct = runCorrectCountForChoiceCohort(r);
+      const p = correct / n;
+      if (!(p >= CHOICE_SPEED_MIN_ACCURACY)) return;
+      const durSec = runDurationSecForAdviceIndex(r);
+      if (durSec == null || !(n > 0)) return;
+      const msPerQ = (durSec * 1000) / n;
+      if (!(msPerQ > 0) || !Number.isFinite(msPerQ) || msPerQ > COHORT_MAX_TIME_SPENT_MS) return;
+      perLevel[lv].push(Math.log(msPerQ));
+    });
+    for (let k = 0; k < levelCount; k += 1) {
+      if (levelFilter && !levelFilter(k)) continue;
+      if (!perLevel[k].length) continue;
+      let sum = 0;
+      for (let i = 0; i < perLevel[k].length; i += 1) sum += perLevel[k][i];
+      personLnByLevel[k].push(sum / perLevel[k].length);
+    }
+  });
+  return personLnByLevel;
+}
 
 function computeDivisibilityCohortResult() {
-  const personLnByLevel = collectPersonMeanLnByLevel(
-    (mode) => mode === "divisibility",
-    COHORT_DIVISIBILITY_LEVEL_COUNT,
-    heatLevelIndexFromAttempt
-  );
+  const personLnByLevel = collectPersonChoiceRunMeanLnByLevel({
+    mode: "divisibility",
+    levelCount: COHORT_DIVISIBILITY_LEVEL_COUNT,
+    resolveRunLevel: resolveDivisibilityRunHeatLevelForCohort,
+  });
   const levels = [];
   for (let k = 0; k < COHORT_DIVISIBILITY_LEVEL_COUNT; k++) {
     const lnQ = summarizeQuantiles(personLnByLevel[k]);
@@ -6248,11 +6331,15 @@ function computeDivisibilityCohortResult() {
     kind: "divisibility",
     levelCount: COHORT_DIVISIBILITY_LEVEL_COUNT,
     sampleUnit: "person",
-    minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
-    minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    sampleGrain: "runs",
+    minAttemptsPerPersonLevel: 1,
+    minAttemptsForHeatmap: 1,
+    minRunsForHeatmap: 1,
+    choiceWindowRuns: 10,
+    choiceSpeedMinAccuracy: CHOICE_SPEED_MIN_ACCURACY,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。Z5 混合局按除数归入 Z1–Z4。",
+      "二选一按局：题均=整局秒数×1000/题数；仅题数≥10且局准≥90%进速度常模。每人每档 1 票。Z5 不进热图/常模。",
     levels,
   };
 }
@@ -6326,7 +6413,15 @@ function computePrimeCompositeCohortResult() {
     const lns = [];
     (runs || []).forEach((r) => {
       if (!isPrimeQualifyingRunForIndex(r)) return;
+      if (r.abandoned === true) return;
       const n = runAttemptCountForPrimeIndex(r);
+      if (!Array.isArray(r.attempts) || r.attempts.length < n) {
+        // attemptCount 路径：无明细时无法算准度，不进速度常模
+        if (!Array.isArray(r.attempts) || !r.attempts.length) return;
+      }
+      const correct = runCorrectCountForChoiceCohort(r);
+      const p = n > 0 ? correct / n : 0;
+      if (!(p >= CHOICE_SPEED_MIN_ACCURACY)) return;
       const durSec = runDurationSecForAdviceIndex(r);
       if (durSec == null || !(n > 0)) return;
       const msPerQ = (durSec * 1000) / n;
@@ -6344,11 +6439,14 @@ function computePrimeCompositeCohortResult() {
     kind: "primeComposite",
     levelCount: 1,
     sampleUnit: "person",
+    sampleGrain: "runs",
     minAttemptsPerPersonLevel: 1,
     minAttemptsForHeatmap: 1,
+    choiceWindowRuns: 10,
+    choiceSpeedMinAccuracy: CHOICE_SPEED_MIN_ACCURACY,
     timeSpentMsCap: PRIME_COHORT_MS_PER_Q_CAP,
     timeSpentMsCapNote:
-      "质数合数按局：题均耗时=整局秒数×1000/题数；超过 cap 的局不进速度常模。每人贡献 1 个合格局 meanLn。",
+      "质数合数按局：题均=整局秒数×1000/题数；仅题数≥10且局准≥90%进速度常模。每人 1 票。",
     levels: [
       {
         levelIndex: 0,
@@ -6438,21 +6536,36 @@ app.post("/api/admin/stats/prime-composite-cohort/rebuild", (req, res) => {
   });
 });
 
-/** 因数倍数全体常模（Y1–Y6） */
+/** 因数倍数全体常模（Y1–Y6）；Y1–Y2 二选一按局，Y3–Y6 填空按题 */
 const COHORT_FACTORS_MULTIPLES_LEVEL_COUNT = 6;
+const COHORT_FACTORS_MULTIPLES_CHOICE_LEVEL_MAX = 1;
 
 function computeFactorsMultiplesCohortResult() {
-  const personLnByLevel = collectPersonMeanLnByLevel(
+  const choiceLns = collectPersonChoiceRunMeanLnByLevel({
+    mode: "factorsMultiples",
+    levelCount: COHORT_FACTORS_MULTIPLES_LEVEL_COUNT,
+    resolveRunLevel: resolveFactorsMultiplesRunHeatLevelForCohort,
+    levelFilter: (lv) => lv >= 0 && lv <= COHORT_FACTORS_MULTIPLES_CHOICE_LEVEL_MAX,
+  });
+  const fillLns = collectPersonMeanLnByLevel(
     (mode) => mode === "factorsMultiples",
-    COHORT_FACTORS_MULTIPLES_LEVEL_COUNT
+    COHORT_FACTORS_MULTIPLES_LEVEL_COUNT,
+    (a) => {
+      const li = Math.floor(Number(a && a.levelIndex));
+      if (!Number.isFinite(li) || li <= COHORT_FACTORS_MULTIPLES_CHOICE_LEVEL_MAX) return null;
+      if (li >= COHORT_FACTORS_MULTIPLES_LEVEL_COUNT) return null;
+      return li;
+    }
   );
   const levels = [];
   for (let k = 0; k < COHORT_FACTORS_MULTIPLES_LEVEL_COUNT; k++) {
-    const lnQ = summarizeQuantiles(personLnByLevel[k]);
+    const arr = k <= COHORT_FACTORS_MULTIPLES_CHOICE_LEVEL_MAX ? choiceLns[k] : fillLns[k];
+    const lnQ = summarizeQuantiles(arr);
     levels.push({
       levelIndex: k,
       cohortLnTimeCorrect: lnQ,
-      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+      cohortLnTimeHistogram: buildLnHistogram(arr, COHORT_HISTOGRAM_BIN_COUNT),
+      speedGrain: k <= COHORT_FACTORS_MULTIPLES_CHOICE_LEVEL_MAX ? "runs" : "attempts",
     });
   }
   return {
@@ -6460,11 +6573,14 @@ function computeFactorsMultiplesCohortResult() {
     kind: "factorsMultiples",
     levelCount: COHORT_FACTORS_MULTIPLES_LEVEL_COUNT,
     sampleUnit: "person",
+    sampleGrain: "mixed",
     minAttemptsPerPersonLevel: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
+    choiceWindowRuns: 10,
+    choiceSpeedMinAccuracy: CHOICE_SPEED_MIN_ACCURACY,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。",
+      "Y1–Y2 二选一按局（题数≥10且准≥90%，整局时长/题数）；Y3–Y6 填空仍按答对题 timeSpentMs。每人每档 1 票。",
     levels,
   };
 }

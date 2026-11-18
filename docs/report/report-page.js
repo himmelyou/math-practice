@@ -1047,23 +1047,27 @@
     }
     if (state.loadedStudentUsername !== state.selectedUsername) {
       if (next === 'task-history') renderTaskHistoryPanel();
-      if (tryAdoptStudentBagCache(state.selectedUsername)) {
-        renderActiveStudentPanels();
-        if (
-          (next === 'stats' || next === 'train-debug') &&
-          !state.workspaceHasExtras
-        ) {
-          void loadStudentWorkspaceExtras(state.selectedUsername, state.studentLoadSeq);
+      var switchToUser = state.selectedUsername;
+      void ensureStudentHeatFresh(switchToUser).then(function (res) {
+        if (!res || res.aborted) return;
+        if (state.selectedUsername !== switchToUser) return;
+        if (activeTabId() !== next) return;
+        if (res.reused) {
+          renderActiveStudentPanels();
+          if (
+            (next === 'stats' || next === 'train-debug') &&
+            !state.workspaceHasExtras
+          ) {
+            void loadStudentWorkspaceExtras(switchToUser, state.studentLoadSeq);
+          }
+          if (
+            (next === 'runs' || next === 'train-debug') &&
+            state.runsLoadedFor !== switchToUser
+          ) {
+            void loadStudentRunsOnly();
+          }
         }
-        if (
-          (next === 'runs' || next === 'train-debug') &&
-          state.runsLoadedFor !== state.selectedUsername
-        ) {
-          void loadStudentRunsOnly();
-        }
-        return;
-      }
-      void loadStudentData();
+      });
       return;
     }
     if (next === 'runs') {
@@ -1083,30 +1087,42 @@
       return;
     }
     if (next === 'stats') {
-      if (!state.heatmapFromServer) {
-        void loadStudentData();
-        return;
-      }
-      ensureStudentStatsBuilt();
-      renderStatsPanel();
-      redrawAllStatsCharts();
-      if (!state.workspaceHasExtras) {
-        void loadStudentWorkspaceExtras(state.selectedUsername, state.studentLoadSeq);
-      }
+      var statsUser = state.selectedUsername;
+      void ensureStudentHeatFresh(statsUser).then(function (res) {
+        if (!res || res.aborted) return;
+        if (state.selectedUsername !== statsUser) return;
+        if (activeTabId() !== 'stats') return;
+        if (!state.heatmapFromServer) {
+          void loadStudentData();
+          return;
+        }
+        ensureStudentStatsBuilt();
+        renderStatsPanel();
+        redrawAllStatsCharts();
+        if (!state.workspaceHasExtras) {
+          void loadStudentWorkspaceExtras(statsUser, state.studentLoadSeq);
+        }
+      });
       return;
     }
     if (next === 'train-debug') {
-      if (!state.heatmapFromServer || !state.trainDebugPayload) {
-        void loadStudentData({ force: !state.heatmapFromServer });
-        return;
-      }
-      if (state.runsLoadedFor !== state.selectedUsername) {
-        void loadStudentRunsOnly().then(function () {
-          void loadTrainDebug(false);
-        });
-        return;
-      }
-      void loadTrainDebug(false);
+      var debugUser = state.selectedUsername;
+      void ensureStudentHeatFresh(debugUser).then(function (res) {
+        if (!res || res.aborted) return;
+        if (state.selectedUsername !== debugUser) return;
+        if (activeTabId() !== 'train-debug') return;
+        if (!state.heatmapFromServer || !state.trainDebugPayload) {
+          void loadStudentData({ force: !state.heatmapFromServer });
+          return;
+        }
+        if (state.runsLoadedFor !== debugUser) {
+          void loadStudentRunsOnly().then(function () {
+            void loadTrainDebug(false);
+          });
+          return;
+        }
+        void loadTrainDebug(false);
+      });
       return;
     }
     if (next === 'task-history') {
@@ -2064,6 +2080,93 @@
     return Number(meta && meta.lastGameTs) || 0;
   }
 
+  /** 本地已加载/ bag 中的学员 revision（用于与线上 lastGameTs 对比） */
+  function localStudentRevision(username) {
+    if (!username) return 0;
+    if (state.loadedStudentUsername === username && state.heatmapFromServer) {
+      return (
+        Number(state.statsRevision) ||
+        Number(state.userDetail && state.userDetail.lastGameTs) ||
+        0
+      );
+    }
+    var bag = state.studentBagCache[username];
+    if (bag && bag.heatmapFromServer) {
+      return Number(bag.revision) || Number(bag.statsRevision) || 0;
+    }
+    return 0;
+  }
+
+  /**
+   * 廉价探活：单人概览拉最新 lastGameTs，写入 overview / user-list 缓存。
+   * @returns {Promise<number>}
+   */
+  function fetchLiveStudentRevision(username) {
+    if (!username) return Promise.resolve(0);
+    return apiFetch(
+      '/api/admin/student-overview?username=' + encodeURIComponent(username)
+    ).then(function (data) {
+      var row =
+        data && data.ok && Array.isArray(data.rows) && data.rows[0] ? data.rows[0] : null;
+      if (!row || row.username !== username) return 0;
+      mergeOverviewRow(row);
+      var meta = findUserMeta(username);
+      if (meta) {
+        meta.lastGameTs = Number(row.lastGameTs) || Number(meta.lastGameTs) || 0;
+      }
+      return Number(row.lastGameTs || row.createdAt) || 0;
+    });
+  }
+
+  /**
+   * 切人 / 进热图前：先探活 lastGameTs，过期则非 force 重拉；未过期复用内存或 bag。
+   * @returns {Promise<{ok:boolean, reused?:boolean, aborted?:boolean, probeFailed?:boolean}>}
+   */
+  function ensureStudentHeatFresh(username) {
+    if (!username) return Promise.resolve({ ok: true, reused: false });
+    return fetchLiveStudentRevision(username)
+      .then(function (liveRev) {
+        if (state.selectedUsername !== username) {
+          return { ok: false, aborted: true };
+        }
+        var localRev = localStudentRevision(username);
+        var inMem =
+          state.loadedStudentUsername === username && !!state.heatmapFromServer;
+        var bag = state.studentBagCache[username];
+        var hasBag = !!(bag && bag.heatmapFromServer);
+        var canReuse = inMem || hasBag;
+        var sameRev =
+          liveRev === 0
+            ? canReuse
+            : localRev > 0
+              ? liveRev === localRev
+              : false;
+
+        if (canReuse && sameRev) {
+          if (!inMem) tryAdoptStudentBagCache(username);
+          return { ok: true, reused: true };
+        }
+
+        if (hasBag && liveRev > 0 && localRev !== liveRev) {
+          invalidateStudentBagCache(username);
+        }
+        return loadStudentData().then(function () {
+          return { ok: true, reused: false };
+        });
+      })
+      .catch(function () {
+        if (state.selectedUsername !== username) {
+          return { ok: false, aborted: true, probeFailed: true };
+        }
+        if (tryAdoptStudentBagCache(username)) {
+          return { ok: true, reused: true, probeFailed: true };
+        }
+        return loadStudentData().then(function () {
+          return { ok: true, reused: false, probeFailed: true };
+        });
+      });
+  }
+
   function snapshotStudentBag(username) {
     var u = username || state.loadedStudentUsername;
     if (!u) return null;
@@ -2156,8 +2259,8 @@
     if (!bag || !bag.heatmapFromServer) return false;
     var expect = expectedStudentRevision(username);
     var bagRev = Number(bag.revision) || Number(bag.statsRevision) || 0;
-    // overview 尚无 lastGameTs 时：有 bag 仍可复用；有 expect 则必须一致
-    if (expect > 0 && bagRev > 0 && bagRev !== expect) return false;
+    // 概览/探活已有 lastGameTs 时必须一致（含 bagRev=0）
+    if (expect > 0 && bagRev !== expect) return false;
     restoreStudentBag(bag);
     putStudentBagCache(username, bag);
     return true;
@@ -4385,13 +4488,15 @@
           }
           return;
         }
-        // 概览页选人：页内跳转数据分析；其它 Tab 直接拉该学员
+        // 概览页选人：页内跳转数据分析；其它 Tab 先探活再复用/重拉
         if (activeTabId() === 'overview') {
           openStudentStatsFromOverview(state.selectedUsername);
           syncRefreshStudentBtn(false);
           return;
         }
-        var p = loadStudentData();
+        var p = ensureStudentHeatFresh(state.selectedUsername).then(function (res) {
+          if (res && res.reused) renderActiveStudentPanels();
+        });
         if (p && typeof p.finally === 'function') {
           p.finally(function () {
             syncRefreshStudentBtn(false);
