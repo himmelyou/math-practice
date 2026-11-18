@@ -59,7 +59,9 @@
     training: '训练模式',
     decimal: '小数运算',
     perfectSquare: '平方数',
+    divisibility: '整除',
     factorsMultiples: '因数倍数',
+    primeComposite: '质数合数',
   };
 
   var WRONG_ANSWER_MODES = {
@@ -68,7 +70,9 @@
     training: true,
     decimal: true,
     perfectSquare: true,
+    divisibility: true,
     factorsMultiples: true,
+    primeComposite: true,
   };
 
   var WRONG_ANSWER_LEVEL_MAX = {
@@ -77,7 +81,9 @@
     training: 19, // 训练含隐藏档至 L20
     decimal: 5,
     perfectSquare: 3,
+    divisibility: 4,
     factorsMultiples: 5,
+    primeComposite: 0,
   };
 
   function normalizeWrongAnswerMode(mode) {
@@ -94,8 +100,10 @@
 
   function formatWrongAnswerLevelLabel(mode, levelIndex) {
     var m = normalizeWrongAnswerMode(mode);
+    if (m === 'primeComposite') return '质数合数';
     var n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
     if (m === 'decimal') return 'D' + n;
+    if (m === 'divisibility') return 'Z' + n;
     if (m === 'factorsMultiples') return 'Y' + n;
     if (m === 'perfectSquare') return 'L' + n;
     return 'L' + n;
@@ -791,7 +799,6 @@
     'task-history': true,
     wrong: true,
     'expand-wrong': true,
-    'div-wrong': true,
     stats: true,
     'monthly-report': true,
     'train-debug': true,
@@ -1073,10 +1080,6 @@
     }
     if (next === 'expand-wrong') {
       renderExpandWrongBook();
-      return;
-    }
-    if (next === 'div-wrong') {
-      renderDivisibilityWrongBook();
       return;
     }
     if (next === 'stats') {
@@ -2392,10 +2395,6 @@
       renderExpandWrongBook();
       return;
     }
-    if (tab === 'div-wrong') {
-      renderDivisibilityWrongBook();
-      return;
-    }
     if (tab === 'task-history') {
       renderTaskHistoryPanel();
       return;
@@ -3172,7 +3171,7 @@
     wrap.innerHTML =
       '<div class="jml-report-summary">当前错题库存 ' +
       escapeHtml(String(wrongs.length)) +
-      ' 条（最多 100；含学员端已清空的历史' +
+      ' 条（最多 30；含学员端已清空的历史' +
       (user.wrongAnswersClearedBeforeTs
         ? '；清空游标 ts=' + escapeHtml(String(user.wrongAnswersClearedBeforeTs))
         : '') +
@@ -3255,64 +3254,6 @@
             escapeHtml(prompt || '（无题干）') +
             '</div>' +
             '<' + 'div' + '>学员选项：<span style="color:#c62828;font-weight:600;">' +
-            escapeHtml(studentAns || '（空）') +
-            '</span></div>' +
-            '<div>正确选项：<span style="color:#2e7d32;font-weight:600;">' +
-            escapeHtml(rightAns || '（空）') +
-            '</span></div>' +
-            '<div class="meta">' +
-            escapeHtml(meta) +
-            '</div>' +
-            '</li>'
-          );
-        })
-        .join('') +
-      '</ul>';
-  }
-
-  function renderDivisibilityWrongBook() {
-    var wrap = document.getElementById('jml-report-div-wrong-body');
-    if (!wrap) return;
-    if (!state.selectedUsername) {
-      wrap.innerHTML = '<div class="jml-report-empty">请先选择学员</div>';
-      return;
-    }
-    var user = state.userDetail || {};
-    var wrongs = Array.isArray(user.divisibilityWrongAnswers)
-      ? user.divisibilityWrongAnswers.slice()
-      : [];
-    if (!wrongs.length) {
-      wrap.innerHTML =
-      '<div class="jml-report-empty">暂无整除错题（仅记录部署后新错题）</div>';
-      return;
-    }
-    wrongs.sort(function (a, b) {
-      return (b.ts || 0) - (a.ts || 0);
-    });
-    wrap.innerHTML =
-      '<div class="jml-report-summary">整除错题本共 ' +
-      escapeHtml(String(wrongs.length)) +
-      ' 条（每人最多保留 20 条，新错题顶替最旧）</div>' +
-      '<ul class="jml-wrong-list">' +
-      wrongs
-        .slice(0, 20)
-        .map(function (w) {
-          var prompt = w.prompt || w.question || w.text || '';
-          var studentAns = w.studentAnswer != null ? String(w.studentAnswer) : '';
-          var rightAns = w.correctAnswer != null ? String(w.correctAnswer) : '';
-          var meta = formatDateTime(w.ts);
-          if (w.levelIndex != null && Number.isFinite(Number(w.levelIndex))) {
-            meta += ' · Z' + (Number(w.levelIndex) + 1);
-          }
-          if (w.divisor != null && Number.isFinite(Number(w.divisor))) {
-            meta += ' · ÷' + Number(w.divisor);
-          }
-          return (
-            '<li class="jml-wrong-item">' +
-            '<div class="expr">' +
-            escapeHtml(prompt || '（无题干）') +
-            '</div>' +
-            '<div>学员选项：<span style="color:#c62828;font-weight:600;">' +
             escapeHtml(studentAns || '（空）') +
             '</span></div>' +
             '<div>正确选项：<span style="color:#2e7d32;font-weight:600;">' +

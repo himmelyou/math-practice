@@ -70,6 +70,23 @@
     psRunDeck.splice(insertAt, 0, card);
   }
 
+  /** 同居/跨局查重键：L4 用 cardKey；L1–L3 用 kind+base */
+  function psWrongDedupeKey(card, q) {
+    if (q && q.cardKey) return "perfectSquare:" + String(q.cardKey);
+    if (card && card.cardKey) return "perfectSquare:" + String(card.cardKey);
+    const kind = q && q.kind != null ? q.kind : card && card.kind;
+    const base = q && q.base != null ? q.base : card && card.base;
+    if (kind != null && base != null && Number.isFinite(Number(base))) {
+      return "perfectSquare:" + String(kind) + ":" + Math.floor(Number(base));
+    }
+    const text = String(
+      (q && (q.text || q.prompt)) || (card && (card.text || card.prompt)) || ""
+    ).trim();
+    return text ? "perfectSquare:" + text : "";
+  }
+
+  let psWrongbookKeys = null;
+
   function materializePsQueueHead() {
     const card = psRunDeck[0];
     if (!card) return null;
@@ -492,6 +509,7 @@
     deps.setIsPlaying(false);
     psMastered = 0;
     psWrongCount = 0;
+    psWrongbookKeys = null;
     psScore = 0;
     psAttempts = [];
     psRunDeck = [];
@@ -589,7 +607,21 @@
 
     psWrongCount += 1;
     if (dom().psWrongText) dom().psWrongText.textContent = String(psWrongCount);
-    deps.recordWrongAnswer(psCurrent.text || psCurrent.prompt, psCurrent.answer, userAnswer, psLevel, "perfectSquare");
+    if (!psWrongbookKeys) psWrongbookKeys = new Set();
+    const dedupeKey = psWrongDedupeKey(card, psCurrent);
+    if (!dedupeKey || !psWrongbookKeys.has(dedupeKey)) {
+      if (dedupeKey) psWrongbookKeys.add(dedupeKey);
+      if (typeof deps.recordWrongAnswer === "function") {
+        deps.recordWrongAnswer(
+          psCurrent.text || psCurrent.prompt,
+          psCurrent.answer,
+          userAnswer,
+          psLevel,
+          "perfectSquare",
+          dedupeKey ? { dedupeKey: dedupeKey } : null
+        );
+      }
+    }
     setPsFeedback(
       t("game.feedback.incorrectPrefixHtml") +
         t("game.feedback.correctAnswerLabel") +
@@ -644,6 +676,7 @@
     deps.setGameOver(false);
     psMastered = 0;
     psWrongCount = 0;
+    psWrongbookKeys = new Set();
     psScore = 0;
     psAttempts = [];
     psRunDeck = buildRunForLevel(psLevel);
@@ -978,6 +1011,7 @@
     psWrongCount = Math.max(0, Math.floor(Number(d.wrongCount) || 0));
     psMastered = Math.max(0, Math.floor(Number(d.mastered) || 0));
     psAttempts = Array.isArray(d.attempts) ? d.attempts.slice() : [];
+    psWrongbookKeys = new Set();
     psRunDeck = deck;
     psCurrent = current;
     psInputLocked = false;

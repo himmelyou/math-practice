@@ -24,17 +24,23 @@ function modeCellsFromHeatmapPayload(payload) {
   return out;
 }
 
+const WRONGBOOK_VISIBLE_CAP = 30;
+
 function visibleArithmeticWrongCount(user) {
   if (!user) return 0;
   if (user.wrongAnswersVisibleCount != null && Number.isFinite(Number(user.wrongAnswersVisibleCount))) {
-    return Math.max(0, Math.floor(Number(user.wrongAnswersVisibleCount)));
+    return Math.min(
+      WRONGBOOK_VISIBLE_CAP,
+      Math.max(0, Math.floor(Number(user.wrongAnswersVisibleCount)))
+    );
   }
   const list = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
   const clearedBefore = Number(user.wrongAnswersClearedBeforeTs);
   const cut = Number.isFinite(clearedBefore) && clearedBefore > 0 ? clearedBefore : 0;
-  return list.filter(function (w) {
+  const n = list.filter(function (w) {
     return (Number(w && w.ts) || 0) > cut;
   }).length;
+  return Math.min(WRONGBOOK_VISIBLE_CAP, n);
 }
 
 function levelBestFromRuns(runs) {

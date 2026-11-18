@@ -2,6 +2,7 @@
  * 管理端学员概览表：各模式进度、未上线天数等
  */
 const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
+const overviewUserIndex = require("./overview-user-index");
 
 const LEVEL_CHALLENGE_MAX_INDEX = 15;
 const EXPAND_MAX_LEVEL = 4;
@@ -434,14 +435,20 @@ function buildStudentOverviewRows(options) {
   const survivalList = options.survivalList || [];
   const levelList = options.levelList || [];
   const cohort = options.cohort || null;
+  const cohortBuiltAt =
+    options.cohortBuiltAt != null && Number.isFinite(Number(options.cohortBuiltAt))
+      ? Number(options.cohortBuiltAt)
+      : null;
   const capMs = options.capMs != null ? options.capMs : 60 * 1000;
   const nowMs = options.nowMs != null ? options.nowMs : Date.now();
   const todayKey = options.todayKey || chinaTodayKey(nowMs);
   // 全员列表默认不算热图（太重）；单人深链可开 computeTrainingHeat
   const computeTrainingHeat = options.computeTrainingHeat === true;
+  /** 常模 builtAt 与账号索引不一致时，用 runs 重算流畅数并回写 */
+  const recomputeTrainingIfCohortStale = options.recomputeTrainingIfCohortStale === true;
 
   let HM = null;
-  if (computeTrainingHeat) {
+  if (computeTrainingHeat || recomputeTrainingIfCohortStale) {
     try {
       HM = getJmlStatsHeatmap();
     } catch (e) {
@@ -454,6 +461,8 @@ function buildStudentOverviewRows(options) {
   const survivalMap = buildClearRankingMap(survivalList);
   const levelMap = buildClearRankingMap(levelList);
   const rows = [];
+  let usersIndexDirty = false;
+  let trainingRecomputed = 0;
 
   users.forEach((u) => {
     if (!u || !u.username) return;
@@ -485,8 +494,36 @@ function buildStudentOverviewRows(options) {
     const levelP = formatLevelChallengeProgress(u, runs, levelMap[username]);
     const survivalP = formatSurvivalProgress(u, runs, survivalMap[username]);
     let trainingP;
-    if (computeTrainingHeat) {
+    const cohortStale =
+      recomputeTrainingIfCohortStale &&
+      overviewUserIndex.isTrainingFluentCohortStale(u, cohortBuiltAt);
+    const shouldLiveHeat =
+      computeTrainingHeat || (cohortStale && Array.isArray(runs));
+
+    if (shouldLiveHeat && HM) {
       trainingP = formatTrainingProgress(runs, cohort, capMs, HM, todayKey);
+      const liveCount =
+        trainingP && trainingP.fluentCount != null && Number.isFinite(Number(trainingP.fluentCount))
+          ? Number(trainingP.fluentCount)
+          : 0;
+      if (!trainingP || trainingP.fluentCount == null) {
+        trainingP = {
+          text: "0/16",
+          mode: "",
+          reason: "流畅掌握 0/16",
+          fluentCount: 0,
+          levelCount: 16,
+        };
+      }
+      if (overviewUserIndex.setTrainingFluentCount(u, liveCount, cohortBuiltAt)) {
+        usersIndexDirty = true;
+      }
+      if (cohortStale) {
+        trainingRecomputed += 1;
+        if (trainingP.reason) {
+          trainingP.reason = trainingP.reason + "（常模更新后重算）";
+        }
+      }
     } else if (
       typeof u.trainingFluentCount === "number" &&
       Number.isFinite(u.trainingFluentCount)
@@ -583,7 +620,11 @@ function buildStudentOverviewRows(options) {
     });
   });
 
-  return rows;
+  return {
+    rows,
+    usersIndexDirty,
+    trainingRecomputed,
+  };
 }
 
 function latestRunTsFromRuns(runs) {

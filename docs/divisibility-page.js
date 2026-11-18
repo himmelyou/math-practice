@@ -625,22 +625,26 @@
         : q.optionB != null
           ? q.optionB
           : q.wrongValue;
+    const stem = String(q.promptStem || q.prompt || q.text || "");
+    const fullText = String(q.text || q.prompt || stem);
     divWrongItems.push({
       divisor: q.divisor,
       picked: pickedVal,
       correct: q.correctValue,
-      prompt: q.promptStem || q.prompt || q.text,
+      prompt: stem || fullText,
       studentAnswer: pickedVal,
       correctAnswer: q.correctValue,
     });
-    if (typeof deps.recordDivisibilityWrongAnswer === "function") {
-      deps.recordDivisibilityWrongAnswer(
-        q.promptStem || q.prompt || q.text,
-        q.correctValue,
-        pickedVal,
-        divLevel,
-        q.divisor
-      );
+    if (typeof deps.recordWrongAnswer === "function") {
+      deps.recordWrongAnswer(fullText || stem, q.correctValue, pickedVal, divLevel, "divisibility", {
+        fillIn: false,
+        promptStem: stem,
+        optionA: q.optionA != null ? q.optionA : q.correctValue,
+        optionB: q.optionB != null ? q.optionB : q.wrongValue,
+        answerLetter: letter === "B" ? "B" : "A",
+        correctValue: q.correctValue,
+        divisor: q.divisor,
+      });
     }
     updateDivStatusStrip();
     advanceAfterAnswer();

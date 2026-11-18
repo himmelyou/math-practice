@@ -66,7 +66,6 @@
         <button type="button" class="jml-tab" data-tab="task-history" role="tab">任务历史</button>
         <button type="button" class="jml-tab" data-tab="wrong" role="tab">错题本</button>
         <button type="button" class="jml-tab" data-tab="expand-wrong" role="tab">拆括号错题本</button>
-        <button type="button" class="jml-tab" data-tab="div-wrong" role="tab">整除错题本</button>
         <button type="button" class="jml-tab" data-tab="stats" role="tab">数据分析</button>
         <button type="button" class="jml-tab" data-tab="monthly-report" role="tab">月度报告</button>
         <button type="button" class="jml-tab" data-tab="train-debug" role="tab">训练选关Debug</button>
@@ -86,9 +85,6 @@
       </div>
       <div id="panel-expand-wrong" class="jml-tab-panel hidden" data-panel="expand-wrong" role="tabpanel">
         <div id="jml-report-expand-wrong-body"></div>
-      </div>
-      <div id="panel-div-wrong" class="jml-tab-panel hidden" data-panel="div-wrong" role="tabpanel">
-        <div id="jml-report-div-wrong-body"></div>
       </div>
       <div id="panel-stats" class="jml-tab-panel hidden" data-panel="stats" role="tabpanel">
         <div id="jml-report-stats-body"></div>
@@ -134,7 +130,7 @@
   <script src="../stats-aggregate-browser.js?v=54"></script>
   <script src="../stats-heatmap-browser.js?v=78"></script>
   <script src="../stats-chart-browser.js?v=59"></script>
-  <script src="report-page.js?v=121"></script>
+  <script src="report-page.js?v=124"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
       AdminAuth.mount({

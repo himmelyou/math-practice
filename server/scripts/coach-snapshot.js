@@ -288,12 +288,10 @@ function printSummary(snap) {
     );
   });
   lines.push(
-    "错题本：四则可见 " +
+    "错题本：主本可见 " +
       snap.wrongbook.arithmeticVisible +
       "  拆括号 " +
-      snap.wrongbook.expandCount +
-      "  整除 " +
-      snap.wrongbook.divCount
+      snap.wrongbook.expandCount
   );
   if (snap.recentRuns && snap.recentRuns.length) {
     lines.push("近局：");
@@ -416,9 +414,6 @@ async function fetchSnapshot(apiBase, pin, username) {
   const expandWrong = Array.isArray(user.expandBracketsWrongAnswers)
     ? user.expandBracketsWrongAnswers
     : [];
-  const divWrong = Array.isArray(user.divisibilityWrongAnswers)
-    ? user.divisibilityWrongAnswers
-    : [];
 
   return {
     ok: errors.length === 0 || !!(got.overview || got.detail || got.train),
@@ -463,7 +458,6 @@ async function fetchSnapshot(apiBase, pin, username) {
     wrongbook: {
       arithmeticVisible: arithWrong.length,
       expandCount: expandWrong.length,
-      divCount: divWrong.length,
       recentArithmetic: compactWrong(arithWrong, 8),
     },
     recentRuns: runs

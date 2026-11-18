@@ -2,6 +2,7 @@
  * 学员概览用账号索引：写时维护，全员列表零读 runs。
  * - overviewActiveDayKeys: 中国日历日 YYYY-MM-DD 列表（剪枝保留近 60 天）
  * - trainingFluentCount: 四则热图流畅关数 0–16
+ * - trainingFluentCohortBuiltAt: 算出流畅数时所用四则常模 builtAt（常模更新后概览可据此重算）
  * - survivalBestLevel: 生存模式最高 maxLevel（0-based）
  */
 const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
@@ -214,21 +215,50 @@ function computeTrainingFluentCount(runs, opts) {
   return { fluentCount: countFluentFromHeat(heat), ok: true };
 }
 
-function setTrainingFluentCount(u, fluentCount) {
-  if (!u) return false;
-  if (fluentCount == null || !Number.isFinite(Number(fluentCount))) {
-    if (u.trainingFluentCount != null) {
-      delete u.trainingFluentCount;
-      return true;
-    }
-    return false;
-  }
-  const n = Math.max(0, Math.min(TRAINING_LEVEL_COUNT, Math.floor(Number(fluentCount))));
-  if (u.trainingFluentCount !== n) {
-    u.trainingFluentCount = n;
+/** 流畅索引是否相对当前四则常模过期（无常模 builtAt 时不强制重算） */
+function isTrainingFluentCohortStale(u, cohortBuiltAt) {
+  if (cohortBuiltAt == null || !Number.isFinite(Number(cohortBuiltAt))) return false;
+  if (!u || u.trainingFluentCount == null || !Number.isFinite(Number(u.trainingFluentCount))) {
     return true;
   }
-  return false;
+  const stamped = Number(u.trainingFluentCohortBuiltAt);
+  if (!Number.isFinite(stamped)) return true;
+  return stamped !== Number(cohortBuiltAt);
+}
+
+/**
+ * @param {object} u
+ * @param {number|null} fluentCount
+ * @param {number} [cohortBuiltAt] 四则常模缓存 builtAt
+ */
+function setTrainingFluentCount(u, fluentCount, cohortBuiltAt) {
+  if (!u) return false;
+  if (fluentCount == null || !Number.isFinite(Number(fluentCount))) {
+    let cleared = false;
+    if (u.trainingFluentCount != null) {
+      delete u.trainingFluentCount;
+      cleared = true;
+    }
+    if (u.trainingFluentCohortBuiltAt != null) {
+      delete u.trainingFluentCohortBuiltAt;
+      cleared = true;
+    }
+    return cleared;
+  }
+  const n = Math.max(0, Math.min(TRAINING_LEVEL_COUNT, Math.floor(Number(fluentCount))));
+  let changed = false;
+  if (u.trainingFluentCount !== n) {
+    u.trainingFluentCount = n;
+    changed = true;
+  }
+  if (cohortBuiltAt != null && Number.isFinite(Number(cohortBuiltAt))) {
+    const b = Number(cohortBuiltAt);
+    if (u.trainingFluentCohortBuiltAt !== b) {
+      u.trainingFluentCohortBuiltAt = b;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /**
@@ -248,7 +278,12 @@ function bumpOverviewIndexesAfterRun(u, runEntry, allRuns, opts) {
       mode === "training" || mode === "survival" || mode === "level" || mode === "";
     if (arith) {
       const got = computeTrainingFluentCount(allRuns || [], opts);
-      if (got.ok && setTrainingFluentCount(u, got.fluentCount)) changed = true;
+      if (
+        got.ok &&
+        setTrainingFluentCount(u, got.fluentCount, opts.cohortBuiltAt)
+      ) {
+        changed = true;
+      }
     }
   }
   return changed;
@@ -261,8 +296,10 @@ function recomputeOverviewIndexesFromRuns(u, runs, opts) {
   recomputeActiveDaysFromRuns(u, runs, opts.nowMs);
   recomputeSurvivalBestFromRuns(u, runs);
   const got = computeTrainingFluentCount(runs || [], opts);
-  if (got.ok) setTrainingFluentCount(u, got.fluentCount);
-  else if (!Array.isArray(runs) || !runs.length) setTrainingFluentCount(u, 0);
+  if (got.ok) setTrainingFluentCount(u, got.fluentCount, opts.cohortBuiltAt);
+  else if (!Array.isArray(runs) || !runs.length) {
+    setTrainingFluentCount(u, 0, opts.cohortBuiltAt);
+  }
   return true;
 }
 
@@ -274,6 +311,7 @@ module.exports = {
   recomputeSurvivalBestFromRuns,
   computeTrainingFluentCount,
   setTrainingFluentCount,
+  isTrainingFluentCohortStale,
   bumpOverviewIndexesAfterRun,
   recomputeOverviewIndexesFromRuns,
   TRAINING_LEVEL_COUNT,

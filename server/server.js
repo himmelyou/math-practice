@@ -75,9 +75,9 @@ function safeUser(u) {
   return rest;
 }
 
-const WRONGBOOK_MAX_STORE = 100;
+/** 四则主错题本库存=练习上限：最多 30；新错顶替最旧，避免清完后旧题往上冒 */
+const WRONGBOOK_MAX_STORE = 30;
 const EXPAND_WRONG_MAX_STORE = 20;
-const DIVISIBILITY_WRONG_MAX_STORE = 20;
 
 const WRONG_ANSWER_MODES = new Set([
   "survival",
@@ -87,6 +87,7 @@ const WRONG_ANSWER_MODES = new Set([
   "perfectSquare",
   "divisibility",
   "factorsMultiples",
+  "primeComposite",
 ]);
 const WRONG_ANSWER_LEVEL_MAX = {
   survival: 15, // 闯关/生存公开档顶 L16
@@ -96,6 +97,7 @@ const WRONG_ANSWER_LEVEL_MAX = {
   perfectSquare: 3,
   divisibility: 4,
   factorsMultiples: 5,
+  primeComposite: 0,
 };
 
 function normalizeWrongAnswerMode(mode) {
@@ -111,10 +113,30 @@ function clampWrongAnswerLevelIndex(mode, levelIndex) {
 
 function formatWrongAnswerLevelLabel(mode, levelIndex) {
   const m = normalizeWrongAnswerMode(mode);
+  if (m === "primeComposite") return "质数合数";
   const n = clampWrongAnswerLevelIndex(m, levelIndex) + 1;
   if (m === "decimal") return "D" + n;
+  if (m === "divisibility") return "Z" + n;
   if (m === "factorsMultiples") return "Y" + n;
   return "L" + n;
+}
+
+/** 质数合数 / 平方数：跨局查重键；其它模式返回空（不查重） */
+function wrongAnswerDedupeKey(entry) {
+  if (!entry || typeof entry !== "object") return "";
+  const mode = normalizeWrongAnswerMode(entry.mode);
+  if (entry.dedupeKey != null && String(entry.dedupeKey).trim()) {
+    return String(entry.dedupeKey).trim();
+  }
+  if (mode === "primeComposite") {
+    const n = Number(entry.n);
+    if (Number.isFinite(n) && n > 0) return "primeComposite:" + Math.floor(n);
+  }
+  if (mode === "perfectSquare") {
+    const text = String(entry.text || "").trim();
+    if (text) return "perfectSquare:" + text;
+  }
+  return "";
 }
 
 /** 能解析为有限数字则存 number，否则保留原字符串（选择题答案等） */
@@ -161,7 +183,62 @@ function normalizeWrongAnswerEntry(raw) {
   if (raw && raw.correctValue != null && raw.correctValue !== "") {
     entry.correctValue = coerceWrongAnswerScalar(raw.correctValue);
   }
+  if (raw && raw.divisor != null && Number.isFinite(Number(raw.divisor))) {
+    entry.divisor = Math.floor(Number(raw.divisor));
+  }
+  if (raw && raw.n != null && Number.isFinite(Number(raw.n))) {
+    entry.n = Math.floor(Number(raw.n));
+  }
+  if (raw && raw.dedupeKey != null && String(raw.dedupeKey).trim()) {
+    entry.dedupeKey = String(raw.dedupeKey).trim();
+  } else {
+    const autoKey = wrongAnswerDedupeKey(entry);
+    if (autoKey) entry.dedupeKey = autoKey;
+  }
   return entry;
+}
+
+/**
+ * 写入主错题本：质数合数 / 平方数按 dedupeKey 命中则顶到最新并刷新内容，不另占名额。
+ */
+function upsertWrongAnswerEntry(user, entry) {
+  if (!user) return { upserted: false };
+  if (!Array.isArray(user.wrongAnswers)) user.wrongAnswers = [];
+  const key = wrongAnswerDedupeKey(entry);
+  if (key) {
+    const idx = user.wrongAnswers.findIndex(function (w) {
+      return wrongAnswerDedupeKey(w) === key;
+    });
+    if (idx >= 0) {
+      user.wrongAnswers.splice(idx, 1);
+      user.wrongAnswers.unshift(entry);
+      return { upserted: true };
+    }
+  }
+  user.wrongAnswers.unshift(entry);
+  return { upserted: false };
+}
+
+/** 废弃独立整除错题本：丢掉档案字段（旧数据无 option，不可迁） */
+function stripLegacyDivisibilityWrongbook(user) {
+  if (!user || !Object.prototype.hasOwnProperty.call(user, "divisibilityWrongAnswers")) {
+    return false;
+  }
+  delete user.divisibilityWrongAnswers;
+  return true;
+}
+
+function sweepLegacyDivisibilityWrongbook() {
+  const data = readJson(USERS_FILE, { users: [] });
+  let n = 0;
+  (data.users || []).forEach(function (u) {
+    if (stripLegacyDivisibilityWrongbook(u)) n += 1;
+  });
+  if (n > 0) {
+    writeJson(USERS_FILE, data);
+    console.log("[wrongbook] stripped legacy divisibilityWrongAnswers from " + n + " user(s)");
+  }
+  return n;
 }
 
 function getWrongAnswersClearedBeforeTs(user) {
@@ -169,10 +246,40 @@ function getWrongAnswersClearedBeforeTs(user) {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
+/**
+ * 裁主错题本：去掉游标已清条目，按 ts 新→旧只留 WRONGBOOK_MAX_STORE 条。
+ * @returns {boolean} 是否改动了数组
+ */
+function trimWrongAnswersStore(user) {
+  if (!user) return false;
+  if (!Array.isArray(user.wrongAnswers)) {
+    user.wrongAnswers = [];
+    return false;
+  }
+  const clearedBefore = getWrongAnswersClearedBeforeTs(user);
+  const before = user.wrongAnswers.length;
+  let list = user.wrongAnswers.filter(function (w) {
+    return (Number(w && w.ts) || 0) > clearedBefore;
+  });
+  list.sort(function (a, b) {
+    return (Number(b && b.ts) || 0) - (Number(a && a.ts) || 0);
+  });
+  if (list.length > WRONGBOOK_MAX_STORE) {
+    list = list.slice(0, WRONGBOOK_MAX_STORE);
+  }
+  user.wrongAnswers = list;
+  return list.length !== before;
+}
+
 function visibleWrongAnswers(user) {
   const list = Array.isArray(user.wrongAnswers) ? user.wrongAnswers : [];
   const clearedBefore = getWrongAnswersClearedBeforeTs(user);
-  return list.filter((w) => (Number(w && w.ts) || 0) > clearedBefore);
+  return list
+    .filter((w) => (Number(w && w.ts) || 0) > clearedBefore)
+    .sort(function (a, b) {
+      return (Number(b && b.ts) || 0) - (Number(a && a.ts) || 0);
+    })
+    .slice(0, WRONGBOOK_MAX_STORE);
 }
 
 /** 练习全对「清空」：不删数组，游标推进到当前可见集最新一条 ts（旧路径保留） */
@@ -206,24 +313,20 @@ function removeWrongAnswersByTs(user, tsList) {
   return Math.max(0, before - user.wrongAnswers.length);
 }
 
-/** 学员端 API：wrongAnswers 仅为游标后可见集；库存仍在 user.wrongAnswers；附带拆括号/整除错题供错题本 tab */
+/** 学员端 API：wrongAnswers 仅为游标后可见集；附带拆括号错题供错题本 tab */
 function wrongAnswersPayload(user) {
   const expand = Array.isArray(user.expandBracketsWrongAnswers)
     ? user.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE)
-    : [];
-  const div = Array.isArray(user.divisibilityWrongAnswers)
-    ? user.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE)
     : [];
   return {
     wrongAnswers: visibleWrongAnswers(user),
     wrongAnswersClearedBeforeTs: getWrongAnswersClearedBeforeTs(user),
     wrongAnswersStoredCount: Array.isArray(user.wrongAnswers) ? user.wrongAnswers.length : 0,
     expandBracketsWrongAnswers: expand,
-    divisibilityWrongAnswers: div,
   };
 }
 
-/** 学员端 API：不返回拆括号/整除错题（仅管理端 report 使用）；VIP 标记仅管理端使用 */
+/** 学员端 API：不返回拆括号错题（仅管理端 report 使用）；VIP 标记仅管理端使用 */
 function safeUserForStudent(u) {
   const out = safeUser(u);
   if (out && Object.prototype.hasOwnProperty.call(out, "expandBracketsWrongAnswers")) {
@@ -2965,7 +3068,6 @@ app.post("/api/register", async (req, res) => {
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
-    divisibilityWrongAnswers: [],
     achievements: {},
     equippedBadges: [],
     survivalUnlocked: false,
@@ -3047,6 +3149,11 @@ app.get("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, 
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
+  const stripped = stripLegacyDivisibilityWrongbook(user);
+  const trimmed = trimWrongAnswersStore(user);
+  if (stripped || trimmed) {
+    writeJson(USERS_FILE, data);
+  }
   res.json({ ok: true, ...wrongAnswersPayload(user) });
 });
 
@@ -3063,17 +3170,12 @@ app.post("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData,
   }
   const u = data.users[idx];
   if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
-  // 整除为选择题，不进错题本（与学员端策略一致）
-  if (String(raw.mode || "") === "divisibility") {
-    return res.json({ ok: true, skipped: true, ...wrongAnswersPayload(u) });
-  }
+  stripLegacyDivisibilityWrongbook(u);
   const entry = normalizeWrongAnswerEntry(raw);
-  u.wrongAnswers.unshift(entry);
-  if (u.wrongAnswers.length > WRONGBOOK_MAX_STORE) {
-    u.wrongAnswers = u.wrongAnswers.slice(0, WRONGBOOK_MAX_STORE);
-  }
+  const up = upsertWrongAnswerEntry(u, entry);
+  trimWrongAnswersStore(u);
   writeJson(USERS_FILE, data);
-  res.json({ ok: true, ...wrongAnswersPayload(u) });
+  res.json({ ok: true, upserted: !!up.upserted, ...wrongAnswersPayload(u) });
 });
 
 app.delete("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
@@ -3086,6 +3188,7 @@ app.delete("/api/user/:username/wrong-answers", requireStudentAuth, ensureOwnDat
   const u = data.users[idx];
   if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
   markWrongAnswersCleared(u);
+  trimWrongAnswersStore(u);
   writeJson(USERS_FILE, data);
   res.json({ ok: true, ...wrongAnswersPayload(u) });
 });
@@ -3106,6 +3209,7 @@ app.post("/api/user/:username/wrong-answers/resolve-practice", requireStudentAut
   const u = data.users[idx];
   if (!Array.isArray(u.wrongAnswers)) u.wrongAnswers = [];
   const removed = removeWrongAnswersByTs(u, correctTs);
+  trimWrongAnswersStore(u);
   writeJson(USERS_FILE, data);
   let advice = null;
   if (sessionCompleted) {
@@ -3159,47 +3263,6 @@ app.post("/api/user/:username/expand-brackets-wrong-answers", requireStudentAuth
     ok: true,
     expandBracketsWrongAnswers: Array.isArray(u.expandBracketsWrongAnswers)
       ? u.expandBracketsWrongAnswers.slice(0, EXPAND_WRONG_MAX_STORE)
-      : [],
-  });
-});
-
-/** 整除错题：写入档案；学员错题本 tab 可通过 GET /wrong-answers 读取 */
-app.post("/api/user/:username/divisibility-wrong-answers", requireStudentAuth, ensureOwnData, (req, res) => {
-  const { username } = req.params;
-  const raw = req.body && req.body.entry != null ? req.body.entry : req.body;
-  if (!raw || typeof raw !== "object") {
-    return res.status(400).json({ ok: false, error: "无效错题" });
-  }
-  const data = readJson(USERS_FILE, { users: [] });
-  const idx = data.users.findIndex((u) => u.username === username);
-  if (idx === -1) {
-    return res.status(404).json({ ok: false, error: "用户不存在" });
-  }
-  const u = data.users[idx];
-  if (!Array.isArray(u.divisibilityWrongAnswers)) u.divisibilityWrongAnswers = [];
-  const levelIndex =
-    typeof raw.levelIndex === "number" && Number.isFinite(raw.levelIndex)
-      ? Math.max(0, Math.min(4, Math.floor(raw.levelIndex)))
-      : 0;
-  const entry = {
-    ts: typeof raw.ts === "number" ? raw.ts : Date.now(),
-    levelIndex,
-    prompt: String(raw.prompt || ""),
-    correctAnswer: String(raw.correctAnswer != null ? raw.correctAnswer : ""),
-    studentAnswer: String(raw.studentAnswer != null ? raw.studentAnswer : ""),
-  };
-  if (raw.divisor != null && Number.isFinite(Number(raw.divisor))) {
-    entry.divisor = Math.floor(Number(raw.divisor));
-  }
-  u.divisibilityWrongAnswers.unshift(entry);
-  if (u.divisibilityWrongAnswers.length > DIVISIBILITY_WRONG_MAX_STORE) {
-    u.divisibilityWrongAnswers = u.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE);
-  }
-  writeJson(USERS_FILE, data);
-  res.json({
-    ok: true,
-    divisibilityWrongAnswers: Array.isArray(u.divisibilityWrongAnswers)
-      ? u.divisibilityWrongAnswers.slice(0, DIVISIBILITY_WRONG_MAX_STORE)
       : [],
   });
 });
@@ -3318,7 +3381,7 @@ app.put("/api/user/:username", requireStudentAuth, ensureOwnData, (req, res) => 
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
   const u = data.users[idx];
-  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "bestMemoryInstantSpan", "bestMemoryWorkingSpan", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelTrainingUnlockedMax", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "divisibilityWrongAnswers", "survivalUnlocked"];
+  const allowed = ["nickname", "avatarId", "levelIndex", "bestLevelIndex", "totalScore", "bestSurvivalSec", "bestScore", "recentSurvivalRuns", "recentLevelRuns", "recentTrainingRuns", "recentPrimeCompositeRuns", "recentExpandBracketsRuns", "recentPerfectSquareRuns", "recentDecimalRuns", "recentDivisibilityRuns", "recentFactorsMultiplesRuns", "recentMemoryTrainingRuns", "bestMemoryInstantSpan", "bestMemoryWorkingSpan", "levelChallengeLastLevel", "levelChallengeBestLevel", "levelTrainingCurrentLevel", "levelTrainingUnlockedMax", "levelExpandBracketsCurrentLevel", "levelExpandBracketsUnlockedMax", "levelPerfectSquareCurrentLevel", "levelPerfectSquareUnlockedMax", "levelDecimalCurrentLevel", "levelDecimalUnlockedMax", "levelDivisibilityCurrentLevel", "levelDivisibilityUnlockedMax", "levelFactorsMultiplesCurrentLevel", "levelFactorsMultiplesUnlockedMax", "wrongAnswers", "expandBracketsWrongAnswers", "survivalUnlocked"];
   const touched = [];
   allowed.forEach((k) => {
     if (updates[k] === undefined) return;
@@ -4364,9 +4427,18 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       const allRunsForIndex = !comboOnly
         ? allRunsAfterWrite || runsStore.getUserRuns(username)
         : null;
+      const cohortForIndex = readCohortResultForHeatmap();
+      const cohortCacheForIndex = readCohortLevelStatsCache();
       overviewUserIndex.bumpOverviewIndexesAfterRun(u, runEntry, allRunsForIndex, {
-        cohort: readCohortResultForHeatmap(),
-        capMs: COHORT_MAX_TIME_SPENT_MS,
+        cohort: cohortForIndex,
+        capMs:
+          cohortForIndex && Number(cohortForIndex.timeSpentMsCap) > 0
+            ? Number(cohortForIndex.timeSpentMsCap)
+            : COHORT_MAX_TIME_SPENT_MS,
+        cohortBuiltAt:
+          cohortCacheForIndex && typeof cohortCacheForIndex.builtAt === "number"
+            ? cohortCacheForIndex.builtAt
+            : null,
       });
       bumpPracticeAdviceIndexesAfterRun(u, runEntry);
     } catch (eIdx) {
@@ -4950,25 +5022,35 @@ app.get("/api/admin/student-overview", (req, res) => {
   );
 
   const singleUser = !!onlyUsername;
-  const cohort = singleUser ? readCohortResultForHeatmap() : null;
+  const cohortCache = readCohortLevelStatsCache();
+  const cohortBuiltAt =
+    cohortCache && typeof cohortCache.builtAt === "number" ? cohortCache.builtAt : null;
+  const cohort = readCohortResultForHeatmap();
   const capMs =
     cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
 
-  // 全员：零读 runs（靠账号字段 + 排行榜）；单人深链：读 runs 补进度/训练列
+  // 全员：默认零读 runs；常模相对索引过期的人要读 runs 重算流畅数。单人深链：始终读 runs。
   const scopedRuns = {};
-  if (singleUser) {
-    users.forEach((u) => {
-      if (!u || !u.username) return;
-      const runs = runsStore.getUserRuns(u.username);
-      scopedRuns[u.username] = runs;
-      if (!(Number(u.lastGameTs) > 0)) {
-        const ts = latestRunTsFromRuns(runs);
-        if (ts > 0) u.lastGameTs = ts;
-      }
-    });
-  }
+  const needRunsUsers = [];
+  users.forEach((u) => {
+    if (!u || !u.username) return;
+    if (
+      singleUser ||
+      overviewUserIndex.isTrainingFluentCohortStale(u, cohortBuiltAt)
+    ) {
+      needRunsUsers.push(u);
+    }
+  });
+  needRunsUsers.forEach((u) => {
+    const runs = runsStore.getUserRuns(u.username);
+    scopedRuns[u.username] = runs;
+    if (!(Number(u.lastGameTs) > 0)) {
+      const ts = latestRunTsFromRuns(runs);
+      if (ts > 0) u.lastGameTs = ts;
+    }
+  });
 
-  const rows = buildStudentOverviewRows({
+  const overviewBuilt = buildStudentOverviewRows({
     users,
     runsByUser: scopedRuns,
     primeList,
@@ -4976,9 +5058,22 @@ app.get("/api/admin/student-overview", (req, res) => {
     survivalList,
     levelList,
     cohort,
+    cohortBuiltAt,
     capMs,
     computeTrainingHeat: singleUser,
+    recomputeTrainingIfCohortStale: true,
   });
+  const rows = overviewBuilt.rows || [];
+  if (overviewBuilt.usersIndexDirty) {
+    try {
+      writeJson(USERS_FILE, usersData);
+    } catch (eSave) {
+      console.warn(
+        "[student-overview] save trainingFluent index",
+        eSave && eSave.message ? eSave.message : eSave
+      );
+    }
+  }
 
   // 选关推荐只给单人深链补 tooltip；全员列表不做（每人再造热图）
   if (singleUser) {
@@ -5012,6 +5107,8 @@ app.get("/api/admin/student-overview", (req, res) => {
     scope: onlyUsername ? "user" : "all",
     username: onlyUsername || undefined,
     trainingHeat: singleUser,
+    cohortBuiltAt: cohortBuiltAt || undefined,
+    trainingRecomputed: overviewBuilt.trainingRecomputed || 0,
   });
 });
 
@@ -5098,7 +5195,6 @@ app.post("/api/admin/users", async (req, res) => {
     wrongAnswers: [],
     wrongAnswersClearedBeforeTs: 0,
     expandBracketsWrongAnswers: [],
-    divisibilityWrongAnswers: [],
     achievements: {},
     equippedBadges: [],
     survivalUnlocked: false,
@@ -5644,12 +5740,15 @@ app.get("/api/admin/user/:username", (req, res) => {
   if (!user) {
     return res.status(404).json({ ok: false, error: "用户不存在" });
   }
+  let dirty = false;
   if (user.hasClearedSurvival === undefined || user.hasClearedLevel === undefined) {
         const runs = runsStore.getUserRuns(username);
     if (ensureUserClearedFlagsFromRuns(user, runs)) {
-      writeJson(USERS_FILE, data);
+      dirty = true;
     }
   }
+  if (stripLegacyDivisibilityWrongbook(user)) dirty = true;
+  if (dirty) writeJson(USERS_FILE, data);
   res.json({ ok: true, user: safeUser(user) });
 });
 
@@ -7095,5 +7194,13 @@ app.post("/api/admin/achievements/recompute", (req, res) => {
 });
 
 app.listen(PORT, () => {
+  try {
+    sweepLegacyDivisibilityWrongbook();
+  } catch (e) {
+    console.warn(
+      "[wrongbook] legacy divisibility strip failed",
+      e && e.message ? e.message : e
+    );
+  }
   console.log(`Jarvis Math Lab API 运行在 http://localhost:${PORT}`);
 });
