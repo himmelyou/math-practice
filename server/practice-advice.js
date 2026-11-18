@@ -307,10 +307,23 @@
     return tp * Math.pow(FOUNDATION_RATIO, foundationRemainingForRow(row));
   }
 
+  /** 准度 0–1；>1.5 视为百分数（避开 p≈1 的浮点误判）。 */
+  function normalizeP01(p) {
+    var x = Number(p);
+    if (!Number.isFinite(x)) return null;
+    if (x > 1.5) x = x / 100;
+    if (x < 0) x = 0;
+    if (x > 1) x = 1;
+    return x;
+  }
+
   /** 准度离 95% 的缺口，封顶 100（旧洞分 / 兼容输出仍用）。 */
   function accuracySeverity(row) {
-    var p = row && row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 0;
-    if (p > 1) p = p / 100;
+    var p =
+      row && row.p != null && Number.isFinite(Number(row.p))
+        ? normalizeP01(row.p)
+        : 0;
+    if (p == null) p = 0;
     if (p >= HEAT_P_YELLOW) return 0;
     return Math.min(100, ((HEAT_P_YELLOW - p) / (1 - HEAT_P_YELLOW)) * 100);
   }
@@ -322,10 +335,8 @@
   function holeScore(row) {
     if (!row || (row.stage !== "weak" && row.stage !== "shaky")) return 0;
     var rem = foundationRemainingForRow(row);
-    var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : 1;
-    if (p > 1) p = p / 100;
-    if (p < 0) p = 0;
-    if (p > 1) p = 1;
+    var p = row.p != null && Number.isFinite(Number(row.p)) ? normalizeP01(row.p) : 1;
+    if (p == null) p = 1;
     var pPct = p * 100;
     var tp = timePctVal(row);
     return rem * HOLE_REM_WEIGHT + (100 - pPct) * HOLE_ACC_WEIGHT + tp * HOLE_SPEED_WEIGHT;
