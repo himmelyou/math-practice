@@ -2178,6 +2178,15 @@
     sel.value = username;
   }
 
+  /** 概览点名/选人：页内进数据分析，保留筛选栏；href 仍可新标签打开 */
+  function openStudentStatsFromOverview(username) {
+    if (!username) return;
+    state.selectedUsername = username;
+    seedSelectWithUsername(username);
+    syncUserQueryInUrl(username);
+    switchTab('stats');
+  }
+
   /**
    * 深链首屏：有 user 时默认进数据分析（可用 ?tab= 覆盖）。
    * 概览在后台拉全员，供切回时筛选/高亮。
@@ -4303,6 +4312,27 @@
           input.blur();
         }
       });
+      overviewBody.addEventListener('click', function (ev) {
+        var a = ev.target && ev.target.closest ? ev.target.closest('a.jml-report-user-link') : null;
+        if (!a || !overviewBody.contains(a)) return;
+        if (ev.defaultPrevented) return;
+        if (ev.button != null && ev.button !== 0) return;
+        if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+        ev.preventDefault();
+        var tr = a.closest('tr[data-username]');
+        var username =
+          (tr && tr.getAttribute('data-username')) ||
+          a.getAttribute('data-username') ||
+          '';
+        if (!username) {
+          try {
+            username = new URL(a.href, window.location.href).searchParams.get('user') || '';
+          } catch (e) {
+            username = '';
+          }
+        }
+        openStudentStatsFromOverview(username);
+      });
     }
     var filter = getFilterInput();
     if (filter) {
@@ -4338,9 +4368,9 @@
           }
           return;
         }
-        // 概览页选人：跳转数据分析；其它 Tab 直接拉该学员
+        // 概览页选人：页内跳转数据分析；其它 Tab 直接拉该学员
         if (activeTabId() === 'overview') {
-          switchTab('stats');
+          openStudentStatsFromOverview(state.selectedUsername);
           syncRefreshStudentBtn(false);
           return;
         }
