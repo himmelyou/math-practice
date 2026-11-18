@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线；洞分公式同 v0.51。
+ * 练习建议 v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
+ * v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线。
  * v0.51：四则洞分改为 rem×100+(100−准%)×10+分位×5；取消未流畅整段。
  * v0.50：未通关摸底闯关默认可排垫后；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开。
  * v0.49：错题任务完成一次练习即成功；练习做对清题、做错保留。
@@ -18,7 +19,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.52-provisional";
+  var RULE_VERSION = "0.53-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -53,10 +54,10 @@
   var FOUNDATION_FAST_PCT = 40;
   /** Q12：相邻低级在慢区压过「高 10 分位」的倍率 */
   var FOUNDATION_RATIO = 1.15;
-  /** 黄橙洞分权重（v0.51）：rem×100 + (100−准%)×10 + 分位×5 */
+  /** 黄橙洞分权重（v0.53）：rem×100 + (100−准%)×5 + 分位×2 */
   var HOLE_REM_WEIGHT = 100;
-  var HOLE_ACC_WEIGHT = 10;
-  var HOLE_SPEED_WEIGHT = 5;
+  var HOLE_ACC_WEIGHT = 5;
+  var HOLE_SPEED_WEIGHT = 2;
   /** 兼容旧字段名 */
   var HOLE_LEVEL_WEIGHT = HOLE_REM_WEIGHT;
   var HOLE_UNFLUENT_BAND = 0;
@@ -329,7 +330,7 @@
   }
 
   /**
-   * 黄橙洞分（v0.51/v0.52）：rem×100 + (100−准%)×10 + 分位×5。
+   * 黄橙洞分（v0.53）：rem×100 + (100−准%)×5 + 分位×2。
    * rem：四则见 foundationRemaining；其它模式见 modeFoundationRemaining（单线、末档=0）。
    */
   function holeScore(row) {
@@ -2850,7 +2851,7 @@
         HOLE_ACC_WEIGHT +
         "+分位×" +
         HOLE_SPEED_WEIGHT +
-        "（v0.52；顶台 L13–L16 rem=0；其它模式单线末档=0；L17+ 负）",
+        "（v0.53；准×5 分位×2；顶台 L13–L16 rem=0；其它模式单线末档=0；L17+ 负）",
       "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
