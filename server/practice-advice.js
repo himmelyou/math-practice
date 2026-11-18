@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.54：质数合数并入因倍 Y0（五年级起；rem 比 Y1 倒退一格；不挡四年级推因倍）。
+ * 练习建议 v0.55：特殊/小数无校内黄橙且无可开新则不硬留；自由格绿补跨模式按 fillerScore 混排。
+ * v0.54：质数合数并入因倍 Y0（五年级起；rem 比 Y1 倒退一格；不挡四年级推因倍）。
  * v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
  * v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线。
  * v0.51：四则洞分改为 rem×100+(100−准%)×10+分位×5；取消未流畅整段。
@@ -20,7 +21,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.54-provisional";
+  var RULE_VERSION = "0.55-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -1065,17 +1066,31 @@
     return best;
   }
 
-  function packHasSuitable(pack) {
+  /** 该模式线是否还有「硬留理由」：校内黄橙，或校内可开新（无数据）。超前洞/绿补不算。 */
+  function modePackNeedsHoleReserve(pack) {
     if (!pack) return false;
     return !!(
       (pack.schoolHoles && pack.schoolHoles.length) ||
-      pack.openRow ||
-      (pack.aheadHoles && pack.aheadHoles.length) ||
-      (pack.fillers && pack.fillers.length)
+      pack.openRow
     );
   }
 
-  function pickFromPack(pack, cooldownSeq) {
+  function specialLineNeedsReserve(ctx) {
+    if (!Modes || !ctx.modePacks) return false;
+    var order = Modes.SPECIAL_ORDER || [];
+    var i;
+    for (i = 0; i < order.length; i += 1) {
+      if (modePackNeedsHoleReserve(ctx.modePacks[order[i]])) return true;
+    }
+    return false;
+  }
+
+  function decimalLineNeedsReserve(ctx) {
+    return modePackNeedsHoleReserve(ctx.modePacks && ctx.modePacks.decimal);
+  }
+
+  /** 硬留只取校内黄橙 / 开新；超前与绿补走自由格。 */
+  function pickFromPackHoleOrOpen(pack, cooldownSeq) {
     if (!pack) return null;
     function okKey(seed) {
       var k = seedKey(seed);
@@ -1092,22 +1107,13 @@
       var s1 = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
       if (okKey(s1)) return s1;
     }
-    var ahead = sortHolesWorstFirst(pack.aheadHoles || []);
-    for (i = 0; i < ahead.length; i += 1) {
-      var s2 = { kind: "mode", modeId: pack.modeId, row: ahead[i] };
-      if (okKey(s2)) return s2;
-    }
-    for (i = 0; i < (pack.fillers || []).length; i += 1) {
-      var s3 = { kind: "mode", modeId: pack.modeId, row: pack.fillers[i] };
-      if (okKey(s3)) return s3;
-    }
     return null;
   }
 
   function pickSpecialReserve(ctx, cooldownSeq) {
     if (!Modes) return null;
     var order = Modes.SPECIAL_ORDER;
-    var tiers = ["hole", "open", "ahead", "fill"];
+    var tiers = ["hole", "open"];
     function okSeed(seed) {
       return !!(seed && !(cooldownSeq && keyTooSoon(seedKey(seed), cooldownSeq)));
     }
@@ -1118,7 +1124,7 @@
       for (m = 0; m < order.length; m += 1) {
         var pack = ctx.modePacks && ctx.modePacks[order[m]];
         if (!pack) continue;
-        /** 同模式按差→好试完；最差格冷却时改下一格，不整档跳到绿补。 */
+        /** 同模式按差→好试完；最差格冷却时改下一格，不整档跳到开新/别模式绿补。 */
         if (tiers[t] === "hole") {
           var holes = sortHolesWorstFirst(pack.schoolHoles || []);
           for (i = 0; i < holes.length; i += 1) {
@@ -1128,17 +1134,6 @@
         } else if (tiers[t] === "open" && pack.openRow) {
           var oSeed = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
           if (okSeed(oSeed)) return oSeed;
-        } else if (tiers[t] === "ahead") {
-          var ahead = sortHolesWorstFirst(pack.aheadHoles || []);
-          for (i = 0; i < ahead.length; i += 1) {
-            var aSeed = { kind: "mode", modeId: pack.modeId, row: ahead[i] };
-            if (okSeed(aSeed)) return aSeed;
-          }
-        } else if (tiers[t] === "fill") {
-          for (i = 0; i < (pack.fillers || []).length; i += 1) {
-            var fSeed = { kind: "mode", modeId: pack.modeId, row: pack.fillers[i] };
-            if (okSeed(fSeed)) return fSeed;
-          }
         }
       }
     }
@@ -1146,7 +1141,7 @@
   }
 
   function pickDecimalReserve(ctx, cooldownSeq) {
-    return pickFromPack(ctx.modePacks && ctx.modePacks.decimal, cooldownSeq);
+    return pickFromPackHoleOrOpen(ctx.modePacks && ctx.modePacks.decimal, cooldownSeq);
   }
 
   /**
@@ -1461,10 +1456,15 @@
     var specialLeft = Math.max(0, (budget.special || 0) - (spend.special || 0));
     var decimalLeft = Math.max(0, (budget.decimal || 0) - (spend.decimal || 0));
 
+    /** 年级至少硬留：该线仍有校内黄橙或可开新才占；全绿/仅超前或绿补则放进自由格。 */
     var reservedSpecial =
-      specialLeft > 0 ? pickSpecialReserve(ctx, cooldownHint) : null;
+      specialLeft > 0 && specialLineNeedsReserve(ctx)
+        ? pickSpecialReserve(ctx, cooldownHint)
+        : null;
     var reservedDecimal =
-      decimalLeft > 0 ? pickDecimalReserve(ctx, cooldownHint) : null;
+      decimalLeft > 0 && decimalLineNeedsReserve(ctx)
+        ? pickDecimalReserve(ctx, cooldownHint)
+        : null;
 
     var stream = [];
     if (ctx.wrongbookNeeded) stream.push({ kind: "wrongbook" });
@@ -1520,22 +1520,22 @@
         stream.push(s);
       });
     }
-    var arithFillers = (ctx.rows || [])
-      .filter(function (r) {
-        return fillerScore(r) > 0;
-      })
-      .slice()
-      .sort(function (a, b) {
-        return fillerScore(b) - fillerScore(a);
-      });
-    arithFillers.forEach(function (r) {
-      stream.push({ kind: "training", row: r });
+    /** 绿补：四则与其它模式同一池，按 fillerScore 跨模式比（公式不变）。 */
+    var greenPool = [];
+    (ctx.rows || []).forEach(function (r) {
+      if (fillerScore(r) > 0) greenPool.push({ kind: "training", row: r });
     });
     if (allowOtherModes) {
       listOtherModeSeeds(ctx, "fill").forEach(function (s) {
-        stream.push(s);
+        greenPool.push(s);
       });
     }
+    greenPool.sort(function (a, b) {
+      return fillerScore(b.row) - fillerScore(a.row);
+    });
+    greenPool.forEach(function (s) {
+      stream.push(s);
+    });
     /** 未通关默认：闯关垫在训练/绿补之后，有空格才进五格。 */
     if (needScan && !heatmapIsEmpty(ctx.rows) && !isRetryClearScan(ctx) && !elevateScan) {
       stream.push({ kind: "scan", scan: ctx.scan });
@@ -2888,7 +2888,7 @@
         "+分位×" +
         HOLE_SPEED_WEIGHT +
         "（v0.54；准×5 分位×2；因倍 Y0=质数 rem+1；顶台 L13–L16 rem=0；L17+ 负）",
-      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。质数合数=因倍 Y0（五年级起；不挡四年级推 Y1+）。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
+      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。质数合数=因倍 Y0（五年级起；不挡四年级推 Y1+）。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进。v0.55：特殊/小数仅当仍有校内黄橙或可开新才年级硬留；绿补跨模式比 fillerScore",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +

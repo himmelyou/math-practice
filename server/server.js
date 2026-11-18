@@ -4995,8 +4995,16 @@ app.get("/api/admin/student-overview", (req, res) => {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   const onlyUsername = (req.query && req.query.username ? String(req.query.username) : "").trim();
+  /** 增量：只返回 lastGameTs>since 或训练流畅常模过期的人（全员刷新用） */
+  const sinceRaw = req.query && req.query.since != null ? Number(req.query.since) : 0;
+  const sinceTs = Number.isFinite(sinceRaw) && sinceRaw > 0 ? sinceRaw : 0;
   const usersData = readJson(USERS_FILE, { users: [] });
   const allUsers = Array.isArray(usersData.users) ? usersData.users : [];
+  let maxLastGameTs = 0;
+  allUsers.forEach((u) => {
+    const ts = Number(u && u.lastGameTs) || 0;
+    if (ts > maxLastGameTs) maxLastGameTs = ts;
+  });
   // 先缩小学员集合，再读 runs（避免深链时仍扫全库）
   let users = onlyUsername
     ? allUsers.filter((u) => u && u.username === onlyUsername)
@@ -5029,6 +5037,16 @@ app.get("/api/admin/student-overview", (req, res) => {
   const cohort = readCohortResultForHeatmap();
   const capMs =
     cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : COHORT_MAX_TIME_SPENT_MS;
+
+  const incremental = !singleUser && sinceTs > 0;
+  if (incremental) {
+    users = users.filter((u) => {
+      if (!u || !u.username) return false;
+      const lg = Number(u.lastGameTs) || 0;
+      if (lg > sinceTs) return true;
+      return overviewUserIndex.isTrainingFluentCohortStale(u, cohortBuiltAt);
+    });
+  }
 
   // 全员：默认零读 runs；常模相对索引过期的人要读 runs 重算流畅数。单人深链：始终读 runs。
   const scopedRuns = {};
@@ -5105,11 +5123,14 @@ app.get("/api/admin/student-overview", (req, res) => {
     ok: true,
     rows,
     builtAt: Date.now(),
-    scope: onlyUsername ? "user" : "all",
+    scope: onlyUsername ? "user" : incremental ? "incremental" : "all",
     username: onlyUsername || undefined,
     trainingHeat: singleUser,
     cohortBuiltAt: cohortBuiltAt || undefined,
     trainingRecomputed: overviewBuilt.trainingRecomputed || 0,
+    maxLastGameTs: maxLastGameTs || 0,
+    since: incremental ? sinceTs : undefined,
+    incremental: incremental || undefined,
   });
 });
 

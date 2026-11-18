@@ -51,7 +51,8 @@ var MODE_META = {
 var WRONGBOOK_MIN = 30;
 
 /**
- * 年级只定特殊/小数「至少硬留」；四则硬留改由练习建议按热图熟练度算。
+ * 年级只定特殊/小数「至少硬留」额度；是否真正硬留由 practice-advice
+ * 按该线是否仍有校内黄橙/可开新决定（v0.55）。四则硬留按热图熟练度算。
  * 未全开热图：五格全四则（arith=5，特殊/小数 0）。
  * @param {number|string} grade
  * @param {{ arithFullyUnlocked?: boolean }} [opts]

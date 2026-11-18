@@ -162,6 +162,10 @@
     overviewLoading: false,
     overviewError: '',
     overviewBuiltAt: 0,
+    /** 概览水位：上次同步时服务端 maxLastGameTs（增量刷新用） */
+    overviewMaxLastGameTs: 0,
+    /** 概览同步时的四则常模 builtAt */
+    overviewCohortBuiltAt: 0,
     overviewSortKey: 'lastGameTs',
     overviewSortDir: 'desc',
     overviewColOrder: null,
@@ -843,8 +847,8 @@
 
   /**
    * 拉取概览。
-   * - 无 username（或显式 all）：全员；缓存完整且非 force 则直接渲染
-   * - 有 username：只算该人；已有该行或已有全员缓存且非 force 则直接渲染
+   * - 首拉全员；刷新且已有水位时带 ?since= 只更新有新局/常模过期的行
+   * - 有 username：只算该人
    */
   function loadOverview(opts) {
     opts = typeof opts === 'object' && opts ? opts : { force: !!opts };
@@ -854,6 +858,12 @@
         ? String(opts.username || '').trim()
         : '';
     var fetchAll = !wantUser;
+    var useIncremental =
+      force &&
+      fetchAll &&
+      state.overviewComplete &&
+      state.overviewRows.length > 0 &&
+      Number(state.overviewMaxLastGameTs) > 0;
 
     if (state.overviewLoading) return Promise.resolve();
 
@@ -875,16 +885,43 @@
     if (!hadRows) renderOverviewTable();
 
     var path = '/api/admin/student-overview';
-    if (!fetchAll) path += '?username=' + encodeURIComponent(wantUser);
+    if (!fetchAll) {
+      path += '?username=' + encodeURIComponent(wantUser);
+    } else if (useIncremental) {
+      path += '?since=' + encodeURIComponent(String(state.overviewMaxLastGameTs));
+    }
 
     return apiFetch(path)
       .then(function (data) {
         var rows = data && data.ok && Array.isArray(data.rows) ? data.rows : [];
         state.overviewBuiltAt = data && data.builtAt ? Number(data.builtAt) : Date.now();
         state.overviewError = '';
+        if (data && data.cohortBuiltAt != null) {
+          state.overviewCohortBuiltAt = Number(data.cohortBuiltAt) || 0;
+        }
+        if (data && data.maxLastGameTs != null) {
+          var mx = Number(data.maxLastGameTs) || 0;
+          if (mx > (Number(state.overviewMaxLastGameTs) || 0)) {
+            state.overviewMaxLastGameTs = mx;
+          }
+        }
         if (fetchAll) {
-          state.overviewRows = rows;
+          if (data && data.incremental) {
+            rows.forEach(function (row) {
+              if (row) mergeOverviewRow(row);
+            });
+          } else {
+            state.overviewRows = rows;
+          }
           state.overviewComplete = true;
+          if (!Number(state.overviewMaxLastGameTs)) {
+            var localMax = 0;
+            (state.overviewRows || []).forEach(function (r) {
+              var t = Number(r && (r.lastGameTs || r.createdAt)) || 0;
+              if (t > localMax) localMax = t;
+            });
+            state.overviewMaxLastGameTs = localMax;
+          }
         } else if (rows[0]) {
           mergeOverviewRow(rows[0]);
         } else {
@@ -892,7 +929,7 @@
         }
       })
       .catch(function (e) {
-        if (fetchAll) {
+        if (fetchAll && !useIncremental) {
           state.overviewRows = [];
           state.overviewComplete = false;
         }
@@ -1045,93 +1082,30 @@
       if (next === 'task-history') renderTaskHistoryPanel();
       return;
     }
-    if (state.loadedStudentUsername !== state.selectedUsername) {
-      if (next === 'task-history') renderTaskHistoryPanel();
-      var switchToUser = state.selectedUsername;
-      void ensureStudentHeatFresh(switchToUser).then(function (res) {
-        if (!res || res.aborted) return;
-        if (state.selectedUsername !== switchToUser) return;
-        if (activeTabId() !== next) return;
-        if (res.reused) {
-          renderActiveStudentPanels();
-          if (
-            (next === 'stats' || next === 'train-debug') &&
-            !state.workspaceHasExtras
-          ) {
-            void loadStudentWorkspaceExtras(switchToUser, state.studentLoadSeq);
-          }
-          if (
-            (next === 'runs' || next === 'train-debug') &&
-            state.runsLoadedFor !== switchToUser
-          ) {
-            void loadStudentRunsOnly();
-          }
-        }
-      });
-      return;
-    }
-    if (next === 'runs') {
-      if (state.runsLoadedFor !== state.selectedUsername) {
-        void loadStudentRunsOnly();
-        return;
-      }
-      renderRunsTable();
-      return;
-    }
-    if (next === 'wrong') {
-      renderWrongBook();
-      return;
-    }
-    if (next === 'expand-wrong') {
-      renderExpandWrongBook();
-      return;
-    }
-    if (next === 'stats') {
-      var statsUser = state.selectedUsername;
-      void ensureStudentHeatFresh(statsUser).then(function (res) {
-        if (!res || res.aborted) return;
-        if (state.selectedUsername !== statsUser) return;
-        if (activeTabId() !== 'stats') return;
-        if (!state.heatmapFromServer) {
-          void loadStudentData();
-          return;
-        }
-        ensureStudentStatsBuilt();
-        renderStatsPanel();
-        redrawAllStatsCharts();
-        if (!state.workspaceHasExtras) {
-          void loadStudentWorkspaceExtras(statsUser, state.studentLoadSeq);
-        }
-      });
-      return;
-    }
-    if (next === 'train-debug') {
-      var debugUser = state.selectedUsername;
-      void ensureStudentHeatFresh(debugUser).then(function (res) {
-        if (!res || res.aborted) return;
-        if (state.selectedUsername !== debugUser) return;
-        if (activeTabId() !== 'train-debug') return;
-        if (!state.heatmapFromServer || !state.trainDebugPayload) {
-          void loadStudentData({ force: !state.heatmapFromServer });
-          return;
-        }
-        if (state.runsLoadedFor !== debugUser) {
-          void loadStudentRunsOnly().then(function () {
-            void loadTrainDebug(false);
-          });
-          return;
-        }
-        void loadTrainDebug(false);
-      });
+    // 个人 tab：探活后复用整包或一次拉 full；月报/任务历史仍单独拉
+    if (next === 'monthly-report') {
+      void loadMonthlyReports();
       return;
     }
     if (next === 'task-history') {
       renderTaskHistoryPanel();
       return;
     }
-    if (next === 'monthly-report') {
-      void loadMonthlyReports();
-    }
+    var packUser = state.selectedUsername;
+    void ensureStudentPackFresh(packUser).then(function (res) {
+      if (!res || res.aborted) return;
+      if (state.selectedUsername !== packUser) return;
+      if (activeTabId() !== next) return;
+      if (next === 'train-debug') {
+        if (state.trainDebugPayload) {
+          renderTrainDebugPanel(state.trainDebugPayload);
+        } else {
+          void loadTrainDebug(false);
+        }
+        return;
+      }
+      renderActiveStudentPanels();
+    });
   }
 
   function redrawAllStatsCharts() {
@@ -1595,7 +1569,6 @@
     renderTaskHistoryPanel();
     renderWrongBook();
     renderExpandWrongBook();
-    renderDivisibilityWrongBook();
     renderStatsPanel();
     renderMonthlyReportPanel();
     renderTrainDebugPlaceholder('请先选择学员');
@@ -2097,32 +2070,48 @@
     return 0;
   }
 
+  /** 个人整包是否齐全：热图 + runs + extras（建议/选关） */
+  function isStudentPackComplete(username) {
+    if (!username) return false;
+    if (state.loadedStudentUsername === username) {
+      return !!(
+        state.heatmapFromServer &&
+        state.runsLoadedFor === username &&
+        state.workspaceHasExtras
+      );
+    }
+    var bag = state.studentBagCache[username];
+    return !!(
+      bag &&
+      bag.heatmapFromServer &&
+      bag.runsLoadedFor === username &&
+      bag.workspaceHasExtras
+    );
+  }
+
   /**
-   * 廉价探活：单人概览拉最新 lastGameTs，写入 overview / user-list 缓存。
+   * 廉价探活：读档案 lastGameTs（不扫 runs）。
    * @returns {Promise<number>}
    */
   function fetchLiveStudentRevision(username) {
     if (!username) return Promise.resolve(0);
-    return apiFetch(
-      '/api/admin/student-overview?username=' + encodeURIComponent(username)
-    ).then(function (data) {
-      var row =
-        data && data.ok && Array.isArray(data.rows) && data.rows[0] ? data.rows[0] : null;
-      if (!row || row.username !== username) return 0;
-      mergeOverviewRow(row);
+    return apiFetch('/api/admin/user/' + encodeURIComponent(username)).then(function (data) {
+      var u = data && data.user ? data.user : null;
+      if (!u) return 0;
+      var ts = Number(u.lastGameTs) || 0;
       var meta = findUserMeta(username);
-      if (meta) {
-        meta.lastGameTs = Number(row.lastGameTs) || Number(meta.lastGameTs) || 0;
-      }
-      return Number(row.lastGameTs || row.createdAt) || 0;
+      if (meta) meta.lastGameTs = ts || Number(meta.lastGameTs) || 0;
+      var row = findOverviewRow(username);
+      if (row && ts > 0) row.lastGameTs = ts;
+      return ts;
     });
   }
 
   /**
-   * 切人 / 进热图前：先探活 lastGameTs，过期则非 force 重拉；未过期复用内存或 bag。
+   * 选人 / 进个人 tab：探活 lastGameTs；有新局或整包不全则一次拉 full。
    * @returns {Promise<{ok:boolean, reused?:boolean, aborted?:boolean, probeFailed?:boolean}>}
    */
-  function ensureStudentHeatFresh(username) {
+  function ensureStudentPackFresh(username) {
     if (!username) return Promise.resolve({ ok: true, reused: false });
     return fetchLiveStudentRevision(username)
       .then(function (liveRev) {
@@ -2141,8 +2130,9 @@
             : localRev > 0
               ? liveRev === localRev
               : false;
+        var complete = isStudentPackComplete(username);
 
-        if (canReuse && sameRev) {
+        if (canReuse && sameRev && complete) {
           if (!inMem) tryAdoptStudentBagCache(username);
           return { ok: true, reused: true };
         }
@@ -2158,13 +2148,18 @@
         if (state.selectedUsername !== username) {
           return { ok: false, aborted: true, probeFailed: true };
         }
-        if (tryAdoptStudentBagCache(username)) {
+        if (tryAdoptStudentBagCache(username) && isStudentPackComplete(username)) {
           return { ok: true, reused: true, probeFailed: true };
         }
         return loadStudentData().then(function () {
           return { ok: true, reused: false, probeFailed: true };
         });
       });
+  }
+
+  /** @deprecated 兼容旧名 */
+  function ensureStudentHeatFresh(username) {
+    return ensureStudentPackFresh(username);
   }
 
   function snapshotStudentBag(username) {
@@ -2463,10 +2458,9 @@
     return msg === 'The user aborted a request.' || /aborted/i.test(msg);
   }
 
-  function workspacePartsForTab(tab) {
-    if (tab === 'stats') return 'core';
-    if (tab === 'train-debug') return 'core,extras';
-    return 'runs';
+  /** 个人入口统一一次拉齐：热图+折线+runs+建议/选关 */
+  function workspacePartsForTab(_tab) {
+    return 'full';
   }
 
   function fetchStudentWorkspace(username, parts, signal, opts) {
@@ -2772,23 +2766,9 @@
       );
     }
 
-    if (!force && tryAdoptStudentBagCache(u)) {
+    if (!force && tryAdoptStudentBagCache(u) && isStudentPackComplete(u)) {
       renderActiveStudentPanels();
-      var tab0 = activeTabId();
-      var tasks = [];
-      if (
-        (tab0 === 'stats' || tab0 === 'train-debug') &&
-        !state.workspaceHasExtras
-      ) {
-        tasks.push(loadStudentWorkspaceExtras(u, state.studentLoadSeq));
-      }
-      if (
-        (tab0 === 'runs' || tab0 === 'train-debug') &&
-        state.runsLoadedFor !== u
-      ) {
-        tasks.push(loadStudentRunsOnly());
-      }
-      return tasks.length ? Promise.all(tasks) : Promise.resolve();
+      return Promise.resolve();
     }
 
     if (force) invalidateStudentBagCache(u);
@@ -2804,54 +2784,37 @@
       typeof AbortController !== 'undefined' ? new AbortController() : null;
     state.studentLoadAbort = ac;
     var seq = (state.studentLoadSeq = (state.studentLoadSeq || 0) + 1);
-    var tab = activeTabId();
-    var parts = workspacePartsForTab(tab);
-    var wantExtrasLater = parts === 'core';
+    var parts = workspacePartsForTab(activeTabId());
 
     state.practiceAdvice = null;
     state.practiceAdviceError = '';
-    state.practiceAdviceLoading = wantExtrasLater || tab === 'stats' || tab === 'train-debug';
+    state.practiceAdviceLoading = true;
     state.serverTrainingPick = null;
     state.serverCategoryNext = null;
     state.trainDebugPayload = null;
     state.workspaceHasExtras = false;
     state.selectionHint = null;
-    if (parts.indexOf('core') >= 0 || parts === 'full') {
-      state.heat = null;
-      state.heatByCategory = {};
-      state.heatmapFromServer = false;
-      state.aggByCategory = {};
-    }
-    if (parts === 'runs' || parts.indexOf('runs') >= 0) {
-      /* runs-only tab */
-    } else {
-      state.runs = [];
-      state.runsLoadedFor = '';
-    }
+    state.heat = null;
+    state.heatByCategory = {};
+    state.heatmapFromServer = false;
+    state.aggByCategory = {};
+    state.runs = [];
+    state.runsLoadedFor = '';
 
     return fetchStudentWorkspace(u, parts, ac && ac.signal, { force: force })
       .then(function (data) {
         if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
         applyStudentWorkspaceCore(data, u);
-        if (!wantExtrasLater) {
-          state.practiceAdviceLoading = false;
-        }
+        state.practiceAdviceLoading = false;
         renderActiveStudentPanels();
-        var follow = [];
-        if (wantExtrasLater) {
-          follow.push(loadStudentWorkspaceExtras(u, seq, { force: force }));
+        if (activeTabId() === 'train-debug' && state.trainDebugPayload) {
+          renderTrainDebugPanel(state.trainDebugPayload);
         }
-        if (
-          (tab === 'runs' || tab === 'train-debug') &&
-          state.runsLoadedFor !== u
-        ) {
-          follow.push(loadStudentRunsOnly());
-        }
-        if (follow.length) return Promise.all(follow);
       })
       .catch(function (e) {
         if (isFetchAbortError(e)) return;
         if (seq !== state.studentLoadSeq || state.selectedUsername !== u) return;
+        state.practiceAdviceLoading = false;
         if (errEl) {
           errEl.textContent = e.message || String(e);
           errEl.style.display = 'block';
@@ -4494,7 +4457,7 @@
           syncRefreshStudentBtn(false);
           return;
         }
-        var p = ensureStudentHeatFresh(state.selectedUsername).then(function (res) {
+        var p = ensureStudentPackFresh(state.selectedUsername).then(function (res) {
           if (res && res.reused) renderActiveStudentPanels();
         });
         if (p && typeof p.finally === 'function') {
