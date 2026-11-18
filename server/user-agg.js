@@ -10,7 +10,17 @@ const FALLBACK_CATEGORIES = [
   { id: "perfectSquare", modes: ["perfectSquare"], levelCount: 4 },
   { id: "divisibility", modes: ["divisibility"], levelCount: 4 },
   { id: "factorsMultiples", modes: ["factorsMultiples"], levelCount: 6 },
+  { id: "primeComposite", modes: ["primeComposite"], levelCount: 1 },
 ];
+
+const PRIME_AGG_CATEGORY = {
+  id: "primeComposite",
+  modes: ["primeComposite"],
+  levelCount: 1,
+  levelPrefix: "Y",
+  labelKey: "stats.cat.primeComposite",
+  labelFallback: "质数合数",
+};
 
 
 function emptyLevelAgg() {
@@ -98,17 +108,23 @@ function mergeAggResults(base, delta) {
 }
 
 function resolveCategories() {
+  let list = null;
   try {
     const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
     const HM = getJmlStatsHeatmap();
     if (HM && typeof HM.getHeatmapCategories === "function") {
-      const list = HM.getHeatmapCategories();
-      if (Array.isArray(list) && list.length) return list;
+      const heat = HM.getHeatmapCategories();
+      if (Array.isArray(heat) && heat.length) list = heat.slice();
     }
   } catch (e) {
     /* fallback */
   }
-  return FALLBACK_CATEGORIES.slice();
+  if (!list || !list.length) list = FALLBACK_CATEGORIES.slice();
+  const hasPrime = list.some(function (c) {
+    return c && c.id === "primeComposite";
+  });
+  if (!hasPrime) list.push(PRIME_AGG_CATEGORY);
+  return list;
 }
 
 function categoriesMeta(cats) {
@@ -125,6 +141,13 @@ function categoriesMeta(cats) {
 }
 
 function aggregateOne(Agg, cat, runs) {
+  if (
+    cat &&
+    cat.id === "primeComposite" &&
+    typeof Agg.aggregatePrimeCompositeFromRuns === "function"
+  ) {
+    return Agg.aggregatePrimeCompositeFromRuns(runs, { levelCount: 1 });
+  }
   return Agg.aggregateFromRuns(runs, {
     modes: cat.modes,
     levelCount: cat.levelCount,

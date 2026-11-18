@@ -1569,6 +1569,79 @@
     );
   }
 
+  async function backfillPrimeCompositePlayed() {
+    try {
+      if (
+        !confirm(
+          '将预览：按 runs 重算全员质数合数「玩过/通关」索引。\n\n' +
+            '玩过 = 至少一局 attempts≥10；通关 = cleared/perfect/score≥250。\n' +
+            '不会立刻写盘。操作前请先备份。是否继续预览？'
+        )
+      ) {
+        return;
+      }
+      setStatus('质数玩过重算预览中…', '');
+      var preview = await apiFetch('/api/admin/maintenance/backfill-prime-composite-played', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: true }),
+      });
+      if (!preview || preview.ok !== true) {
+        throw new Error((preview && preview.error) || '预览失败');
+      }
+      setStatus(
+        (preview.dryRun ? '【预览】' : '【已写入】') +
+          '质数玩过：变更 ' +
+          (preview.changedCount || 0) +
+          ' · 玩过 true→false ' +
+          (preview.playedTrueToFalse || 0) +
+          ' · false→true ' +
+          (preview.playedFalseToTrue || 0) +
+          ' · 通关旗修正 ' +
+          (preview.clearedFixed || 0) +
+          ' · 未变 ' +
+          (preview.unchanged || 0),
+        'ok'
+      );
+      if (!(preview.changedCount > 0)) return;
+      if (
+        !confirm(
+          '预览需改 ' +
+            preview.changedCount +
+            ' 人\n玩过 true→false ' +
+            (preview.playedTrueToFalse || 0) +
+            ' · false→true ' +
+            (preview.playedFalseToTrue || 0) +
+            ' · 通关旗修正 ' +
+            (preview.clearedFixed || 0) +
+            '\n\n确认写盘？'
+        )
+      ) {
+        return;
+      }
+      setStatus('质数玩过重算写入中…', '');
+      var applied = await apiFetch('/api/admin/maintenance/backfill-prime-composite-played', {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: false }),
+      });
+      if (!applied || applied.ok !== true) {
+        throw new Error((applied && applied.error) || '回填失败');
+      }
+      setStatus(
+        '【已写入】质数玩过：变更 ' +
+          (applied.changedCount || 0) +
+          ' · 玩过 true→false ' +
+          (applied.playedTrueToFalse || 0) +
+          ' · false→true ' +
+          (applied.playedFalseToTrue || 0) +
+          ' · 通关旗修正 ' +
+          (applied.clearedFixed || 0),
+        'ok'
+      );
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   async function backfillTrainingL17Unlock() {
     try {
       if (
@@ -1854,6 +1927,10 @@
     var backfillL17UnlockBtn = document.getElementById('jml-btn-backfill-training-l17-unlock');
     if (backfillL17UnlockBtn) {
       backfillL17UnlockBtn.addEventListener('click', backfillTrainingL17Unlock);
+    }
+    var backfillPrimePlayedBtn = document.getElementById('jml-btn-backfill-prime-played');
+    if (backfillPrimePlayedBtn) {
+      backfillPrimePlayedBtn.addEventListener('click', backfillPrimeCompositePlayed);
     }
     var loadI18nBtn = document.getElementById('jml-btn-load-i18n');
     if (loadI18nBtn) loadI18nBtn.addEventListener('click', loadI18n);

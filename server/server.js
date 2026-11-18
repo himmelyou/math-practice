@@ -400,6 +400,7 @@ const COHORT_DECIMAL_STATS_FILE = path.join(DATA_DIR, "cohort-decimal-stats.json
 const COHORT_PERFECT_SQUARE_STATS_FILE = path.join(DATA_DIR, "cohort-perfect-square-stats.json");
 const COHORT_DIVISIBILITY_STATS_FILE = path.join(DATA_DIR, "cohort-divisibility-stats.json");
 const COHORT_FACTORS_MULTIPLES_STATS_FILE = path.join(DATA_DIR, "cohort-factors-multiples-stats.json");
+const COHORT_PRIME_COMPOSITE_STATS_FILE = path.join(DATA_DIR, "cohort-prime-composite-stats.json");
 /** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
 const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
 const SURVIVAL_RANKING_FILE = path.join(DATA_DIR, "survival-ranking.json");
@@ -924,6 +925,11 @@ function readCohortFactorsMultiplesResultForHeatmap() {
   return cache && cache.result && cache.result.ok === true ? cache.result : null;
 }
 
+function readCohortPrimeCompositeResultForHeatmap() {
+  const cache = readCohortPrimeCompositeStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
 function cohortsByCategoryForHeatmap() {
   return {
     arithmetic: readCohortResultForHeatmap(),
@@ -931,6 +937,7 @@ function cohortsByCategoryForHeatmap() {
     perfectSquare: readCohortPerfectSquareResultForHeatmap(),
     divisibility: readCohortDivisibilityResultForHeatmap(),
     factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
+    primeComposite: readCohortPrimeCompositeResultForHeatmap(),
   };
 }
 
@@ -1022,6 +1029,34 @@ function isPrimeCompositeClearedForAdviceIndex(run) {
   return Number.isFinite(score) && score >= 250;
 }
 
+/** 与热图 Y0 一致：attempt≥10 才算「玩过」 */
+const PRIME_PLAYED_MIN_ATTEMPTS = 10;
+
+function runAttemptCountForPrimeIndex(run) {
+  if (!run) return 0;
+  if (Array.isArray(run.attempts)) return run.attempts.length;
+  const n = Number(run.attemptCount);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+}
+
+function isPrimeQualifyingRunForIndex(run) {
+  if (!run) return false;
+  if (normalizeRunMode(run.mode) !== "primeComposite") return false;
+  return runAttemptCountForPrimeIndex(run) >= PRIME_PLAYED_MIN_ATTEMPTS;
+}
+
+function recomputePrimeFlagsFromRuns(runs) {
+  let played = false;
+  let cleared = false;
+  (runs || []).forEach(function (r) {
+    if (normalizeRunMode(r && r.mode) !== "primeComposite") return;
+    if (isPrimeQualifyingRunForIndex(r)) played = true;
+    if (isPrimeCompositeClearedForAdviceIndex(r)) cleared = true;
+  });
+  if (cleared) played = true;
+  return { played: played, cleared: cleared };
+}
+
 function bumpPracticeAdviceIndexesAfterRun(u, runEntry) {
   if (!u || !runEntry) return;
   const mode = normalizeRunMode(runEntry.mode);
@@ -1035,9 +1070,70 @@ function bumpPracticeAdviceIndexesAfterRun(u, runEntry) {
     }
   }
   if (mode === "primeComposite") {
-    u.primeCompositePlayed = true;
-    if (isPrimeCompositeClearedForAdviceIndex(runEntry)) u.primeCompositeCleared = true;
+    if (isPrimeQualifyingRunForIndex(runEntry)) u.primeCompositePlayed = true;
+    if (isPrimeCompositeClearedForAdviceIndex(runEntry)) {
+      u.primeCompositeCleared = true;
+      u.primeCompositePlayed = true;
+    }
   }
+}
+
+/**
+ * 全员按 runs 重算质数合数玩过/通关索引（玩过=至少一局≥10题）。
+ * dryRun=true 只预览。
+ */
+function backfillPrimeCompositePlayedAll(opts) {
+  const dryRun = !!(opts && opts.dryRun);
+  const data = readJson(USERS_FILE, { users: [] });
+  const users = Array.isArray(data.users) ? data.users : [];
+  const changed = [];
+  let playedTrueToFalse = 0;
+  let playedFalseToTrue = 0;
+  let clearedFixed = 0;
+  let unchanged = 0;
+
+  users.forEach(function (u) {
+    if (!u || !u.username) return;
+    const beforePlayed = u.primeCompositePlayed === true;
+    const beforeCleared = u.primeCompositeCleared === true;
+    const flags = recomputePrimeFlagsFromRuns(runsStore.getUserRuns(u.username));
+    const afterPlayed = flags.played === true;
+    const afterCleared = flags.cleared === true;
+    if (beforePlayed === afterPlayed && beforeCleared === afterCleared) {
+      unchanged += 1;
+      return;
+    }
+    if (beforePlayed && !afterPlayed) playedTrueToFalse += 1;
+    if (!beforePlayed && afterPlayed) playedFalseToTrue += 1;
+    if (beforeCleared !== afterCleared) clearedFixed += 1;
+    changed.push({
+      username: u.username,
+      beforePlayed: beforePlayed,
+      afterPlayed: afterPlayed,
+      beforeCleared: beforeCleared,
+      afterCleared: afterCleared,
+    });
+    if (!dryRun) {
+      u.primeCompositePlayed = afterPlayed;
+      u.primeCompositeCleared = afterCleared;
+    }
+  });
+
+  if (!dryRun && changed.length) {
+    writeJson(USERS_FILE, data);
+  }
+
+  return {
+    ok: true,
+    dryRun: dryRun,
+    scanned: users.length,
+    changedCount: changed.length,
+    unchanged: unchanged,
+    playedTrueToFalse: playedTrueToFalse,
+    playedFalseToTrue: playedFalseToTrue,
+    clearedFixed: clearedFixed,
+    sample: changed.slice(0, 30),
+  };
 }
 
 /** 报表折线用：按学员落盘；无新局复用，有新局只合并增量 */
@@ -3960,6 +4056,23 @@ app.post("/api/admin/maintenance/backfill-training-l17-unlock", (req, res) => {
   }
 });
 
+/** 维护：按 runs 重算质数合数玩过/通关（玩过=至少一局≥10题） */
+app.post("/api/admin/maintenance/backfill-prime-composite-played", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const dryRun = !(body.dryRun === false || body.apply === true);
+  try {
+    return res.json(backfillPrimeCompositePlayedAll({ dryRun }));
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: "回填失败：" + (e && e.message ? e.message : String(e)),
+    });
+  }
+});
+
 /** 学员：小数下一关（未通关梯子 / 通关后刷弱项） */
 app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -5788,6 +5901,8 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   writeCohortDivisibilityStatsCache(builtAt, divisibilityResult);
   const factorsMultiplesResult = computeFactorsMultiplesCohortResult();
   writeCohortFactorsMultiplesStatsCache(builtAt, factorsMultiplesResult);
+  const primeCompositeResult = computePrimeCompositeCohortResult();
+  writeCohortPrimeCompositeStatsCache(builtAt, primeCompositeResult);
   const wrapExtra = (extra) => ({
     ...extra,
     builtAt,
@@ -5807,6 +5922,7 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
     perfectSquare: wrapExtra(perfectSquareResult),
     divisibility: wrapExtra(divisibilityResult),
     factorsMultiples: wrapExtra(factorsMultiplesResult),
+    primeComposite: wrapExtra(primeCompositeResult),
   });
 });
 
@@ -6098,6 +6214,128 @@ app.get("/api/admin/stats/divisibility-cohort", (req, res) => {
     ttlMs: COHORT_STATS_TTL_MS,
     expiresAt: builtAt + COHORT_STATS_TTL_MS,
     servedFromCache: false,
+  });
+});
+
+/** 质数合数 Y0 常模：每人贡献 1 个「合格局题均耗时」的 meanLn */
+const PRIME_COHORT_MS_PER_Q_CAP = 60 * 1000;
+
+function computePrimeCompositeCohortResult() {
+  const personLns = [];
+  runsStore.forEachUserRuns((username, runs) => {
+    void username;
+    const lns = [];
+    (runs || []).forEach((r) => {
+      if (!isPrimeQualifyingRunForIndex(r)) return;
+      const n = runAttemptCountForPrimeIndex(r);
+      const durSec = runDurationSecForAdviceIndex(r);
+      if (durSec == null || !(n > 0)) return;
+      const msPerQ = (durSec * 1000) / n;
+      if (!(msPerQ > 0) || !Number.isFinite(msPerQ) || msPerQ > PRIME_COHORT_MS_PER_Q_CAP) return;
+      lns.push(Math.log(msPerQ));
+    });
+    if (!lns.length) return;
+    let sum = 0;
+    for (let i = 0; i < lns.length; i += 1) sum += lns[i];
+    personLns.push(sum / lns.length);
+  });
+  const lnQ = summarizeQuantiles(personLns);
+  return {
+    ok: true,
+    kind: "primeComposite",
+    levelCount: 1,
+    sampleUnit: "person",
+    minAttemptsPerPersonLevel: 1,
+    minAttemptsForHeatmap: 1,
+    timeSpentMsCap: PRIME_COHORT_MS_PER_Q_CAP,
+    timeSpentMsCapNote:
+      "质数合数按局：题均耗时=整局秒数×1000/题数；超过 cap 的局不进速度常模。每人贡献 1 个合格局 meanLn。",
+    levels: [
+      {
+        levelIndex: 0,
+        cohortLnTimeCorrect: lnQ,
+        cohortLnTimeHistogram: buildLnHistogram(personLns, COHORT_HISTOGRAM_BIN_COUNT),
+      },
+    ],
+  };
+}
+
+function readCohortPrimeCompositeStatsCache() {
+  const raw = readJson(COHORT_PRIME_COMPOSITE_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortPrimeCompositeStatsCache(builtAt, result) {
+  writeJson(COHORT_PRIME_COMPOSITE_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/public/prime-composite-cohort", (req, res) => {
+  const cache = readCohortPrimeCompositeStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({
+      ok: false,
+      error: "暂无质数合数常模，请管理员在后台拉取或刷新常模后再试",
+    });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
+app.get("/api/admin/stats/prime-composite-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortPrimeCompositeStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computePrimeCompositeCohortResult();
+  const builtAt = now;
+  writeCohortPrimeCompositeStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+  });
+});
+
+app.post("/api/admin/stats/prime-composite-cohort/rebuild", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const builtAt = Date.now();
+  const result = computePrimeCompositeCohortResult();
+  writeCohortPrimeCompositeStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+    rebuilt: true,
   });
 });
 

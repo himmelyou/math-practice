@@ -2702,7 +2702,16 @@
     return Number.isFinite(score) && score >= PRIME_CLEAR_SCORE;
   }
 
-  /** 有用户索引（fromIndex）时信索引；否则扫 runs。 */
+  var PRIME_PLAYED_MIN_ATTEMPTS = 10;
+
+  function runAttemptCountForPrime(r) {
+    if (!r) return 0;
+    if (Array.isArray(r.attempts)) return r.attempts.length;
+    var n = Number(r.attemptCount);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
+
+  /** 有用户索引（fromIndex）时信索引；否则扫 runs（玩过=至少一局≥10题）。 */
   function detectPrimeFlags(runs, override) {
     if (override && (override.played === true || override.cleared === true || override.fromIndex === true)) {
       return { played: !!override.played, cleared: !!override.cleared };
@@ -2711,9 +2720,10 @@
     var cleared = false;
     (runs || []).forEach(function (r) {
       if (normalizeRunMode(r && r.mode) !== "primecomposite") return;
-      played = true;
+      if (runAttemptCountForPrime(r) >= PRIME_PLAYED_MIN_ATTEMPTS) played = true;
       if (isPrimeCompositeClearedRun(r)) cleared = true;
     });
+    if (cleared) played = true;
     return { played: played, cleared: cleared };
   }
 

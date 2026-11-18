@@ -15,8 +15,9 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="robots" content="noindex, nofollow" />
-  <!-- JML-ADMIN-STATIC-REV: 50 · L17 上线 -->
-  <meta name="jml-admin-static-rev" content="50" />
+  <!-- JML-ADMIN-STATIC-REV: 51 · 质数玩过回填 -->
+  <meta name="jml-admin-static-rev" content="51" />
+
 
   <title>后台管理 · Jarvis Math Lab</title>
   <link rel="stylesheet" href="../shared/admin-shell.css?v=2" />
@@ -24,7 +25,7 @@
   <link rel="stylesheet" href="admin-worksheet.css?v=27" />
 </head>
 <body>
-  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-50</p>
+  <p class="jml-admin-version-bar" id="jml-admin-version" title="静态资源版本；上传后若未变化请强刷缓存 (Ctrl+F5)">管理端 static-51</p>
   <div id="admin-gate-root"></div>
 
   <div id="admin-app" class="jml-shell" hidden>
@@ -333,6 +334,7 @@
         <div class="jml-panel-head">
           <button type="button" id="jml-btn-rebuild-monthly-snapshots" class="jml-btn jml-btn-primary" title="全体学员：按每月末局重建热图与概览同口径 progress（从 runs 倒推；覆盖其快照）">重建全体月度快照</button>
           <button type="button" id="jml-btn-backfill-training-l17-unlock" class="jml-btn" title="按通关证据重算全员训练 unlockedMax（可降）；修正误抬的 L17">重算训练解锁</button>
+          <button type="button" id="jml-btn-backfill-prime-played" class="jml-btn" title="按 runs 重算质数合数玩过/通关：玩过=至少一局≥10题；通关=cleared/perfect/score≥250">重算质数玩过</button>
         </div>
         <div class="jml-placeholder-panel" style="margin-top:16px;">
           <p><strong>重建全体月度快照</strong></p>
@@ -390,7 +392,7 @@
   <script src="../shared/fraction-questions.js?v=4"></script>
   <script src="../shared/factors-multiples-questions.js?v=12"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=58"></script>
+    <script src="admin-panel.js?v=59"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=32"></script>
   <script src="admin-achievements.js?v=9"></script>

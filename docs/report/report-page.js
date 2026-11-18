@@ -1953,6 +1953,9 @@
       apiFetch('/api/admin/stats/factors-multiples-cohort').catch(function (e) {
         return { ok: false, error: e.message || String(e) };
       }),
+      apiFetch('/api/admin/stats/prime-composite-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
     ])
       .then(function (results) {
         var level = results[0];
@@ -1960,12 +1963,14 @@
         var perfectSquare = results[2];
         var divisibility = results[3];
         var factorsMultiples = results[4];
+        var primeComposite = results[5];
         state.cohortByCategory = {
           arithmetic: level && level.ok ? level : null,
           decimal: decimal && decimal.ok ? decimal : null,
           perfectSquare: perfectSquare && perfectSquare.ok ? perfectSquare : null,
           divisibility: divisibility && divisibility.ok ? divisibility : null,
           factorsMultiples: factorsMultiples && factorsMultiples.ok ? factorsMultiples : null,
+          primeComposite: primeComposite && primeComposite.ok ? primeComposite : null,
         };
         state.cohort = state.cohortByCategory.arithmetic;
         var errs = [];
@@ -1985,6 +1990,11 @@
         }
         if (!state.cohortByCategory.decimal) {
           errs.push('小数：' + ((decimal && decimal.error) || '常模接口返回异常'));
+        }
+        if (!state.cohortByCategory.primeComposite) {
+          errs.push(
+            '质数合数：' + ((primeComposite && primeComposite.error) || '常模接口返回异常')
+          );
         }
         state.cohortError = errs.length ? errs.join('；') : '';
       })
@@ -2490,6 +2500,28 @@
       });
   }
 
+  /** Y0 折线：用缓存/现算的 primeComposite agg（level 0） */
+  function ensurePrimeAggFromRuns(runs) {
+    var Agg = window.JmlStatsAggregate;
+    if (!Agg) return null;
+    if (state.aggByCategory && state.aggByCategory.primeComposite) {
+      return state.aggByCategory.primeComposite;
+    }
+    if (typeof Agg.aggregatePrimeCompositeFromRuns !== 'function') return null;
+    var agg = Agg.aggregatePrimeCompositeFromRuns(runs || state.runs || []);
+    if (!state.aggByCategory) state.aggByCategory = {};
+    state.aggByCategory.primeComposite = agg;
+    return agg;
+  }
+
+  function buildPrimeY0ChartModel() {
+    var Agg = window.JmlStatsAggregate;
+    if (!Agg || typeof Agg.buildChartSeries !== 'function') return null;
+    var agg = ensurePrimeAggFromRuns(state.runs);
+    if (!agg || !agg.hasAny) return null;
+    return Agg.buildChartSeries(agg.byDay, 0, { levelCount: 1 });
+  }
+
   function ensureStudentStatsBuilt() {
     var u = state.loadedStudentUsername || state.selectedUsername;
     if (!u) return;
@@ -2512,12 +2544,19 @@
             levelCount: cat.levelCount,
           });
         });
+        if (typeof Agg.aggregatePrimeCompositeFromRuns === 'function') {
+          state.aggByCategory.primeComposite = Agg.aggregatePrimeCompositeFromRuns(runs);
+        }
       }
       var sel =
         state.selectionHint && state.selectionHint.categoryId
           ? {
               categoryId: state.selectionHint.categoryId,
-              levelIndex: Number(state.selectionHint.levelIndex) || 0,
+              levelIndex:
+                state.selectionHint.levelIndex != null &&
+                Number.isFinite(Number(state.selectionHint.levelIndex))
+                  ? Number(state.selectionHint.levelIndex)
+                  : 0,
             }
           : HM.findLatestHeatmapRelatedSelection && runs.length
             ? HM.findLatestHeatmapRelatedSelection(runs)
@@ -2526,6 +2565,8 @@
       state.chartCategoryId = sel.categoryId;
       var chartAgg = state.aggByCategory[sel.categoryId];
       var levelIdx = sel.levelIndex;
+      var selectY0 = levelIdx === -1;
+      if (levelIdx < 0) levelIdx = 0;
       if (chartAgg && chartAgg.hasAny) {
         if (!(chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0)) {
           levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
@@ -2543,15 +2584,21 @@
           }
         }
       }
-      state.statsLevelIndex = levelIdx;
-      state.agg = chartAgg || null;
-      var chartCat = HM.getHeatmapCategory(state.chartCategoryId) || {};
-      state.chartModel =
-        chartAgg && chartAgg.hasAny
-          ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
-              levelCount: chartCat.levelCount || 20,
-            })
-          : null;
+      state.statsLevelIndex = selectY0 ? -1 : levelIdx;
+      state.agg = selectY0
+        ? state.aggByCategory.primeComposite || null
+        : chartAgg || null;
+      if (selectY0) {
+        state.chartModel = buildPrimeY0ChartModel();
+      } else {
+        var chartCat = HM.getHeatmapCategory(state.chartCategoryId) || {};
+        state.chartModel =
+          chartAgg && chartAgg.hasAny
+            ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
+                levelCount: chartCat.levelCount || 20,
+              })
+            : null;
+      }
     } else if (Agg) {
       var agg = hasServerAgg
         ? state.aggByCategory.arithmetic
@@ -3290,16 +3337,33 @@
     return '';
   }
 
+  function heatCellsForDisplay(heat, categoryId) {
+    var HM = window.JmlStatsHeatmap;
+    if (HM && typeof HM.heatCellsForDisplay === 'function') {
+      return HM.heatCellsForDisplay(heat, categoryId, { forceY0: true });
+    }
+    var cells = heat && Array.isArray(heat.cells) ? heat.cells.slice() : [];
+    if (categoryId === 'factorsMultiples' && heat && heat.y0) {
+      return [heat.y0].concat(cells);
+    }
+    return cells;
+  }
+
   function buildHeatmapCellsHtmlForCategory(heat, categoryId, levelPrefix) {
-    if (!heat || !Array.isArray(heat.cells)) return '';
+    if (!heat) return '';
+    var cells = heatCellsForDisplay(heat, categoryId);
+    if (!cells.length && !(heat.y0 && categoryId === 'factorsMultiples')) return '';
     var lblAcc = rt('stats.heat.accuracy');
     var lblTime = rt('stats.heat.avgTimeCorrect');
     var lblW = rt('stats.heat.weighted');
     var prefix = levelPrefix || 'L';
     var chartCat = state.chartCategoryId;
-    return heat.cells
+    return cells
       .map(function (c) {
-        var label = prefix + (c.levelIndex + 1);
+        var label =
+          c && c.labelOverride
+            ? String(c.labelOverride)
+            : prefix + (c.levelIndex + 1);
         var cls = 'jml-heatmap-cell' + (c.active ? '' : ' inactive');
         var st = heatmapCellInlineStyle(c);
         var timeT =
@@ -3323,6 +3387,12 @@
           p: c.pText != null ? String(c.pText) : '-',
           avg: c.avgSecText != null ? String(c.avgSecText) : '-',
         });
+        var nMeta =
+          c && c.sampleUnit === 'runs'
+            ? (getReportLang() === 'en' ? 'Window runs n=' : '窗口局数 n=') +
+              (c.n != null && Number.isFinite(c.n) ? c.n : 0)
+            : (getReportLang() === 'en' ? 'Window n=' : '窗口題數 n=') +
+              (c.n != null && Number.isFinite(c.n) ? c.n : 0);
         return (
           '<div class="' +
           cls +
@@ -3334,6 +3404,7 @@
           ' data-level-index="' +
           c.levelIndex +
           '"' +
+          (c.isPrimeY0 ? ' data-prime-y0="1"' : '') +
           ' role="button" tabindex="0"' +
           (st ? ' style="' + st + '"' : '') +
           ' title="' +
@@ -3357,10 +3428,7 @@
           escapeHtml(lblW) +
           '</span></div>' +
           '<div class="jml-heatmap-cell-meta">' +
-          escapeHtml(
-            (getReportLang() === 'en' ? 'Window n=' : '窗口題數 n=') +
-              (c.n != null && Number.isFinite(c.n) ? c.n : 0)
-          ) +
+          escapeHtml(nMeta) +
           '</div>' +
           '<div class="jml-heatmap-cell-meta">' +
           escapeHtml(timeT) +
@@ -3929,7 +3997,9 @@
   function getHeatCellForLevel(levelIndex) {
     var heat =
       (state.heatByCategory && state.heatByCategory[state.chartCategoryId]) || state.heat;
-    if (!heat || !Array.isArray(heat.cells)) return null;
+    if (!heat) return null;
+    if (levelIndex === -1 && heat.y0) return heat.y0;
+    if (!Array.isArray(heat.cells)) return null;
     for (var i = 0; i < heat.cells.length; i += 1) {
       if (heat.cells[i].levelIndex === levelIndex) return heat.cells[i];
     }
@@ -3938,8 +4008,11 @@
 
   function getCohortRowForLevel(levelIndex) {
     var cohort =
-      (state.cohortByCategory && state.cohortByCategory[state.chartCategoryId]) || state.cohort;
+      levelIndex === -1
+        ? (state.cohortByCategory && state.cohortByCategory.primeComposite) || null
+        : (state.cohortByCategory && state.cohortByCategory[state.chartCategoryId]) || state.cohort;
     if (!cohort || !Array.isArray(cohort.levels)) return null;
+    if (levelIndex === -1) return cohort.levels[0] || null;
     for (var i = 0; i < cohort.levels.length; i += 1) {
       if (cohort.levels[i].levelIndex === levelIndex) return cohort.levels[i];
     }
@@ -3952,6 +4025,9 @@
     var li = state.statsLevelIndex;
     var catId = cat && cat.id ? cat.id : state.chartCategoryId;
     var prefix = (cat && cat.levelPrefix) || 'L';
+    if (li === -1 || (catId === 'factorsMultiples' && li === -1)) {
+      return getReportLang() === 'en' ? 'Y0 Prime' : 'Y0 质数合数';
+    }
     if (catId === 'decimal') {
       return DECIMAL_LEVEL_NAMES[li] || 'D' + (li + 1);
     }
@@ -4455,15 +4531,23 @@
         if (!AggInner || !state.selectedUsername) return;
         var catId = cell.getAttribute('data-category-id') || 'arithmetic';
         var idx = parseInt(cell.getAttribute('data-level-index'), 10);
+        var isPrimeY0 =
+          cell.getAttribute('data-prime-y0') === '1' ||
+          (catId === 'factorsMultiples' && idx === -1);
         var cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(catId) : null;
         var maxIdx = cat ? cat.levelCount - 1 : 19;
-        if (!Number.isFinite(idx) || idx < 0 || idx > maxIdx) return;
+        if (!isPrimeY0 && (!Number.isFinite(idx) || idx < 0 || idx > maxIdx)) return;
         state.chartCategoryId = catId;
-        state.statsLevelIndex = idx;
+        state.statsLevelIndex = isPrimeY0 ? -1 : idx;
         state.heat = (state.heatByCategory && state.heatByCategory[catId]) || state.heat;
         state.agg = (state.aggByCategory && state.aggByCategory[catId]) || state.agg;
-        state.cohort = (state.cohortByCategory && state.cohortByCategory[catId]) || state.cohort;
-        if (state.agg && state.agg.hasAny) {
+        state.cohort = isPrimeY0
+          ? (state.cohortByCategory && state.cohortByCategory.primeComposite) || null
+          : (state.cohortByCategory && state.cohortByCategory[catId]) || state.cohort;
+        if (isPrimeY0) {
+          state.agg = (state.aggByCategory && state.aggByCategory.primeComposite) || null;
+          state.chartModel = buildPrimeY0ChartModel();
+        } else if (state.agg && state.agg.hasAny) {
           state.chartModel = AggInner.buildChartSeries(state.agg.byDay, state.statsLevelIndex, {
             levelCount: cat ? cat.levelCount : 20,
           });
@@ -4507,6 +4591,8 @@
               divisibility: d && d.divisibility && d.divisibility.ok ? d.divisibility : null,
               factorsMultiples:
                 d && d.factorsMultiples && d.factorsMultiples.ok ? d.factorsMultiples : null,
+              primeComposite:
+                d && d.primeComposite && d.primeComposite.ok ? d.primeComposite : null,
             };
             state.cohortError = d && d.ok ? '' : '常模重建返回异常';
             if (state.selectedUsername) renderStatsPanel();

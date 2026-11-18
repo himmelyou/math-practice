@@ -58,9 +58,16 @@ function buildOneCategoryBlock(HM, cat, runs, cohorts, nowMs) {
       typeof HM.heatmapCellInlineStyle === "function" ? HM.heatmapCellInlineStyle(c) || "" : "";
     return Object.assign({}, c, { cellStyle: style });
   });
+  let heatOut = Object.assign({}, heat, { cells: cellsWithStyle });
+  // 质数合数虚拟 Y0：挂在因倍栏前，不改 Y1–Y6 cells
+  if (cat.id === "factorsMultiples" && typeof HM.attachPrimeY0ToFactorsHeat === "function") {
+    const primeCohortRaw = cohorts.primeComposite;
+    const primeCohort = primeCohortRaw && primeCohortRaw.ok ? primeCohortRaw : null;
+    heatOut = HM.attachPrimeY0ToFactorsHeat(heatOut, runs, primeCohort, nowMs);
+  }
   return {
     category: buildCategoryMeta(cat),
-    heat: Object.assign({}, heat, { cells: cellsWithStyle }),
+    heat: heatOut,
     cohortLoaded: !!(heat && heat.cohortLoaded),
     timeSpentMsCap: capMs,
   };
@@ -184,7 +191,10 @@ function buildUserHeatmapsCached(opts) {
   const maxRunTsByCategory = {};
   cats.forEach(function (cat) {
     if (!cat || !cat.id) return;
-    maxRunTsByCategory[cat.id] = maxRunTsForModes(runs, cat.modes);
+    // 因倍脏标记还要看质数合数局（虚拟 Y0）
+    const modes =
+      cat.id === "factorsMultiples" ? (cat.modes || []).concat(["primeComposite"]) : cat.modes;
+    maxRunTsByCategory[cat.id] = maxRunTsForModes(runs, modes);
   });
 
   const snap = !force && cache && username ? cache.get(username) : null;
@@ -205,7 +215,9 @@ function buildUserHeatmapsCached(opts) {
         : 0;
     const cachedLc = hasBlock ? heat.cells.length : 0;
     const levelCountMismatch = expectLc > 0 && cachedLc !== expectLc;
-    if (force || !hasBlock || maxTs > prevTs || levelCountMismatch) dirtyIds.push(cat.id);
+    const y0Missing =
+      cat.id === "factorsMultiples" && hasBlock && !(heat.y0 && typeof heat.y0 === "object");
+    if (force || !hasBlock || maxTs > prevTs || levelCountMismatch || y0Missing) dirtyIds.push(cat.id);
   });
 
   if (snap && dirtyIds.length === 0) {

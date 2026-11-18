@@ -109,6 +109,87 @@
     return null;
   }
 
+  var PRIME_RUN_MIN_ATTEMPTS = 10;
+  var PRIME_MS_PER_Q_CAP = 60 * 1000;
+
+  function runAttemptCount(r) {
+    if (!r) return 0;
+    if (Array.isArray(r.attempts)) return r.attempts.length;
+    var n = Number(r.attemptCount);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
+
+  function runDurationSec(r) {
+    if (!r) return null;
+    var a = Number(r.survivalTimeSec);
+    if (Number.isFinite(a) && a > 0) return a;
+    var b = Number(r.durationSec);
+    if (Number.isFinite(b) && b > 0) return b;
+    return null;
+  }
+
+  /**
+   * 质数合数折线聚合（单档）：只收 attempts≥10 的局；正确率按题；
+   * 速度用整局题均耗时 ln(ms/题)（写入每道答对，均值为题均）。
+   */
+  function aggregatePrimeCompositeFromRuns(runs, opts) {
+    opts = opts || {};
+    var levelCount = 1;
+    var msCap =
+      Number(opts.maxMsPerQuestion) > 0 ? Number(opts.maxMsPerQuestion) : PRIME_MS_PER_Q_CAP;
+    var minAtt =
+      Number(opts.minAttemptsPerRun) > 0
+        ? Math.floor(Number(opts.minAttemptsPerRun))
+        : PRIME_RUN_MIN_ATTEMPTS;
+    var byLevel = [emptyLevelAgg()];
+    var byDay = {};
+
+    filterRunsByModes(runs, ['primeComposite']).forEach(function (r) {
+      var n = runAttemptCount(r);
+      if (!(n >= minAtt) || !Array.isArray(r.attempts)) return;
+      var ts = r.ts || 0;
+      var d = new Date(ts);
+      var dateStr =
+        d.getFullYear() +
+        '-' +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        '-' +
+        String(d.getDate()).padStart(2, '0');
+      if (!byDay[dateStr]) {
+        byDay[dateStr] = [emptyLevelAgg()];
+      }
+      var durSec = runDurationSec(r);
+      var msPerQ = durSec != null && n > 0 ? (durSec * 1000) / n : null;
+      var speedOk =
+        msPerQ != null && Number.isFinite(msPerQ) && msPerQ > 0 && msPerQ <= msCap;
+      var ln = speedOk ? Math.log(msPerQ) : null;
+
+      r.attempts.forEach(function (a) {
+        byLevel[0].total += 1;
+        byDay[dateStr][0].total += 1;
+        if (a && a.correct) {
+          byLevel[0].correct += 1;
+          byDay[dateStr][0].correct += 1;
+          if (ln != null) {
+            byLevel[0].sumLnMs += ln;
+            byLevel[0].nSpeed += 1;
+            byDay[dateStr][0].sumLnMs += ln;
+            byDay[dateStr][0].nSpeed += 1;
+          }
+        }
+      });
+    });
+
+    return {
+      byLevel: byLevel,
+      byDay: byDay,
+      hasAny: byLevel[0].total > 0,
+      levelCount: levelCount,
+      maxTimeSpentMs: msCap,
+      sampleUnit: 'primeRuns',
+    };
+  }
+
   /**
    * @param {Array} runs
    * @param {{ levelCount?: number, modes?: string[], maxTimeSpentMs?: number, resolveAttemptLevelIndex?: function }} [opts]
@@ -281,12 +362,15 @@
     CHART_PRACTICE_DAYS: CHART_PRACTICE_DAYS,
     CHART_MIN_ATTEMPTS: CHART_MIN_ATTEMPTS,
     DEFAULT_MAX_TIME_SPENT_MS: DEFAULT_MAX_TIME_SPENT_MS,
+    PRIME_RUN_MIN_ATTEMPTS: PRIME_RUN_MIN_ATTEMPTS,
+    PRIME_MS_PER_Q_CAP: PRIME_MS_PER_Q_CAP,
     normalizeMode: normalizeMode,
     filterRunsByModes: filterRunsByModes,
     filterArithmeticRuns: filterArithmeticRuns,
     filterDecimalRuns: filterDecimalRuns,
     geoMeanSecFromAttempts: geoMeanSecFromAttempts,
     aggregateFromRuns: aggregateFromRuns,
+    aggregatePrimeCompositeFromRuns: aggregatePrimeCompositeFromRuns,
     buildChartSeries: buildChartSeries,
     buildTableRows: buildTableRows,
     firstLevelWithData: firstLevelWithData,

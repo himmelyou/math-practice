@@ -19,7 +19,7 @@
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
 
-  /** 热图分类注册表（拆括号仅补 attempt，暂不进热图）；顺序按学习难度：四则→平方数→整除→因数倍数→小数 */
+  /** 热图分类注册表（拆括号仅补 attempt，暂不进热图）；质数合数以虚拟 Y0 挂在因倍栏前。顺序：四则→平方数→整除→因数倍数→小数 */
   var HEATMAP_CATEGORIES = [
     {
       id: 'arithmetic',
@@ -67,6 +67,12 @@
       cohortKind: 'decimal',
     },
   ];
+
+  /** 质数合数 Y0：按局统计；&lt;10 题放弃局不计；窗 10 局；题数加权 + 天衰减 */
+  var PRIME_RUN_MIN_ATTEMPTS = 10;
+  var PRIME_WINDOW_RUNS = 10;
+  /** 题均耗时上限（排除挂机）；超过则该局不进速度侧 */
+  var PRIME_MS_PER_Q_CAP = 60 * 1000;
 
   function normalizeMode(mode) {
     return String(mode || 'survival')
@@ -121,24 +127,228 @@
 
   function isHeatmapRelatedRun(r) {
     if (!r || r.comboOnly === true) return false;
+    if (normalizeMode(r.mode) === 'primecomposite') return true;
     return !!categoryForMode(r.mode);
+  }
+
+  function runAttemptCount(r) {
+    if (!r) return 0;
+    if (Array.isArray(r.attempts)) return r.attempts.length;
+    var n = Number(r.attemptCount);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
+
+  function runDurationSec(r) {
+    if (!r) return null;
+    var a = Number(r.survivalTimeSec);
+    if (Number.isFinite(a) && a > 0) return a;
+    var b = Number(r.durationSec);
+    if (Number.isFinite(b) && b > 0) return b;
+    return null;
+  }
+
+  /** 质数合数合格局：mode 匹配且 attempt≥10（&lt;10 的放弃局不计） */
+  function isPrimeQualifyingRun(r) {
+    if (!r || r.comboOnly === true) return false;
+    if (normalizeMode(r.mode) !== 'primecomposite') return false;
+    return runAttemptCount(r) >= PRIME_RUN_MIN_ATTEMPTS;
+  }
+
+  function hasPrimeQualifyingHistory(runs) {
+    var list = runs || [];
+    for (var i = 0; i < list.length; i += 1) {
+      if (isPrimeQualifyingRun(list[i])) return true;
+    }
+    return false;
+  }
+
+  function emptyPrimeY0Cell() {
+    return {
+      levelIndex: -1,
+      active: false,
+      n: 0,
+      p: null,
+      pText: '-',
+      meanLnCorrect: null,
+      medianLnCorrect: null,
+      timePct: null,
+      tooSlow: null,
+      accurate: false,
+      fluent: false,
+      nEff: null,
+      ageDaysMin: null,
+      ageDaysMax: null,
+      avgSecText: '-',
+      isPrimeY0: true,
+      sampleUnit: 'runs',
+      labelOverride: 'Y0',
+    };
+  }
+
+  /**
+   * 质数合数虚拟 Y0：按局正确率 ×（天衰减×题数）加权；速度用题均耗时 ln(ms/题)。
+   * @returns {{ cell: object, hasHistory: boolean }}
+   */
+  function buildPrimeY0Cell(opts) {
+    opts = opts || {};
+    var nowMs = Number(opts.nowTs) && Number.isFinite(Number(opts.nowTs)) ? Number(opts.nowTs) : Date.now();
+    var halfLife =
+      Number(opts.personalHalfLifeDays) > 0 ? Number(opts.personalHalfLifeDays) : PERSONAL_HALF_LIFE_DAYS;
+    var lambda = Math.LN2 / halfLife;
+    var windowMax =
+      Number(opts.personalWindowRuns) > 0
+        ? Math.min(50, Math.floor(Number(opts.personalWindowRuns)))
+        : PRIME_WINDOW_RUNS;
+    var msCap =
+      Number(opts.maxMsPerQuestion) > 0
+        ? Number(opts.maxMsPerQuestion)
+        : PRIME_MS_PER_Q_CAP;
+    var cohort = opts.cohort && opts.cohort.ok !== false ? opts.cohort : null;
+    var cohortRow =
+      cohort && Array.isArray(cohort.levels) && cohort.levels[0] ? cohort.levels[0] : {};
+    var lnQ = cohortRow.cohortLnTimeCorrect || null;
+
+    var allQual = [];
+    (opts.runs || []).forEach(function (r) {
+      if (!isPrimeQualifyingRun(r)) return;
+      var n = runAttemptCount(r);
+      if (!(n >= PRIME_RUN_MIN_ATTEMPTS)) return;
+      var correct = 0;
+      if (Array.isArray(r.attempts)) {
+        for (var i = 0; i < r.attempts.length; i += 1) {
+          if (r.attempts[i] && r.attempts[i].correct) correct += 1;
+        }
+      } else {
+        return;
+      }
+      var durSec = runDurationSec(r);
+      var msPerQ = durSec != null && n > 0 ? (durSec * 1000) / n : null;
+      allQual.push({
+        runTs: Number(r.ts) || 0,
+        n: n,
+        p: correct / n,
+        msPerQ: msPerQ,
+      });
+    });
+    allQual.sort(function (a, b) {
+      return a.runTs - b.runTs;
+    });
+    var hasHistory = allQual.length > 0;
+    var slice = allQual.length > windowMax ? allQual.slice(allQual.length - windowMax) : allQual;
+    if (!slice.length) {
+      return { cell: emptyPrimeY0Cell(), hasHistory: hasHistory };
+    }
+
+    var sumW = 0;
+    var sumWP = 0;
+    var sumWLn = 0;
+    var sumWLnDen = 0;
+    var sumW2 = 0;
+    var minAge = null;
+    var maxAge = null;
+    for (var j = 0; j < slice.length; j += 1) {
+      var it = slice[j];
+      var ageDays = it.runTs > 0 ? Math.max(0, Math.floor((nowMs - it.runTs) / MS_PER_DAY)) : 0;
+      var w = Math.exp(-lambda * ageDays) * it.n;
+      if (!(w > 0) || !Number.isFinite(w)) continue;
+      sumW += w;
+      sumWP += w * it.p;
+      sumW2 += w * w;
+      if (minAge === null || ageDays < minAge) minAge = ageDays;
+      if (maxAge === null || ageDays > maxAge) maxAge = ageDays;
+      if (it.msPerQ != null && Number.isFinite(it.msPerQ) && it.msPerQ > 0 && it.msPerQ <= msCap) {
+        sumWLnDen += w;
+        sumWLn += w * Math.log(it.msPerQ);
+      }
+    }
+
+    var p = sumW > 0 ? sumWP / sumW : null;
+    var meanLn = sumWLnDen > 0 ? sumWLn / sumWLnDen : null;
+    var active = slice.length >= 1;
+    var timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
+    var tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
+    var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
+    var fluent = accurate && tooSlow !== true;
+    var avgSecText = '-';
+    if (meanLn != null && Number.isFinite(meanLn)) {
+      var geoMeanMs = Math.exp(meanLn);
+      var secDisplay = geoMeanMs / 1000;
+      if (secDisplay > 0 && secDisplay < 600 && Number.isFinite(secDisplay)) {
+        avgSecText = String(Math.round(secDisplay * 10) / 10) + 's';
+      }
+    }
+
+    return {
+      cell: {
+        levelIndex: -1,
+        active: active,
+        n: slice.length,
+        p: p,
+        pText: p != null ? (Math.round(p * 1000) / 10).toFixed(1) + '%' : '-',
+        meanLnCorrect: meanLn,
+        medianLnCorrect: meanLn,
+        timePct: timePct,
+        tooSlow: tooSlow,
+        accurate: accurate,
+        fluent: fluent,
+        nEff: sumW2 > 0 && sumW > 0 ? Math.round(((sumW * sumW) / sumW2) * 10) / 10 : slice.length,
+        ageDaysMin: minAge,
+        ageDaysMax: maxAge,
+        avgSecText: avgSecText,
+        isPrimeY0: true,
+        sampleUnit: 'runs',
+        labelOverride: 'Y0',
+      },
+      hasHistory: hasHistory,
+    };
+  }
+
+  /** 把 Y0 挂到因倍 heat 上（不改 cells 长度 / Y1–Y6 index） */
+  function attachPrimeY0ToFactorsHeat(heat, runs, primeCohort, nowMs) {
+    var base = heat && typeof heat === 'object' ? heat : { cells: [] };
+    var built = buildPrimeY0Cell({
+      runs: runs,
+      cohort: primeCohort,
+      nowTs: nowMs,
+    });
+    var style =
+      typeof heatmapCellInlineStyle === 'function' ? heatmapCellInlineStyle(built.cell) || '' : '';
+    base.y0 = Object.assign({}, built.cell, { cellStyle: style });
+    base.y0HasHistory = !!built.hasHistory;
+    return base;
+  }
+
+  /** 展示用格子：因倍在可见时前置 Y0 */
+  function heatCellsForDisplay(heat, categoryId, opts) {
+    opts = opts || {};
+    var cells = heat && Array.isArray(heat.cells) ? heat.cells.slice() : [];
+    if (categoryId !== 'factorsMultiples' || !heat || !heat.y0) return cells;
+    var show = opts.forceY0 === true || heat.y0HasHistory === true;
+    if (!show) return cells;
+    return [heat.y0].concat(cells);
   }
 
   /** 最近一局热图相关练习 → 默认展开分类 + 折线关卡 */
   function findLatestHeatmapRelatedSelection(runs) {
     var best = null;
     var bestCat = null;
+    var bestIsPrime = false;
     (runs || []).forEach(function (r) {
       if (!isHeatmapRelatedRun(r)) return;
-      var cat = categoryForMode(r.mode);
+      var isPrime = normalizeMode(r.mode) === 'primecomposite';
+      var cat = isPrime ? getHeatmapCategory('factorsMultiples') : categoryForMode(r.mode);
       if (!cat) return;
       if (!best || (Number(r.ts) || 0) > (Number(best.ts) || 0)) {
         best = r;
         bestCat = cat;
+        bestIsPrime = isPrime;
       }
     });
     if (!best || !bestCat) {
       return { categoryId: 'arithmetic', levelIndex: 0, run: null };
+    }
+    if (bestIsPrime) {
+      return { categoryId: 'factorsMultiples', levelIndex: -1, run: best };
     }
     var levelIndex = 0;
     if (bestCat.id === 'divisibility' && Array.isArray(best.attempts) && best.attempts.length) {
@@ -1289,10 +1499,19 @@
     MS_PER_DAY: MS_PER_DAY,
     PERSONAL_WINDOW_ATTEMPTS: PERSONAL_WINDOW_ATTEMPTS,
     PERSONAL_HALF_LIFE_DAYS: PERSONAL_HALF_LIFE_DAYS,
+    PRIME_RUN_MIN_ATTEMPTS: PRIME_RUN_MIN_ATTEMPTS,
+    PRIME_WINDOW_RUNS: PRIME_WINDOW_RUNS,
+    PRIME_MS_PER_Q_CAP: PRIME_MS_PER_Q_CAP,
     normalizeMode: normalizeMode,
     filterRunsByModes: filterRunsByModes,
     filterArithmeticRuns: filterArithmeticRuns,
     filterDecimalRuns: filterDecimalRuns,
+    runAttemptCount: runAttemptCount,
+    isPrimeQualifyingRun: isPrimeQualifyingRun,
+    hasPrimeQualifyingHistory: hasPrimeQualifyingHistory,
+    buildPrimeY0Cell: buildPrimeY0Cell,
+    attachPrimeY0ToFactorsHeat: attachPrimeY0ToFactorsHeat,
+    heatCellsForDisplay: heatCellsForDisplay,
     buildHeatmapCells: buildHeatmapCells,
     recommendLevelIndex: recommendLevelIndex,
     recommendLevelIndexAccuracyBrush: recommendLevelIndexAccuracyBrush,

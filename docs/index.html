@@ -5937,8 +5937,8 @@
   <script src="prime-composite-logic.js?v=43"></script>
   <script src="shared/player-level.js?v=1"></script>
   <script src="shared/stats-i18n-pack.js?v=73"></script>
-  <script src="stats-heatmap-browser.js?v=77"></script>
-  <script src="stats-aggregate-browser.js?v=53"></script>
+  <script src="stats-heatmap-browser.js?v=78"></script>
+  <script src="stats-aggregate-browser.js?v=54"></script>
   <script src="stats-chart-browser.js?v=59"></script>
   <script src="shared/arithmetic-questions.js?v=50"></script>
   <script src="shared/expand-brackets-questions.js?v=48"></script>
@@ -16963,23 +16963,37 @@
       return cat.labelFallback || cat.id;
     }
 
+    function studentHeatCellsForDisplay(heat, categoryId) {
+      const HM = window.JmlStatsHeatmap;
+      if (HM && typeof HM.heatCellsForDisplay === "function") {
+        return HM.heatCellsForDisplay(heat, categoryId, { forceY0: false });
+      }
+      const cells = heat && Array.isArray(heat.cells) ? heat.cells.slice() : [];
+      if (categoryId === "factorsMultiples" && heat && heat.y0 && heat.y0HasHistory) {
+        return [heat.y0].concat(cells);
+      }
+      return cells;
+    }
+
     function buildStudentStatsHeatmapCellsHtml(heat, categoryId, levelPrefix) {
-      if (!heat || !Array.isArray(heat.cells)) return "";
+      if (!heat) return "";
       const lblAcc = t("stats.heat.accuracy");
       const lblTime = t("stats.heat.avgTimeCorrect");
       const prefix = levelPrefix || "L";
       const chartCat = studentStatsState.chartCategoryId;
       const Ar = window.JmlArithmetic;
       const unlockedRaw = getTrainingUnlockedMaxRaw();
-      const cells =
-        categoryId === "arithmetic" && Ar && typeof Ar.studentHeatCellVisible === "function"
-          ? heat.cells.filter(function (c) {
-              return Ar.studentHeatCellVisible(c && c.levelIndex, unlockedRaw);
-            })
-          : heat.cells;
+      let cells = studentHeatCellsForDisplay(heat, categoryId);
+      if (categoryId === "arithmetic" && Ar && typeof Ar.studentHeatCellVisible === "function") {
+        cells = cells.filter(function (c) {
+          if (c && c.isPrimeY0) return true;
+          return Ar.studentHeatCellVisible(c && c.levelIndex, unlockedRaw);
+        });
+      }
       return cells
         .map(function (c) {
-          const label = prefix + (c.levelIndex + 1);
+          const label =
+            c && c.labelOverride ? String(c.labelOverride) : prefix + (c.levelIndex + 1);
           const cls = "stats-heat-cell" + (c.active ? "" : " inactive");
           const st = studentHeatmapCellStyle(c);
           const sel =
@@ -17003,7 +17017,9 @@
             escapeHtml(categoryId) +
             '" data-level-index="' +
             c.levelIndex +
-            '" role="button" tabindex="0" title="' +
+            '"' +
+            (c.isPrimeY0 ? ' data-prime-y0="1"' : "") +
+            ' role="button" tabindex="0" title="' +
             title +
             '"' +
             (st ? ' style="' + st + '"' : "") +
@@ -17088,6 +17104,7 @@
       const HM = window.JmlStatsHeatmap;
       const i = studentStatsState.statsLevelIndex;
       const cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(studentStatsState.chartCategoryId) : null;
+      if (i === -1) return currentLang === "en" ? "Y0 Prime" : "Y0 质数合数";
       if (!cat || cat.id === "arithmetic") return getLevelDisplayName(i);
       if (cat.id === "decimal" && window.JmlDecimal && Array.isArray(JmlDecimal.LEVEL_LABELS)) {
         return JmlDecimal.LEVEL_LABELS[i] || "D" + (i + 1);
@@ -17162,17 +17179,36 @@
       }
     }
 
+    function buildStudentPrimeY0ChartModel() {
+      const Agg = window.JmlStatsAggregate;
+      if (!Agg || typeof Agg.buildChartSeries !== "function") return null;
+      let agg = studentStatsState.aggByCategory && studentStatsState.aggByCategory.primeComposite;
+      if (!agg && typeof Agg.aggregatePrimeCompositeFromRuns === "function") {
+        agg = Agg.aggregatePrimeCompositeFromRuns(studentStatsState.runs || []);
+        if (!studentStatsState.aggByCategory) studentStatsState.aggByCategory = {};
+        studentStatsState.aggByCategory.primeComposite = agg;
+      }
+      if (!agg || !agg.hasAny) return null;
+      return Agg.buildChartSeries(agg.byDay, 0, { levelCount: 1 });
+    }
+
     function selectStudentStatsLevel(categoryId, levelIdx) {
       const HM = window.JmlStatsHeatmap;
       const cat = HM && HM.getHeatmapCategory ? HM.getHeatmapCategory(categoryId) : null;
       if (!cat) return;
+      const isPrimeY0 = categoryId === "factorsMultiples" && levelIdx === -1;
       const maxIdx = (cat.levelCount || 16) - 1;
-      if (!Number.isFinite(levelIdx) || levelIdx < 0 || levelIdx > maxIdx) return;
+      if (!isPrimeY0 && (!Number.isFinite(levelIdx) || levelIdx < 0 || levelIdx > maxIdx)) return;
       studentStatsState.chartCategoryId = categoryId;
-      studentStatsState.statsLevelIndex = levelIdx;
+      studentStatsState.statsLevelIndex = isPrimeY0 ? -1 : levelIdx;
       studentStatsState.heat = studentStatsState.heatByCategory[categoryId] || null;
-      rebuildStudentStatsChartModel();
-      setStudentStatsHeatmapSelection(categoryId, levelIdx);
+      if (isPrimeY0) {
+        studentStatsState.agg = studentStatsState.aggByCategory.primeComposite || null;
+        studentStatsState.chartModel = buildStudentPrimeY0ChartModel();
+      } else {
+        rebuildStudentStatsChartModel();
+      }
+      setStudentStatsHeatmapSelection(categoryId, studentStatsState.statsLevelIndex);
       updateStudentStatsChartTitle();
       requestAnimationFrame(drawStudentStatsChart);
     }
@@ -17258,7 +17294,14 @@
         }
         studentStatsState.aggByCategory[cat.id] = agg;
         if (agg.hasAny) anyData = true;
+        if (cat.id === "factorsMultiples" && heat && heat.y0HasHistory) anyData = true;
       });
+      studentStatsState.runs = Array.isArray(runs) ? runs : [];
+      if (Agg && typeof Agg.aggregatePrimeCompositeFromRuns === "function") {
+        const primeAgg = Agg.aggregatePrimeCompositeFromRuns(runs || []);
+        studentStatsState.aggByCategory.primeComposite = primeAgg;
+        if (primeAgg && primeAgg.hasAny) anyData = true;
+      }
 
       if (!anyData) {
         heatHost.style.display = "none";
@@ -17273,6 +17316,8 @@
       studentStatsState.expandedCategoryId = sel.categoryId;
       studentStatsState.chartCategoryId = sel.categoryId;
       let levelIdx = sel.levelIndex;
+      const highlightY0 = levelIdx === -1;
+      if (levelIdx < 0) levelIdx = 0;
       const chartAgg = studentStatsState.aggByCategory[sel.categoryId];
       if (chartAgg && chartAgg.hasAny) {
         const hasThat =
@@ -17290,9 +17335,14 @@
           }
         }
       }
-      studentStatsState.statsLevelIndex = levelIdx;
+      studentStatsState.statsLevelIndex = highlightY0 ? -1 : levelIdx;
       studentStatsState.heat = studentStatsState.heatByCategory[studentStatsState.chartCategoryId] || null;
-      rebuildStudentStatsChartModel();
+      if (highlightY0) {
+        studentStatsState.agg = studentStatsState.aggByCategory.primeComposite || null;
+        studentStatsState.chartModel = buildStudentPrimeY0ChartModel();
+      } else {
+        rebuildStudentStatsChartModel();
+      }
 
       empty.style.display = "none";
       heatHost.innerHTML = buildStudentStatsCategoriesHtml();
