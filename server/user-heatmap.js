@@ -198,6 +198,15 @@ function buildUserHeatmapsCached(opts) {
   });
 
   const snap = !force && cache && username ? cache.get(username) : null;
+  const expectCohort =
+    opts.cohortBuiltAt != null && Number.isFinite(Number(opts.cohortBuiltAt))
+      ? Number(opts.cohortBuiltAt)
+      : 0;
+  const snapCohort =
+    snap && snap.cohortBuiltAt != null && Number.isFinite(Number(snap.cohortBuiltAt))
+      ? Number(snap.cohortBuiltAt)
+      : 0;
+  const cohortStale = expectCohort > 0 && snapCohort !== expectCohort;
   const dirtyIds = [];
   cats.forEach(function (cat) {
     if (!cat || !cat.id) return;
@@ -217,7 +226,9 @@ function buildUserHeatmapsCached(opts) {
     const levelCountMismatch = expectLc > 0 && cachedLc !== expectLc;
     const y0Missing =
       cat.id === "factorsMultiples" && hasBlock && !(heat.y0 && typeof heat.y0 === "object");
-    if (force || !hasBlock || maxTs > prevTs || levelCountMismatch || y0Missing) dirtyIds.push(cat.id);
+    if (force || cohortStale || !hasBlock || maxTs > prevTs || levelCountMismatch || y0Missing) {
+      dirtyIds.push(cat.id);
+    }
   });
 
   if (snap && dirtyIds.length === 0) {
@@ -252,6 +263,7 @@ function buildUserHeatmapsCached(opts) {
         byCategory: byCategory,
         categories: categoriesMeta,
         maxRunTsByCategory: maxRunTsByCategory,
+        cohortBuiltAt: expectCohort > 0 ? expectCohort : snapCohort || 0,
         selectionHint:
           (opts.selectionHint && typeof opts.selectionHint === "object"
             ? opts.selectionHint

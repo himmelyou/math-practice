@@ -221,6 +221,19 @@ function tryLoadStatsViewFromCache(opts) {
   if (!snapCoversUserIndexes(user, heatSnap, aggSnap)) {
     return { ok: false, fresh: false, heatSnap: heatSnap, aggSnap: aggSnap };
   }
+  const expectCohort =
+    opts.cohortBuiltAt != null && Number.isFinite(Number(opts.cohortBuiltAt))
+      ? Number(opts.cohortBuiltAt)
+      : 0;
+  if (expectCohort > 0) {
+    const snapCohort =
+      heatSnap && heatSnap.cohortBuiltAt != null && Number.isFinite(Number(heatSnap.cohortBuiltAt))
+        ? Number(heatSnap.cohortBuiltAt)
+        : 0;
+    if (snapCohort !== expectCohort) {
+      return { ok: false, fresh: false, heatSnap: heatSnap, aggSnap: aggSnap, cohortStale: true };
+    }
+  }
   const heatPayload = heatPayloadFromSnap(username, heatSnap);
   if (!heatPayload) return { ok: false, fresh: false };
   return {
@@ -263,6 +276,10 @@ function materializeStatsViewFromRuns(opts) {
     cohortsByCategory: cohortsByCategory,
     cache: heatmapCache,
     force: force,
+    cohortBuiltAt:
+      opts.cohortBuiltAt != null && Number.isFinite(Number(opts.cohortBuiltAt))
+        ? Number(opts.cohortBuiltAt)
+        : 0,
   });
   const aggBuilt = buildUserAggCached({
     username: username,

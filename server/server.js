@@ -1044,6 +1044,24 @@ function cohortsByCategoryForHeatmap() {
   };
 }
 
+/** 各模式常模缓存 builtAt 的最大值；热图快照与之对照，常模重建后旧快照失效 */
+function currentCohortGenerationMs() {
+  const caches = [
+    readCohortLevelStatsCache(),
+    readCohortDecimalStatsCache(),
+    readCohortPerfectSquareStatsCache(),
+    readCohortDivisibilityStatsCache(),
+    readCohortFactorsMultiplesStatsCache(),
+    readCohortPrimeCompositeStatsCache(),
+  ];
+  let max = 0;
+  for (let i = 0; i < caches.length; i += 1) {
+    const c = caches[i];
+    if (c && typeof c.builtAt === "number" && c.builtAt > max) max = c.builtAt;
+  }
+  return max;
+}
+
 /** 管理端报表用：去掉 attempts，只保留 attemptCount（显著缩小 JSON） */
 function slimRunForAdminReport(run) {
   if (!run || typeof run !== "object") return run;
@@ -1077,6 +1095,7 @@ function buildHeatmapPayloadFromRuns(username, runs, opts) {
     cohortsByCategory: cohortsByCategoryForHeatmap(),
     cache: heatmapUserCache,
     force: opts.force === true,
+    cohortBuiltAt: currentCohortGenerationMs(),
   });
   return {
     ok: !!built.ok,
@@ -1097,10 +1116,18 @@ function buildHeatmapPayloadForUsername(username) {
   return buildHeatmapPayloadFromRuns(username, getNormalizedUserRunsSorted(username));
 }
 
-/** 仅读热图快照（不扫 runs）；无快照返回 null */
+/** 仅读热图快照（不扫 runs）；无快照或常模世代不符返回 null */
 function buildHeatmapPayloadFromCacheOnly(username) {
   const snap = heatmapUserCache.get(username);
   if (!snap || !snap.byCategory || typeof snap.byCategory !== "object") return null;
+  const expectCohort = currentCohortGenerationMs();
+  if (expectCohort > 0) {
+    const snapCohort =
+      snap.cohortBuiltAt != null && Number.isFinite(Number(snap.cohortBuiltAt))
+        ? Number(snap.cohortBuiltAt)
+        : 0;
+    if (snapCohort !== expectCohort) return null;
+  }
   const keys = Object.keys(snap.byCategory);
   if (!keys.length) return null;
   return {
@@ -1493,12 +1520,15 @@ function buildStudentWorkspaceForUsername(username, opts) {
   let statsCacheHit = false;
   let userDirty = false;
 
+  const cohortGen = currentCohortGenerationMs();
+
   if (wantStats && !forceStats) {
     const cached = statsView.tryLoadStatsViewFromCache({
       username,
       user,
       heatmapCache: heatmapUserCache,
       aggCache: aggUserCache,
+      cohortBuiltAt: cohortGen,
     });
     if (cached && cached.fresh) {
       heatPayload = cached.heatPayload;
@@ -1530,6 +1560,7 @@ function buildStudentWorkspaceForUsername(username, opts) {
       aggCache: aggUserCache,
       cohortsByCategory: cohortsByCategoryForHeatmap(),
       force: forceStats,
+      cohortBuiltAt: cohortGen,
     });
     heatPayload = built.heatPayload;
     aggByCategory = built.aggByCategory || {};
@@ -2888,7 +2919,7 @@ function createRankingLookupContext(req) {
         const u = userByName[payload.username];
         rankingFullList = !!(u && u.isTester === true);
       }
-  } catch (e) {
+    } catch (e) {
       rankingFullList = false;
     }
   }
@@ -4177,7 +4208,7 @@ app.get("/api/user/:username/decimal/next-level", requireStudentAuth, ensureOwnD
       source: "server",
       levelIndex: pick.levelIndex,
       reason: pick.reason,
-      mode: pick.mode,
+    mode: pick.mode,
       cleared: !!pick.cleared,
       unlockedMax: pick.unlockedMax,
       playableMax: pick.playableMax,
@@ -4230,7 +4261,7 @@ app.get("/api/user/:username/divisibility/next-level", requireStudentAuth, ensur
       ok: true,
       source: "server",
       levelIndex: pick.levelIndex,
-      reason: pick.reason,
+    reason: pick.reason,
       mode: pick.mode,
       cleared: !!pick.cleared,
       unlockedMax: pick.unlockedMax,
@@ -4473,7 +4504,7 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
       }
     }
     if (!comboOnly) {
-    u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+      u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
       achievementEngine.bumpAchievementStatsFromRun(u, runEntry);
       // 增量维护耐力字段：同一天仅记一次，连续天数按中国日期推进
       bumpUserStreakByDate(u, toChinaDateKey(runEntry.ts));
@@ -6034,11 +6065,11 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   });
   return res.json({
     ...result,
-    builtAt,
-    ttlMs: COHORT_STATS_TTL_MS,
-    expiresAt: builtAt + COHORT_STATS_TTL_MS,
-    servedFromCache: false,
-    rebuilt: true,
+      builtAt,
+      ttlMs: COHORT_STATS_TTL_MS,
+      expiresAt: builtAt + COHORT_STATS_TTL_MS,
+      servedFromCache: false,
+      rebuilt: true,
     decimal: wrapExtra(decimalResult),
     perfectSquare: wrapExtra(perfectSquareResult),
     divisibility: wrapExtra(divisibilityResult),

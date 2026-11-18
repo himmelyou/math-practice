@@ -166,6 +166,10 @@
     overviewMaxLastGameTs: 0,
     /** 概览同步时的四则常模 builtAt */
     overviewCohortBuiltAt: 0,
+    /** 当前已加载常模世代（各模式 builtAt 最大值）；个人 bag / 热图与之对照 */
+    cohortGenerationMs: 0,
+    /** 当前学员热图物化时对照的常模世代 */
+    loadedStatsCohortBuiltAt: 0,
     overviewSortKey: 'lastGameTs',
     overviewSortDir: 'desc',
     overviewColOrder: null,
@@ -1075,7 +1079,13 @@
     syncReportQueryInUrl({ tab: next });
     syncRefreshStudentBtn(false);
     if (next === 'overview') {
-      void ensureOverviewForCurrentSelection(false);
+      var arithBuilt = arithmeticCohortBuiltAt();
+      var ovBuilt = Number(state.overviewCohortBuiltAt) || 0;
+      var forceOv =
+        state.overviewComplete &&
+        arithBuilt > 0 &&
+        (ovBuilt === 0 || ovBuilt !== arithBuilt);
+      void ensureOverviewForCurrentSelection(forceOv);
       return;
     }
     if (!state.selectedUsername) {
@@ -1927,6 +1937,56 @@
       });
   }
 
+  function cohortGenerationFromMap(map) {
+    var max = 0;
+    Object.keys(map || {}).forEach(function (k) {
+      var c = map[k];
+      var b = c && Number(c.builtAt);
+      if (Number.isFinite(b) && b > max) max = b;
+    });
+    return max;
+  }
+
+  function clearAllStudentBagCaches() {
+    state.studentBagCache = Object.create(null);
+    state.studentBagCacheOrder = [];
+  }
+
+  function applyCohortByCategory(map, opts) {
+    opts = opts || {};
+    var prev = Number(state.cohortGenerationMs) || 0;
+    state.cohortByCategory = map && typeof map === 'object' ? map : {};
+    state.cohort = state.cohortByCategory.arithmetic || null;
+    var next = cohortGenerationFromMap(state.cohortByCategory);
+    state.cohortGenerationMs = next;
+    if (opts.invalidateBagsIfChanged && next > 0 && prev > 0 && next !== prev) {
+      clearAllStudentBagCaches();
+      state.loadedStatsCohortBuiltAt = 0;
+    }
+    return next;
+  }
+
+  function isCohortStaleForLoadedStats() {
+    var live = Number(state.cohortGenerationMs) || 0;
+    if (!(live > 0)) return false;
+    var stamped = Number(state.loadedStatsCohortBuiltAt) || 0;
+    return stamped !== live;
+  }
+
+  function isStudentBagCohortStale(bag) {
+    var live = Number(state.cohortGenerationMs) || 0;
+    if (!(live > 0) || !bag) return false;
+    var stamped = Number(bag.cohortBuiltAt) || 0;
+    return stamped !== live;
+  }
+
+  function arithmeticCohortBuiltAt() {
+    var c = state.cohortByCategory && state.cohortByCategory.arithmetic;
+    var b = c && Number(c.builtAt);
+    if (Number.isFinite(b) && b > 0) return b;
+    return Number(state.cohortGenerationMs) || 0;
+  }
+
   function loadLevelCohort() {
     state.cohortError = '';
     return Promise.all([
@@ -1956,15 +2016,17 @@
         var divisibility = results[3];
         var factorsMultiples = results[4];
         var primeComposite = results[5];
-        state.cohortByCategory = {
-          arithmetic: level && level.ok ? level : null,
-          decimal: decimal && decimal.ok ? decimal : null,
-          perfectSquare: perfectSquare && perfectSquare.ok ? perfectSquare : null,
-          divisibility: divisibility && divisibility.ok ? divisibility : null,
-          factorsMultiples: factorsMultiples && factorsMultiples.ok ? factorsMultiples : null,
-          primeComposite: primeComposite && primeComposite.ok ? primeComposite : null,
-        };
-        state.cohort = state.cohortByCategory.arithmetic;
+        applyCohortByCategory(
+          {
+            arithmetic: level && level.ok ? level : null,
+            decimal: decimal && decimal.ok ? decimal : null,
+            perfectSquare: perfectSquare && perfectSquare.ok ? perfectSquare : null,
+            divisibility: divisibility && divisibility.ok ? divisibility : null,
+            factorsMultiples: factorsMultiples && factorsMultiples.ok ? factorsMultiples : null,
+            primeComposite: primeComposite && primeComposite.ok ? primeComposite : null,
+          },
+          { invalidateBagsIfChanged: true }
+        );
         var errs = [];
         if (!state.cohortByCategory.arithmetic) {
           errs.push('四则：' + ((level && level.error) || '常模接口返回异常'));
@@ -1993,6 +2055,7 @@
       .catch(function (e) {
         state.cohort = null;
         state.cohortByCategory = {};
+        state.cohortGenerationMs = 0;
         state.cohortError = e.message || String(e);
       })
       .then(function () {
@@ -2122,8 +2185,13 @@
         var inMem =
           state.loadedStudentUsername === username && !!state.heatmapFromServer;
         var bag = state.studentBagCache[username];
+        if (bag && isStudentBagCohortStale(bag)) {
+          invalidateStudentBagCache(username);
+          bag = null;
+        }
         var hasBag = !!(bag && bag.heatmapFromServer);
-        var canReuse = inMem || hasBag;
+        var cohortOk = !isCohortStaleForLoadedStats();
+        var canReuse = (inMem && cohortOk) || hasBag;
         var sameRev =
           liveRev === 0
             ? canReuse
@@ -2139,6 +2207,11 @@
 
         if (hasBag && liveRev > 0 && localRev !== liveRev) {
           invalidateStudentBagCache(username);
+        }
+        if (inMem && !cohortOk) {
+          return loadStudentData({ force: true }).then(function () {
+            return { ok: true, reused: false };
+          });
         }
         return loadStudentData().then(function () {
           return { ok: true, reused: false };
@@ -2172,6 +2245,8 @@
         Number(state.statsRevision) ||
         expectedStudentRevision(u) ||
         0,
+      cohortBuiltAt:
+        Number(state.loadedStatsCohortBuiltAt) || Number(state.cohortGenerationMs) || 0,
       runs: Array.isArray(state.runs) ? state.runs.slice() : [],
       runsLoadedFor: state.runsLoadedFor === u ? u : '',
       userDetail: state.userDetail,
@@ -2228,7 +2303,11 @@
     state.heat = bag.heat || null;
     state.heatByCategory = bag.heatByCategory || {};
     state.heatmapFromServer = !!bag.heatmapFromServer;
-    state.cohortByCategory = bag.cohortByCategory || {};
+    // 常模以页面当前世代为准，不把 bag 里旧常模盖回去
+    if (!(Number(state.cohortGenerationMs) > 0) && bag.cohortByCategory) {
+      applyCohortByCategory(bag.cohortByCategory, { invalidateBagsIfChanged: false });
+    }
+    state.loadedStatsCohortBuiltAt = Number(bag.cohortBuiltAt) || 0;
     state.selectionHint = bag.selectionHint || null;
     state.statsRevision = Number(bag.statsRevision) || Number(bag.revision) || 0;
     state.statsBuiltFor = bag.statsBuiltFor || '';
@@ -2252,6 +2331,10 @@
     if (!username) return false;
     var bag = state.studentBagCache[username];
     if (!bag || !bag.heatmapFromServer) return false;
+    if (isStudentBagCohortStale(bag)) {
+      invalidateStudentBagCache(username);
+      return false;
+    }
     var expect = expectedStudentRevision(username);
     var bagRev = Number(bag.revision) || Number(bag.statsRevision) || 0;
     // 概览/探活已有 lastGameTs 时必须一致（含 bagRev=0）
@@ -3486,6 +3569,9 @@
     });
     state.heatmapFromServer = Object.keys(state.heatByCategory).length > 0;
     state.heat = state.heatByCategory[state.chartCategoryId] || null;
+    if (state.heatmapFromServer) {
+      state.loadedStatsCohortBuiltAt = Number(state.cohortGenerationMs) || 0;
+    }
     return state.heatmapFromServer;
   }
 
@@ -4626,19 +4712,27 @@
           body: '{}',
         })
           .then(function (d) {
-            state.cohort = d && d.ok ? d : null;
-            state.cohortByCategory = {
-              arithmetic: state.cohort,
-              decimal: d && d.decimal && d.decimal.ok ? d.decimal : null,
-              perfectSquare: d && d.perfectSquare && d.perfectSquare.ok ? d.perfectSquare : null,
-              divisibility: d && d.divisibility && d.divisibility.ok ? d.divisibility : null,
-              factorsMultiples:
-                d && d.factorsMultiples && d.factorsMultiples.ok ? d.factorsMultiples : null,
-              primeComposite:
-                d && d.primeComposite && d.primeComposite.ok ? d.primeComposite : null,
-            };
+            applyCohortByCategory(
+              {
+                arithmetic: d && d.ok ? d : null,
+                decimal: d && d.decimal && d.decimal.ok ? d.decimal : null,
+                perfectSquare: d && d.perfectSquare && d.perfectSquare.ok ? d.perfectSquare : null,
+                divisibility: d && d.divisibility && d.divisibility.ok ? d.divisibility : null,
+                factorsMultiples:
+                  d && d.factorsMultiples && d.factorsMultiples.ok ? d.factorsMultiples : null,
+                primeComposite:
+                  d && d.primeComposite && d.primeComposite.ok ? d.primeComposite : null,
+              },
+              { invalidateBagsIfChanged: true }
+            );
+            clearAllStudentBagCaches();
+            state.loadedStatsCohortBuiltAt = 0;
             state.cohortError = d && d.ok ? '' : '常模重建返回异常';
-            if (state.selectedUsername) renderStatsPanel();
+            if (state.selectedUsername) {
+              return loadStudentData({ force: true });
+            }
+            if (activeTabId() === 'stats') renderStatsPanel();
+            return null;
           })
           .catch(function (e) {
             state.cohortError = e.message || String(e);

@@ -31,6 +31,7 @@ function createHeatmapUserCache(opts) {
       schemaVersion: SCHEMA_VERSION,
       username: String(username || ""),
       updatedAt: 0,
+      cohortBuiltAt: 0,
       byCategory: {},
       categories: [],
       maxRunTsByCategory: {},
@@ -63,6 +64,10 @@ function createHeatmapUserCache(opts) {
       schemaVersion: SCHEMA_VERSION,
       username: name,
       updatedAt: Date.now(),
+      cohortBuiltAt:
+        doc.cohortBuiltAt != null && Number.isFinite(Number(doc.cohortBuiltAt))
+          ? Number(doc.cohortBuiltAt)
+          : 0,
       byCategory: doc.byCategory && typeof doc.byCategory === "object" ? doc.byCategory : {},
       categories: Array.isArray(doc.categories) ? doc.categories : [],
       maxRunTsByCategory:
