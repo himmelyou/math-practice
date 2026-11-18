@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
+ * 练习建议 v0.54：质数合数并入因倍 Y0（五年级起；rem 比 Y1 倒退一格；不挡四年级推因倍）。
+ * v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
  * v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线。
  * v0.51：四则洞分改为 rem×100+(100−准%)×10+分位×5；取消未流畅整段。
  * v0.50：未通关摸底闯关默认可排垫后；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开。
@@ -19,7 +20,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.53-provisional";
+  var RULE_VERSION = "0.54-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -245,14 +246,13 @@
   /**
    * 其它模式 rem（不借四则号）。tip = 该线顶档关号。
    * 平方：L1→分出 L2/L4，L2→L3（顶）；L2 与 L4 同深。L2+ 任务先验仍为超前。
-   * 因倍：Y3 后分出 Y4/Y5 同深，Y6 为顶。
+   * 因倍：Y0（质数）比 Y1 倒退一格；Y3 后分出 Y4/Y5 同深，Y6 为顶。
    */
   var MODE_REM_TRACKS = {
     decimal: { tip: 6, groups: [[1], [2], [3], [4], [5], [6]] },
     perfectSquare: { tip: 3, groups: [[1], [2, 4], [3]] },
     divisibility: { tip: 4, groups: [[1], [2], [3], [4]] },
-    factorsMultiples: { tip: 6, groups: [[1], [2], [3], [4, 5], [6]] },
-    primeComposite: { tip: 1, groups: [[1]] },
+    factorsMultiples: { tip: 6, groups: [[0], [1], [2], [3], [4, 5], [6]] },
   };
 
   function remFromTip(groups, L, tipLevel) {
@@ -285,9 +285,13 @@
   function modeFoundationRemaining(modeId, levelIndexOrL) {
     var track = MODE_REM_TRACKS[modeId];
     if (!track || !track.groups) return 0;
-    var n = Math.floor(Number(levelIndexOrL) || 0);
-    var L = n >= 1 ? n : n + 1;
-    var rem = remFromTip(track.groups, L, track.tip);
+    var n = Number(levelIndexOrL);
+    if (!Number.isFinite(n)) return 0;
+    n = Math.floor(n);
+    /** 含 Y0（L=0）；若直接命中关号则用关号，否则按 0-based index→L=n+1 */
+    var rem = remFromTip(track.groups, n, track.tip);
+    if (rem != null) return rem;
+    rem = remFromTip(track.groups, n + 1, track.tip);
     return rem == null ? 0 : rem;
   }
 
@@ -914,47 +918,69 @@
     return rows;
   }
 
+  function emptyPrimeY0HeatCell() {
+    return {
+      levelIndex: -1,
+      active: false,
+      n: 0,
+      p: null,
+      timePct: null,
+      tooSlow: false,
+      fluent: false,
+      isPrimeY0: true,
+    };
+  }
+
+  function buildFactorsY0Row(grade, y0Cell) {
+    var cell = y0Cell && typeof y0Cell === "object" ? y0Cell : emptyPrimeY0HeatCell();
+    var priorRaw = Modes.modeCurriculumPrior("factorsMultiples", grade, -1);
+    var prior = priorRaw === "blocked" ? "ahead" : priorRaw;
+    var n = cell && Number.isFinite(Number(cell.n)) ? Number(cell.n) : 0;
+    var p = cell && cell.p != null && Number.isFinite(Number(cell.p)) ? Number(cell.p) : null;
+    var row = {
+      modeId: "factorsMultiples",
+      levelIndex: -1,
+      L: 0,
+      levelLabel: "Y0",
+      prior: prior,
+      priorLabel: PRIOR_LABEL[prior] || prior,
+      stage: classifyStage(cell, prior),
+      n: n,
+      p: p,
+      pPct: pctText(p),
+      tooSlow: !!(cell && cell.tooSlow),
+      fluent: !!(cell && cell.fluent),
+      band: heatBand(cell),
+      timePct:
+        cell && cell.timePct != null && Number.isFinite(Number(cell.timePct))
+          ? Number(cell.timePct)
+          : null,
+      avgSec: avgSecFromCell(cell),
+      meanLnCorrect:
+        cell && cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))
+          ? Number(cell.meanLnCorrect)
+          : null,
+      isPrimeY0: true,
+      blocked: priorRaw === "blocked",
+    };
+    row.stageLabel =
+      row.stage === "weak"
+        ? "弱"
+        : row.stage === "shaky"
+          ? "不熟"
+          : row.stage === "thin"
+            ? "样本薄"
+            : row.stage === "mastered"
+              ? "会了"
+              : "无数据";
+    return row;
+  }
+
   function buildModePack(modeId, grade, cells, opts) {
     opts = opts || {};
     if (!Modes || !Modes.MODE_META[modeId]) return null;
     if (!Modes.modeAllowed(modeId, grade)) return null;
     var meta = Modes.MODE_META[modeId];
-    if (meta.singlePool) {
-      var cleared = opts.primeCleared === true;
-      var played = opts.primePlayed === true || cleared;
-      var prior = Modes.modeCurriculumPrior(modeId, grade, 0);
-      if (prior === "blocked") return null;
-      var stage = cleared ? "mastered" : played ? "shaky" : "no_data";
-      var row = {
-        modeId: modeId,
-        levelIndex: 0,
-        L: 1,
-        levelLabel: meta.label,
-        prior: prior === "blocked" ? "ahead" : prior,
-        priorLabel: PRIOR_LABEL[prior] || prior,
-        stage: stage,
-        n: played || cleared ? 20 : 0,
-        p: cleared ? 1 : played ? 0.9 : null,
-        pPct: cleared ? "100%" : played ? "90%" : "—",
-        tooSlow: false,
-        fluent: cleared,
-        band: cleared ? "fluent" : played ? "yellow" : "inactive",
-        timePct: cleared ? 30 : played ? 60 : null,
-        avgSec: null,
-        meanLnCorrect: null,
-        stageLabel: cleared ? "会了" : played ? "不熟" : "无数据",
-      };
-      var rows = [row];
-      return {
-        modeId: modeId,
-        meta: meta,
-        rows: rows,
-        schoolHoles: !cleared && played ? [row] : [],
-        aheadHoles: [],
-        openRow: !cleared && !played ? row : null,
-        fillers: [],
-      };
-    }
     var rows = buildGenericRows(
       grade,
       cells || [],
@@ -975,6 +1001,10 @@
         r.blocked = true;
       }
     });
+    /** 因倍前置 Y0（质数合数）；四年级 prior=blocked，不进洞/开新 */
+    if (modeId === "factorsMultiples") {
+      rows.unshift(buildFactorsY0Row(grade, opts.y0Cell));
+    }
     var schoolHoles = rows.filter(function (r) {
       return !r.blocked && modePriorToSchool(r.prior) && (r.stage === "weak" || r.stage === "shaky");
     });
@@ -1380,7 +1410,10 @@
   }
 
   function isSpecialModeAction(action) {
-    if (!Modes || !Modes.SPECIAL_ORDER || !action) return false;
+    if (!action) return false;
+    /** Y0 任务 action 仍是 primeComposite，占特殊硬留 */
+    if (action === "primeComposite") return true;
+    if (!Modes || !Modes.SPECIAL_ORDER) return false;
     return Modes.SPECIAL_ORDER.indexOf(action) >= 0;
   }
 
@@ -1787,6 +1820,7 @@
     if (seed.kind === "scan") return "level";
     if (seed.kind === "wrongbook") return "wrongbook";
     if (seed.kind === "mode" || seed.kind === "mode_open") {
+      if (seed.row && seed.row.isPrimeY0) return taskKey("primeComposite", -1);
       return taskKey(seed.modeId || "mode", seed.row && seed.row.levelIndex);
     }
     return taskKey("training", seed.row && seed.row.levelIndex);
@@ -1833,6 +1867,13 @@
     var row = seed.row;
     var modeId = seed.modeId;
     var meta = Modes && Modes.MODE_META[modeId] ? Modes.MODE_META[modeId] : null;
+    var isPrimeY0 = !!(row && row.isPrimeY0);
+    var action = isPrimeY0 ? "primeComposite" : modeId;
+    var playMode = isPrimeY0
+      ? "primeComposite"
+      : meta
+        ? meta.playMode
+        : modeId;
     var isOpen = seed.kind === "mode_open";
     var kind = isOpen ? "open_activate" : successKindForRow(row);
     var targetP = null;
@@ -1844,17 +1885,18 @@
       targetTimePct = spdT.targetTimePct;
       targetAvgSec = spdT.targetAvgSec;
     }
-    var title =
-      (meta ? meta.label : modeId) +
-      (row.levelLabel && !(meta && meta.singlePool) ? " " + row.levelLabel : "") +
-      (isOpen ? "（开新关）" : "");
+    var title = isPrimeY0
+      ? "质数合数 Y0" + (isOpen ? "（开新关）" : "")
+      : (meta ? meta.label : modeId) +
+        (row.levelLabel && !(meta && meta.singlePool) ? " " + row.levelLabel : "") +
+        (isOpen ? "（开新关）" : "");
     return {
       id: nextTaskId(plan),
-      key: taskKey(modeId, row.levelIndex),
-      action: modeId,
-      mode: meta ? meta.playMode : modeId,
-      levelIndex: row.levelIndex,
-      levelLabel: row.levelLabel,
+      key: taskKey(action, isPrimeY0 ? -1 : row.levelIndex),
+      action: action,
+      mode: playMode,
+      levelIndex: isPrimeY0 ? -1 : row.levelIndex,
+      levelLabel: isPrimeY0 ? "Y0" : row.levelLabel,
       status: "pending",
       successKind: kind,
       baseline: {
@@ -2093,14 +2135,13 @@
 
   function evaluateSuccess(task, run, stats) {
     if (isWrongbookSuccessKind(task.successKind)) return false;
-    if (task.action === "primeComposite") {
-      return isPrimeCompositeClearedRun(run);
-    }
     var sumLv =
       task.action === "training" ||
       (Modes && Modes.MODE_META && Modes.MODE_META[task.action] && !Modes.MODE_META[task.action].singlePool)
         ? task.levelIndex
         : null;
+    /** 质数 Y0：整局统计（无分关）；开新/准/速与其它模式同口径 */
+    if (task.action === "primeComposite") sumLv = null;
     stats = stats || summarizeRun(run, sumLv);
     if (task.successKind === "level_reach") {
       return passedScanTarget(run, task.scanLevelIndex);
@@ -2511,9 +2552,6 @@
     if (isWrongbookSuccessKind(task.successKind)) {
       return "成功：完成一次错题练习（做对的已清掉）";
     }
-    if (task.action === "primeComposite") {
-      return "成功：本局质数合数通关";
-    }
     if (task.successKind === "level_reach") {
       var lab = task.scanLevelLabel || levelLabel(task.scanLevelIndex);
       if (task.scanLevelIndex >= ARITH_PUBLIC_MAX_INDEX) {
@@ -2572,7 +2610,6 @@
 
   function untilCopy(task) {
     if (isWrongbookSuccessKind(task.successKind)) return "完成一次错题练习即成功";
-    if (task.action === "primeComposite") return "质数合数通关即成功";
     if (task.successKind === "level_reach") {
       if (task.scanKind === "retry_clear") return "通关 L16 即成功";
       return "通过 " + (task.scanLevelLabel || "") + " 即成功；在该关出局不算";
@@ -2608,7 +2645,6 @@
   function tileGoal(t) {
     if (!t) return "";
     if (isWrongbookSuccessKind(t.successKind)) return "完成一次";
-    if (t.action === "primeComposite") return "通关";
     if (t.successKind === "level_reach") {
       if (t.scanKind === "retry_clear") return "通关L16";
       return t.scanLevelLabel ? "过" + t.scanLevelLabel : "过关";
@@ -2764,26 +2800,16 @@
         : 0;
     var wrongMin = Modes && Modes.WRONGBOOK_MIN != null ? Modes.WRONGBOOK_MIN : 30;
     var modeCells = opts.modeCells && typeof opts.modeCells === "object" ? opts.modeCells : {};
-    var primeOverride = null;
-    if (opts.primePlayed != null || opts.primeCleared != null || opts.primeFromIndex === true) {
-      primeOverride = {
-        played: opts.primePlayed === true,
-        cleared: opts.primeCleared === true,
-        fromIndex: opts.primeFromIndex === true,
-      };
-    }
-    var primeFlags = detectPrimeFlags(opts.runs, primeOverride);
     var modePacks = {};
     if (Modes) {
       ["decimal", "perfectSquare", "divisibility", "factorsMultiples"].forEach(function (id) {
-        var pack = buildModePack(id, opts.grade, modeCells[id] || [], {});
+        var packOpts = {};
+        if (id === "factorsMultiples") {
+          packOpts.y0Cell = modeCells.factorsMultiplesY0 || null;
+        }
+        var pack = buildModePack(id, opts.grade, modeCells[id] || [], packOpts);
         if (pack) modePacks[id] = pack;
       });
-      var primePack = buildModePack("primeComposite", opts.grade, [], {
-        primePlayed: primeFlags.played,
-        primeCleared: primeFlags.cleared,
-      });
-      if (primePack) modePacks.primeComposite = primePack;
     }
     return {
       grade: opts.grade,
@@ -2861,8 +2887,8 @@
         HOLE_ACC_WEIGHT +
         "+分位×" +
         HOLE_SPEED_WEIGHT +
-        "（v0.53；准×5 分位×2；顶台 L13–L16 rem=0；其它模式单线末档=0；L17+ 负）",
-      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
+        "（v0.54；准×5 分位×2；因倍 Y0=质数 rem+1；顶台 L13–L16 rem=0；L17+ 负）",
+      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。质数合数=因倍 Y0（五年级起；不挡四年级推 Y1+）。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 才再排冲榜闯关（每关10题均速×" +

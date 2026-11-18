@@ -1,8 +1,8 @@
 /**
  * 多模式入队：年级先验、槽位预算、模式元数据（供 practice-advice.js）。
  */
-/** 简→难；质数合数五年级起，夹在整除与因数倍数之间 */
-var SPECIAL_ORDER = ["perfectSquare", "divisibility", "primeComposite", "factorsMultiples"];
+/** 简→难；质数合数并入因倍 Y0（五年级起），不再单独占特殊序 */
+var SPECIAL_ORDER = ["perfectSquare", "divisibility", "factorsMultiples"];
 
 var MODE_META = {
   decimal: {
@@ -72,7 +72,9 @@ function modeLevelLabel(modeId, levelIndex) {
   var meta = MODE_META[modeId];
   if (!meta) return "L" + (levelIndex + 1);
   if (meta.singlePool) return meta.label;
-  return meta.prefix + (levelIndex + 1);
+  var idx = Math.floor(Number(levelIndex));
+  if (modeId === "factorsMultiples" && Number.isFinite(idx) && idx < 0) return "Y0";
+  return meta.prefix + (idx + 1);
 }
 
 /**
@@ -120,6 +122,11 @@ function modeCurriculumPrior(modeId, grade, levelIndex) {
   }
 
   if (modeId === "factorsMultiples") {
+    /** Y0 质数合数：levelIndex=-1 → L=0；五年级起，不挡四年级推 Y1+ */
+    if (L === 0) {
+      if (g < 5) return "blocked";
+      return "learned";
+    }
     if (g <= 2) return "blocked";
     if (g === 3) return L <= 2 ? "current" : "ahead";
     if (g === 4) {

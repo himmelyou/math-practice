@@ -17,6 +17,10 @@ function modeCellsFromHeatmapPayload(payload) {
     const pack = by[id];
     out[id] = pack && pack.heat && Array.isArray(pack.heat.cells) ? pack.heat.cells : [];
   });
+  /** 因倍 Y0（质数合数）挂在 heat.y0，不进 cells */
+  const fm = by.factorsMultiples;
+  out.factorsMultiplesY0 =
+    fm && fm.heat && fm.heat.y0 && typeof fm.heat.y0 === "object" ? fm.heat.y0 : null;
   return out;
 }
 
