@@ -72,7 +72,7 @@
     },
   ];
 
-  /** 质数合数 Y0 / 二选一档：按局统计；&lt;10 题不计；窗 10 局；题数加权 + 天衰减 */
+  /** 质数合数 Y0 / 二选一档：按局统计；≥10 题计入（含放弃）；窗 10 局；题数加权 + 天衰减 */
   var PRIME_RUN_MIN_ATTEMPTS = 10;
   var PRIME_WINDOW_RUNS = 10;
   /** 题均耗时上限（排除挂机）；超过则该局不进速度侧 */
@@ -218,9 +218,9 @@
     return { timePct: MISSING_SPEED_TIME_PCT, tooSlow: true };
   }
 
-  /** 质数合数合格局：mode 匹配且 attempt≥10（&lt;10 的放弃局不计） */
+  /** 质数合数合格局：mode 匹配且 attempt≥10（含放弃；&lt;10 不计，避免一错即退） */
   function isPrimeQualifyingRun(r) {
-    if (!r || r.comboOnly === true || r.abandoned === true) return false;
+    if (!r || r.comboOnly === true) return false;
     if (normalizeMode(r.mode) !== 'primecomposite') return false;
     return runAttemptCount(r) >= PRIME_RUN_MIN_ATTEMPTS;
   }
@@ -665,7 +665,7 @@
     for (li = 0; li < levelCount; li += 1) byLevelLists.push([]);
 
     (filteredRuns || []).forEach(function (r) {
-      if (!r || r.comboOnly === true || r.abandoned === true) return;
+      if (!r || r.comboOnly === true) return;
       var n = runAttemptCount(r);
       if (!(n >= CHOICE_RUN_MIN_ATTEMPTS)) return;
       if (!Array.isArray(r.attempts) || !r.attempts.length) return;

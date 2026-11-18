@@ -2615,7 +2615,11 @@
     if (!Agg || typeof Agg.buildChartSeries !== 'function') return null;
     var agg = ensurePrimeAggFromRuns(state.runs);
     if (!agg || !agg.hasAny) return null;
-    return Agg.buildChartSeries(agg.byDay, 0, { levelCount: 1 });
+    var opts =
+      typeof Agg.chartSeriesOptsFromAgg === 'function'
+        ? Agg.chartSeriesOptsFromAgg(agg, 0, { levelCount: 1 })
+        : { levelCount: 1, minAttempts: 10, allowMissingSpeed: true };
+    return Agg.buildChartSeries(agg.byDay, 0, opts);
   }
 
   function ensureStudentStatsBuilt() {
@@ -2690,9 +2694,15 @@
         var chartCat = HM.getHeatmapCategory(state.chartCategoryId) || {};
         state.chartModel =
           chartAgg && chartAgg.hasAny
-            ? Agg.buildChartSeries(chartAgg.byDay, levelIdx, {
-                levelCount: chartCat.levelCount || 20,
-              })
+            ? Agg.buildChartSeries(
+                chartAgg.byDay,
+                levelIdx,
+                typeof Agg.chartSeriesOptsFromAgg === 'function'
+                  ? Agg.chartSeriesOptsFromAgg(chartAgg, levelIdx, {
+                      levelCount: chartCat.levelCount || 20,
+                    })
+                  : { levelCount: chartCat.levelCount || 20 }
+              )
             : null;
       }
     } else if (Agg) {
@@ -2882,14 +2892,32 @@
     if (m && typeof m === 'object' && m.runAvgSec != null && Number.isFinite(Number(m.runAvgSec))) {
       return formatTrainingSpeedSec(m.runAvgSec);
     }
-    // 工作台默认不带 attempts；仅在完整 detail 时现算
-    var Agg = window.JmlStatsAggregate;
+    var modeKey = normalizeRunModeKey(r && r.mode);
     var picked =
       m && Number.isFinite(Number(m.pickedLevel))
         ? Number(m.pickedLevel)
         : r.maxLevel != null && Number.isFinite(Number(r.maxLevel))
           ? Number(r.maxLevel)
           : null;
+    var choiceRunSpeed =
+      modeKey === 'primecomposite' ||
+      (modeKey === 'divisibility' && !(picked != null && Math.floor(picked) >= 4)) ||
+      (modeKey === 'factorsmultiples' && picked != null && Math.floor(picked) <= 1);
+    if (choiceRunSpeed) {
+      var nAtt = Array.isArray(r.attempts) ? r.attempts.length : 0;
+      var dur =
+        r.survivalTimeSec != null && Number.isFinite(Number(r.survivalTimeSec)) && Number(r.survivalTimeSec) > 0
+          ? Number(r.survivalTimeSec)
+          : r.durationSec != null && Number.isFinite(Number(r.durationSec)) && Number(r.durationSec) > 0
+            ? Number(r.durationSec)
+            : null;
+      if (dur != null && nAtt > 0) {
+        var sec = Math.round(((dur * 1000) / nAtt / 1000) * 10) / 10;
+        if (sec > 0 && Number.isFinite(sec)) return formatTrainingSpeedSec(sec);
+      }
+    }
+    // 工作台默认不带 attempts；仅在完整 detail 时现算（填空/四则按题）
+    var Agg = window.JmlStatsAggregate;
     if (Agg && typeof Agg.geoMeanSecFromAttempts === 'function' && Array.isArray(r.attempts)) {
       var g = Agg.geoMeanSecFromAttempts(r.attempts, {
         levelIndex: picked != null ? picked : undefined,
@@ -4557,9 +4585,15 @@
           state.agg = (state.aggByCategory && state.aggByCategory.primeComposite) || null;
           state.chartModel = buildPrimeY0ChartModel();
         } else if (state.agg && state.agg.hasAny) {
-          state.chartModel = AggInner.buildChartSeries(state.agg.byDay, state.statsLevelIndex, {
-            levelCount: cat ? cat.levelCount : 20,
-          });
+          state.chartModel = AggInner.buildChartSeries(
+            state.agg.byDay,
+            state.statsLevelIndex,
+            typeof AggInner.chartSeriesOptsFromAgg === 'function'
+              ? AggInner.chartSeriesOptsFromAgg(state.agg, state.statsLevelIndex, {
+                  levelCount: cat ? cat.levelCount : 20,
+                })
+              : { levelCount: cat ? cat.levelCount : 20 }
+          );
         } else {
           state.chartModel = null;
         }

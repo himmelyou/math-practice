@@ -681,6 +681,23 @@
     return { games: 0, items: 0, correct: 0, avgSec: null, speedN: 0, gamesByDay: {} };
   }
 
+  /** 二选一局均速口径（与热图一致）：整除 Z1–Z4 / 质数 / 因倍 Y1–Y2 */
+  function isChoiceRunSpeedMode(run, levelIndex) {
+    var mode = normalizeRunMode(run && run.mode);
+    if (mode === "primecomposite") return true;
+    var lv = levelIndex;
+    if (lv == null || !Number.isFinite(Number(lv))) {
+      var meta = run && run.trainingMeta && typeof run.trainingMeta === "object" ? run.trainingMeta : null;
+      var raw = meta && meta.pickedLevel != null ? meta.pickedLevel : run && run.maxLevel;
+      lv = Math.floor(Number(raw));
+    } else {
+      lv = Math.floor(Number(lv));
+    }
+    if (mode === "divisibility") return Number.isFinite(lv) && lv >= 0 && lv < 4;
+    if (mode === "factorsmultiples") return Number.isFinite(lv) && lv >= 0 && lv <= 1;
+    return false;
+  }
+
   function summarizeRun(run, levelIndex) {
     var attempts = run && Array.isArray(run.attempts) ? run.attempts : [];
     var filtered = attempts;
@@ -713,12 +730,26 @@
         correct = score;
       }
     }
-    var avgSec = lnN > 0 ? Math.exp(lnSum / lnN) / 1000 : null;
-    var speedN = lnN;
-    if (avgSec == null && run && run.trainingMeta && Number.isFinite(Number(run.trainingMeta.runAvgSec))) {
-      avgSec = Number(run.trainingMeta.runAvgSec);
-      if (speedN <= 0 && correct > 0) speedN = correct;
-      else if (speedN <= 0) speedN = 1;
+    var avgSec = null;
+    var speedN = 0;
+    if (isChoiceRunSpeedMode(run, levelIndex)) {
+      var durSec = runDurationSec(run);
+      var nRun = Array.isArray(run && run.attempts) && run.attempts.length ? run.attempts.length : n;
+      if (durSec != null && nRun > 0) {
+        var msPerQ = (durSec * 1000) / nRun;
+        if (msPerQ > 0 && Number.isFinite(msPerQ) && msPerQ < 60000) {
+          avgSec = msPerQ / 1000;
+          speedN = nRun;
+        }
+      }
+    } else {
+      avgSec = lnN > 0 ? Math.exp(lnSum / lnN) / 1000 : null;
+      speedN = lnN;
+      if (avgSec == null && run && run.trainingMeta && Number.isFinite(Number(run.trainingMeta.runAvgSec))) {
+        avgSec = Number(run.trainingMeta.runAvgSec);
+        if (speedN <= 0 && correct > 0) speedN = correct;
+        else if (speedN <= 0) speedN = 1;
+      }
     }
     var maxLv = run && run.maxLevel != null && Number.isFinite(Number(run.maxLevel)) ? Math.floor(Number(run.maxLevel)) : null;
     return {

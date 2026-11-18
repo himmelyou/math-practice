@@ -1144,7 +1144,7 @@ function runAttemptCountForPrimeIndex(run) {
 
 function isPrimeQualifyingRunForIndex(run) {
   if (!run) return false;
-  if (run.comboOnly === true || run.abandoned === true) return false;
+  if (run.comboOnly === true) return false;
   if (normalizeRunMode(run.mode) !== "primeComposite") return false;
   return runAttemptCountForPrimeIndex(run) >= PRIME_PLAYED_MIN_ATTEMPTS;
 }
@@ -6305,7 +6305,7 @@ function collectPersonChoiceRunMeanLnByLevel(opts) {
     const perLevel = Array.from({ length: levelCount }, () => []);
     (runs || []).forEach((r) => {
       if (normalizeRunMode(r.mode) !== modeWant) return;
-      if (r.comboOnly === true || r.abandoned === true) return;
+      if (r.comboOnly === true) return;
       const n = runAttemptCountForChoiceCohort(r);
       if (n < CHOICE_RUN_MIN_ATTEMPTS) return;
       if (!Array.isArray(r.attempts) || !r.attempts.length) return;
@@ -6434,7 +6434,6 @@ function computePrimeCompositeCohortResult() {
     const lns = [];
     (runs || []).forEach((r) => {
       if (!isPrimeQualifyingRunForIndex(r)) return;
-      if (r.abandoned === true) return;
       const n = runAttemptCountForPrimeIndex(r);
       if (!Array.isArray(r.attempts) || r.attempts.length < n) {
         // attemptCount 路径：无明细时无法算准度，不进速度常模
