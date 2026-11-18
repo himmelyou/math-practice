@@ -132,6 +132,8 @@
       for (var i2 = 0; i2 < n; i2 += 1) {
         var val = values[i2];
         if (val == null || Number.isNaN(val)) {
+          // 缺值断线：先画出当前段，避免后续 beginPath 丢掉前面的线段
+          if (started) ctx.stroke();
           started = false;
           continue;
         }
@@ -145,7 +147,7 @@
           ctx.lineTo(x, y);
         }
       }
-      ctx.stroke();
+      if (started) ctx.stroke();
     }
 
     function drawDots(getY, values, color) {
