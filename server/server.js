@@ -1939,6 +1939,25 @@ function recomputeSurvivalUnlockFlags(u, runs) {
     u.heatmapL16Passed = true;
     changed = true;
   }
+  // 闯关最高档可抬训练解锁（只升；封顶公开 L16），修复建号 unlockedMax=0 卡住
+  {
+    const chBest = Math.min(
+      SURVIVAL_UNLOCK_L16_INDEX,
+      Math.max(
+        0,
+        Math.floor(Number(u.levelChallengeBestLevel) || 0),
+        Math.floor(Number(u.levelChallengeLastLevel) || 0)
+      )
+    );
+    const curUnlock =
+      typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
+        ? Math.floor(u.levelTrainingUnlockedMax)
+        : 0;
+    if (chBest > curUnlock) {
+      u.levelTrainingUnlockedMax = chBest;
+      changed = true;
+    }
+  }
   if (ensureTrainingUnlockedMaxForL16Clear(u)) changed = true;
   return changed;
 }
@@ -4571,6 +4590,19 @@ app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, re
     if (!comboOnly && runEntry.mode === "level") {
       const ml = Math.min(SURVIVAL_UNLOCK_L16_INDEX, Math.max(0, Number(runEntry.maxLevel) || 0));
       if (ml > (u.levelChallengeBestLevel || 0)) u.levelChallengeBestLevel = ml;
+      // 闯关抬档 → 训练解锁至少跟上（建号默认 unlockedMax=0）
+      const curUnlock =
+        typeof u.levelTrainingUnlockedMax === "number" && Number.isFinite(u.levelTrainingUnlockedMax)
+          ? Math.floor(u.levelTrainingUnlockedMax)
+          : 0;
+      if (ml > curUnlock) {
+        u.levelTrainingUnlockedMax = ml;
+        const tip =
+          typeof u.levelTrainingCurrentLevel === "number" && Number.isFinite(u.levelTrainingCurrentLevel)
+            ? Math.floor(u.levelTrainingCurrentLevel)
+            : 0;
+        if (tip < 0 || tip > ml) u.levelTrainingCurrentLevel = ml;
+      }
     }
     if (!comboOnly) {
       const allRuns = allRunsAfterWrite || runsStore.getUserRuns(username);

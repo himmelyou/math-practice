@@ -13331,18 +13331,26 @@
         if (typeof tip === "number" && tip >= 0) {
           seed = Math.min(TRAINING_UNLOCK_CAP, Math.floor(tip));
         }
-        const chBest = Math.max(
-          0,
-          Math.floor(Number(user.levelChallengeBestLevel) || 0),
-          Math.floor(Number(user.levelChallengeLastLevel) || 0)
-        );
-        seed = Math.max(seed, Math.min(TRAINING_PUBLIC_MAX, chBest));
         user.levelTrainingUnlockedMax = seed;
       } else {
         user.levelTrainingUnlockedMax = Math.min(
           TRAINING_UNLOCK_CAP,
           Math.max(0, Math.floor(user.levelTrainingUnlockedMax))
         );
+      }
+      // 闯关进度可抬训练解锁（只升不降，封顶公开档）。建号默认 unlockedMax=0 时也必须生效。
+      {
+        const chBest = Math.min(
+          TRAINING_PUBLIC_MAX,
+          Math.max(
+            0,
+            Math.floor(Number(user.levelChallengeBestLevel) || 0),
+            Math.floor(Number(user.levelChallengeLastLevel) || 0)
+          )
+        );
+        if (chBest > user.levelTrainingUnlockedMax) {
+          user.levelTrainingUnlockedMax = chBest;
+        }
       }
       // 通关旗已亮但 unlockedMax 未回填时抬到 L17 位（只认 trainingL16Cleared）
       if (user.levelTrainingUnlockedMax < TRAINING_PUBLIC_MAX + 1 && user.trainingL16Cleared === true) {
@@ -18099,8 +18107,33 @@
       }
       const name = loadCurrentUsername();
       if (!name) return;
-      apiPutUser(name, { levelChallengeBestLevel: idx });
-      if (cachedUser) cachedUser.levelChallengeBestLevel = idx;
+      const patch = { levelChallengeBestLevel: idx };
+      if (cachedUser) {
+        cachedUser.levelChallengeBestLevel = idx;
+        ensureUserProgressDefault(cachedUser);
+        // 闯关抬档时同步训练解锁（避免库里仍是建号默认 0）
+        const unlock = Math.min(
+          TRAINING_UNLOCK_CAP,
+          Math.max(
+            Math.floor(Number(cachedUser.levelTrainingUnlockedMax) || 0),
+            idx
+          )
+        );
+        if (unlock !== cachedUser.levelTrainingUnlockedMax) {
+          cachedUser.levelTrainingUnlockedMax = unlock;
+        }
+        patch.levelTrainingUnlockedMax = cachedUser.levelTrainingUnlockedMax;
+        const tipCap = Math.min(cachedUser.levelTrainingUnlockedMax, TRAINING_CONTENT_MAX);
+        if (
+          typeof cachedUser.levelTrainingCurrentLevel !== "number" ||
+          cachedUser.levelTrainingCurrentLevel < 0 ||
+          cachedUser.levelTrainingCurrentLevel > tipCap
+        ) {
+          cachedUser.levelTrainingCurrentLevel = tipCap;
+          patch.levelTrainingCurrentLevel = tipCap;
+        }
+      }
+      apiPutUser(name, patch);
     }
 
     function getTrainingFlowLsPrefix() {
