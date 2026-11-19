@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.56：未通关四则黄橙先排 ≤闯关顶（顶内仍按洞分），顶后洞稍后；不恢复「闯关夹在中间」旧流。
+ * 练习建议 v0.57：已通关冲榜还须 L1–L16 无黄橙（避免偶发通关后仍生疏却占格冲榜）。
+ * v0.56：未通关四则黄橙先排 ≤闯关顶（顶内仍按洞分），顶后洞稍后；不恢复「闯关夹在中间」旧流。
  * v0.55：特殊/小数无校内黄橙且无可开新则不硬留；自由格绿补跨模式按 fillerScore 混排。
  * v0.54：质数合数并入因倍 Y0（五年级起；rem 比 Y1 倒退一格；不挡四年级推因倍）。
  * v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
@@ -22,7 +23,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.56-provisional";
+  var RULE_VERSION = "0.57-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -586,11 +587,20 @@
     var recordSec = bestClearedLevelSec(runs, overrideSec);
     if (estimateSec == null) return null;
     var ratio = recordSec != null && recordSec > 0 ? estimateSec / recordSec : null;
+    var heatClear = arithYellowOrangeCount(rows) === 0;
+    var improveOk =
+      ratio != null && estimateSec <= recordSec * SCAN_CLEAR_IMPROVE;
+    var retryNote = !improveOk
+      ? "，未到85%"
+      : heatClear
+        ? "，可排冲榜"
+        : "，L1–L16仍有黄橙不排冲榜";
     return {
       estimateSec: estimateSec,
       recordSec: recordSec,
       ratio: ratio,
       improve: ratio != null ? estimateSec <= recordSec * SCAN_CLEAR_IMPROVE : null,
+      heatClear: heatClear,
       copy:
         "预估全通 " +
         formatAdviceClock(estimateSec) +
@@ -603,7 +613,7 @@
             "（预估 " +
             Math.round(ratio * 100) +
             "% 纪录" +
-            (estimateSec <= recordSec * SCAN_CLEAR_IMPROVE ? "，可排冲榜" : "，未到85%") +
+            retryNote +
             "）"
           : " · 无通关纪录"),
     };
@@ -1403,7 +1413,7 @@
         formatAdviceClock(scan.recordSec) +
         "（≤" +
         Math.round(SCAN_CLEAR_IMPROVE * 100) +
-        "% 才排）。从 L1 开须全通，不要求本局破纪录";
+        "% 且 L1–L16 无黄橙才排）。从 L1 开须全通，不要求本局破纪录";
     } else {
       task.title = "闯关扫描，须过 " + scan.levelLabel;
       task.detail = "从 L1 开，须通过 " + scan.levelLabel + "（打完该关，不是摸到）；更早出局不算成功";
@@ -1746,7 +1756,10 @@
     return list;
   }
 
-  /** 冲榜闯关：有黄橙洞则第二格，全绿则队头。 */
+  /**
+   * 冲榜闯关落位：v0.57 起进队已要求 L1–L16 无黄橙，故通常队头；
+   * 若仍有超前等洞，则第二格。
+   */
   function placeRetryScanSecond(next, ctx) {
     var list = (next || []).slice();
     var si = -1;
@@ -2845,7 +2858,13 @@
     var scanElevate =
       opts.hasClearedLevel !== true && foundationGreenThroughBest(rows, levelBestIndex);
     var scan = resolveScanTarget(rows, opts);
-    if (opts.hasClearedLevel === true && retry && retry.improve) {
+    /** 冲榜：预估≤纪录85%，且公开档 L1–L16 无黄橙（v0.57）。 */
+    if (
+      opts.hasClearedLevel === true &&
+      retry &&
+      retry.improve &&
+      arithYellowOrangeCount(rows) === 0
+    ) {
       scan = {
         levelIndex: ARITH_PUBLIC_MAX_INDEX,
         levelLabel: levelLabel(ARITH_PUBLIC_MAX_INDEX),
@@ -2961,9 +2980,9 @@
       "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。质数合数=因倍 Y0（五年级起；不挡四年级推 Y1+）。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进。v0.55：特殊/小数仅当仍有校内黄橙或可开新才年级硬留；绿补跨模式比 fillerScore",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
-        " 才再排冲榜闯关（每关10题均速×" +
+        " 且 L1–L16 无黄橙才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
-        "）；不走≤n前置，有洞时占第二格",
+        "；v0.57）；不走摸底垫后",
       "Q16 未完成 1～5 对上就跟局（记尝试/成功），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外跑偏：未完成整份保留（成功线冻结），不补空。规则升级不拆队、不改成功线；日切/重新开单才丢掉未完成进度"
     ];
     reasons.push(
@@ -2984,7 +3003,7 @@
               formatAdviceClock(ctx.scan.estimateSec) +
               " / 纪录 " +
               formatAdviceClock(ctx.scan.recordSec),
-            "Q15：不把全部训练排在闯关前；有洞时第二格"
+            "Q15/v0.57：须估时≤85%且L1–L16无黄橙；通常队头"
           )
         );
       } else {
