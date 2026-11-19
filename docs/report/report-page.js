@@ -2705,6 +2705,17 @@
     return Agg.buildChartSeries(agg.byDay, 0, opts);
   }
 
+  function captureHeatSelection() {
+    return {
+      chartCategoryId: state.chartCategoryId || 'arithmetic',
+      expandedCategoryId: state.expandedCategoryId || state.chartCategoryId || 'arithmetic',
+      statsLevelIndex:
+        state.statsLevelIndex != null && Number.isFinite(Number(state.statsLevelIndex))
+          ? Number(state.statsLevelIndex)
+          : 0,
+    };
+  }
+
   function ensureStudentStatsBuilt() {
     var u = state.loadedStudentUsername || state.selectedUsername;
     if (!u) return;
@@ -2716,6 +2727,8 @@
     var Agg = window.JmlStatsAggregate;
     var HM = window.JmlStatsHeatmap;
     var hasServerAgg = state.aggByCategory && Object.keys(state.aggByCategory).length > 0;
+    var keepSel = state.keepHeatSelection;
+    state.keepHeatSelection = null;
     if (!hasServerAgg) {
       state.aggByCategory = {};
     }
@@ -2731,39 +2744,68 @@
           state.aggByCategory.primeComposite = Agg.aggregatePrimeCompositeFromRuns(runs);
         }
       }
-      var sel =
-        state.selectionHint && state.selectionHint.categoryId
-          ? {
-              categoryId: state.selectionHint.categoryId,
-              levelIndex:
-                state.selectionHint.levelIndex != null &&
-                Number.isFinite(Number(state.selectionHint.levelIndex))
-                  ? Number(state.selectionHint.levelIndex)
-                  : 0,
-            }
-          : HM.findLatestHeatmapRelatedSelection && runs.length
-            ? HM.findLatestHeatmapRelatedSelection(runs)
-            : { categoryId: 'arithmetic', levelIndex: 0 };
-      state.expandedCategoryId = sel.categoryId;
+      var keepCat =
+        keepSel && keepSel.chartCategoryId
+          ? String(keepSel.chartCategoryId)
+          : '';
+      var keepOk =
+        !!keepCat &&
+        !!(
+          (state.heatByCategory && state.heatByCategory[keepCat]) ||
+          (state.aggByCategory && state.aggByCategory[keepCat]) ||
+          (keepCat === 'factorsMultiples' &&
+            state.aggByCategory &&
+            state.aggByCategory.primeComposite)
+        );
+      var sel;
+      if (keepOk) {
+        // 手动刷新等：保留用户当前点选，避免折线图跟着「最新一局」跳
+        sel = {
+          categoryId: keepCat,
+          levelIndex:
+            keepSel.statsLevelIndex != null && Number.isFinite(Number(keepSel.statsLevelIndex))
+              ? Number(keepSel.statsLevelIndex)
+              : 0,
+        };
+        state.expandedCategoryId =
+          keepSel.expandedCategoryId || keepCat;
+      } else {
+        sel =
+          state.selectionHint && state.selectionHint.categoryId
+            ? {
+                categoryId: state.selectionHint.categoryId,
+                levelIndex:
+                  state.selectionHint.levelIndex != null &&
+                  Number.isFinite(Number(state.selectionHint.levelIndex))
+                    ? Number(state.selectionHint.levelIndex)
+                    : 0,
+              }
+            : HM.findLatestHeatmapRelatedSelection && runs.length
+              ? HM.findLatestHeatmapRelatedSelection(runs)
+              : { categoryId: 'arithmetic', levelIndex: 0 };
+        state.expandedCategoryId = sel.categoryId;
+      }
       state.chartCategoryId = sel.categoryId;
       var chartAgg = state.aggByCategory[sel.categoryId];
       var levelIdx = sel.levelIndex;
       var selectY0 = levelIdx === -1;
       if (levelIdx < 0) levelIdx = 0;
-      if (chartAgg && chartAgg.hasAny) {
-        if (!(chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0)) {
-          levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
-        }
-      } else {
-        var cats = HM.getHeatmapCategories();
-        for (var ci = 0; ci < cats.length; ci += 1) {
-          var a = state.aggByCategory[cats[ci].id];
-          if (a && a.hasAny) {
-            state.expandedCategoryId = cats[ci].id;
-            state.chartCategoryId = cats[ci].id;
-            levelIdx = Agg.firstLevelWithData(a.byLevel);
-            chartAgg = a;
-            break;
+      if (!keepOk) {
+        if (chartAgg && chartAgg.hasAny) {
+          if (!(chartAgg.byLevel[levelIdx] && chartAgg.byLevel[levelIdx].total > 0)) {
+            levelIdx = Agg.firstLevelWithData(chartAgg.byLevel);
+          }
+        } else {
+          var cats = HM.getHeatmapCategories();
+          for (var ci = 0; ci < cats.length; ci += 1) {
+            var a = state.aggByCategory[cats[ci].id];
+            if (a && a.hasAny) {
+              state.expandedCategoryId = cats[ci].id;
+              state.chartCategoryId = cats[ci].id;
+              levelIdx = Agg.firstLevelWithData(a.byLevel);
+              chartAgg = a;
+              break;
+            }
           }
         }
       }
@@ -2794,12 +2836,25 @@
         : Agg.aggregateFromRuns(runs);
       state.agg = agg;
       if (!hasServerAgg) state.aggByCategory = { arithmetic: agg };
-      var levelIdx2 = Agg.firstLevelWithData(agg && agg.byLevel);
-      state.statsLevelIndex = levelIdx2;
-      state.chartCategoryId = 'arithmetic';
-      state.expandedCategoryId = 'arithmetic';
-      state.chartModel =
-        agg && agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
+      if (keepSel && keepSel.chartCategoryId === 'arithmetic') {
+        state.statsLevelIndex =
+          keepSel.statsLevelIndex != null && Number.isFinite(Number(keepSel.statsLevelIndex))
+            ? Number(keepSel.statsLevelIndex)
+            : Agg.firstLevelWithData(agg && agg.byLevel);
+        state.chartCategoryId = 'arithmetic';
+        state.expandedCategoryId = 'arithmetic';
+        state.chartModel =
+          agg && agg.hasAny
+            ? Agg.buildChartSeries(agg.byDay, state.statsLevelIndex)
+            : null;
+      } else {
+        var levelIdx2 = Agg.firstLevelWithData(agg && agg.byLevel);
+        state.statsLevelIndex = levelIdx2;
+        state.chartCategoryId = 'arithmetic';
+        state.expandedCategoryId = 'arithmetic';
+        state.chartModel =
+          agg && agg.hasAny ? Agg.buildChartSeries(agg.byDay, levelIdx2) : null;
+      }
     } else {
       state.agg = null;
       state.chartModel = null;
@@ -2866,6 +2921,16 @@
 
     if (force) invalidateStudentBagCache(u);
 
+    // 同人手动刷新：保留当前热图点选，避免折线图无意义跳动
+    var keepHeatSelection = null;
+    if (
+      force &&
+      state.loadedStudentUsername === u &&
+      state.heatmapFromServer
+    ) {
+      keepHeatSelection = captureHeatSelection();
+    }
+
     if (state.studentLoadAbort) {
       try {
         state.studentLoadAbort.abort();
@@ -2887,6 +2952,7 @@
     state.trainDebugPayload = null;
     state.workspaceHasExtras = false;
     state.selectionHint = null;
+    state.keepHeatSelection = keepHeatSelection;
     state.heat = null;
     state.heatByCategory = {};
     state.heatmapFromServer = false;
