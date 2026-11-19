@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.55：特殊/小数无校内黄橙且无可开新则不硬留；自由格绿补跨模式按 fillerScore 混排。
+ * 练习建议 v0.56：未通关四则黄橙先排 ≤闯关顶（顶内仍按洞分），顶后洞稍后；不恢复「闯关夹在中间」旧流。
+ * v0.55：特殊/小数无校内黄橙且无可开新则不硬留；自由格绿补跨模式按 fillerScore 混排。
  * v0.54：质数合数并入因倍 Y0（五年级起；rem 比 Y1 倒退一格；不挡四年级推因倍）。
  * v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
  * v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线。
@@ -21,7 +22,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.55-provisional";
+  var RULE_VERSION = "0.56-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -372,6 +373,34 @@
     return rows.slice().sort(function (a, b) {
       return holeScore(b) - holeScore(a);
     });
+  }
+
+  /**
+   * 未通关摸底：四则校内黄橙先 ≤闯关顶（与 elevate 的 L1～顶同口径），段内仍按洞分；
+   * 顶后黄橙接在后面，不插到顶前洞之前。无纪录 / 已通关传 null → 纯洞分。
+   * 不把闯关插回「≤n 与 &gt;n 之间」（闯关进队仍独立）。
+   */
+  function sortArithSchoolHoles(rows, levelBestIndex) {
+    var list = rows || [];
+    if (
+      levelBestIndex == null ||
+      !Number.isFinite(Number(levelBestIndex)) ||
+      Number(levelBestIndex) < 0
+    ) {
+      return sortHolesWorstFirst(list);
+    }
+    var top = Math.floor(Number(levelBestIndex));
+    var atOrBefore = [];
+    var after = [];
+    list.forEach(function (r) {
+      if (!r) return;
+      if (r.levelIndex != null && Number.isFinite(Number(r.levelIndex)) && Number(r.levelIndex) <= top) {
+        atOrBefore.push(r);
+      } else {
+        after.push(r);
+      }
+    });
+    return sortHolesWorstFirst(atOrBefore).concat(sortHolesWorstFirst(after));
   }
 
   function pctText(p) {
@@ -770,15 +799,16 @@
     return d > 0 ? Math.exp(a / d) : nextAvg;
   }
 
-  function pickPrimaryRow(rows, schoolHoles, aheadMastered, aheadThin, schoolMastered) {
+  function pickPrimaryRow(rows, schoolHoles, aheadMastered, aheadThin, schoolMastered, levelBestIndex) {
     var primaryRow = null;
     var pickNote = "";
     var alternatives = [];
     if (schoolHoles.length) {
-      primaryRow = pickWorstHole(schoolHoles);
+      var orderedHoles = sortArithSchoolHoles(schoolHoles, levelBestIndex);
+      primaryRow = orderedHoles[0] || null;
       pickNote = "in_school_hole";
-      schoolHoles.forEach(function (r) {
-        if (r.levelIndex !== primaryRow.levelIndex) {
+      orderedHoles.forEach(function (r) {
+        if (!primaryRow || r.levelIndex !== primaryRow.levelIndex) {
           alternatives.push({
             action: "training",
             levelIndex: r.levelIndex,
@@ -1500,7 +1530,14 @@
     var stream = [];
     if (ctx.wrongbookNeeded) stream.push({ kind: "wrongbook" });
 
-    var holes = sortHolesWorstFirst(ctx.schoolHoles || []);
+    /** 未通关：四则黄橙先 ≤闯关顶；已通关/无顶：纯洞分。 */
+    var arithHoleCap =
+      ctx.hasClearedLevel === true
+        ? null
+        : ctx.levelBestIndex != null && Number.isFinite(Number(ctx.levelBestIndex))
+          ? ctx.levelBestIndex
+          : null;
+    var holes = sortArithSchoolHoles(ctx.schoolHoles || [], arithHoleCap);
     var primary = ctx.primaryRow;
     if (ctx.profile && ctx.profile.id === "skill_gaps") {
       if (
@@ -2818,12 +2855,14 @@
       };
     }
     var groups = splitGroups(rows);
+    var primaryHoleCap = opts.hasClearedLevel === true ? null : levelBestIndex;
     var picked = pickPrimaryRow(
       rows,
       groups.schoolHoles,
       groups.aheadMastered,
       groups.aheadThin,
-      groups.schoolMastered
+      groups.schoolMastered,
+      primaryHoleCap
     );
     var wrongVisible =
       opts.wrongAnswersVisible != null && Number.isFinite(Number(opts.wrongAnswersVisible))
@@ -2959,7 +2998,7 @@
               (ctx.scanElevate
                 ? "；L1～原纪录全绿，闯关提到训练前"
                 : "；默认垫后，有空格才上"),
-            "v0.50：种子流不按 ≤n 拆开；全绿提权见 R-scan-elevate"
+            "v0.56：四则黄橙先 ≤闯关顶再顶后；闯关进队仍独立；全绿提权见 R-scan-elevate"
           )
         );
       }
@@ -3029,7 +3068,7 @@
         "hybrid_task_list",
         "一条队列：未完成最多 " +
           INCOMPLETE_SIZE +
-          " 条且不重复（黄橙按洞分；未通关闯关默认垫后，全绿快可提权）。同 key 默认隔 " +
+          " 条且不重复（未通关四则黄橙先≤闯关顶再按洞分；闯关默认垫后，全绿快可提权）。同 key 默认隔 " +
           SAME_TASK_GAP +
           " 条；冷却窗最多 " +
           COMPLETED_MAX +
@@ -3197,6 +3236,7 @@
     foundationRemainingForRow: foundationRemainingForRow,
     fillerScore: fillerScore,
     holeScore: holeScore,
+    sortArithSchoolHoles: sortArithSchoolHoles,
     successKindForRow: successKindForRow,
     schoolActivatedReady: schoolActivatedReady,
     nextOpenableRow: nextOpenableRow,
