@@ -56,10 +56,19 @@ module.exports = {
   get PERSONAL_HALF_LIFE_DAYS() {
     return HM().PERSONAL_HALF_LIFE_DAYS;
   },
+  get FILL_RUN_MIN_ACCURACY() {
+    return HM().FILL_RUN_MIN_ACCURACY;
+  },
   filterArithmeticRuns,
   personalWeightedByLevel,
   buildHeatmapCells,
   isHeatmapLevelPassed,
   percentileFromQuantileSummary,
   percentileFromMeanSd,
+  runAccuracy: function () {
+    return HM().runAccuracy.apply(null, arguments);
+  },
+  isFillRunStatsEligible: function () {
+    return HM().isFillRunStatsEligible.apply(null, arguments);
+  },
 };

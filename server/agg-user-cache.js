@@ -5,8 +5,8 @@
 const fs = require("fs");
 const path = require("path");
 
-/** v3：增加质数合数折线分类 primeComposite（Y0） */
-const SCHEMA_VERSION = 3;
+/** v4：填空局准 <50% 整局排除；旧快照一律作废重算 */
+const SCHEMA_VERSION = 4;
 
 function createAggUserCache(opts) {
   const dataDir = opts.dataDir;

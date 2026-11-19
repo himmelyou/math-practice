@@ -3,6 +3,7 @@
  * 支持按模式分类：四则（L1–L16）/ 小数（D1–D6）等。
  *
  * 速度口径（填空/四则）：仅答对计入；几何均；timeSpentMs > cap 剔除。
+ * 填空局正确率 < 50% 的整局不进准度/速度（与热图 / 常模同口径）。
  * 二选一（整除 Z1–Z4 / 质数 Y0 / 因倍 Y1–Y2）：≥10 题局（含放弃）；准度按题；
  * 速度=准≥90% 局的 duration/n，按题数 n 加权；无合格速度则该日均速为空。
  */
@@ -24,6 +25,8 @@
   var PRIME_RUN_MIN_ATTEMPTS = CHOICE_RUN_MIN_ATTEMPTS;
   var PRIME_MS_PER_Q_CAP = CHOICE_MS_PER_Q_CAP;
   var FACTORS_CHOICE_LEVEL_MAX = 1;
+  /** 与 stats-heatmap-browser FILL_RUN_MIN_ACCURACY 对齐 */
+  var FILL_RUN_MIN_ACCURACY = 0.5;
 
   function emptyLevelAgg() {
     return { total: 0, correct: 0, totalTimeMs: 0, sumLnMs: 0, nSpeed: 0, choiceRunCount: 0 };
@@ -260,6 +263,39 @@
     };
   }
 
+  function fillRunAttemptCount(r) {
+    if (!r) return 0;
+    if (Array.isArray(r.attempts) && r.attempts.length) return r.attempts.length;
+    var n = Number(r.attemptCount);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+  }
+
+  function fillRunCorrectCount(r) {
+    var list = r && Array.isArray(r.attempts) ? r.attempts : [];
+    if (list.length) {
+      var n = 0;
+      for (var i = 0; i < list.length; i += 1) {
+        if (list[i] && list[i].correct === true) n += 1;
+      }
+      return n;
+    }
+    var total = Number(r && r.attemptCount);
+    var wrong = Number(r && r.wrongCount);
+    if (Number.isFinite(total) && total > 0 && Number.isFinite(wrong)) {
+      return Math.max(0, Math.floor(total) - Math.max(0, Math.floor(wrong)));
+    }
+    return 0;
+  }
+
+  /** 填空局准 < 50% 整局排除；算不出则保留 */
+  function isFillRunStatsEligible(r) {
+    var n = fillRunAttemptCount(r);
+    if (!(n > 0)) return true;
+    var p = fillRunCorrectCount(r) / n;
+    if (!Number.isFinite(p)) return true;
+    return p >= FILL_RUN_MIN_ACCURACY;
+  }
+
   function absorbAttemptRunIntoAgg(r, byLevel, byDay, dateStr, opts) {
     opts = opts || {};
     var levelCount = opts.levelCount;
@@ -267,6 +303,7 @@
     var resolveLevelIndex = opts.resolveLevelIndex;
     var levelFilter = typeof opts.levelFilter === 'function' ? opts.levelFilter : null;
     if (!Array.isArray(r.attempts)) return;
+    if (!isFillRunStatsEligible(r)) return;
     ensureDayLevels(byDay, dateStr, levelCount);
     r.attempts.forEach(function (a) {
       var idx;

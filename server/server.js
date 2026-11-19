@@ -5923,6 +5923,14 @@ function collectPersonMeanLnByLevel(modeFilter, levelCount, attemptLevelIndexFn)
       const mode = normalizeRunMode(r.mode);
       if (!modeFilter(mode)) return;
       if (!Array.isArray(r.attempts)) return;
+      // 与热图/折线一致：填空局准 < 50% 整局不进常模
+      if (
+        heatmapStats &&
+        typeof heatmapStats.isFillRunStatsEligible === "function" &&
+        !heatmapStats.isFillRunStatsEligible(r)
+      ) {
+        return;
+      }
       r.attempts.forEach((a) => {
         let idx;
         if (typeof attemptLevelIndexFn === "function") {
@@ -5971,7 +5979,7 @@ function computeLevelCohortResult() {
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票：每人每档先算几何均时（答对且≤cap 题数≥" +
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。填空局正确率<50%的整局不纳入。全体常模按「人·档」计票：每人每档先算几何均时（答对且≤cap 题数≥" +
       COHORT_MIN_ATTEMPTS_PER_USER_LEVEL +
       "），再对人级 meanLn 做分位/直方图，避免高题量用户主导分布。",
     levels,
@@ -6105,7 +6113,7 @@ function computeDecimalCohortResult() {
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票：每人每档先算几何均时（答对且≤cap 题数≥" +
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。填空局正确率<50%的整局不纳入。全体常模按「人·档」计票：每人每档先算几何均时（答对且≤cap 题数≥" +
       COHORT_MIN_ATTEMPTS_PER_USER_LEVEL +
       "），再对人级 meanLn 做分位/直方图。",
     levels,
@@ -6214,7 +6222,7 @@ function computePerfectSquareCohortResult() {
     minAttemptsForHeatmap: COHORT_MIN_ATTEMPTS_PER_USER_LEVEL,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。全体常模按「人·档」计票。",
+      "答对题的 timeSpentMs 超过该毫秒数（默认 1 分钟）的记录不纳入速度侧。填空局正确率<50%的整局不纳入。全体常模按「人·档」计票。",
     levels,
   };
 }
@@ -6631,7 +6639,7 @@ function computeFactorsMultiplesCohortResult() {
     choiceSpeedMinAccuracy: CHOICE_SPEED_MIN_ACCURACY,
     timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
     timeSpentMsCapNote:
-      "Y1–Y2 二选一按局（题数≥10且准≥90%，整局时长/题数）；Y3–Y6 填空仍按答对题 timeSpentMs。每人每档 1 票。",
+      "Y1–Y2 二选一按局（题数≥10且准≥90%，整局时长/题数）；Y3–Y6 填空按答对题 timeSpentMs，局准<50%整局不纳入。每人每档 1 票。",
     levels,
   };
 }

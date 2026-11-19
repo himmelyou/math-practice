@@ -5,8 +5,8 @@
 const fs = require("fs");
 const path = require("path");
 
-/** v3：因倍栏挂质数合数虚拟 Y0；旧快照一律作废重算 */
-const SCHEMA_VERSION = 3;
+/** v4：填空局准 <50% 整局排除；旧快照一律作废重算 */
+const SCHEMA_VERSION = 4;
 
 function createHeatmapUserCache(opts) {
   const dataDir = opts.dataDir;

@@ -22,6 +22,11 @@
   var MS_PER_DAY = 86400000;
   var PERSONAL_WINDOW_ATTEMPTS = 200;
   var PERSONAL_HALF_LIFE_DAYS = 14;
+  /**
+   * 填空局（按题汇总）最低局正确率：低于此值的整局不进热图准度/速度。
+   * 用于排除故意乱填；与折线 / 常模同口径。二选一局不走此门槛。
+   */
+  var FILL_RUN_MIN_ACCURACY = 0.5;
 
   /** 热图分类注册表（拆括号仅补 attempt，暂不进热图）；质数合数以虚拟 Y0 挂在因倍栏前。顺序：四则→平方数→整除→因数倍数→小数 */
   var HEATMAP_CATEGORIES = [
@@ -145,7 +150,7 @@
 
   function runAttemptCount(r) {
     if (!r) return 0;
-    if (Array.isArray(r.attempts)) return r.attempts.length;
+    if (Array.isArray(r.attempts) && r.attempts.length) return r.attempts.length;
     var n = Number(r.attemptCount);
     return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
   }
@@ -160,18 +165,33 @@
   }
 
   function runCorrectCount(r) {
-    var n = 0;
     var list = r && Array.isArray(r.attempts) ? r.attempts : [];
-    for (var i = 0; i < list.length; i += 1) {
-      if (list[i] && list[i].correct === true) n += 1;
+    if (list.length) {
+      var n = 0;
+      for (var i = 0; i < list.length; i += 1) {
+        if (list[i] && list[i].correct === true) n += 1;
+      }
+      return n;
     }
-    return n;
+    var total = Number(r && r.attemptCount);
+    var wrong = Number(r && r.wrongCount);
+    if (Number.isFinite(total) && total > 0 && Number.isFinite(wrong)) {
+      return Math.max(0, Math.floor(total) - Math.max(0, Math.floor(wrong)));
+    }
+    return 0;
   }
 
   function runAccuracy(r) {
     var n = runAttemptCount(r);
     if (!(n > 0)) return null;
     return runCorrectCount(r) / n;
+  }
+
+  /** 填空统计是否纳入该局；算不出正确率时保留（避免误杀瘦身局） */
+  function isFillRunStatsEligible(r) {
+    var p = runAccuracy(r);
+    if (p == null || !Number.isFinite(Number(p))) return true;
+    return Number(p) >= FILL_RUN_MIN_ACCURACY;
   }
 
   function isChoiceSpeedEligible(p, msPerQ, msCap) {
@@ -551,6 +571,7 @@
 
     (filteredRuns || []).forEach(function (r) {
       if (!Array.isArray(r.attempts)) return;
+      if (!isFillRunStatsEligible(r)) return;
       var runTs = Number(r.ts) || 0;
       r.attempts.forEach(function (a) {
         var k;
@@ -1748,6 +1769,7 @@
     CHOICE_WINDOW_RUNS: CHOICE_WINDOW_RUNS,
     CHOICE_SPEED_MIN_ACCURACY: CHOICE_SPEED_MIN_ACCURACY,
     CHOICE_MS_PER_Q_CAP: CHOICE_MS_PER_Q_CAP,
+    FILL_RUN_MIN_ACCURACY: FILL_RUN_MIN_ACCURACY,
     MISSING_SPEED_TIME_PCT: MISSING_SPEED_TIME_PCT,
     FACTORS_MULTIPLES_CHOICE_LEVEL_MAX: FACTORS_MULTIPLES_CHOICE_LEVEL_MAX,
     normalizeMode: normalizeMode,
@@ -1757,6 +1779,7 @@
     runAttemptCount: runAttemptCount,
     runCorrectCount: runCorrectCount,
     runAccuracy: runAccuracy,
+    isFillRunStatsEligible: isFillRunStatsEligible,
     runDurationSec: runDurationSec,
     resolveDivisibilityRunHeatLevel: resolveDivisibilityRunHeatLevel,
     resolveFactorsMultiplesRunHeatLevel: resolveFactorsMultiplesRunHeatLevel,
