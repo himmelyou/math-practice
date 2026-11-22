@@ -3,12 +3,16 @@
  * - overviewActiveDayKeys: 中国日历日 YYYY-MM-DD 列表（剪枝保留近 60 天）
  * - trainingFluentCount: 四则热图流畅关数 0–16
  * - trainingFluentCohortBuiltAt: 算出流畅数时所用四则常模 builtAt（常模更新后概览可据此重算）
+ * - levelClearEstimateSec: 热图预估全通秒数（L1–L16 avgSec×10×1.1；缺格为无字段）
  * - survivalBestLevel: 生存模式最高 maxLevel（0-based）
  */
 const { getJmlStatsHeatmap } = require("./load-jml-stats-heatmap");
 
 const ACTIVE_KEYS_KEEP_DAYS = 60;
 const TRAINING_LEVEL_COUNT = 16;
+/** 与 practice-advice estimateClearSec 一致 */
+const SCAN_CLEAR_ITEMS = 10;
+const SCAN_CLEAR_OVERHEAD = 1.1;
 
 function chinaDateKeyFromTs(ts) {
   const d = new Date(Number(ts) || 0);
@@ -186,8 +190,54 @@ function countFluentFromHeat(heat) {
   return fluentCount;
 }
 
+/** 与 practice-advice.avgSecFromCell 对齐 */
+function avgSecFromCell(cell) {
+  if (!cell) return null;
+  if (cell.meanLnCorrect != null && Number.isFinite(Number(cell.meanLnCorrect))) {
+    const sec = Math.exp(Number(cell.meanLnCorrect)) / 1000;
+    return Number.isFinite(sec) && sec > 0 ? sec : null;
+  }
+  if (cell.avgSec != null && Number.isFinite(Number(cell.avgSec))) {
+    const a = Number(cell.avgSec);
+    return a > 0 ? a : null;
+  }
+  if (typeof cell.avgSecText === "string") {
+    const m = cell.avgSecText.match(/([0-9]+(?:\.[0-9]+)?)/);
+    if (m) {
+      const n = Number(m[1]);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+  }
+  return null;
+}
+
+function cellAtLevel(cells, levelIndex) {
+  const list = Array.isArray(cells) ? cells : [];
+  const k = Math.floor(Number(levelIndex));
+  for (let i = 0; i < list.length; i += 1) {
+    if (list[i] && list[i].levelIndex === k) return list[i];
+  }
+  return list[k] || null;
+}
+
 /**
- * @returns {{ fluentCount: number|null, ok: boolean }}
+ * 闯关全通估时（秒）：L1–L16 均有 avgSec 才出数；与热图建议页 estimateClearSec 同公式。
+ * @returns {number|null}
+ */
+function estimateClearSecFromHeat(heat) {
+  const cells = (heat && heat.cells) || [];
+  let sum = 0;
+  for (let i = 0; i < TRAINING_LEVEL_COUNT; i += 1) {
+    const sec = avgSecFromCell(cellAtLevel(cells, i));
+    if (sec == null || sec <= 0) return null;
+    sum += sec;
+  }
+  const est = sum * SCAN_CLEAR_ITEMS * SCAN_CLEAR_OVERHEAD;
+  return Number.isFinite(est) && est > 0 ? est : null;
+}
+
+/**
+ * @returns {{ fluentCount: number|null, clearEstimateSec: number|null, ok: boolean }}
  */
 function computeTrainingFluentCount(runs, opts) {
   opts = opts || {};
@@ -196,14 +246,14 @@ function computeTrainingFluentCount(runs, opts) {
     try {
       HM = getJmlStatsHeatmap();
     } catch (e) {
-      return { fluentCount: null, ok: false };
+      return { fluentCount: null, clearEstimateSec: null, ok: false };
     }
   }
   if (!HM || typeof HM.buildHeatmapCells !== "function") {
-    return { fluentCount: null, ok: false };
+    return { fluentCount: null, clearEstimateSec: null, ok: false };
   }
   const arith = HM.filterArithmeticRuns ? HM.filterArithmeticRuns(runs || []) : runs || [];
-  if (!arith.length) return { fluentCount: 0, ok: true };
+  if (!arith.length) return { fluentCount: 0, clearEstimateSec: null, ok: true };
   const cohort = opts.cohort && opts.cohort.ok !== false ? opts.cohort : null;
   const capMs = Number(opts.capMs) > 0 ? Number(opts.capMs) : 60 * 1000;
   const heat = HM.buildHeatmapCells({
@@ -212,7 +262,11 @@ function computeTrainingFluentCount(runs, opts) {
     maxTimeSpentMs: capMs,
     nowTs: opts.nowMs != null ? Number(opts.nowMs) : Date.now(),
   });
-  return { fluentCount: countFluentFromHeat(heat), ok: true };
+  return {
+    fluentCount: countFluentFromHeat(heat),
+    clearEstimateSec: estimateClearSecFromHeat(heat),
+    ok: true,
+  };
 }
 
 /** 流畅索引是否相对当前四则常模过期（无常模 builtAt 时不强制重算） */
@@ -262,7 +316,28 @@ function setTrainingFluentCount(u, fluentCount, cohortBuiltAt) {
 }
 
 /**
- * 局后增量：活跃日 +（非 comboOnly 时）生存最高档；算术局再算流畅数。
+ * @param {object} u
+ * @param {number|null} clearEstimateSec 原始估时秒；写入时 round 成整数
+ */
+function setLevelClearEstimateSec(u, clearEstimateSec) {
+  if (!u) return false;
+  if (clearEstimateSec == null || !Number.isFinite(Number(clearEstimateSec)) || Number(clearEstimateSec) <= 0) {
+    if (u.levelClearEstimateSec != null) {
+      delete u.levelClearEstimateSec;
+      return true;
+    }
+    return false;
+  }
+  const n = Math.max(1, Math.round(Number(clearEstimateSec)));
+  if (u.levelClearEstimateSec !== n) {
+    u.levelClearEstimateSec = n;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 局后增量：活跃日 +（非 comboOnly 时）生存最高档；算术局再算流畅数与闯关预计。
  */
 function bumpOverviewIndexesAfterRun(u, runEntry, allRuns, opts) {
   opts = opts || {};
@@ -278,11 +353,9 @@ function bumpOverviewIndexesAfterRun(u, runEntry, allRuns, opts) {
       mode === "training" || mode === "survival" || mode === "level" || mode === "";
     if (arith) {
       const got = computeTrainingFluentCount(allRuns || [], opts);
-      if (
-        got.ok &&
-        setTrainingFluentCount(u, got.fluentCount, opts.cohortBuiltAt)
-      ) {
-        changed = true;
+      if (got.ok) {
+        if (setTrainingFluentCount(u, got.fluentCount, opts.cohortBuiltAt)) changed = true;
+        if (setLevelClearEstimateSec(u, got.clearEstimateSec)) changed = true;
       }
     }
   }
@@ -296,9 +369,12 @@ function recomputeOverviewIndexesFromRuns(u, runs, opts) {
   recomputeActiveDaysFromRuns(u, runs, opts.nowMs);
   recomputeSurvivalBestFromRuns(u, runs);
   const got = computeTrainingFluentCount(runs || [], opts);
-  if (got.ok) setTrainingFluentCount(u, got.fluentCount, opts.cohortBuiltAt);
-  else if (!Array.isArray(runs) || !runs.length) {
+  if (got.ok) {
+    setTrainingFluentCount(u, got.fluentCount, opts.cohortBuiltAt);
+    setLevelClearEstimateSec(u, got.clearEstimateSec);
+  } else if (!Array.isArray(runs) || !runs.length) {
     setTrainingFluentCount(u, 0, opts.cohortBuiltAt);
+    setLevelClearEstimateSec(u, null);
   }
   return true;
 }
@@ -311,6 +387,8 @@ module.exports = {
   recomputeSurvivalBestFromRuns,
   computeTrainingFluentCount,
   setTrainingFluentCount,
+  setLevelClearEstimateSec,
+  estimateClearSecFromHeat,
   isTrainingFluentCohortStale,
   bumpOverviewIndexesAfterRun,
   recomputeOverviewIndexesFromRuns,

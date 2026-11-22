@@ -207,6 +207,7 @@
     lastGameTs: 'lastGameTs',
     daysActiveLast30: 'daysActiveLast30',
     levelProgress: 'levelProgressSort',
+    levelClearEstimate: 'levelClearEstimateSort',
     trainingProgress: 'trainingProgressSort',
     survivalProgress: 'survivalProgressSort',
     memoryInstantProgress: 'memoryInstantProgressSort',
@@ -226,6 +227,7 @@
     'daysActiveLast30',
     'lastGameTs',
     'levelProgress',
+    'levelClearEstimate',
     'trainingProgress',
     'survivalProgress',
     'memoryInstantProgress',
@@ -254,6 +256,13 @@
     },
     lastGameTs: { title: '最后上线时间', sortKey: 'lastGameTs', tdClass: 'jml-ov-col-lastgame' },
     levelProgress: { title: '闯关', sortKey: 'levelProgress', thClass: 'num', tdClass: 'jml-ov-col-prog num' },
+    levelClearEstimate: {
+      title: '闯关预计',
+      titleAttr: '热图预估全通（L1–L16 均速×10×1.1；缺格为 —）',
+      sortKey: 'levelClearEstimate',
+      thClass: 'num',
+      tdClass: 'jml-ov-col-prog num',
+    },
     trainingProgress: {
       title: '训练流畅',
       sortKey: 'trainingProgress',
@@ -594,6 +603,14 @@
     OVERVIEW_DEFAULT_COL_ORDER.forEach(function (id) {
       if (seen[id]) return;
       seen[id] = true;
+      // 旧本地列序缺「闯关预计」时插在闯关后，而不是甩到表尾
+      if (id === 'levelClearEstimate') {
+        var li = out.indexOf('levelProgress');
+        if (li >= 0) {
+          out.splice(li + 1, 0, id);
+          return;
+        }
+      }
       out.push(id);
     });
     return out;
@@ -700,6 +717,8 @@
       inner = escapeHtml(lastSeen ? formatDateTime(lastSeen) : '—');
     } else if (colId === 'levelProgress') {
       inner = escapeHtml(dashCell(r.levelProgress));
+    } else if (colId === 'levelClearEstimate') {
+      inner = escapeHtml(dashCell(r.levelClearEstimate));
     } else if (colId === 'trainingProgress') {
       trainTitle = r.trainingReason ? ' title="' + escapeHtml(String(r.trainingReason)) + '"' : '';
       inner = escapeHtml(dashCell(r.trainingProgress));

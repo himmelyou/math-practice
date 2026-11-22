@@ -283,14 +283,30 @@ function trainingProgressSortKey(trainingP) {
   return null;
 }
 
-/** 概览「训练」列：四则热图已流畅掌握关数，如 7/16 */
+/** 概览「训练」列：四则热图已流畅掌握关数，如 7/16；顺带算闯关预计 */
 function formatTrainingProgress(runs, cohort, capMs, HM, todayKey) {
   const levelCount = 16;
   if (!HM || typeof HM.buildHeatmapCells !== "function") {
-    return { text: null, mode: "", reason: "", fluentCount: null, levelCount };
+    return {
+      text: null,
+      mode: "",
+      reason: "",
+      fluentCount: null,
+      clearEstimateSec: null,
+      levelCount,
+    };
   }
   const arith = HM.filterArithmeticRuns ? HM.filterArithmeticRuns(runs || []) : runs || [];
-  if (!arith.length) return { text: null, mode: "", reason: "", fluentCount: null, levelCount };
+  if (!arith.length) {
+    return {
+      text: null,
+      mode: "",
+      reason: "",
+      fluentCount: null,
+      clearEstimateSec: null,
+      levelCount,
+    };
+  }
 
   const heat = HM.buildHeatmapCells({
     runs: arith,
@@ -318,12 +334,14 @@ function formatTrainingProgress(runs, cohort, capMs, HM, todayKey) {
   });
 
   const reason = "流畅掌握 " + fluentCount + "/" + levelCount;
+  const clearEstimateSec = overviewUserIndex.estimateClearSecFromHeat(heat);
 
   return {
     text: fluentCount + "/" + levelCount,
     mode: "",
     reason,
     fluentCount,
+    clearEstimateSec,
     levelCount,
   };
 }
@@ -500,22 +518,30 @@ function buildStudentOverviewRows(options) {
     const shouldLiveHeat =
       computeTrainingHeat || (cohortStale && Array.isArray(runs));
 
+    let liveClearEstimateSec = null;
     if (shouldLiveHeat && HM) {
       trainingP = formatTrainingProgress(runs, cohort, capMs, HM, todayKey);
       const liveCount =
         trainingP && trainingP.fluentCount != null && Number.isFinite(Number(trainingP.fluentCount))
           ? Number(trainingP.fluentCount)
           : 0;
+      liveClearEstimateSec =
+        trainingP && trainingP.clearEstimateSec != null ? trainingP.clearEstimateSec : null;
       if (!trainingP || trainingP.fluentCount == null) {
         trainingP = {
           text: "0/16",
           mode: "",
           reason: "流畅掌握 0/16",
           fluentCount: 0,
+          clearEstimateSec: null,
           levelCount: 16,
         };
+        liveClearEstimateSec = null;
       }
       if (overviewUserIndex.setTrainingFluentCount(u, liveCount, cohortBuiltAt)) {
+        usersIndexDirty = true;
+      }
+      if (overviewUserIndex.setLevelClearEstimateSec(u, liveClearEstimateSec)) {
         usersIndexDirty = true;
       }
       if (cohortStale) {
@@ -538,6 +564,17 @@ function buildStudentOverviewRows(options) {
       };
     } else {
       trainingP = { text: null, mode: "", reason: "", fluentCount: null, levelCount: 16 };
+    }
+
+    let clearEstSec = null;
+    if (liveClearEstimateSec != null && Number.isFinite(Number(liveClearEstimateSec))) {
+      clearEstSec = Math.max(1, Math.round(Number(liveClearEstimateSec)));
+    } else if (
+      typeof u.levelClearEstimateSec === "number" &&
+      Number.isFinite(u.levelClearEstimateSec) &&
+      u.levelClearEstimateSec > 0
+    ) {
+      clearEstSec = Math.max(1, Math.round(Number(u.levelClearEstimateSec)));
     }
     const psUnlocked =
       typeof u.levelPerfectSquareUnlockedMax === "number"
@@ -593,6 +630,9 @@ function buildStudentOverviewRows(options) {
       levelProgress: levelP.text,
       levelProgressSort: levelP.sortKey,
       levelRankSec: levelP.rankSec,
+      levelClearEstimate: clearEstSec != null ? formatCompactRunTime(clearEstSec) : null,
+      levelClearEstimateSec: clearEstSec,
+      levelClearEstimateSort: clearEstSec != null ? 1e6 - clearEstSec : null,
       survivalProgress: survivalP.text,
       survivalProgressSort: survivalP.sortKey,
       survivalRankSec: survivalP.rankSec,
