@@ -336,6 +336,39 @@ function setLevelClearEstimateSec(u, clearEstimateSec) {
   return false;
 }
 
+/** 从热图 payload（byCategory.arithmetic.heat）回写闯关预计 */
+function setLevelClearEstimateFromHeatPayload(u, heatPayload) {
+  if (!u || !heatPayload || heatPayload.ok === false) return false;
+  const pack =
+    heatPayload.byCategory && heatPayload.byCategory.arithmetic
+      ? heatPayload.byCategory.arithmetic
+      : null;
+  const heat = pack && pack.heat ? pack.heat : null;
+  return setLevelClearEstimateSec(u, estimateClearSecFromHeat(heat));
+}
+
+/**
+ * 零重建：仅当热图用户缓存命中时取闯关预计（缺格 → clearEstimateSec null，ok 仍为 true）。
+ * 无缓存 → ok false，调用方不要改索引。
+ */
+function peekLevelClearEstimateFromHeatCache(username, heatmapCache) {
+  if (!username || !heatmapCache || typeof heatmapCache.get !== "function") {
+    return { ok: false, clearEstimateSec: null };
+  }
+  try {
+    const snap = heatmapCache.get(String(username));
+    if (!snap || !snap.byCategory || typeof snap.byCategory !== "object") {
+      return { ok: false, clearEstimateSec: null };
+    }
+    const pack = snap.byCategory.arithmetic;
+    const heat = pack && pack.heat ? pack.heat : null;
+    if (!heat) return { ok: false, clearEstimateSec: null };
+    return { ok: true, clearEstimateSec: estimateClearSecFromHeat(heat) };
+  } catch (e) {
+    return { ok: false, clearEstimateSec: null };
+  }
+}
+
 /**
  * 局后增量：活跃日 +（非 comboOnly 时）生存最高档；算术局再算流畅数与闯关预计。
  */
@@ -388,6 +421,8 @@ module.exports = {
   computeTrainingFluentCount,
   setTrainingFluentCount,
   setLevelClearEstimateSec,
+  setLevelClearEstimateFromHeatPayload,
+  peekLevelClearEstimateFromHeatCache,
   estimateClearSecFromHeat,
   isTrainingFluentCohortStale,
   bumpOverviewIndexesAfterRun,

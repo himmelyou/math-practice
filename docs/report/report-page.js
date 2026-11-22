@@ -820,6 +820,34 @@
     state.overviewRows = next;
   }
 
+  /** 与 student-overview.formatCompactRunTime 对齐 */
+  function formatOverviewCompactRunTime(sec) {
+    var s = Math.max(0, Math.floor(Number(sec) || 0));
+    if (s < 60) return s + 's';
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return r > 0 ? m + 'm ' + r + 's' : m + 'm';
+  }
+
+  /**
+   * 统计页已显示的预估全通 → 立刻补进内存里的概览行（服务端也会 stamp，但 ?since= 不一定带回该行）
+   */
+  function syncOverviewClearEstimateFromAdvice(username, advice) {
+    var name = String(username || '').trim();
+    if (!name || !advice) return;
+    var raw =
+      advice.clearEstimate && advice.clearEstimate.estimateSec != null
+        ? Number(advice.clearEstimate.estimateSec)
+        : NaN;
+    if (!Number.isFinite(raw) || raw <= 0) return;
+    var sec = Math.max(1, Math.round(raw));
+    var row = findOverviewRow(name);
+    if (!row) return;
+    row.levelClearEstimate = formatOverviewCompactRunTime(sec);
+    row.levelClearEstimateSec = sec;
+    row.levelClearEstimateSort = 1e6 - sec;
+  }
+
   var REPORT_TAB_IDS = {
     overview: true,
     runs: true,
@@ -2343,6 +2371,9 @@
     state.serverTrainingPick = bag.serverTrainingPick || null;
     state.serverCategoryNext = bag.serverCategoryNext || null;
     state.loadedStudentUsername = bag.username || '';
+    if (state.practiceAdvice) {
+      syncOverviewClearEstimateFromAdvice(bag.username || state.selectedUsername, state.practiceAdvice);
+    }
   }
 
   /** @returns {boolean} 是否已用本地 bag 恢复 */
@@ -2544,6 +2575,7 @@
       if (plan && plan.ok) {
         state.practiceAdvice = plan;
         state.practiceAdviceError = '';
+        syncOverviewClearEstimateFromAdvice(state.selectedUsername || data.username, plan);
       } else {
         state.practiceAdvice = null;
         state.practiceAdviceError = (plan && plan.error) || '任务单加载失败';
@@ -3961,6 +3993,7 @@
         if (data && data.ok) {
           state.practiceAdvice = data;
           state.practiceAdviceError = '';
+          syncOverviewClearEstimateFromAdvice(u, data);
         } else {
           state.practiceAdvice = null;
           state.practiceAdviceError = (data && data.error) || '任务单加载失败';

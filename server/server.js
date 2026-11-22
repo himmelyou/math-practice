@@ -1319,6 +1319,17 @@ function computePracticePlanForUsername(username, opts) {
       snapshot: snapshot,
       wrongbookSessionDone: opts.wrongbookSessionDone === true,
     });
+    // 统计页已算出的预估全通 → 回写概览索引，避免概览列空着
+    const estSec =
+      advice &&
+      advice.clearEstimate &&
+      advice.clearEstimate.estimateSec != null &&
+      Number.isFinite(Number(advice.clearEstimate.estimateSec))
+        ? Number(advice.clearEstimate.estimateSec)
+        : null;
+    if (overviewUserIndex.setLevelClearEstimateSec(user, estSec)) {
+      writeJson(USERS_FILE, usersData);
+    }
     return { ok: true, advice, heatPayload, runs, user };
   } catch (e) {
     console.warn("[practice-plan]", e && e.message ? e.message : e);
@@ -1577,6 +1588,13 @@ function buildStudentWorkspaceForUsername(username, opts) {
 
   if (!selectionHint && user.statsSelectionHint) {
     selectionHint = user.statsSelectionHint;
+  }
+
+  // 热图已就绪时回写闯关预计（与任务单 clearEstimate 同源），不另建热图
+  if (heatPayload && heatPayload.ok) {
+    if (overviewUserIndex.setLevelClearEstimateFromHeatPayload(user, heatPayload)) {
+      userDirty = true;
+    }
   }
 
   if (userDirty) {
@@ -5144,6 +5162,7 @@ app.get("/api/admin/student-overview", (req, res) => {
     capMs,
     computeTrainingHeat: singleUser,
     recomputeTrainingIfCohortStale: true,
+    heatmapCache: heatmapUserCache,
   });
   const rows = overviewBuilt.rows || [];
   if (overviewBuilt.usersIndexDirty) {

@@ -464,6 +464,8 @@ function buildStudentOverviewRows(options) {
   const computeTrainingHeat = options.computeTrainingHeat === true;
   /** 常模 builtAt 与账号索引不一致时，用 runs 重算流畅数并回写 */
   const recomputeTrainingIfCohortStale = options.recomputeTrainingIfCohortStale === true;
+  /** 缺 stamp 时只读热图用户缓存补洞（命中才算，不重建） */
+  const heatmapCache = options.heatmapCache || null;
 
   let HM = null;
   if (computeTrainingHeat || recomputeTrainingIfCohortStale) {
@@ -575,6 +577,23 @@ function buildStudentOverviewRows(options) {
       u.levelClearEstimateSec > 0
     ) {
       clearEstSec = Math.max(1, Math.round(Number(u.levelClearEstimateSec)));
+    } else if (heatmapCache) {
+      const peeked = overviewUserIndex.peekLevelClearEstimateFromHeatCache(
+        username,
+        heatmapCache
+      );
+      if (peeked.ok) {
+        if (
+          peeked.clearEstimateSec != null &&
+          Number.isFinite(Number(peeked.clearEstimateSec)) &&
+          Number(peeked.clearEstimateSec) > 0
+        ) {
+          clearEstSec = Math.max(1, Math.round(Number(peeked.clearEstimateSec)));
+        }
+        if (overviewUserIndex.setLevelClearEstimateSec(u, peeked.clearEstimateSec)) {
+          usersIndexDirty = true;
+        }
+      }
     }
     const psUnlocked =
       typeof u.levelPerfectSquareUnlockedMax === "number"
