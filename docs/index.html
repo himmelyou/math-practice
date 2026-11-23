@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=140"></script>
+  <script src="shared/app-version.js?v=141"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
@@ -3286,6 +3286,18 @@
       flex: 1;
       width: auto;
     }
+    .game-over-save-status {
+      margin-top: 14px;
+      text-align: center;
+      font-size: 0.95rem;
+      color: #5a6577;
+      line-height: 1.4;
+    }
+    .game-over-save-status.is-action {
+      color: #2f6fed;
+      cursor: pointer;
+      text-decoration: underline;
+    }
     #daily-task-settlement {
       width: 100%;
       box-sizing: border-box;
@@ -3731,15 +3743,59 @@
     .game-section.wrong-practice-active #question-subtext {
       display: none;
     }
-    .game-section.wrong-practice-active #question-text {
+    /* 填空错题：题干略留空；二选一走 choice-play 栈，不再额外垫高 */
+    .game-section.wrong-practice-active #game-card:not(.choice-play-card) #question-text {
       margin-top: 14px;
       padding-top: 14px;
+    }
+    /* 错题二选一：与正式整除/质数同高，压过四则 #game-card 的 max-height */
+    .game-section.wrong-practice-active {
+      --prime-card-playing-height: clamp(240px, 38vh, 320px);
+    }
+    #game-card.choice-play-card.game-card--playing {
+      height: var(--prime-card-playing-height);
+      max-height: var(--prime-card-playing-height);
+      min-height: 0;
+      overflow: hidden;
+      gap: clamp(12px, 3vh, 22px);
+      padding: 10px 12px;
+      justify-content: center;
+    }
+    #game-card.choice-play-card.game-card--playing > .question-body {
+      flex: 0 1 auto;
+      min-height: 0;
+      justify-content: center;
+    }
+    #game-card.choice-play-card.game-card--playing > .answer-form {
+      flex: 0 0 auto;
+      margin-top: 0;
+    }
+    #game-card.choice-play-card.game-card--playing .game-card-action-anchor {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+    #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row {
+      width: min(94%, 384px);
+      max-width: 100%;
+      margin: 0 auto;
+      gap: 8px;
+    }
+    #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row .btn-primary {
+      flex: 1 1 50%;
+      min-width: 0;
+      min-height: 2.35em;
+      padding: 8px 6px;
     }
     /* C 类题干：正式模式选择题 / 错题本里同类题（含 FM 填空）共用变量，压过四则 A 类 nowrap */
     #game-card.choice-play-card.game-card--playing > .question-body > .question-text.jml-prompt-stem,
     .game-section.wrong-practice-active #game-card.game-card--playing #question-text.jml-prompt-stem {
-      flex: 1 1 auto;
+      flex: 0 1 auto;
       min-height: 0;
+      max-height: 45%;
+      margin: 0;
+      padding: 0 6px;
       font-size: var(--jml-prompt-stem-size);
       font-weight: var(--jml-stem-weight);
       line-height: 1.25;
@@ -3836,6 +3892,24 @@
         --jml-kbd-gap: 5px;
         --jml-kbd-card-pad-y: 6px;
         --jml-kbd-card-pad-x: 8px;
+        /* 横屏竖向紧：字号跟 vh，避免 vw 顶满 clamp 上限 */
+        --jml-prompt-stem-size: clamp(0.9rem, 2.4vh, 1.12rem);
+        --jml-choice-btn-size: clamp(0.82rem, 2.1vh, 1.02rem);
+      }
+
+      .game-section.wrong-practice-active {
+        --prime-card-playing-height: clamp(180px, 46vh, 260px);
+      }
+
+      .choice-play-card > .choice-play-stack {
+        gap: clamp(12px, 3.2vh, 24px);
+      }
+
+      .choice-play-card .button-row.prime-choice-row .btn-primary,
+      .choice-play-card .button-row.div-choice-row .btn-primary,
+      #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row .btn-primary {
+        min-height: 2.15em;
+        padding: 7px 6px;
       }
 
     }
@@ -3852,7 +3926,14 @@
       --jml-kbd-gap: 4px;
       --jml-kbd-card-pad-y: 5px;
       --jml-kbd-card-pad-x: 8px;
-      --prime-card-playing-height: clamp(240px, 34svh, 320px);
+      --prime-card-playing-height: clamp(200px, 34svh, 280px);
+    }
+    html.jml-play-compact .game-section.wrong-practice-active {
+      --prime-card-playing-height: clamp(180px, 32svh, 240px);
+    }
+    html.jml-play-compact #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row .btn-primary {
+      min-height: 2.05em;
+      padding: 6px 5px;
     }
     html.jml-play-compact .status-grid {
       margin-top: 4px;
@@ -4762,6 +4843,7 @@
               <strong id="daily-task-settlement-val-d">—</strong>
             </p>
           </div>
+          <p class="game-over-save-status" id="daily-task-settlement-save-status" hidden></p>
           <div class="game-over-buttons daily-task-over-row" id="daily-task-settlement-actions">
             <button type="button" class="btn-primary" id="daily-task-settlement-retry" style="display:none;">再试一次</button>
             <button type="button" class="btn-primary" id="daily-task-settlement-back">回到任务列表</button>
@@ -4841,6 +4923,7 @@
           <p class="game-over-line"><span id="game-over-wrong-label">本局错题：</span><strong id="game-over-wrong">0</strong></p>
           <p class="game-over-line"><span id="game-over-max-level-label">到达最高难度：</span><strong id="game-over-max-level">-</strong></p>
         </div>
+        <p class="game-over-save-status" id="game-over-save-status" hidden></p>
         <div class="game-over-buttons">
           <button class="btn-primary" id="play-again-btn">再玩一局</button>
           <button class="btn-primary" id="daily-task-back-btn" type="button" style="display:none;">回到任务列表</button>
@@ -6997,10 +7080,26 @@
       return list;
     }
 
+    /** 键盘局 + 错题二选一（无软键盘也要能压 compact） */
+    function getActivePlayBodiesForCompact() {
+      const list = getActiveKbdPlayBodies();
+      const main = document.getElementById("game-play-body");
+      const gameCard = document.getElementById("game-card");
+      const wrongChoice =
+        main &&
+        gameCard &&
+        gameCard.classList.contains("choice-play-card") &&
+        gameCard.classList.contains("game-card--playing") &&
+        dom.gameSection &&
+        dom.gameSection.classList.contains("wrong-practice-active");
+      if (wrongChoice && list.indexOf(main) < 0) list.push(main);
+      return list;
+    }
+
     /** 装不下才 html.jml-play-compact；刚好的机子不压缩 */
     function syncPlayCompactLayout() {
       const root = document.documentElement;
-      const bodies = getActiveKbdPlayBodies();
+      const bodies = getActivePlayBodiesForCompact();
       if (!bodies.length) {
         root.classList.remove("jml-play-compact");
         return;
@@ -7196,6 +7295,7 @@
         setSoftKeyboardVisible(true);
       }
       if (gameCard) gameCard.classList.toggle("choice-play-card", isChoice);
+      scheduleSyncPlayCompact();
     }
 
     function syncWrongPracticeSoftKeyboard() {
@@ -7588,6 +7688,62 @@
       dailyTaskSettlementHiddenEls = [];
     }
 
+    function provisionalDailyTaskFollow(abandoned, runStats) {
+      if (abandoned) return { kind: "none" };
+      const stats = runStats || {};
+      const kind = dailyTaskPlay && dailyTaskPlay.successKind;
+      if (kind === "open_activate" || kind === "level_reach") {
+        return { kind: "success" };
+      }
+      if (kind === "speed_step") {
+        const okP =
+          stats.p != null && Number(stats.p) >= DAILY_TASK_SPEED_ACC_MIN - 1e-9;
+        const tgt = dailyTaskPlay && dailyTaskPlay.targetAvgSec;
+        const okS =
+          tgt == null ||
+          !Number.isFinite(Number(tgt)) ||
+          (stats.avgSec != null && Number(stats.avgSec) <= Number(tgt) + 1e-9);
+        return { kind: okP && okS ? "success" : "fail" };
+      }
+      if (stats.p != null && Number(stats.p) >= DAILY_TASK_SPEED_ACC_MIN - 1e-9) {
+        return { kind: "success" };
+      }
+      return { kind: "fail" };
+    }
+
+    function setDailyTaskSettlementActionsState(state, onRetry) {
+      const status = document.getElementById("daily-task-settlement-save-status");
+      const retryBtn = document.getElementById("daily-task-settlement-retry");
+      const backBtn = document.getElementById("daily-task-settlement-back");
+      if (state === "saving") {
+        if (retryBtn) retryBtn.style.display = "none";
+        if (backBtn) backBtn.style.display = "none";
+        if (status) {
+          status.hidden = false;
+          status.textContent = t("game.over.saving");
+          status.className = "game-over-save-status";
+          status.onclick = null;
+        }
+        return;
+      }
+      if (state === "failed") {
+        if (retryBtn) retryBtn.style.display = "none";
+        if (backBtn) backBtn.style.display = "none";
+        if (status) {
+          status.hidden = false;
+          status.textContent = t("game.over.saveFailedRetry");
+          status.className = "game-over-save-status is-action";
+          status.onclick = typeof onRetry === "function" ? onRetry : null;
+        }
+        return;
+      }
+      if (status) {
+        status.hidden = true;
+        status.onclick = null;
+      }
+      if (backBtn) backBtn.style.display = "";
+    }
+
     function paintDailyTaskSettlement(follow, abandoned, runStats) {
       const panel = document.getElementById("daily-task-settlement");
       if (!panel) return;
@@ -7646,8 +7802,8 @@
     }
 
     /**
-     * 任务入口局末统一结算（B1）：跟局结果为准，不展示模式升降级文案。
-     * opts: { abandoned, attempts, mountEl, hideEls }
+     * 任务入口局末统一结算（B1）：先出本地结算，保存/跟局完成后再出确认按钮。
+     * opts: { abandoned, attempts, mountEl, hideEls, runStats, saveFn }
      */
     async function finishDailyTaskSettlement(opts) {
       opts = opts || {};
@@ -7671,12 +7827,6 @@
           mount.insertBefore(panel, mount.firstChild);
         }
       }
-      let follow = { kind: "none" };
-      if (opts.abandoned) {
-        follow = { kind: "none" };
-      } else {
-        follow = await syncDailyTaskFollowAfterRun();
-      }
       let levelFilter = null;
       if (
         dailyTaskPlay &&
@@ -7692,8 +7842,35 @@
       const runStats =
         opts.runStats ||
         summarizeDailyTaskAttempts(opts.attempts || currentRunAttempts, levelFilter);
-      paintDailyTaskSettlement(follow, !!opts.abandoned, runStats);
-      return follow;
+      const provisional = provisionalDailyTaskFollow(!!opts.abandoned, runStats);
+      paintDailyTaskSettlement(provisional, !!opts.abandoned, runStats);
+
+      const needsWait = typeof opts.saveFn === "function" || !opts.abandoned;
+      if (!needsWait) {
+        setDailyTaskSettlementActionsState("ready");
+        return provisional;
+      }
+
+      setDailyTaskSettlementActionsState("saving");
+      try {
+        if (typeof opts.saveFn === "function") {
+          const saveOk = await opts.saveFn();
+          if (saveOk === false) throw new Error("daily_task_save_failed");
+        }
+        let follow = { kind: "none" };
+        if (!opts.abandoned) {
+          follow = await syncDailyTaskFollowAfterRun();
+        }
+        paintDailyTaskSettlement(follow, !!opts.abandoned, runStats);
+        setDailyTaskSettlementActionsState("ready");
+        return follow;
+      } catch (e) {
+        console.warn("每日任务结算保存/同步失败", e);
+        setDailyTaskSettlementActionsState("failed", function () {
+          void finishDailyTaskSettlement(opts);
+        });
+        return { kind: "none", error: true };
+      }
     }
 
     function prepareDailyTaskOverWait() {
@@ -7704,9 +7881,14 @@
       const back = document.getElementById("daily-task-back-btn");
       if (back) back.style.display = "none";
       if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+      const goStatus = document.getElementById("game-over-save-status");
+      if (goStatus) {
+        goStatus.hidden = true;
+        goStatus.onclick = null;
+      }
     }
 
-    async function finishDailyTaskGameOver(abandoned) {
+    async function finishDailyTaskGameOver(abandoned, saveFn) {
       if (!isDailyTaskPlay()) {
         if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
         return;
@@ -7720,6 +7902,7 @@
         attempts: currentRunAttempts,
         mountEl: mount,
         hideEls: dom.gameOverPanel ? [dom.gameOverPanel] : [],
+        saveFn: typeof saveFn === "function" ? saveFn : undefined,
       });
     }
 
@@ -11405,6 +11588,8 @@
         "game.training.dailyRunPass": "本局達標！下次將挑戰下一關。",
         "game.training.unlockNew": "解鎖新等級",
         "game.training.finalizing": "正在更新練習進度…",
+        "game.over.saving": "結果保存中…",
+        "game.over.saveFailedRetry": "保存失敗，點擊重試",
         "game.training.pickingLevel": "正在選關…",
         "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
         "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
@@ -12146,6 +12331,8 @@
         "game.training.dailyRunPass": "Run cleared! Next time: the next level.",
         "game.training.unlockNew": "New level unlocked",
         "game.training.finalizing": "Updating practice progress…",
+        "game.over.saving": "Saving results…",
+        "game.over.saveFailedRetry": "Save failed — tap to retry",
         "game.training.pickingLevel": "Waiting…",
         "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
         "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
@@ -15099,47 +15286,50 @@
       updateTrainingStatusUI();
 
       const survivalTimeSec = Math.round((Date.now() - gameStartTime) / 1000);
+      const kickTrainingNextEntry = function () {
+        if (isDailyTaskPlay()) return;
+        void runTrainingFinalizeWithTimeout().catch(function (e) {
+          console.warn("训练选关预取失败", e);
+        });
+      };
 
       if (abandoned) {
         setFeedback("", null);
-        if (isDailyTaskPlay()) {
-          prepareDailyTaskOverWait();
-        } else if (dom.gameOverPanel) {
-          setGameOverLayout(true);
-          dom.gameOverPanel.style.display = "block";
-          const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = t("game.over.abandonedTitle");
-          const durationLabelEl = document.getElementById("game-over-duration-label");
-          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
-          const durationEl = document.getElementById("game-over-duration");
-          const scoreEl = document.getElementById("game-over-score");
-          const wrongEl = document.getElementById("game-over-wrong");
-          const maxLevelEl = document.getElementById("game-over-max-level");
-          const scoreLabelEl = document.getElementById("game-over-score-label");
-          const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.labelAccuracy");
-          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
-          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
-          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = "0";
-          if (wrongEl) wrongEl.textContent = String(runWrongCount);
-          if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(currentLevelIndex);
-        }
-        setGameCardActionSlot("hidden");
         const abandonMode = isDailyTaskPlay()
           ? { st: loadTrainingFlowState(), runKind: "daily" }
           : applyLocalTrainingDayModeAfterPlay(true);
-        await appendRun(survivalTimeSec, 0, currentLevelIndex, runWrongCount, "training", currentRunAttempts.slice(), false, false, {
+        const abandonMeta = buildTrainingRunMeta({
           abandoned: true,
-          trainingMeta: buildTrainingRunMeta({
-            abandoned: true,
-            runBrushMode: !!(abandonMode.st && abandonMode.st.dayMode === "heat"),
-            runKind: abandonMode.runKind,
-          }),
+          runBrushMode: !!(abandonMode.st && abandonMode.st.dayMode === "heat"),
+          runKind: abandonMode.runKind,
         });
+        const doAbandonSave = async function () {
+          const ok = await appendRun(
+            survivalTimeSec,
+            0,
+            currentLevelIndex,
+            runWrongCount,
+            "training",
+            currentRunAttempts.slice(),
+            false,
+            false,
+            { abandoned: true, trainingMeta: abandonMeta }
+          );
+          if (ok === false) throw new Error("training_abandon_save_failed");
+        };
         renderTrainingRunWrongReview();
-        await finishDailyTaskGameOver(true);
+        if (isDailyTaskPlay()) {
+          await finishDailyTaskGameOver(true, doAbandonSave);
+          return;
+        }
+        paintTrainingGameOverPanel({
+          title: t("game.over.abandonedTitle"),
+          survivalTimeSec: survivalTimeSec,
+          score: 0,
+          wrong: runWrongCount,
+          maxLevelText: getLevelShortCode(currentLevelIndex),
+        });
+        await runSettlementSaveWithUi(setGameOverSaveUi, doAbandonSave, null);
         return;
       }
 
@@ -15148,6 +15338,7 @@
       const accuracy = questionsAnswered > 0 ? correctCount / questionsAnswered : 0;
       const levelThisRun = currentLevelIndex;
       const runPass = accuracy >= TRAINING_PASS_ACCURACY;
+      const accuracyText = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
 
       if (trainingRunBrushMode) {
         // 须在 append/finalize 前取热图，否则本局已并入加权均时
@@ -15156,56 +15347,46 @@
           currentRunAttempts,
           trainingHeatSnapshot
         );
-        setTrainingRunFinalizeUi(true);
-        try {
-          await applyTrainingFrontierUnlock(levelThisRun, runWrongCount);
-          const modeAfter = applyLocalTrainingDayModeAfterPlay(false);
-          await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
-            trainingMeta: buildTrainingRunMeta({
-              runPass,
-              failCount: 0,
-              runBrushMode: modeAfter.st.dayMode === "heat" || modeAfter.runKind === "heat",
-              runKind: modeAfter.runKind,
-              unlockedNew: !!lastTrainingUnlockDidUnlock,
-            }),
-          });
-          if (!isDailyTaskPlay()) await runTrainingFinalizeWithTimeout();
-        } catch (e) {
-          console.warn("训练刷热图局 finalize 失败", e);
-        } finally {
-          setTrainingRunFinalizeUi(false);
-        }
+        const modeAfter = applyLocalTrainingDayModeAfterPlay(false);
+        const unlockOutcome = resolveTrainingFrontierUnlockLocal(levelThisRun, runWrongCount);
+        const tipTitle = appendTrainingUnlockTip(formatTrainingBrushDoneTitle(brushSpeedTip));
+        const trainingMeta = buildTrainingRunMeta({
+          runPass: runPass,
+          failCount: 0,
+          runBrushMode: modeAfter.st.dayMode === "heat" || modeAfter.runKind === "heat",
+          runKind: modeAfter.runKind,
+          unlockedNew: !!lastTrainingUnlockDidUnlock,
+        });
+        const doSave = async function () {
+          if (unlockOutcome && unlockOutcome.resultKey === "unlockNew") {
+            await saveTrainingUnlockedMax(unlockOutcome.savedUnlockedMax);
+          }
+          const ok = await appendRun(
+            survivalTimeSec,
+            runScore,
+            levelThisRun,
+            runWrongCount,
+            "training",
+            currentRunAttempts.slice(),
+            runPass,
+            false,
+            { trainingMeta: trainingMeta }
+          );
+          if (ok === false) throw new Error("training_brush_save_failed");
+        };
         renderTrainingRunWrongReview();
         if (isDailyTaskPlay()) {
-          prepareDailyTaskOverWait();
-          setGameCardActionSlot("hidden");
-          await finishDailyTaskGameOver(false);
+          await finishDailyTaskGameOver(false, doSave);
           return;
         }
-        if (dom.gameOverPanel) {
-          setGameOverLayout(true);
-          dom.gameOverPanel.style.display = "block";
-          const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = appendTrainingUnlockTip(formatTrainingBrushDoneTitle(brushSpeedTip));
-          const durationLabelEl = document.getElementById("game-over-duration-label");
-          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
-          const durationEl = document.getElementById("game-over-duration");
-          const scoreEl = document.getElementById("game-over-score");
-          const wrongEl = document.getElementById("game-over-wrong");
-          const maxLevelEl = document.getElementById("game-over-max-level");
-          const scoreLabelEl = document.getElementById("game-over-score-label");
-          const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.labelAccuracy");
-          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
-          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
-          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = String(runScore);
-          if (wrongEl) wrongEl.textContent = runWrongCount;
-          if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
-        }
-        setGameCardActionSlot("hidden");
-        await finishDailyTaskGameOver(false);
+        paintTrainingGameOverPanel({
+          title: tipTitle,
+          survivalTimeSec: survivalTimeSec,
+          score: runScore,
+          wrong: runWrongCount,
+          maxLevelText: accuracyText,
+        });
+        await runSettlementSaveWithUi(setGameOverSaveUi, doSave, kickTrainingNextEntry);
         return;
       }
 
@@ -15222,58 +15403,46 @@
           left: Math.max(0, 3 - failCount),
         });
       }
-
-      setTrainingRunFinalizeUi(true);
-      try {
-        await applyTrainingFrontierUnlock(levelThisRun, runWrongCount);
-        tipText = appendTrainingUnlockTip(tipText);
-        await appendRun(survivalTimeSec, runScore, levelThisRun, runWrongCount, "training", currentRunAttempts.slice(), runPass, false, {
-          trainingMeta: buildTrainingRunMeta({
-            runPass,
-            failCount,
-            runBrushMode: modeAfter.st.dayMode === "heat" || modeAfter.runKind === "heat",
-            runKind: modeAfter.runKind,
-            enterBrushAfter: false,
-            unlockedNew: !!lastTrainingUnlockDidUnlock,
-          }),
-        });
-        if (!isDailyTaskPlay()) await runTrainingFinalizeWithTimeout();
-      } catch (e) {
-        console.warn("训练当日局 finalize 失败，使用同步选关占位", e);
-      } finally {
-        setTrainingRunFinalizeUi(false);
-      }
-        renderTrainingRunWrongReview();
-        if (isDailyTaskPlay()) {
-          prepareDailyTaskOverWait();
-          setGameCardActionSlot("hidden");
-          await finishDailyTaskGameOver(false);
-          return;
+      const unlockOutcome = resolveTrainingFrontierUnlockLocal(levelThisRun, runWrongCount);
+      tipText = appendTrainingUnlockTip(tipText);
+      const trainingMeta = buildTrainingRunMeta({
+        runPass: runPass,
+        failCount: failCount,
+        runBrushMode: modeAfter.st.dayMode === "heat" || modeAfter.runKind === "heat",
+        runKind: modeAfter.runKind,
+        enterBrushAfter: false,
+        unlockedNew: !!lastTrainingUnlockDidUnlock,
+      });
+      const doSave = async function () {
+        if (unlockOutcome && unlockOutcome.resultKey === "unlockNew") {
+          await saveTrainingUnlockedMax(unlockOutcome.savedUnlockedMax);
         }
-        if (dom.gameOverPanel) {
-          setGameOverLayout(true);
-          dom.gameOverPanel.style.display = "block";
-          const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = tipText;
-        const durationLabelEl = document.getElementById("game-over-duration-label");
-        const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
-        const durationEl = document.getElementById("game-over-duration");
-        const scoreEl = document.getElementById("game-over-score");
-        const wrongEl = document.getElementById("game-over-wrong");
-        const maxLevelEl = document.getElementById("game-over-max-level");
-        const scoreLabelEl = document.getElementById("game-over-score-label");
-        const wrongLabelEl = document.getElementById("game-over-wrong-label");
-        if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.labelAccuracy");
-        if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
-        if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
-        if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-        if (scoreEl) scoreEl.textContent = String(runScore);
-        if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = tf("game.display.percent", { pct: Math.round(accuracy * 100) });
+        const ok = await appendRun(
+          survivalTimeSec,
+          runScore,
+          levelThisRun,
+          runWrongCount,
+          "training",
+          currentRunAttempts.slice(),
+          runPass,
+          false,
+          { trainingMeta: trainingMeta }
+        );
+        if (ok === false) throw new Error("training_run_save_failed");
+      };
+      renderTrainingRunWrongReview();
+      if (isDailyTaskPlay()) {
+        await finishDailyTaskGameOver(false, doSave);
+        return;
       }
-      setGameCardActionSlot("hidden");
-      await finishDailyTaskGameOver(false);
+      paintTrainingGameOverPanel({
+        title: tipText,
+        survivalTimeSec: survivalTimeSec,
+        score: runScore,
+        wrong: runWrongCount,
+        maxLevelText: accuracyText,
+      });
+      await runSettlementSaveWithUi(setGameOverSaveUi, doSave, kickTrainingNextEntry);
     }
 
     async function endLevelGame(completed, abandoned) {
@@ -15299,50 +15468,40 @@
         const abandonOpts = { abandoned: true };
         const abandonMeta = mergeDailyTaskRunMeta();
         if (abandonMeta) abandonOpts.trainingMeta = abandonMeta;
-        const abandonSave = appendRun(
-          survivalTimeSec,
-          0,
-          persistIdx,
-          runWrongCount,
-          "level",
-          currentRunAttempts.slice(),
-          false,
-          false,
-          abandonOpts
-        );
+        const doAbandonSave = async function () {
+          const ok = await appendRun(
+            survivalTimeSec,
+            0,
+            persistIdx,
+            runWrongCount,
+            "level",
+            currentRunAttempts.slice(),
+            false,
+            false,
+            abandonOpts
+          );
+          if (ok === false) throw new Error("level_abandon_save_failed");
+        };
         renderMainGameRunWrongReview();
         updateTrainingButtonLabel();
         if (isDailyTaskPlay()) {
-          prepareDailyTaskOverWait();
-          setGameCardActionSlot("hidden");
-          await abandonSave;
-          await finishDailyTaskGameOver(true);
+          await finishDailyTaskGameOver(true, doAbandonSave);
           return;
         }
-        if (dom.gameOverPanel) {
-          setGameOverLayout(true);
-          dom.gameOverPanel.style.display = "block";
-          const titleEl = document.getElementById("game-over-title");
-          if (titleEl) titleEl.textContent = t("game.over.abandonedTitle");
-          const durationLabelEl = document.getElementById("game-over-duration-label");
-          const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
-          const durationEl = document.getElementById("game-over-duration");
-          const scoreEl = document.getElementById("game-over-score");
-          const wrongEl = document.getElementById("game-over-wrong");
-          const maxLevelEl = document.getElementById("game-over-max-level");
-          const scoreLabelEl = document.getElementById("game-over-score-label");
-          const wrongLabelEl = document.getElementById("game-over-wrong-label");
-          if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
-          if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.maxLevelLabel");
-          if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
-          if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
-          if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-          if (scoreEl) scoreEl.textContent = "0";
-          if (wrongEl) wrongEl.textContent = String(runWrongCount);
-          if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(persistIdx);
-        }
-        setGameCardActionSlot("hidden");
-        if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+        paintTrainingGameOverPanel({
+          title: t("game.over.abandonedTitle"),
+          survivalTimeSec: survivalTimeSec,
+          score: 0,
+          wrong: runWrongCount,
+          maxLevelText: getLevelShortCode(persistIdx),
+          maxLevelLabel: t("game.over.maxLevelLabel"),
+        });
+        const abandonScoreLabel = document.getElementById("game-over-score-label");
+        const abandonWrongLabel = document.getElementById("game-over-wrong-label");
+        if (abandonScoreLabel) abandonScoreLabel.textContent = t("game.over.labelRunScore");
+        if (abandonWrongLabel) abandonWrongLabel.textContent = t("game.over.labelRunWrong");
+        // 闯关放弃：先出结算，保存成功后再出确认（与训练一致）
+        await runSettlementSaveWithUi(setGameOverSaveUi, doAbandonSave, null);
         return;
       }
       const endLevel = completed ? 15 : persistIdx;
@@ -15351,66 +15510,72 @@
       const levelSaveOpts = {};
       const levelMeta = mergeDailyTaskRunMeta();
       if (levelMeta) levelSaveOpts.trainingMeta = levelMeta;
-      const levelSave = appendRun(
-        survivalTimeSec,
-        runScore,
-        endLevel,
-        runWrongCount,
-        "level",
-        currentRunAttempts.slice(),
-        completed === true,
-        false,
-        levelMeta ? levelSaveOpts : undefined
-      );
+      const doLevelSave = async function () {
+        const ok = await appendRun(
+          survivalTimeSec,
+          runScore,
+          endLevel,
+          runWrongCount,
+          "level",
+          currentRunAttempts.slice(),
+          completed === true,
+          false,
+          levelMeta ? levelSaveOpts : undefined
+        );
+        if (ok === false) throw new Error("level_save_failed");
+      };
       if (completed === true && cachedUser) cachedUser.hasClearedLevel = true;
       renderMainGameRunWrongReview();
       updateLevelStatusUI();
       if (isDailyTaskPlay()) {
-        prepareDailyTaskOverWait();
-        setGameCardActionSlot("hidden");
-        await levelSave;
-        await finishDailyTaskGameOver(false);
+        await finishDailyTaskGameOver(false, doLevelSave);
         updateTrainingButtonLabel();
         return;
       }
-      if (dom.gameOverPanel) {
-        setGameOverLayout(true);
-        dom.gameOverPanel.style.display = "block";
-        const titleEl = document.getElementById("game-over-title");
-        const levelNum = endLevel + 1;
-        if (titleEl) titleEl.textContent = completed ? t("game.celebrate.allClearedTitle") : tf("game.over.levelRunBestTitle", { n: levelNum });
-        const durationLabelEl = document.getElementById("game-over-duration-label");
-        const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
-        const durationEl = document.getElementById("game-over-duration");
-        const scoreEl = document.getElementById("game-over-score");
-        const maxLevelEl = document.getElementById("game-over-max-level");
-        const scoreLabelEl = document.getElementById("game-over-score-label");
-        const wrongLabelEl = document.getElementById("game-over-wrong-label");
-        const bestTimeEl = document.getElementById("game-over-best-time");
-        const bestScoreEl = document.getElementById("game-over-best-score");
-        if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
-        if (maxLevelLabelEl) maxLevelLabelEl.textContent = t("game.over.maxLevelLabel");
-        if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
-        if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
-        if (durationEl) durationEl.textContent = formatSurvivalTime(survivalTimeSec);
-        if (scoreEl) scoreEl.textContent = runScore;
-        const wrongEl = document.getElementById("game-over-wrong");
-        if (wrongEl) wrongEl.textContent = runWrongCount;
-        if (maxLevelEl) maxLevelEl.textContent = getLevelShortCode(endLevel);
-        if (isGuestMode) {
-          const guest = getGuestSurvivalData();
-          if (bestTimeEl) bestTimeEl.textContent = guest.bestSurvivalSec ? formatSurvivalTime(guest.bestSurvivalSec) : "-";
-          if (bestScoreEl) bestScoreEl.textContent = (guest.bestScore != null && guest.bestScore > 0) ? guest.bestScore : "-";
-        } else {
-          const user = getCurrentUser();
-          if (user) {
-            if (bestTimeEl) bestTimeEl.textContent = user.bestSurvivalSec ? formatSurvivalTime(user.bestSurvivalSec) : "-";
-            if (bestScoreEl) bestScoreEl.textContent = (user.bestScore != null && user.bestScore > 0) ? user.bestScore : "-";
+      const levelNum = endLevel + 1;
+      paintTrainingGameOverPanel({
+        title: completed
+          ? t("game.celebrate.allClearedTitle")
+          : tf("game.over.levelRunBestTitle", { n: levelNum }),
+        survivalTimeSec: survivalTimeSec,
+        score: runScore,
+        wrong: runWrongCount,
+        maxLevelText: getLevelShortCode(endLevel),
+        maxLevelLabel: t("game.over.maxLevelLabel"),
+      });
+      // 最佳纪录区仍按原逻辑补全
+      const bestTimeEl = document.getElementById("game-over-best-time");
+      const bestScoreEl = document.getElementById("game-over-best-score");
+      const scoreLabelEl = document.getElementById("game-over-score-label");
+      const wrongLabelEl = document.getElementById("game-over-wrong-label");
+      if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelRunScore");
+      if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelRunWrong");
+      if (isGuestMode) {
+        const guest = getGuestSurvivalData();
+        if (bestTimeEl) {
+          bestTimeEl.textContent = guest.bestSurvivalSec
+            ? formatSurvivalTime(guest.bestSurvivalSec)
+            : "-";
+        }
+        if (bestScoreEl) {
+          bestScoreEl.textContent =
+            guest.bestScore != null && guest.bestScore > 0 ? guest.bestScore : "-";
+        }
+      } else {
+        const user = getCurrentUser();
+        if (user) {
+          if (bestTimeEl) {
+            bestTimeEl.textContent = user.bestSurvivalSec
+              ? formatSurvivalTime(user.bestSurvivalSec)
+              : "-";
+          }
+          if (bestScoreEl) {
+            bestScoreEl.textContent =
+              user.bestScore != null && user.bestScore > 0 ? user.bestScore : "-";
           }
         }
       }
-      setGameCardActionSlot("hidden");
-      if (dom.playAgainBtn) dom.playAgainBtn.style.display = "";
+      await runSettlementSaveWithUi(setGameOverSaveUi, doLevelSave, null);
       updateTrainingButtonLabel();
     }
 
@@ -18511,6 +18676,85 @@
       }
     }
 
+    function setGameOverSaveUi(state, onRetry) {
+      const status = document.getElementById("game-over-save-status");
+      const playAgain = dom.playAgainBtn;
+      const back = document.getElementById("daily-task-back-btn");
+      if (state === "saving") {
+        if (playAgain) playAgain.style.display = "none";
+        if (back) back.style.display = "none";
+        if (status) {
+          status.hidden = false;
+          status.textContent = t("game.over.saving");
+          status.className = "game-over-save-status";
+          status.onclick = null;
+        }
+        return;
+      }
+      if (state === "failed") {
+        if (playAgain) playAgain.style.display = "none";
+        if (back) back.style.display = "none";
+        if (status) {
+          status.hidden = false;
+          status.textContent = t("game.over.saveFailedRetry");
+          status.className = "game-over-save-status is-action";
+          status.onclick = typeof onRetry === "function" ? onRetry : null;
+        }
+        return;
+      }
+      if (status) {
+        status.hidden = true;
+        status.onclick = null;
+      }
+      if (playAgain) playAgain.style.display = "";
+    }
+
+    function paintTrainingGameOverPanel(opts) {
+      opts = opts || {};
+      if (!dom.gameOverPanel) return;
+      setGameOverLayout(true);
+      dom.gameOverPanel.style.display = "block";
+      const titleEl = document.getElementById("game-over-title");
+      if (titleEl && opts.title != null) titleEl.textContent = opts.title;
+      const durationLabelEl = document.getElementById("game-over-duration-label");
+      const maxLevelLabelEl = document.getElementById("game-over-max-level-label");
+      const durationEl = document.getElementById("game-over-duration");
+      const scoreEl = document.getElementById("game-over-score");
+      const wrongEl = document.getElementById("game-over-wrong");
+      const maxLevelEl = document.getElementById("game-over-max-level");
+      const scoreLabelEl = document.getElementById("game-over-score-label");
+      const wrongLabelEl = document.getElementById("game-over-wrong-label");
+      if (durationLabelEl) durationLabelEl.textContent = t("game.over.durationLabel");
+      if (maxLevelLabelEl) {
+        maxLevelLabelEl.textContent =
+          opts.maxLevelLabel != null ? opts.maxLevelLabel : t("game.over.labelAccuracy");
+      }
+      if (scoreLabelEl) scoreLabelEl.textContent = t("game.over.labelScore");
+      if (wrongLabelEl) wrongLabelEl.textContent = t("game.over.labelWrong");
+      if (durationEl) durationEl.textContent = formatSurvivalTime(opts.survivalTimeSec || 0);
+      if (scoreEl) scoreEl.textContent = String(opts.score != null ? opts.score : 0);
+      if (wrongEl) wrongEl.textContent = String(opts.wrong != null ? opts.wrong : 0);
+      if (maxLevelEl) maxLevelEl.textContent = opts.maxLevelText != null ? opts.maxLevelText : "-";
+      setGameCardActionSlot("hidden");
+    }
+
+    async function runSettlementSaveWithUi(setUi, saveFn, afterOk) {
+      const attempt = async function () {
+        setUi("saving");
+        try {
+          await saveFn();
+          if (typeof afterOk === "function") afterOk();
+          setUi("ready");
+        } catch (e) {
+          console.warn("结算保存失败", e);
+          setUi("failed", function () {
+            void attempt();
+          });
+        }
+      };
+      await attempt();
+    }
+
     function runTrainingFinalizeWithTimeout() {
       return Promise.race([
         finalizeTrainingNextEntryAfterRun(),
@@ -19275,10 +19519,9 @@
     }
 
     /**
-     * 前沿 0/1 错 → 记解锁下一档（可越过内容天花板提前记账）。
-     * 「解锁新等级」文案仅当新解锁档已在内容天花板内可玩时才显示。
+     * 本地解析前沿解锁（不写库）。文案仅当新解锁档已在内容天花板内可玩时才显示。
      */
-    async function applyTrainingFrontierUnlock(levelThisRun, wrongCount) {
+    function resolveTrainingFrontierUnlockLocal(levelThisRun, wrongCount) {
       lastTrainingUnlockDidUnlock = false;
       if (isGuestMode) return null;
       const R = window.JmlSpecialModeRunOutcome;
@@ -19300,7 +19543,26 @@
         TRAINING_CONTENT_MAX
       );
       lastTrainingUnlockDidUnlock = afterPlayable > beforePlayable;
-      await saveTrainingUnlockedMax(outcome.savedUnlockedMax);
+      const unlockedMax = Math.min(
+        TRAINING_UNLOCK_CAP,
+        Math.max(0, Math.floor(Number(outcome.savedUnlockedMax) || 0))
+      );
+      const tip = Math.min(unlockedMax, TRAINING_CONTENT_MAX);
+      if (cachedUser) {
+        cachedUser.levelTrainingUnlockedMax = unlockedMax;
+        cachedUser.levelTrainingCurrentLevel = tip;
+      }
+      return outcome;
+    }
+
+    /**
+     * 前沿 0/1 错 → 记解锁下一档（可越过内容天花板提前记账）。
+     */
+    async function applyTrainingFrontierUnlock(levelThisRun, wrongCount) {
+      const outcome = resolveTrainingFrontierUnlockLocal(levelThisRun, wrongCount);
+      if (outcome && outcome.resultKey === "unlockNew") {
+        await saveTrainingUnlockedMax(outcome.savedUnlockedMax);
+      }
       return outcome;
     }
 
