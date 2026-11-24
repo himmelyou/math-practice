@@ -145,7 +145,15 @@
   async function saveDecimalProgress(currentLevel, unlockedMax) {
     currentLevel = Math.min(decMaxLevel(), Math.max(0, Math.floor(Number(currentLevel) || 0)));
     unlockedMax = Math.min(decMaxLevel() + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
-    if (inGuestMode()) return;
+    if (inGuestMode()) {
+      const u = deps.getCachedUser && deps.getCachedUser();
+      if (u) {
+        u.levelDecimalCurrentLevel = currentLevel;
+        u.levelDecimalUnlockedMax = unlockedMax;
+        if (typeof deps.persistGuestUserCache === "function") deps.persistGuestUserCache();
+      }
+      return;
+    }
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
@@ -760,10 +768,16 @@
         dom().decGoResult.textContent = t("expand.result." + outcome.resultKey);
       }
       if (dom().decPlayAgainBtn) dom().decPlayAgainBtn.style.display = "";
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(dom().decGameOverPanel);
+      }
     }
     if (deps.getCachedUser()) {
       deps.getCachedUser().levelDecimalCurrentLevel = outcome.savedCurrent;
       deps.getCachedUser().levelDecimalUnlockedMax = outcome.savedUnlockedMax;
+      if (inGuestMode() && typeof deps.persistGuestUserCache === "function") {
+        deps.persistGuestUserCache();
+      }
     }
     renderDecLevelSelect();
     syncDecLevelTexts();
@@ -815,6 +829,9 @@
       if (dom().decGoResultLabel) dom().decGoResultLabel.textContent = t("expand.end.result");
       if (dom().decGoResult) dom().decGoResult.textContent = t("expand.go.abandoned");
       if (dom().decPlayAgainBtn) dom().decPlayAgainBtn.style.display = "";
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(dom().decGameOverPanel);
+      }
     }
     deps.updateGlobalBackButtonState();
     renderDecimalRecentRuns();
@@ -876,10 +893,6 @@
   }
 
   function handleModeDecimal() {
-    if (inGuestMode()) {
-      deps.showToast(t("toast.guestNeedLogin"));
-      return;
-    }
     deps.setGameMode("decimal");
     showDecimalSection();
   }

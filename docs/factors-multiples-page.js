@@ -140,7 +140,15 @@
       fmMaxLevel() + 1,
       Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0))
     );
-    if (inGuestMode()) return;
+    if (inGuestMode()) {
+      const u = deps.getCachedUser && deps.getCachedUser();
+      if (u) {
+        u.levelFactorsMultiplesCurrentLevel = currentLevel;
+        u.levelFactorsMultiplesUnlockedMax = unlockedMax;
+        if (typeof deps.persistGuestUserCache === "function") deps.persistGuestUserCache();
+      }
+      return;
+    }
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
@@ -972,6 +980,12 @@
       if (dom().fmFinishResult) {
         dom().fmFinishResult.textContent = t("expand.result." + outcome.resultKey);
       }
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(document.getElementById("fm-finished-panel-inner"));
+      }
+    }
+    if (inGuestMode() && typeof deps.persistGuestUserCache === "function") {
+      deps.persistGuestUserCache();
     }
     renderFmWrongReview();
     renderFmLevelSelect();
@@ -1022,6 +1036,9 @@
       if (dom().fmFinishTime) dom().fmFinishTime.textContent = "-";
       if (dom().fmFinishLevel) dom().fmFinishLevel.textContent = levelLabel(fmRunStartLevel);
       if (dom().fmFinishResult) dom().fmFinishResult.textContent = t("expand.go.abandoned");
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(document.getElementById("fm-finished-panel-inner"));
+      }
     }
     renderFmWrongReview();
     deps.updateGlobalBackButtonState();
@@ -1086,10 +1103,6 @@
   }
 
   function handleModeFactorsMultiples() {
-    if (inGuestMode()) {
-      deps.showToast(t("toast.guestNeedLogin"));
-      return;
-    }
     if (typeof deps.markNewFeatureSeen === "function") {
       deps.markNewFeatureSeen("factors-multiples");
     }

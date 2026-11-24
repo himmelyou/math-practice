@@ -180,7 +180,15 @@
   async function savePerfectSquareProgress(currentLevel, unlockedMax) {
     currentLevel = Math.min(psMaxLevel(), Math.max(0, Math.floor(Number(currentLevel) || 0)));
     unlockedMax = Math.min(psMaxLevel() + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
-    if (inGuestMode()) return;
+    if (inGuestMode()) {
+      const u = deps.getCachedUser && deps.getCachedUser();
+      if (u) {
+        u.levelPerfectSquareCurrentLevel = currentLevel;
+        u.levelPerfectSquareUnlockedMax = unlockedMax;
+        if (typeof deps.persistGuestUserCache === "function") deps.persistGuestUserCache();
+      }
+      return;
+    }
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
@@ -786,10 +794,16 @@
         dom().psGoResult.textContent = t("expand.result." + outcome.resultKey);
       }
       if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(dom().psGameOverPanel);
+      }
     }
     if (deps.getCachedUser()) {
       deps.getCachedUser().levelPerfectSquareCurrentLevel = outcome.savedCurrent;
       deps.getCachedUser().levelPerfectSquareUnlockedMax = outcome.savedUnlockedMax;
+      if (inGuestMode() && typeof deps.persistGuestUserCache === "function") {
+        deps.persistGuestUserCache();
+      }
     }
     renderPsLevelSelect();
     syncPsLevelTexts();
@@ -840,6 +854,9 @@
       if (dom().psGoResultLabel) dom().psGoResultLabel.textContent = t("expand.end.result");
       if (dom().psGoResult) dom().psGoResult.textContent = t("expand.go.abandoned");
       if (dom().psPlayAgainBtn) dom().psPlayAgainBtn.style.display = "";
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(dom().psGameOverPanel);
+      }
     }
     deps.updateGlobalBackButtonState();
     renderPerfectSquareRecentRuns();
@@ -901,10 +918,6 @@
   }
 
   function handleModePerfectSquare() {
-    if (inGuestMode()) {
-      deps.showToast(t("toast.guestNeedLogin"));
-      return;
-    }
     deps.setGameMode("perfectSquare");
     showPerfectSquareSection();
   }

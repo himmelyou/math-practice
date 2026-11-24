@@ -988,6 +988,9 @@
     if (dom().mtGoResultLabel) dom().mtGoResultLabel.textContent = t("memoryTraining.end.compare");
     if (dom().mtGoResult) dom().mtGoResult.innerHTML = mtEndCompareHtml;
     if (dom().mtPlayAgainBtn) dom().mtPlayAgainBtn.style.display = "";
+    if (typeof deps.applyGuestConvertTip === "function") {
+      deps.applyGuestConvertTip(dom().mtGameOverPanel);
+    }
     setKindChrome(false);
     setMtHistoryVisible(true);
     renderMemoryTrainingRecentRuns();
@@ -1040,6 +1043,9 @@
         : String(mtWrongCount);
     }
     if (dom().mtGoResult) dom().mtGoResult.textContent = "—";
+    if (typeof deps.applyGuestConvertTip === "function") {
+      deps.applyGuestConvertTip(dom().mtGameOverPanel);
+    }
     renderMemoryTrainingRecentRuns();
     deps.updateGlobalBackButtonState();
   }
@@ -1096,10 +1102,6 @@
   }
 
   function handleModeMemoryTraining() {
-    if (inGuestMode()) {
-      deps.showToast(t("toast.guestNeedLogin"));
-      return;
-    }
     deps.setGameMode(MODE);
     showMemoryTrainingSection();
   }

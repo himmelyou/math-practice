@@ -3297,6 +3297,13 @@
       cursor: pointer;
       text-decoration: underline;
     }
+    .guest-convert-tip {
+      margin: 12px 0 0;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--muted, #5a6577);
+      line-height: 1.45;
+    }
     #daily-task-settlement {
       width: 100%;
       box-sizing: border-box;
@@ -6685,12 +6692,14 @@
         t: t,
         tf: tf,
         getCurrentUser: getCurrentUser,
-        getCachedUser: function () { return cachedUser; },
+        getCachedUser: getActiveUserCache,
         ensureUserProgressDefault: ensureUserProgressDefault,
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
         isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
+        applyGuestConvertTip: applyGuestConvertTip,
+        persistGuestUserCache: persistGuestUserCache,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
@@ -6757,12 +6766,14 @@
         t: t,
         tf: tf,
         getCurrentUser: getCurrentUser,
-        getCachedUser: function () { return cachedUser; },
+        getCachedUser: getActiveUserCache,
         ensureUserProgressDefault: ensureUserProgressDefault,
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
         isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
+        applyGuestConvertTip: applyGuestConvertTip,
+        persistGuestUserCache: persistGuestUserCache,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
@@ -6827,12 +6838,14 @@
         t: t,
         tf: tf,
         getCurrentUser: getCurrentUser,
-        getCachedUser: function () { return cachedUser; },
+        getCachedUser: getActiveUserCache,
         ensureUserProgressDefault: ensureUserProgressDefault,
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
         isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
+        applyGuestConvertTip: applyGuestConvertTip,
+        persistGuestUserCache: persistGuestUserCache,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
@@ -6898,12 +6911,14 @@
         t: t,
         tf: tf,
         getCurrentUser: getCurrentUser,
-        getCachedUser: function () { return cachedUser; },
+        getCachedUser: getActiveUserCache,
         ensureUserProgressDefault: ensureUserProgressDefault,
         loadCurrentUsername: loadCurrentUsername,
         apiPutUser: apiPutUser,
         isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
+        applyGuestConvertTip: applyGuestConvertTip,
+        persistGuestUserCache: persistGuestUserCache,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
@@ -6984,10 +6999,13 @@
       JmlMemoryTrainingPage.init({
         dom: dom,
         t: t,
-        getCachedUser: function () { return cachedUser; },
+        getCurrentUser: getCurrentUser,
+        getCachedUser: getActiveUserCache,
         ensureUserProgressDefault: ensureUserProgressDefault,
         isGuestMode: function () { return isGuestMode; },
         showToast: showToast,
+        applyGuestConvertTip: applyGuestConvertTip,
+        persistGuestUserCache: persistGuestUserCache,
         setTopActionsVisible: setTopActionsVisible,
         updateTopTitleForCurrentView: updateTopTitleForCurrentView,
         updateGlobalBackButtonState: updateGlobalBackButtonState,
@@ -10980,14 +10998,19 @@
         dom.expandGoResult.textContent = t("expand.result." + outcome.resultKey);
       }
       if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
-      if (cachedUser) {
-        cachedUser.levelExpandBracketsCurrentLevel = outcome.savedCurrent;
-        cachedUser.levelExpandBracketsUnlockedMax = outcome.savedUnlockedMax;
+      {
+        const u = getActiveUserCache();
+        if (u) {
+          u.levelExpandBracketsCurrentLevel = outcome.savedCurrent;
+          u.levelExpandBracketsUnlockedMax = outcome.savedUnlockedMax;
+          if (isGuestMode) persistGuestUserCache();
+        }
       }
       renderExpandLevelSelect();
       syncExpandLevelTexts();
       setExpandHistoryVisible(true);
       renderExpandBracketsRecentRuns();
+      applyGuestConvertTip(dom.expandGameOverPanel);
       gameOver = true;
       updateGlobalBackButtonState();
     }
@@ -11193,10 +11216,44 @@
     const USER_ACCOUNTS_KEY = "adaptive_math_users_v1";
     const CURRENT_USER_KEY = "adaptive_math_current_user_v1";
     const GUEST_STORAGE_KEY = "adaptive_math_survival_guest_v1";
+    /** 游客本地进度字段（与账号用户同名，便于 getCurrentUser / 专项页复用） */
+    const GUEST_PROFILE_KEYS = [
+      "totalScore",
+      "levelExpandBracketsCurrentLevel",
+      "levelExpandBracketsUnlockedMax",
+      "levelPerfectSquareCurrentLevel",
+      "levelPerfectSquareUnlockedMax",
+      "levelDecimalCurrentLevel",
+      "levelDecimalUnlockedMax",
+      "levelDivisibilityCurrentLevel",
+      "levelDivisibilityUnlockedMax",
+      "levelFactorsMultiplesCurrentLevel",
+      "levelFactorsMultiplesUnlockedMax",
+      "bestMemoryInstantSpan",
+      "bestMemoryWorkingSpan",
+      "recentExpandBracketsRuns",
+      "recentPerfectSquareRuns",
+      "recentDecimalRuns",
+      "recentDivisibilityRuns",
+      "recentFactorsMultiplesRuns",
+      "recentPrimeCompositeRuns",
+      "recentMemoryTrainingRuns",
+    ];
+    const GUEST_PLAYABLE_RUN_MODES = new Set([
+      "level",
+      "expandBrackets",
+      "decimal",
+      "perfectSquare",
+      "divisibility",
+      "factorsMultiples",
+      "primeComposite",
+      "memoryTraining",
+    ]);
 
     let currentUsername = null;
     let isGuestMode = false;
     let cachedUser = null;
+    let guestUserCache = null;
 
     const AUTH_TOKEN_KEY = "jarvis_math_auth_token";
     const APP_LANG_KEY = "jml_lang_v1";
@@ -11222,7 +11279,8 @@
         "grade.preschool": "學前",
         "grade.n": "{n}年級",
         "grade.adult": "成人",
-        "login.hint": "登入/註冊需連網。可遊客試玩（僅本機保存，無需連網）。",
+        "login.hint": "登入/註冊需連網。可遊客試玩闖關與專項練習（僅本機保存，無需連網）。",
+        "guest.convertTip": "註冊帳號，進度不丟，還能看數據統計",
         "login.version": "版本",
         "login.error.needCredentials": "請輸入使用者名稱和密碼。",
         "login.error.needNet": "登入需連網，請連接網路後重試。",
@@ -11801,7 +11859,8 @@
         "grade.preschool": "Preschool",
         "grade.n": "Grade {n}",
         "grade.adult": "Adult",
-        "login.hint": "Login/Register requires internet. Guest demo is local-only and does not require internet.",
+        "login.hint": "Login/Register requires internet. Guests can try challenge and special drills (local-only, no internet needed).",
+        "guest.convertTip": "Register to keep progress and unlock detailed stats",
         "login.version": "Version",
         "login.error.needCredentials": "Enter username and password.",
         "login.error.needNet": "Sign-in requires internet. Connect and try again.",
@@ -13408,38 +13467,110 @@
       return currentUsername;
     }
 
-    function getCurrentUser() {
-      if (isGuestMode) return null;
-      return cachedUser || null;
+    function readGuestStorageRaw() {
+      try {
+        const raw = localStorage.getItem(GUEST_STORAGE_KEY);
+        if (!raw) return {};
+        const data = JSON.parse(raw);
+        return data && typeof data === "object" ? data : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function writeGuestStorage(data) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data || {}));
+      } catch (e) {
+        console.warn("写入游客存档失败。", e);
+      }
     }
 
     function getGuestSurvivalData() {
-      try {
-        const raw = localStorage.getItem(GUEST_STORAGE_KEY);
-        if (!raw)         return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0, levelChallengeBestLevel: 0 };
-        const data = JSON.parse(raw);
-        return {
-          bestSurvivalSec: typeof data.bestSurvivalSec === "number" ? data.bestSurvivalSec : 0,
-          bestScore: typeof data.bestScore === "number" ? data.bestScore : 0,
-          recentSurvivalRuns: Array.isArray(data.recentSurvivalRuns) ? data.recentSurvivalRuns : [],
-          recentLevelRuns: Array.isArray(data.recentLevelRuns) ? data.recentLevelRuns : [],
-          guestPlayCount: typeof data.guestPlayCount === "number" ? data.guestPlayCount : 0,
-          levelChallengeLastLevel: typeof data.levelChallengeLastLevel === "number" ? data.levelChallengeLastLevel : 0,
-          levelChallengeBestLevel: typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0
-        };
-      } catch (e) {
-        return { bestSurvivalSec: 0, bestScore: 0, recentSurvivalRuns: [], recentLevelRuns: [], guestPlayCount: 0, levelChallengeLastLevel: 0, levelChallengeBestLevel: 0 };
+      const data = readGuestStorageRaw();
+      const out = {
+        bestSurvivalSec: typeof data.bestSurvivalSec === "number" ? data.bestSurvivalSec : 0,
+        bestScore: typeof data.bestScore === "number" ? data.bestScore : 0,
+        recentSurvivalRuns: Array.isArray(data.recentSurvivalRuns) ? data.recentSurvivalRuns : [],
+        recentLevelRuns: Array.isArray(data.recentLevelRuns) ? data.recentLevelRuns : [],
+        guestPlayCount: typeof data.guestPlayCount === "number" ? data.guestPlayCount : 0,
+        levelChallengeLastLevel: typeof data.levelChallengeLastLevel === "number" ? data.levelChallengeLastLevel : 0,
+        levelChallengeBestLevel: typeof data.levelChallengeBestLevel === "number" ? data.levelChallengeBestLevel : 0,
+      };
+      for (let i = 0; i < GUEST_PROFILE_KEYS.length; i++) {
+        const k = GUEST_PROFILE_KEYS[i];
+        if (Object.prototype.hasOwnProperty.call(data, k)) out[k] = data[k];
       }
+      return out;
+    }
+
+    function hydrateGuestUserCache() {
+      const data = getGuestSurvivalData();
+      const u = { username: "__guest__", isGuest: true };
+      for (let i = 0; i < GUEST_PROFILE_KEYS.length; i++) {
+        const k = GUEST_PROFILE_KEYS[i];
+        if (Object.prototype.hasOwnProperty.call(data, k)) u[k] = data[k];
+      }
+      u.levelChallengeLastLevel = data.levelChallengeLastLevel || 0;
+      u.levelChallengeBestLevel = data.levelChallengeBestLevel || 0;
+      u.recentLevelRuns = Array.isArray(data.recentLevelRuns) ? data.recentLevelRuns : [];
+      u.recentSurvivalRuns = Array.isArray(data.recentSurvivalRuns) ? data.recentSurvivalRuns : [];
+      u.bestSurvivalSec = data.bestSurvivalSec || 0;
+      u.bestScore = data.bestScore || 0;
+      ensureUserProgressDefault(u);
+      guestUserCache = u;
+      return u;
+    }
+
+    function persistGuestUserCache() {
+      if (!guestUserCache) return;
+      const data = getGuestSurvivalData();
+      data.levelChallengeLastLevel = guestUserCache.levelChallengeLastLevel || 0;
+      data.levelChallengeBestLevel = guestUserCache.levelChallengeBestLevel || 0;
+      data.recentLevelRuns = Array.isArray(guestUserCache.recentLevelRuns)
+        ? guestUserCache.recentLevelRuns
+        : data.recentLevelRuns;
+      data.recentSurvivalRuns = Array.isArray(guestUserCache.recentSurvivalRuns)
+        ? guestUserCache.recentSurvivalRuns
+        : data.recentSurvivalRuns;
+      data.bestSurvivalSec = guestUserCache.bestSurvivalSec || 0;
+      data.bestScore = guestUserCache.bestScore || 0;
+      for (let i = 0; i < GUEST_PROFILE_KEYS.length; i++) {
+        const k = GUEST_PROFILE_KEYS[i];
+        if (guestUserCache[k] !== undefined) data[k] = guestUserCache[k];
+      }
+      writeGuestStorage(data);
+    }
+
+    function getCurrentUser() {
+      if (isGuestMode) return guestUserCache || hydrateGuestUserCache();
+      return cachedUser || null;
+    }
+
+    function getActiveUserCache() {
+      if (isGuestMode) return getCurrentUser();
+      return cachedUser;
+    }
+
+    function applyGuestConvertTip(panelEl) {
+      if (!isGuestMode || !panelEl) return;
+      let tip = panelEl.querySelector(".guest-convert-tip");
+      if (!tip) {
+        tip = document.createElement("p");
+        tip.className = "guest-convert-tip";
+        const buttons = panelEl.querySelector(".game-over-buttons");
+        if (buttons && buttons.parentNode === panelEl) panelEl.insertBefore(tip, buttons);
+        else panelEl.appendChild(tip);
+      }
+      tip.hidden = false;
+      tip.textContent = t("guest.convertTip");
     }
 
     function saveGuestLevelChallengeLastLevel(lastLevel) {
       const data = getGuestSurvivalData();
       data.levelChallengeLastLevel = lastLevel;
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
-      } catch (e) {
-        console.warn("写入游客闯关进度失败。", e);
-      }
+      writeGuestStorage(data);
+      if (guestUserCache) guestUserCache.levelChallengeLastLevel = lastLevel;
     }
 
     function saveGuestSurvivalRun(survivalTimeSec, score, maxLevel, wrongCount, runCleared) {
@@ -13453,10 +13584,11 @@
       }
       if (survivalTimeSec > data.bestSurvivalSec) data.bestSurvivalSec = survivalTimeSec;
       if (score > data.bestScore) data.bestScore = score;
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
-      } catch (e) {
-        console.warn("写入游客记录失败。", e);
+      writeGuestStorage(data);
+      if (guestUserCache) {
+        guestUserCache.recentSurvivalRuns = data.recentSurvivalRuns;
+        guestUserCache.bestSurvivalSec = data.bestSurvivalSec;
+        guestUserCache.bestScore = data.bestScore;
       }
     }
 
@@ -13474,10 +13606,66 @@
       if (data.recentLevelRuns.length > 10) {
         data.recentLevelRuns = data.recentLevelRuns.slice(0, 10);
       }
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
-      } catch (e) {
-        console.warn("写入游客闯关记录失败。", e);
+      writeGuestStorage(data);
+      if (guestUserCache) guestUserCache.recentLevelRuns = data.recentLevelRuns;
+    }
+
+    /** 将一局 run 写入用户对象（仅本地，不请求服务器） */
+    function applyRunEntryToUserLocal(u, runEntry) {
+      if (!u || !runEntry) return;
+      ensureUserProgressDefault(u);
+      const mode = normalizeAppendRunMode(runEntry.mode);
+      u.totalScore = (u.totalScore || 0) + (runEntry.score || 0);
+      if (mode === "level") {
+        if (!Array.isArray(u.recentLevelRuns)) u.recentLevelRuns = [];
+        u.recentLevelRuns.unshift(runEntry);
+        if (u.recentLevelRuns.length > 10) u.recentLevelRuns = u.recentLevelRuns.slice(0, 10);
+      } else if (mode === "training") {
+        if (!Array.isArray(u.recentTrainingRuns)) u.recentTrainingRuns = [];
+        u.recentTrainingRuns.unshift(runEntry);
+        if (u.recentTrainingRuns.length > 10) u.recentTrainingRuns = u.recentTrainingRuns.slice(0, 10);
+      } else if (mode === "primeComposite") {
+        if (!Array.isArray(u.recentPrimeCompositeRuns)) u.recentPrimeCompositeRuns = [];
+        u.recentPrimeCompositeRuns.unshift(runEntry);
+        if (u.recentPrimeCompositeRuns.length > 10) u.recentPrimeCompositeRuns = u.recentPrimeCompositeRuns.slice(0, 10);
+      } else if (mode === "expandBrackets") {
+        if (!Array.isArray(u.recentExpandBracketsRuns)) u.recentExpandBracketsRuns = [];
+        u.recentExpandBracketsRuns.unshift(runEntry);
+        if (u.recentExpandBracketsRuns.length > 10) u.recentExpandBracketsRuns = u.recentExpandBracketsRuns.slice(0, 10);
+      } else if (mode === "perfectSquare") {
+        if (!Array.isArray(u.recentPerfectSquareRuns)) u.recentPerfectSquareRuns = [];
+        u.recentPerfectSquareRuns.unshift(runEntry);
+        if (u.recentPerfectSquareRuns.length > 10) u.recentPerfectSquareRuns = u.recentPerfectSquareRuns.slice(0, 10);
+      } else if (mode === "decimal") {
+        if (!Array.isArray(u.recentDecimalRuns)) u.recentDecimalRuns = [];
+        u.recentDecimalRuns.unshift(runEntry);
+        if (u.recentDecimalRuns.length > 10) u.recentDecimalRuns = u.recentDecimalRuns.slice(0, 10);
+      } else if (mode === "divisibility") {
+        if (!Array.isArray(u.recentDivisibilityRuns)) u.recentDivisibilityRuns = [];
+        u.recentDivisibilityRuns.unshift(runEntry);
+        if (u.recentDivisibilityRuns.length > 10) u.recentDivisibilityRuns = u.recentDivisibilityRuns.slice(0, 10);
+      } else if (mode === "factorsMultiples") {
+        if (!Array.isArray(u.recentFactorsMultiplesRuns)) u.recentFactorsMultiplesRuns = [];
+        u.recentFactorsMultiplesRuns.unshift(runEntry);
+        if (u.recentFactorsMultiplesRuns.length > 10) u.recentFactorsMultiplesRuns = u.recentFactorsMultiplesRuns.slice(0, 10);
+      } else if (mode === "memoryTraining") {
+        if (!Array.isArray(u.recentMemoryTrainingRuns)) u.recentMemoryTrainingRuns = [];
+        u.recentMemoryTrainingRuns.unshift(runEntry);
+        if (u.recentMemoryTrainingRuns.length > 30) u.recentMemoryTrainingRuns = u.recentMemoryTrainingRuns.slice(0, 30);
+        var mtMeta = runEntry.trainingMeta && typeof runEntry.trainingMeta === "object" ? runEntry.trainingMeta : {};
+        var mtSpan = Math.max(0, Math.floor(Number(mtMeta.successSpan) || 0));
+        if (mtSpan > 0 && mtMeta.memoryKind === "instant") {
+          u.bestMemoryInstantSpan = Math.max(Number(u.bestMemoryInstantSpan) || 0, mtSpan);
+        }
+        if (mtSpan > 0 && mtMeta.memoryKind === "working") {
+          u.bestMemoryWorkingSpan = Math.max(Number(u.bestMemoryWorkingSpan) || 0, mtSpan);
+        }
+      } else {
+        if (!Array.isArray(u.recentSurvivalRuns)) u.recentSurvivalRuns = [];
+        u.recentSurvivalRuns.unshift(runEntry);
+        if (u.recentSurvivalRuns.length > 10) u.recentSurvivalRuns = u.recentSurvivalRuns.slice(0, 10);
+        if ((runEntry.survivalTimeSec || 0) > (u.bestSurvivalSec || 0)) u.bestSurvivalSec = runEntry.survivalTimeSec;
+        if ((runEntry.score || 0) > (u.bestScore || 0)) u.bestScore = runEntry.score;
       }
     }
 
@@ -13619,9 +13807,29 @@
         runEntry.mastered = Math.max(0, Math.floor(opts.mastered));
       }
       if (isGuestMode) {
-        // 游客仅闯关写本机记录；其它模式入口已拦截，此处一律不落库
-        if (mode === "level") saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
-        return Promise.resolve();
+        if (!GUEST_PLAYABLE_RUN_MODES.has(mode)) return Promise.resolve(true);
+        if (mode === "level") {
+          saveGuestLevelRun(survivalTimeSec, score, maxLevel, wrongCount);
+        } else {
+          applyRunEntryToUserLocal(getCurrentUser(), runEntry);
+          persistGuestUserCache();
+        }
+        if (mode === "primeComposite") renderPrimeRecentRuns();
+        else if (mode === "expandBrackets") renderExpandBracketsRecentRuns();
+        else if (mode === "perfectSquare" && window.JmlPerfectSquarePage) {
+          JmlPerfectSquarePage.renderPerfectSquareRecentRuns();
+        } else if (mode === "divisibility" && window.JmlDivisibilityPage) {
+          JmlDivisibilityPage.renderDivisibilityRecentRuns();
+        } else if (mode === "factorsMultiples" && window.JmlFactorsMultiplesPage) {
+          JmlFactorsMultiplesPage.renderFactorsMultiplesRecentRuns();
+        } else if (mode === "decimal" && window.JmlDecimalPage) {
+          JmlDecimalPage.renderDecimalRecentRuns();
+        } else if (mode === "memoryTraining" && window.JmlMemoryTrainingPage) {
+          JmlMemoryTrainingPage.renderMemoryTrainingRecentRuns();
+        } else if (mode === "level") {
+          renderRecentRuns();
+        }
+        return Promise.resolve(true);
       }
       const name = loadCurrentUsername();
       if (!name) return Promise.resolve(false);
@@ -13910,7 +14118,12 @@
       const empty = document.getElementById("prime-recent-history-empty");
       if (!body || !empty) return;
       if (isGuestMode) {
-        renderPrimeRecentRunsTable([]);
+        const guest = getCurrentUser();
+        const runs =
+          guest && Array.isArray(guest.recentPrimeCompositeRuns)
+            ? guest.recentPrimeCompositeRuns
+            : [];
+        renderPrimeRecentRunsTable(runs);
         return;
       }
       const name = loadCurrentUsername();
@@ -14003,6 +14216,7 @@
         if (dom.expandGoResultLabel) dom.expandGoResultLabel.textContent = t("expand.end.result");
         if (dom.expandGoResult) dom.expandGoResult.textContent = t("expand.go.abandoned");
         if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
+        applyGuestConvertTip(dom.expandGameOverPanel);
         updateGlobalBackButtonState();
         renderExpandBracketsRecentRuns();
         return;
@@ -15818,10 +16032,6 @@
     }
 
     function showPrimeCompositePlaceholder() {
-      if (isGuestMode) {
-        showToast(t("toast.guestNeedLogin"));
-        return;
-      }
       hideHomeCoachFloat();
       primeCompositeResetToIdle();
       setTopActionsVisible(false);
@@ -16033,6 +16243,7 @@
       if (fs) fs.textContent = abandoned ? "0" : String(Math.max(0, primeCompositeSessionScore));
       const scoreEl = document.getElementById("prime-session-score");
       if (scoreEl) scoreEl.textContent = abandoned ? "0" : String(Math.max(0, primeCompositeSessionScore));
+      applyGuestConvertTip(document.getElementById("prime-finished-panel-inner"));
 
       const listEl = document.getElementById("prime-finish-wrong-list");
       if (listEl) {
@@ -16221,7 +16432,20 @@
       const name = loadCurrentUsername();
       const sessionScore = Math.max(0, primeCompositeSessionScore);
       const baseUrl = getApiBase();
-      if (name && baseUrl) {
+      if (isGuestMode) {
+        await appendRun(
+          elapsedSec,
+          sessionScore,
+          -1,
+          primeCompositeWrongCount,
+          "primeComposite",
+          primeCompositeAttempts.slice(),
+          true,
+          false,
+          { mastered: primeCompositeMastered }
+        );
+        await renderPrimeRecentRuns();
+      } else if (name && baseUrl) {
         const synced = await appendRun(
           elapsedSec,
           sessionScore,
@@ -18161,7 +18385,8 @@
     }
 
     function isSurvivalLocked() {
-      if (isGuestMode) return false;
+      // 游客与未达门槛的注册用户一样显示锁（游客不能绕过生存前置）
+      if (isGuestMode) return true;
       const u = getCurrentUser();
       if (!u) return false;
       return !userEligibleForSurvivalUnlock(u);
@@ -18259,11 +18484,8 @@
       if (isGuestMode) {
         const data = getGuestSurvivalData();
         data.levelChallengeBestLevel = idx;
-        try {
-          localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(data));
-        } catch (e) {
-          console.warn("写入游客闯关历史最高失败。", e);
-        }
+        writeGuestStorage(data);
+        if (guestUserCache) guestUserCache.levelChallengeBestLevel = idx;
         return;
       }
       const name = loadCurrentUsername();
@@ -18732,6 +18954,7 @@
       if (wrongEl) wrongEl.textContent = String(opts.wrong != null ? opts.wrong : 0);
       if (maxLevelEl) maxLevelEl.textContent = opts.maxLevelText != null ? opts.maxLevelText : "-";
       setGameCardActionSlot("hidden");
+      applyGuestConvertTip(dom.gameOverPanel);
     }
 
     async function runSettlementSaveWithUi(setUi, saveFn, afterOk) {
@@ -19453,7 +19676,15 @@
     async function saveExpandBracketsProgress(currentLevel, unlockedMax) {
       currentLevel = Math.min(EXPAND_BRACKETS_MAX_LEVEL, Math.max(0, Math.floor(Number(currentLevel) || 0)));
       unlockedMax = Math.min(EXPAND_BRACKETS_MAX_LEVEL + 1, Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0)));
-      if (isGuestMode) return;
+      if (isGuestMode) {
+        const u = getCurrentUser();
+        if (u) {
+          u.levelExpandBracketsCurrentLevel = currentLevel;
+          u.levelExpandBracketsUnlockedMax = unlockedMax;
+          persistGuestUserCache();
+        }
+        return;
+      }
       const name = loadCurrentUsername();
       if (!name) return;
       try {
@@ -19571,8 +19802,8 @@
     }
 
     function isTrainingLocked() {
-      // 游客不显示锁，点击时 toast 需登录
-      if (isGuestMode) return false;
+      // 游客与未完成闯关的注册用户一样显示锁（不能绕过训练前置）
+      if (isGuestMode) return true;
       const u = getCurrentUser();
       if (!u) return true;
       ensureUserProgressDefault(u);
@@ -19617,10 +19848,6 @@
 
     function handleModeExpandBrackets() {
       if (!gatePendingRunDraft()) return;
-      if (isGuestMode) {
-        showToast(t("toast.guestNeedLogin"));
-        return;
-      }
       gameMode = "expandBrackets";
       writeGameSubtitleForMode("expandBrackets");
       showGameSection();
@@ -19729,6 +19956,7 @@
     async function handleGuestEnter() {
       isGuestMode = true;
       setCurrentUsername(null);
+      hydrateGuestUserCache();
       await refreshGameSettings();
       document.getElementById("login-view").style.display = "none";
       document.getElementById("app-view").style.display = "flex";
@@ -19738,6 +19966,7 @@
       showLoggedInHomeToolModes();
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
+      updateSurvivalButtonLabel();
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();

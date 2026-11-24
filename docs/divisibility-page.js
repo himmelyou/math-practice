@@ -125,7 +125,15 @@
       divMaxLevel() + 1,
       Math.max(currentLevel, Math.floor(Number(unlockedMax) || 0))
     );
-    if (inGuestMode()) return;
+    if (inGuestMode()) {
+      const u = deps.getCachedUser && deps.getCachedUser();
+      if (u) {
+        u.levelDivisibilityCurrentLevel = currentLevel;
+        u.levelDivisibilityUnlockedMax = unlockedMax;
+        if (typeof deps.persistGuestUserCache === "function") deps.persistGuestUserCache();
+      }
+      return;
+    }
     const name = deps.loadCurrentUsername();
     if (!name) return;
     try {
@@ -849,6 +857,12 @@
       if (dom().divFinishResult) {
         dom().divFinishResult.textContent = t("expand.result." + outcome.resultKey);
       }
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(document.getElementById("div-finished-panel-inner"));
+      }
+    }
+    if (inGuestMode() && typeof deps.persistGuestUserCache === "function") {
+      deps.persistGuestUserCache();
     }
     // 局末只展示错题回顾；勿再刷 recent 表，否则会切回 history 盖住回顾
     renderDivWrongReview();
@@ -901,6 +915,9 @@
       if (dom().divFinishTime) dom().divFinishTime.textContent = "-";
       if (dom().divFinishLevel) dom().divFinishLevel.textContent = levelLabel(divRunStartLevel);
       if (dom().divFinishResult) dom().divFinishResult.textContent = t("expand.go.abandoned");
+      if (typeof deps.applyGuestConvertTip === "function") {
+        deps.applyGuestConvertTip(document.getElementById("div-finished-panel-inner"));
+      }
     }
     renderDivWrongReview();
     deps.updateGlobalBackButtonState();
@@ -965,10 +982,6 @@
   }
 
   function handleModeDivisibility() {
-    if (inGuestMode()) {
-      deps.showToast(t("toast.guestNeedLogin"));
-      return;
-    }
     deps.setGameMode("divisibility");
     showDivisibilitySection();
   }
