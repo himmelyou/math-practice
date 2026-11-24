@@ -1099,6 +1099,11 @@
         if (d1.kind === "x2") d1 = { kind: "x2", mag: o.x2Mag, sign: d1.sign };
         if (d2.kind === "x2") d2 = { kind: "x2", mag: o.x2Mag, sign: d2.sign };
       }
+      /** 常见错：x·x 积写成一次项（次方掉了） */
+      if (o.x2AsX) {
+        if (d1.kind === "x2") d1 = { kind: "x", mag: d1.mag, sign: d1.sign };
+        if (d2.kind === "x2") d2 = { kind: "x", mag: d2.mag, sign: d2.sign };
+      }
       return [d1, d2];
     }
 
@@ -1148,97 +1153,64 @@
       return v;
     }
 
-    function l4WrongMagOpts(params) {
-      const pair = l4DistPair(params.B, params.term1, params.term2, params.innerPlus, {});
-      const t = pair[1];
-      if (t.kind === "x2") return { x2Mag: l4AltMag(t.mag, 1) };
-      if (t.kind === "x") return { xMag: l4AltMag(t.mag, 1) };
-      return { nMag: l4AltMag(t.mag, 1) };
+    function l4MagOptsForTerm(term) {
+      if (!term) return { nMag: 2 };
+      if (term.kind === "x2") return { x2Mag: l4AltMag(term.mag, 1) };
+      if (term.kind === "x") return { xMag: l4AltMag(term.mag, 1) };
+      return { nMag: l4AltMag(term.mag, 1) };
     }
 
+    function l4ProducesX2(params) {
+      return params.B.kind === "x" && (params.term1.kind === "x" || params.term2.kind === "x");
+    }
+
+    /**
+     * L4 错因池（每型 ≥5；含 x² 时再加次方坑）。每题抽 3 条。
+     * T1/T2：漏乘多样 + 内层符号 + 积错 +（可选）x²→一次项
+     * T3/T4：外减变号多样 + 漏乘 + 积错 +（可选）x²→一次项
+     */
     function l4WrongPoolForType(questionType, params) {
-      const outerPlus = params.outerPlus;
       const innerPlus = params.innerPlus;
+      const outerPlus = params.outerPlus;
+      const pair = l4DistPair(params.B, params.term1, params.term2, params.innerPlus, {});
+      const pool = [];
 
-      if (questionType === L4_TYPE_T1) {
-        return [
-          {
-            text: l4AnswerText(params, { multFirst: true, multSecond: false }),
-            explain: "第二项忘了乘括号外的 B。",
-            causeNo: 1,
-          },
-          {
-            text: l4AnswerText(params, { innerPlus: !innerPlus }),
-            explain: innerPlus
-              ? "内层应是「加」却按「减」分配。"
-              : "内层应是「减」却按「加」分配。",
-            causeNo: 2,
-          },
-          {
-            text: l4AnswerText(params, l4WrongMagOpts(params)),
-            explain: "乘积算错。",
-            causeNo: 3,
-          },
-        ];
+      function push(distOpts, outerApply, explain, causeNo) {
+        pool.push({
+          text: l4AnswerText(params, distOpts || {}, outerApply),
+          explain: explain,
+          causeNo: causeNo,
+        });
       }
 
-      if (questionType === L4_TYPE_T2) {
-        return [
-          {
-            text: l4AnswerText(params, { multFirst: true, multSecond: false }),
-            explain: "第二项忘了乘括号外的 B。",
-            causeNo: 1,
-          },
-          {
-            text: l4AnswerText(params, { innerPlus: !innerPlus }),
-            explain: "内层应是「减」却按「加」分配。",
-            causeNo: 2,
-          },
-          {
-            text: l4AnswerText(params, l4WrongMagOpts(params)),
-            explain: "乘积算错。",
-            causeNo: 3,
-          },
-        ];
+      const innerFlipExplain = innerPlus
+        ? "内层应是「加」却按「减」分配。"
+        : "内层应是「减」却按「加」分配。";
+
+      if (outerPlus) {
+        push({ multFirst: true, multSecond: false }, null, "第二项忘了乘括号外的 B。", 1);
+        push({ multFirst: false, multSecond: true }, null, "第一项忘了乘括号外的 B。", 2);
+        push({ multFirst: false, multSecond: false }, null, "两项都忘了乘括号外的 B。", 3);
+        push({ innerPlus: !innerPlus }, null, innerFlipExplain, 4);
+        push(l4MagOptsForTerm(pair[0]), null, "第一项乘积算错。", 5);
+        push(l4MagOptsForTerm(pair[1]), null, "第二项乘积算错。", 6);
+        if (l4ProducesX2(params)) {
+          push({ x2AsX: true }, null, "x·x 应写成 x²，却写成了一次项。", 7);
+        }
+        return pool;
       }
 
-      if (questionType === L4_TYPE_T3) {
-        return [
-          {
-            text: l4AnswerText(params, {}, "minusFirst"),
-            explain: "只变了第一项，第二项忘记变号。",
-            causeNo: 1,
-          },
-          {
-            text: l4AnswerText(params, { multFirst: true, multSecond: false }),
-            explain: "变号对但第二项忘了乘 B。",
-            causeNo: 2,
-          },
-          {
-            text: l4AnswerText(params, l4WrongMagOpts(params)),
-            explain: "乘积有一处错。",
-            causeNo: 3,
-          },
-        ];
+      push({}, "minusFirst", "只变了第一项，第二项忘记变号。", 1);
+      push({}, "plus", "外层是减号，分配后两项都没变号。", 2);
+      push({}, "minusSecond", "只变了第二项，第一项忘记变号。", 3);
+      push({ multFirst: true, multSecond: false }, null, "变号对但第二项忘了乘 B。", 4);
+      push({ multFirst: false, multSecond: true }, null, "变号对但第一项忘了乘 B。", 5);
+      push({ innerPlus: !innerPlus }, null, innerFlipExplain, 6);
+      push(l4MagOptsForTerm(pair[1]), null, "变号、乘 B 规则都对但第二项积算错。", 7);
+      if (l4ProducesX2(params)) {
+        push({ x2AsX: true }, null, "x·x 应写成 x²，却写成了一次项。", 8);
       }
-
-      return [
-        {
-          text: l4AnswerText(params, {}, "minusFirst"),
-          explain: "第二项变号错。",
-          causeNo: 1,
-        },
-        {
-          text: l4AnswerText(params, { multFirst: true, multSecond: false }),
-          explain: "变号对但第二项忘了乘 B。",
-          causeNo: 2,
-        },
-        {
-          text: l4AnswerText(params, l4WrongMagOpts(params)),
-          explain: "变号、乘 B 规则都对但算积错。",
-          causeNo: 3,
-        },
-      ];
+      return pool;
     }
 
     function buildExpandQuestion_L4() {
