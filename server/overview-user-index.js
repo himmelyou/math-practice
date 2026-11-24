@@ -181,7 +181,7 @@ function countFluentFromHeat(heat) {
       c.fluent == null &&
       c.p != null &&
       Number.isFinite(c.p) &&
-      c.p >= 0.95 &&
+      Math.round(Number(c.p) * 1000) / 1000 >= 0.95 &&
       c.tooSlow !== true
     ) {
       fluentCount += 1;

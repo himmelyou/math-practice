@@ -358,7 +358,9 @@
     var speedGate = applyChoiceSpeedPercentile(active, meanLn, lnQ);
     var timePct = speedGate.timePct;
     var tooSlow = speedGate.tooSlow;
-    var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
+    /** 准度先四舍五入到一位小数%再判 95%（与 pText 同口径） */
+    var pRound = p != null && Number.isFinite(p) ? Math.round(p * 1000) / 1000 : null;
+    var accurate = !!(active && pRound != null && pRound >= TRAINING_BRUSH_PASS_ACCURACY);
     var fluent = accurate && tooSlow !== true;
     var avgSecText = '-';
     if (meanLn != null && Number.isFinite(meanLn)) {
@@ -775,7 +777,9 @@
       timePct = active && meanLn != null && lnQ ? percentileFromQuantileSummary(meanLn, lnQ) : null;
       tooSlow = active && meanLn != null ? isTooSlowMeanLn(meanLn, lnQ) : null;
     }
-    var accurate = !!(active && p != null && Number.isFinite(p) && p >= TRAINING_BRUSH_PASS_ACCURACY);
+    /** 准度先四舍五入到一位小数%再判 95%（与 pText 同口径） */
+    var pRound = p != null && Number.isFinite(p) ? Math.round(p * 1000) / 1000 : null;
+    var accurate = !!(active && pRound != null && pRound >= TRAINING_BRUSH_PASS_ACCURACY);
     var fluent = accurate && tooSlow !== true;
     var avgSecText = '-';
     if (meanLn != null && Number.isFinite(meanLn)) {
@@ -1055,7 +1059,8 @@
     if (cell.fluent === false) return false;
     var p = cell.p;
     if (p == null || !Number.isFinite(p)) return false;
-    return p >= (Number(minP) || 0.95);
+    var pRound = Math.round(Number(p) * 1000) / 1000;
+    return pRound >= (Number(minP) || 0.95);
   }
 
   /** 热图上色阈值（二维短板） */

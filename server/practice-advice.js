@@ -1,12 +1,13 @@
 /**
- * 练习建议 v0.57：已通关冲榜还须 L1–L16 无黄橙（避免偶发通关后仍生疏却占格冲榜）。
+ * 练习建议 v0.58：准度先四舍五入到一位小数%再判 95%；未通关轮到绿补前先插摸底闯关。
+ * v0.57：已通关冲榜还须 L1–L16 无黄橙（避免偶发通关后仍生疏却占格冲榜）。
  * v0.56：未通关四则黄橙先排 ≤闯关顶（顶内仍按洞分），顶后洞稍后；不恢复「闯关夹在中间」旧流。
  * v0.55：特殊/小数无校内黄橙且无可开新则不硬留；自由格绿补跨模式按 fillerScore 混排。
  * v0.54：质数合数并入因倍 Y0（五年级起；rem 比 Y1 倒退一格；不挡四年级推因倍）。
  * v0.53：洞分准×5、分位×2（rem 仍×100）；rem 顶台同 v0.52。
  * v0.52：四则 rem 顶台 L13–L16=0；其它模式独立 rem 线。
  * v0.51：四则洞分改为 rem×100+(100−准%)×10+分位×5；取消未流畅整段。
- * v0.50：未通关摸底闯关默认可排垫后；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开。
+ * v0.50：未通关摸底闯关可进队；L1～原纪录全绿则提到训练前；种子流不再按 ≤n 拆开（v0.58 起默认绿补前插，不再垫后）。
  * v0.49：错题任务完成一次练习即成功；练习做对清题、做错保留。
  * v0.48：特殊硬留同模式黄洞冷却时改试下一格，不整档跳到绿补。
  * v0.47：自由格按全局优先级混排四则+其它（硬留之外也要能选到四则黄洞）。
@@ -23,7 +24,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.57-provisional";
+  var RULE_VERSION = "0.58-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -155,17 +156,32 @@
     return "learned";
   }
 
+  /**
+   * 准度先四舍五入到一位小数百分比（与热图 pText 同口径），再与阈值比较。
+   * 避免 19/20 等浮点略低于 0.95 却显示 95.0% 的误判。
+   */
+  function roundAccP01(p) {
+    if (p == null || !Number.isFinite(Number(p))) return null;
+    return Math.round(Number(p) * 1000) / 1000;
+  }
+
+  function accAtLeast(p, threshold) {
+    var r = roundAccP01(p);
+    return r != null && r >= threshold;
+  }
+
   function heatBand(cell) {
     if (!cell || !cell.active) return "inactive";
     var p = cell.p != null && Number.isFinite(Number(cell.p)) ? Number(cell.p) : null;
     if (p == null) return "unknown";
+    var pR = roundAccP01(p);
     var pct =
       cell.timePct != null && Number.isFinite(Number(cell.timePct))
         ? Number(cell.timePct)
         : null;
     var tooSlow = cell.tooSlow === true || (pct != null && pct >= HEAT_PCT_PLUS1);
-    if (p < HEAT_P_ORANGE || tooSlow) return "orange";
-    if (p < HEAT_P_YELLOW || (pct != null && pct >= FAST_TIME_PCT)) return "yellow";
+    if (pR < HEAT_P_ORANGE || tooSlow) return "orange";
+    if (pR < HEAT_P_YELLOW || (pct != null && pct >= FAST_TIME_PCT)) return "yellow";
     return "fluent";
   }
 
@@ -181,11 +197,11 @@
   }
 
   function stageLabelOf(row) {
-    if (row.stage === "weak" && row.p != null && row.p >= HEAT_P_ORANGE) {
+    if (row.stage === "weak" && accAtLeast(row.p, HEAT_P_ORANGE)) {
       return "会但过慢";
     }
     if (row.stage === "weak") return "不会/很生";
-    if (row.stage === "shaky" && row.p != null && row.p >= HEAT_P_YELLOW) {
+    if (row.stage === "shaky" && accAtLeast(row.p, HEAT_P_YELLOW)) {
       return "会但偏慢";
     }
     if (row.stage === "shaky") return "不熟";
@@ -332,6 +348,8 @@
         ? normalizeP01(row.p)
         : 0;
     if (p == null) p = 0;
+    p = roundAccP01(p);
+    if (p == null) p = 0;
     if (p >= HEAT_P_YELLOW) return 0;
     return Math.min(100, ((HEAT_P_YELLOW - p) / (1 - HEAT_P_YELLOW)) * 100);
   }
@@ -476,7 +494,8 @@
     var list = rows || [];
     for (var i = 0; i < list.length; i += 1) {
       var p = list[i] && list[i].p != null && Number.isFinite(Number(list[i].p)) ? Number(list[i].p) : null;
-      if (p == null || p < HEAT_P_YELLOW) break;
+      var pR = roundAccP01(p);
+      if (pR == null || pR < HEAT_P_YELLOW) break;
       top = i;
     }
     return top;
@@ -508,7 +527,7 @@
       var r = list[i];
       if (!r || !(r.n > 0)) return false;
       var p = r.p != null && Number.isFinite(Number(r.p)) ? Number(r.p) : null;
-      if (p == null || p < HEAT_P_YELLOW) return false;
+      if (!accAtLeast(p, HEAT_P_YELLOW)) return false;
       var tp = r.timePct != null && Number.isFinite(Number(r.timePct)) ? Number(r.timePct) : null;
       if (tp == null || tp >= FAST_TIME_PCT) return false;
     }
@@ -1279,8 +1298,7 @@
 
   function successKindForRow(row) {
     if (!row) return "acc_step";
-    var p = row.p != null && Number.isFinite(Number(row.p)) ? Number(row.p) : null;
-    if (p != null && p + 1e-9 >= HEAT_P_YELLOW) return "speed_step";
+    if (accAtLeast(row.p, HEAT_P_YELLOW)) return "speed_step";
     return "acc_step";
   }
 
@@ -1560,7 +1578,7 @@
       }
     }
     var needScan = scanIsNeeded(ctx);
-    /** 未通关且 L1～原纪录全绿：闯关提到四则训练前；否则垫后（有空格才上）。 */
+    /** 未通关且 L1～原纪录全绿快：闯关提到错题后、训练前。 */
     var elevateScan = needScan && !isRetryClearScan(ctx) && !!ctx.scanElevate;
 
     if (heatmapIsEmpty(ctx.rows)) {
@@ -1598,6 +1616,13 @@
         stream.push(s);
       });
     }
+    /**
+     * 未通关摸底（未提权）：黄橙/开新/超前之后、绿补之前插闯关（v0.58）。
+     * 避免绿补占满五格导致闯关顶未点亮时永远摸不到闯关。
+     */
+    if (needScan && !heatmapIsEmpty(ctx.rows) && !isRetryClearScan(ctx) && !elevateScan) {
+      stream.push({ kind: "scan", scan: ctx.scan });
+    }
     /** 绿补：四则与其它模式同一池，按 fillerScore 跨模式比（公式不变）。 */
     var greenPool = [];
     (ctx.rows || []).forEach(function (r) {
@@ -1614,10 +1639,6 @@
     greenPool.forEach(function (s) {
       stream.push(s);
     });
-    /** 未通关默认：闯关垫在训练/绿补之后，有空格才进五格。 */
-    if (needScan && !heatmapIsEmpty(ctx.rows) && !isRetryClearScan(ctx) && !elevateScan) {
-      stream.push({ kind: "scan", scan: ctx.scan });
-    }
 
     /**
      * 1) 四则硬留（熟练度）；2) 年级特殊/小数至少硬留；
@@ -1729,10 +1750,15 @@
     return !!(t && (t.key === "level" || t.action === "level"));
   }
 
+  /** 绿补卡：速度任务（准已达线）；黄橙/开新不是。 */
+  function isGreenFillerTask(t) {
+    return !!(t && t.successKind === "speed_step");
+  }
+
   /**
    * 未通关摸底闯关位置（开单/日切/重新开单时）：
-   * - 默认垫后（有空格才上）；
-   * - L1～原纪录全绿则提到错题之后、四则训练之前。
+   * - L1～原纪录全绿快：提到错题之后、训练之前；
+   * - 否则插在绿补之前（v0.58；有空格才上）。
    * 冲榜不走这条。
    */
   function placeScanByPriority(next, ctx) {
@@ -1752,7 +1778,9 @@
       list.splice(at, 0, scan);
       return list;
     }
-    list.push(scan);
+    var gi = 0;
+    while (gi < list.length && !isGreenFillerTask(list[gi])) gi += 1;
+    list.splice(gi, 0, scan);
     return list;
   }
 
@@ -2231,11 +2259,11 @@
     if (!stats || !stats.n) return false;
     if (task.successKind === "speed_step") {
       if (task.targetAvgSec == null || stats.avgSec == null) return false;
-      if (stats.p == null || stats.p + 1e-9 < HEAT_P_YELLOW) return false;
+      if (!accAtLeast(stats.p, HEAT_P_YELLOW)) return false;
       return Number(stats.avgSec) <= Number(task.targetAvgSec) + 1e-9;
     }
     if (stats.p == null) return false;
-    return stats.p + 1e-9 >= HEAT_P_YELLOW;
+    return accAtLeast(stats.p, HEAT_P_YELLOW);
   }
 
   /** Q8/Q9 已废：当日无限再试；不适合练的关靠次日整单重算换掉。 */
@@ -2982,7 +3010,7 @@
         SCAN_CLEAR_IMPROVE +
         " 且 L1–L16 无黄橙才再排冲榜闯关（每关10题均速×" +
         SCAN_CLEAR_OVERHEAD +
-        "；v0.57）；不走摸底垫后",
+        "；v0.57）；不走摸底绿补前插",
       "Q16 未完成 1～5 对上就跟局（记尝试/成功），不限队头；点任务按钮和首页碰巧同一套。训练成功按本局准度/均速对照目标。非任务入口当场成功称碰巧完成。放弃局整局不算。任务局不重算五格；名单外跑偏：未完成整份保留（成功线冻结），不补空。规则升级不拆队、不改成功线；日切/重新开单才丢掉未完成进度"
     ];
     reasons.push(
@@ -3016,8 +3044,8 @@
               "（连续准度顶与历史最高取 max，不计分位）" +
               (ctx.scanElevate
                 ? "；L1～原纪录全绿，闯关提到训练前"
-                : "；默认垫后，有空格才上"),
-            "v0.56：四则黄橙先 ≤闯关顶再顶后；闯关进队仍独立；全绿提权见 R-scan-elevate"
+                : "；绿补前插闯关（v0.58），有空格才上"),
+            "v0.58：准度一位小数%再判；未提权时绿补前插摸底闯关"
           )
         );
       }
@@ -3087,7 +3115,7 @@
         "hybrid_task_list",
         "一条队列：未完成最多 " +
           INCOMPLETE_SIZE +
-          " 条且不重复（未通关四则黄橙先≤闯关顶再按洞分；闯关默认垫后，全绿快可提权）。同 key 默认隔 " +
+          " 条且不重复（未通关四则黄橙先≤闯关顶；闯关绿补前插/全绿快提权；准度一位小数%）。同 key 默认隔 " +
           SAME_TASK_GAP +
           " 条；冷却窗最多 " +
           COMPLETED_MAX +
@@ -3255,6 +3283,8 @@
     foundationRemainingForRow: foundationRemainingForRow,
     fillerScore: fillerScore,
     holeScore: holeScore,
+    roundAccP01: roundAccP01,
+    accAtLeast: accAtLeast,
     sortArithSchoolHoles: sortArithSchoolHoles,
     successKindForRow: successKindForRow,
     schoolActivatedReady: schoolActivatedReady,
