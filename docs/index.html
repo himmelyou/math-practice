@@ -4778,6 +4778,7 @@
               <img class="home-mode-icon" src="assets/home/ic_tool_4.png" width="28" height="28" alt="" />
               <span class="home-mode-label">成就墙</span>
               <img class="home-mode-trail home-mode-trail--go" src="assets/home/ic_back.png" width="16" height="16" alt="" />
+              <img class="home-mode-trail home-mode-trail--lock" src="assets/home/ic_lock.png" width="16" height="16" alt="" />
             </button>
           </div>
         </section>
@@ -10206,8 +10207,19 @@
       if (!el) return;
       const show = isGuestMode || !!cachedUser;
       el.style.display = show ? "" : "none";
-      el.classList.remove("mode-btn-soon", "mode-btn-locked");
+      el.classList.remove("mode-btn-soon");
       el.removeAttribute("aria-disabled");
+      syncGuestAccountModeLocks();
+    }
+
+    /** 游客账号向入口右侧显示小锁（与训练/生存一致） */
+    function syncGuestAccountModeLocks() {
+      const locked = !!isGuestMode;
+      ["mode-wrongbook", "mode-stats", "mode-ranking", "mode-achievement-wall"].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle("mode-btn-locked", locked);
+      });
     }
 
     const HOME_TOP_BREATHE_BASE_PX = 10;
@@ -15928,6 +15940,7 @@
       updateTopTitleForCurrentView(true);
       applyTesterOnlyHomeModes();
       applyAchievementWallHomeMode();
+      syncGuestAccountModeLocks();
       scheduleHomeTopBreathe();
       refreshSurvivalEligibility();
       homeCoachRunsCache = null;
@@ -18441,7 +18454,7 @@
       const btn = document.getElementById("mode-ranking");
       if (!btn) return;
       setHomeModeLabel("mode-ranking", "home.mode.ranking");
-      btn.classList.remove("mode-btn-locked");
+      syncGuestAccountModeLocks();
     }
 
     function getLevelChallengeLastLevel() {
@@ -19967,6 +19980,7 @@
       updateRankingButtonLabel();
       updateTrainingButtonLabel();
       updateSurvivalButtonLabel();
+      syncGuestAccountModeLocks();
       const errorEl = document.getElementById("login-error");
       if (errorEl) errorEl.textContent = "";
       loadState();
