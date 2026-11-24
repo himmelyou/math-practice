@@ -2052,6 +2052,9 @@
       apiFetch('/api/admin/stats/factors-multiples-cohort').catch(function (e) {
         return { ok: false, error: e.message || String(e) };
       }),
+      apiFetch('/api/admin/stats/expand-brackets-cohort').catch(function (e) {
+        return { ok: false, error: e.message || String(e) };
+      }),
       apiFetch('/api/admin/stats/prime-composite-cohort').catch(function (e) {
         return { ok: false, error: e.message || String(e) };
       }),
@@ -2062,7 +2065,8 @@
         var perfectSquare = results[2];
         var divisibility = results[3];
         var factorsMultiples = results[4];
-        var primeComposite = results[5];
+        var expandBrackets = results[5];
+        var primeComposite = results[6];
         applyCohortByCategory(
           {
             arithmetic: level && level.ok ? level : null,
@@ -2070,6 +2074,7 @@
             perfectSquare: perfectSquare && perfectSquare.ok ? perfectSquare : null,
             divisibility: divisibility && divisibility.ok ? divisibility : null,
             factorsMultiples: factorsMultiples && factorsMultiples.ok ? factorsMultiples : null,
+            expandBrackets: expandBrackets && expandBrackets.ok ? expandBrackets : null,
             primeComposite: primeComposite && primeComposite.ok ? primeComposite : null,
           },
           { invalidateBagsIfChanged: true }
@@ -2091,6 +2096,11 @@
         }
         if (!state.cohortByCategory.decimal) {
           errs.push('小数：' + ((decimal && decimal.error) || '常模接口返回异常'));
+        }
+        if (!state.cohortByCategory.expandBrackets) {
+          errs.push(
+            '拆括号：' + ((expandBrackets && expandBrackets.error) || '常模接口返回异常')
+          );
         }
         if (!state.cohortByCategory.primeComposite) {
           errs.push(

@@ -17,6 +17,7 @@
   var PERFECT_SQUARE_LEVEL_COUNT = 4;
   var DIVISIBILITY_LEVEL_COUNT = 4; // 热图仅 Z1–Z4；Z5 冲记录，不进热图
   var FACTORS_MULTIPLES_LEVEL_COUNT = 6;
+  var EXPAND_BRACKETS_LEVEL_COUNT = 5; // L1–L5 全进热图
   /** 因倍 Y1–Y2 二选一走「按局」口径；Y3–Y6 填空仍按题 */
   var FACTORS_MULTIPLES_CHOICE_LEVEL_MAX = 1; // inclusive
   var MS_PER_DAY = 86400000;
@@ -28,7 +29,7 @@
    */
   var FILL_RUN_MIN_ACCURACY = 0.5;
 
-  /** 热图分类注册表（拆括号仅补 attempt，暂不进热图）；质数合数以虚拟 Y0 挂在因倍栏前。顺序：四则→平方数→整除→因数倍数→小数 */
+  /** 热图分类注册表；质数合数以虚拟 Y0 挂在因倍栏前。顺序：四则→平方数→整除→因数倍数→小数→拆括号 */
   var HEATMAP_CATEGORIES = [
     {
       id: 'arithmetic',
@@ -74,6 +75,15 @@
       labelKey: 'stats.cat.decimal',
       labelFallback: '小数运算',
       cohortKind: 'decimal',
+    },
+    {
+      id: 'expandBrackets',
+      modes: ['expandBrackets'],
+      levelCount: EXPAND_BRACKETS_LEVEL_COUNT,
+      levelPrefix: 'L',
+      labelKey: 'stats.cat.expandBrackets',
+      labelFallback: '拆括号',
+      cohortKind: 'expandBrackets',
     },
   ];
 
@@ -220,6 +230,17 @@
     var lv = Math.floor(Number(raw));
     if (!Number.isFinite(lv) || lv < 0) return null;
     if (lv >= FACTORS_MULTIPLES_LEVEL_COUNT) return null;
+    return lv;
+  }
+
+  /** 拆括号局 → 热图档（L1–L5） */
+  function resolveExpandBracketsRunHeatLevel(r) {
+    if (!r) return null;
+    var meta = r.trainingMeta && typeof r.trainingMeta === 'object' ? r.trainingMeta : null;
+    var raw = meta && meta.pickedLevel != null ? meta.pickedLevel : r.maxLevel;
+    var lv = Math.floor(Number(raw));
+    if (!Number.isFinite(lv) || lv < 0) return null;
+    if (lv >= EXPAND_BRACKETS_LEVEL_COUNT) return null;
     return lv;
   }
 
@@ -839,6 +860,7 @@
         : '';
     var isDivisibility = modeKey === 'divisibility';
     var isFactorsMultiples = modeKey === 'factorsmultiples';
+    var isExpandBrackets = modeKey === 'expandbrackets';
     var resolveLevelIndex = opts.resolveAttemptLevelIndex;
     if (typeof resolveLevelIndex !== 'function') {
       if (isDivisibility) resolveLevelIndex = resolveDivisibilityAttemptLevel;
@@ -875,6 +897,20 @@
       });
       for (var dk = 0; dk < levelCount; dk += 1) {
         cells.push(cellFromWeightedBucket(dk, divBy[dk], cohortLevels[dk] || {}, 1, true));
+      }
+    } else if (isExpandBrackets) {
+      // 拆括号：与整除同「按局」口径；L1–L5 全进
+      personalWindowRuns = CHOICE_WINDOW_RUNS;
+      var expBy = personalWeightedByChoiceRuns(runs, {
+        levelCount: levelCount,
+        nowTs: nowMs,
+        halfLifeDays: halfLifeDays,
+        windowRuns: CHOICE_WINDOW_RUNS,
+        msPerQCap: maxTimeMs,
+        resolveRunLevel: resolveExpandBracketsRunHeatLevel,
+      });
+      for (var ek = 0; ek < levelCount; ek += 1) {
+        cells.push(cellFromWeightedBucket(ek, expBy[ek], cohortLevels[ek] || {}, 1, true));
       }
     } else if (isFactorsMultiples) {
       // Y1–Y2 按局；Y3–Y6 按题（近 200）
@@ -929,7 +965,7 @@
 
     return {
       cells: cells,
-      minAttempts: isDivisibility ? 1 : isFactorsMultiples ? minAttempts : minAttempts,
+      minAttempts: isDivisibility || isExpandBrackets ? 1 : isFactorsMultiples ? minAttempts : minAttempts,
       maxTimeSpentMs: maxTimeMs,
       cohortLoaded: !!cohort,
       personalWindowAttempts: windowAttempts,
@@ -937,7 +973,8 @@
       personalHalfLifeDays: halfLifeDays,
       personalNowTs: nowMs,
       levelCount: levelCount,
-      sampleUnit: isDivisibility ? 'runs' : isFactorsMultiples ? 'mixed' : 'attempts',
+      sampleUnit:
+        isDivisibility || isExpandBrackets ? 'runs' : isFactorsMultiples ? 'mixed' : 'attempts',
     };
   }
 
@@ -1756,6 +1793,7 @@
     PERFECT_SQUARE_LEVEL_COUNT: PERFECT_SQUARE_LEVEL_COUNT,
     DIVISIBILITY_LEVEL_COUNT: DIVISIBILITY_LEVEL_COUNT,
     FACTORS_MULTIPLES_LEVEL_COUNT: FACTORS_MULTIPLES_LEVEL_COUNT,
+    EXPAND_BRACKETS_LEVEL_COUNT: EXPAND_BRACKETS_LEVEL_COUNT,
     HEATMAP_CATEGORIES: HEATMAP_CATEGORIES,
     getHeatmapCategories: getHeatmapCategories,
     getHeatmapCategory: getHeatmapCategory,
@@ -1788,6 +1826,7 @@
     runDurationSec: runDurationSec,
     resolveDivisibilityRunHeatLevel: resolveDivisibilityRunHeatLevel,
     resolveFactorsMultiplesRunHeatLevel: resolveFactorsMultiplesRunHeatLevel,
+    resolveExpandBracketsRunHeatLevel: resolveExpandBracketsRunHeatLevel,
     isPrimeQualifyingRun: isPrimeQualifyingRun,
     hasPrimeQualifyingHistory: hasPrimeQualifyingHistory,
     buildPrimeY0Cell: buildPrimeY0Cell,

@@ -10822,6 +10822,96 @@
       });
     }
 
+    async function fetchExpandRecommendedLevel(unlockedMax, playableMax) {
+      if (isGuestMode) return undefined;
+      const base = getApiBase();
+      const name = loadCurrentUsername();
+      if (!base || !name) return undefined;
+      const q =
+        "?unlockedMax=" +
+        encodeURIComponent(String(unlockedMax != null ? unlockedMax : "")) +
+        "&playableMax=" +
+        encodeURIComponent(String(playableMax != null ? playableMax : ""));
+      const res = await fetch(
+        base + "/api/user/" + encodeURIComponent(name) + "/expand-brackets/next-level" + q,
+        { credentials: "include", headers: getAuthHeaders() }
+      );
+      const data = await res.json().catch(function () {
+        return null;
+      });
+      if (res.status === 401) {
+        handleAuthRequired();
+        return undefined;
+      }
+      if (!res.ok || !data || data.ok !== true) {
+        throw new Error((data && data.error) || "expand-brackets next-level failed");
+      }
+      if (data.levelIndex == null || !Number.isFinite(Number(data.levelIndex))) return null;
+      return Math.floor(Number(data.levelIndex));
+    }
+
+    /**
+     * 拆括号下一关：登录走服务器；游客本地梯子/刷选兜底。
+     * 解锁与选关分离：不看本局 0/1 错。
+     */
+    async function resolveExpandRecommendedLevel(unlockedMaxHint) {
+      const unlockedHint =
+        unlockedMaxHint != null
+          ? Math.floor(Number(unlockedMaxHint) || 0)
+          : getExpandBracketsStoredUnlockedMax();
+      const playableMax = EXPAND_BRACKETS_MAX_LEVEL;
+      try {
+        const fromApi = await fetchExpandRecommendedLevel(unlockedHint, playableMax);
+        if (fromApi === undefined) {
+          /* fall through guest/local */
+        } else if (fromApi != null && Number.isFinite(Number(fromApi))) {
+          return Math.max(0, Math.min(playableMax, Math.floor(Number(fromApi))));
+        } else {
+          return null;
+        }
+      } catch (e) {
+        console.warn("拆括号选关 API 失败，尝试本地兜底", e);
+      }
+      if (!isGuestMode) return null;
+
+      const HM = window.JmlStatsHeatmap;
+      if (!HM || typeof HM.buildHeatmapCells !== "function") return null;
+      const cleared = unlockedHint > playableMax;
+      const cat = HM.getHeatmapCategory ? HM.getHeatmapCategory("expandBrackets") : null;
+      const levelCount = cat && cat.levelCount > 0 ? cat.levelCount : playableMax + 1;
+      const modes = cat && cat.modes ? cat.modes : ["expandBrackets"];
+      const [runs, cohort] = await Promise.all([
+        fetchRunsForTrainingHeatmap(),
+        fetchPublicExpandBracketsCohort(),
+      ]);
+      const capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
+      const heat = HM.buildHeatmapCells({
+        runs: runs || [],
+        cohort: cohort && cohort.ok ? cohort : null,
+        modes: modes,
+        levelCount: levelCount,
+        maxTimeSpentMs: capMs,
+      });
+      if (!cleared) {
+        if (typeof HM.recommendSpecialModeLadderLevel !== "function") return null;
+        const pick = HM.recommendSpecialModeLadderLevel({
+          cellsResult: heat,
+          unlockedMax: unlockedHint,
+          playableMax: playableMax,
+          runs: runs || [],
+          mode: "expandBrackets",
+        });
+        if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) return null;
+        return Math.max(0, Math.min(playableMax, Math.floor(Number(pick.levelIndex))));
+      }
+      if (typeof HM.recommendUnlockedWeightedBrush !== "function") return null;
+      const pickBrush = HM.recommendUnlockedWeightedBrush(heat, playableMax);
+      if (!pickBrush || pickBrush.levelIndex == null || !Number.isFinite(Number(pickBrush.levelIndex))) {
+        return null;
+      }
+      return Math.max(0, Math.min(playableMax, Math.floor(Number(pickBrush.levelIndex))));
+    }
+
     function lockExpandChoices(lock) {
       expandLocked = !!lock;
       if (!dom.expandChoices) return;
@@ -10980,12 +11070,53 @@
       const durationSec = Math.floor((Date.now() - (expandStartTs || Date.now())) / 1000);
 
       const startLevel = expandRunStartLevel;
-      const outcome = resolveExpandRunOutcome(startLevel, expandWrongCount, expandUnlockedMaxBeforeRun);
+      let outcome = resolveExpandRunOutcome(startLevel, expandWrongCount, expandUnlockedMaxBeforeRun);
+
+      // 先入库再选关：解锁仍用 special-mode；选关看热图梯子/刷弱项（不看本局 0/1 错）
+      let speedMeta = null;
+      try {
+        speedMeta = await buildSingleLevelSpeedMeta(
+          "expandBrackets",
+          startLevel,
+          expandAttempts.slice(),
+          { durationSec: durationSec }
+        );
+      } catch (e) {
+        console.warn("拆括号局速度快照失败", e);
+      }
+      await appendRun(
+        durationSec,
+        expandScore,
+        startLevel,
+        expandWrongCount,
+        "expandBrackets",
+        expandAttempts.slice(),
+        undefined,
+        undefined,
+        { trainingMeta: speedMeta || { pickedLevel: startLevel } }
+      );
+
+      let pickLv = null;
+      try {
+        pickLv = await resolveExpandRecommendedLevel(
+          Math.max(
+            Math.floor(Number(outcome.savedUnlockedMax) || 0),
+            Math.floor(Number(expandUnlockedMaxBeforeRun) || 0)
+          )
+        );
+      } catch (e) {
+        console.warn("拆括号选关失败，沿用局末默认", e);
+      }
+      if (pickLv != null) {
+        outcome = Object.assign({}, outcome, {
+          playAgainLevel: pickLv,
+          savedCurrent: pickLv,
+        });
+      }
+
       expandPrestartLevel = outcome.playAgainLevel;
       expandLevel = outcome.playAgainLevel;
 
-      // 写入 runs（仅记本局实际等级 startLevel；解锁不写 runs）
-      await appendRun(durationSec, expandScore, startLevel, expandWrongCount, "expandBrackets", expandAttempts.slice());
       await saveExpandBracketsProgress(outcome.savedCurrent, outcome.savedUnlockedMax);
 
       // 结算展示：隐藏选项/解析/题面（与训练模式结算态一致，避免选项占位把结算卡顶下去）
@@ -11791,6 +11922,7 @@
         "stats.cat.perfectSquare": "平方數",
         "stats.cat.divisibility": "整除",
         "stats.cat.factorsMultiples": "因數倍數",
+        "stats.cat.expandBrackets": "拆括號",
         "stats.scriptNotLoaded": "統計腳本未載入。",
         "stats.needServer": "需連接伺服器才能查看數據統計，請設定 API 後重試。",
         "stats.loading": "載入中…",
@@ -12351,6 +12483,7 @@
         "stats.cat.perfectSquare": "Perfect squares",
         "stats.cat.divisibility": "Divisibility",
         "stats.cat.factorsMultiples": "Factors & Multiples",
+        "stats.cat.expandBrackets": "Expand Brackets",
         "stats.scriptNotLoaded": "Stats scripts failed to load.",
         "stats.needServer": "Statistics require a server connection. Configure API and try again.",
         "stats.loading": "Loading…",
@@ -17874,6 +18007,21 @@
       }
     }
 
+    async function fetchPublicExpandBracketsCohort() {
+      const base = getApiBase();
+      if (!base) return null;
+      try {
+        const res = await fetch(base + "/api/public/expand-brackets-cohort", {
+          credentials: "include",
+        });
+        if (!res.ok) return null;
+        const d = await res.json();
+        return d && d.ok ? d : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
     async function showStatsView() {
       if (isGuestMode) {
         showToast(t("toast.guestNeedLogin"));
@@ -17926,13 +18074,14 @@
         showStudentStatsLoading();
       }
       try {
-        const [levelCohort, decimalCohort, psCohort, divCohort, fmCohort, runsRes, heatRes] =
+        const [levelCohort, decimalCohort, psCohort, divCohort, fmCohort, expCohort, runsRes, heatRes] =
           await Promise.all([
             fetchPublicLevelCohortForTraining(),
             fetchPublicDecimalCohort(),
             fetchPublicPerfectSquareCohort(),
             fetchPublicDivisibilityCohort(),
             fetchPublicFactorsMultiplesCohort(),
+            fetchPublicExpandBracketsCohort(),
             fetch(base + "/api/user/" + encodeURIComponent(name) + "/runs", {
               credentials: "include",
               headers: getAuthHeaders(),
@@ -17955,6 +18104,7 @@
           perfectSquare: psCohort && psCohort.ok ? psCohort : null,
           divisibility: divCohort && divCohort.ok ? divCohort : null,
           factorsMultiples: fmCohort && fmCohort.ok ? fmCohort : null,
+          expandBrackets: expCohort && expCohort.ok ? expCohort : null,
         };
         const heatByCategory =
           heatData && heatData.ok && heatData.byCategory ? heatData.byCategory : null;
@@ -19390,7 +19540,9 @@
               ? "divisibility"
               : m === "factorsMultiples"
                 ? "factorsMultiples"
-                : null;
+                : m === "expandBrackets"
+                  ? "expandBrackets"
+                  : null;
       if (!catId) return { pickedLevel: lv };
 
       const cat = HM && typeof HM.getHeatmapCategory === "function" ? HM.getHeatmapCategory(catId) : null;
@@ -19399,10 +19551,14 @@
           ? cat.levelCount
           : m === "decimal" || m === "factorsMultiples"
             ? 6
-            : 4;
+            : m === "expandBrackets"
+              ? 5
+              : 4;
       const modes = cat && Array.isArray(cat.modes) ? cat.modes : [m];
       const choiceRunSpeed =
-        m === "divisibility" || (m === "factorsMultiples" && lv <= 1);
+        m === "divisibility" ||
+        m === "expandBrackets" ||
+        (m === "factorsMultiples" && lv <= 1);
 
       let heatMeanLnAtStartClient = null;
       let heatAvgSecAtStartClient = null;
@@ -19415,7 +19571,9 @@
               ? fetchPublicPerfectSquareCohort
               : m === "factorsMultiples"
                 ? fetchPublicFactorsMultiplesCohort
-                : fetchPublicDivisibilityCohort;
+                : m === "expandBrackets"
+                  ? fetchPublicExpandBracketsCohort
+                  : fetchPublicDivisibilityCohort;
         const [runs, cohort] = await Promise.all([fetchRunsForTrainingHeatmap(), fetchCohort()]);
         capMs = cohort && Number(cohort.timeSpentMsCap) ? Number(cohort.timeSpentMsCap) : 60 * 1000;
         if (HM && typeof HM.buildHeatmapCells === "function") {

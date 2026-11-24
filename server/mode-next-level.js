@@ -11,6 +11,7 @@ const DEFAULT_DECIMAL_MAX = 5; // D1–D6 → index 0–5
 const DEFAULT_DIV_PLAYABLE_MAX = 4; // Z1–Z5 可玩；热图 4 档
 const DEFAULT_PS_MAX = 3; // L1–L4 → index 0–3
 const DEFAULT_FM_MAX = 5; // Y1–Y6 → index 0–5
+const DEFAULT_EXPAND_MAX = 4; // L1–L5 → index 0–4
 
 function clampInt(n, lo, hi) {
   const v = Math.floor(Number(n) || 0);
@@ -30,7 +31,9 @@ function buildCategoryHeat(HM, runs, cohort, categoryId, prebuiltHeat) {
             ? HM.PERFECT_SQUARE_LEVEL_COUNT || 4
             : categoryId === "factorsMultiples"
               ? HM.FACTORS_MULTIPLES_LEVEL_COUNT || 6
-              : 16;
+              : categoryId === "expandBrackets"
+                ? HM.EXPAND_BRACKETS_LEVEL_COUNT || 5
+                : 16;
   const modes = cat && cat.modes ? cat.modes : [categoryId];
   const capMs =
     cohort && Number(cohort.timeSpentMsCap) > 0 ? Number(cohort.timeSpentMsCap) : DEFAULT_CAP_MS;
@@ -634,6 +637,19 @@ function computeSpecialCategoryNextLevels(opts) {
         ? user.levelFactorsMultiplesCurrentLevel
         : 0,
   });
+  const expandBrackets = computeExpandBracketsNextLevel({
+    runs,
+    heat: heatFromPayload(heatPayload, "expandBrackets"),
+    cohort: cohorts.expandBrackets || null,
+    unlockedMax:
+      typeof user.levelExpandBracketsUnlockedMax === "number"
+        ? user.levelExpandBracketsUnlockedMax
+        : 0,
+    currentLevel:
+      typeof user.levelExpandBracketsCurrentLevel === "number"
+        ? user.levelExpandBracketsCurrentLevel
+        : 0,
+  });
 
   return {
     ok: true,
@@ -642,7 +658,116 @@ function computeSpecialCategoryNextLevels(opts) {
       perfectSquare,
       divisibility,
       factorsMultiples,
+      expandBrackets,
     },
+  };
+}
+
+/**
+ * 拆括号解锁池刷选（通关后）：L1–L5 刷弱项。
+ */
+function computeExpandBracketsBrushLevel(opts) {
+  opts = opts || {};
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { ok: false, error: "buildHeatmapCells missing" };
+  }
+  if (typeof HM.recommendUnlockedWeightedBrush !== "function") {
+    return { ok: false, error: "recommendUnlockedWeightedBrush missing" };
+  }
+
+  const playableMax =
+    opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
+      ? Math.max(0, Math.floor(Number(opts.playableMax)))
+      : DEFAULT_EXPAND_MAX;
+  const { heat, levelCount } = buildCategoryHeat(HM, opts.runs, opts.cohort, "expandBrackets", opts.heat);
+  const poolMax = Math.max(
+    0,
+    Math.min(playableMax, levelCount - 1, Math.floor(Number(opts.poolMax) || 0))
+  );
+  const pick = HM.recommendUnlockedWeightedBrush(heat, poolMax);
+  if (!pick || pick.levelIndex == null || !Number.isFinite(Number(pick.levelIndex))) {
+    return {
+      ok: true,
+      levelIndex: null,
+      reason: "no_pick",
+      poolMax,
+      heat,
+    };
+  }
+  const levelIndex = Math.max(0, Math.min(poolMax, Math.floor(Number(pick.levelIndex))));
+  return {
+    ok: true,
+    levelIndex,
+    reason: pick.reason || "brush",
+    poolMax,
+    heat,
+  };
+}
+
+/**
+ * 拆括号下一关：未通关 → 梯子顶热图；通关后 → 全池刷弱项（同小数/平方数）。
+ */
+function computeExpandBracketsNextLevel(opts) {
+  opts = opts || {};
+  const loaded = loadHeatmapModule();
+  if (!loaded.ok) return { ok: false, error: loaded.error };
+  const HM = loaded.HM;
+  if (!HM || typeof HM.buildHeatmapCells !== "function") {
+    return { ok: false, error: "buildHeatmapCells missing" };
+  }
+
+  const playableMax =
+    opts.playableMax != null && Number.isFinite(Number(opts.playableMax))
+      ? Math.max(0, Math.floor(Number(opts.playableMax)))
+      : DEFAULT_EXPAND_MAX;
+  const clearedUnlock = playableMax + 1;
+  const unlockedMax = clampInt(opts.unlockedMax, 0, clearedUnlock);
+  const currentLevel = clampInt(opts.currentLevel, 0, playableMax);
+
+  if (unlockedMax <= playableMax) {
+    return pickLadderBeforeClear(HM, {
+      runs: opts.runs,
+      cohort: opts.cohort,
+      heat: opts.heat,
+      unlockedMax,
+      playableMax,
+      categoryId: "expandBrackets",
+      mode: "expandBrackets",
+    });
+  }
+
+  const brush = computeExpandBracketsBrushLevel({
+    runs: opts.runs,
+    cohort: opts.cohort,
+    heat: opts.heat,
+    poolMax: playableMax,
+    playableMax,
+  });
+  if (!brush.ok) return brush;
+  if (brush.levelIndex == null) {
+    return {
+      ok: true,
+      levelIndex: currentLevel,
+      reason: "current_fallback",
+      mode: "brush",
+      cleared: true,
+      unlockedMax,
+      playableMax,
+      poolMax: playableMax,
+    };
+  }
+  return {
+    ok: true,
+    levelIndex: brush.levelIndex,
+    reason: brush.reason || "cleared_brush",
+    mode: "brush",
+    cleared: true,
+    unlockedMax,
+    playableMax,
+    poolMax: brush.poolMax,
   };
 }
 
@@ -651,6 +776,7 @@ module.exports = {
   DEFAULT_DIV_PLAYABLE_MAX,
   DEFAULT_PS_MAX,
   DEFAULT_FM_MAX,
+  DEFAULT_EXPAND_MAX,
   computeDecimalBrushLevel,
   computeDecimalNextLevel,
   computeDivisibilityPostClearLevel,
@@ -659,5 +785,7 @@ module.exports = {
   computePerfectSquareNextLevel,
   computeFactorsMultiplesBrushLevel,
   computeFactorsMultiplesNextLevel,
+  computeExpandBracketsBrushLevel,
+  computeExpandBracketsNextLevel,
   computeSpecialCategoryNextLevels,
 };

@@ -1,6 +1,6 @@
 /**
  * 入库前开局加权速：用「本局写入前」的既有 runs 建热图，写入 trainingMeta。
- * 覆盖 training / decimal / perfectSquare / divisibility Z1–Z4。
+ * 覆盖 training / decimal / perfectSquare / divisibility Z1–Z4 / expandBrackets。
  * 客户端 heatAvgSecAtStart 不再作权威；可保留为 heat*AtStartClient 诊断。
  */
 const heatmapStats = require("./stats-heatmap");
@@ -11,6 +11,7 @@ const DECIMAL_LEVEL_COUNT = 6;
 const PERFECT_SQUARE_LEVEL_COUNT = 4;
 const DIVISIBILITY_HEAT_LEVEL_COUNT = 4;
 const FACTORS_MULTIPLES_LEVEL_COUNT = 6;
+const EXPAND_BRACKETS_LEVEL_COUNT = 5;
 const DEFAULT_CAP_MS = 60 * 1000;
 
 function normalizeRunMode(mode) {
@@ -62,6 +63,13 @@ function resolveHeatTarget(mode) {
       modes: ["factorsMultiples"],
       levelCount: FACTORS_MULTIPLES_LEVEL_COUNT,
       cohortKey: "factorsMultiples",
+    };
+  }
+  if (m === "expandbrackets") {
+    return {
+      modes: ["expandBrackets"],
+      levelCount: EXPAND_BRACKETS_LEVEL_COUNT,
+      cohortKey: "expandBrackets",
     };
   }
   return null;

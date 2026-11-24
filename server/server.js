@@ -35,6 +35,7 @@ const {
   computeDivisibilityNextLevel,
   computePerfectSquareNextLevel,
   computeFactorsMultiplesNextLevel,
+  computeExpandBracketsNextLevel,
   computeSpecialCategoryNextLevels,
 } = require("./mode-next-level");
 const { createRunsStore } = require("./runs-store");
@@ -503,6 +504,7 @@ const COHORT_DECIMAL_STATS_FILE = path.join(DATA_DIR, "cohort-decimal-stats.json
 const COHORT_PERFECT_SQUARE_STATS_FILE = path.join(DATA_DIR, "cohort-perfect-square-stats.json");
 const COHORT_DIVISIBILITY_STATS_FILE = path.join(DATA_DIR, "cohort-divisibility-stats.json");
 const COHORT_FACTORS_MULTIPLES_STATS_FILE = path.join(DATA_DIR, "cohort-factors-multiples-stats.json");
+const COHORT_EXPAND_BRACKETS_STATS_FILE = path.join(DATA_DIR, "cohort-expand-brackets-stats.json");
 const COHORT_PRIME_COMPOSITE_STATS_FILE = path.join(DATA_DIR, "cohort-prime-composite-stats.json");
 /** 全体难度常模快照缓存时长；可用环境变量 COHORT_STATS_TTL_MS 覆盖（毫秒） */
 const COHORT_STATS_TTL_MS = Number(process.env.COHORT_STATS_TTL_MS) || 24 * 60 * 60 * 1000;
@@ -1028,6 +1030,11 @@ function readCohortFactorsMultiplesResultForHeatmap() {
   return cache && cache.result && cache.result.ok === true ? cache.result : null;
 }
 
+function readCohortExpandBracketsResultForHeatmap() {
+  const cache = readCohortExpandBracketsStatsCache();
+  return cache && cache.result && cache.result.ok === true ? cache.result : null;
+}
+
 function readCohortPrimeCompositeResultForHeatmap() {
   const cache = readCohortPrimeCompositeStatsCache();
   return cache && cache.result && cache.result.ok === true ? cache.result : null;
@@ -1040,6 +1047,7 @@ function cohortsByCategoryForHeatmap() {
     perfectSquare: readCohortPerfectSquareResultForHeatmap(),
     divisibility: readCohortDivisibilityResultForHeatmap(),
     factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
+    expandBrackets: readCohortExpandBracketsResultForHeatmap(),
     primeComposite: readCohortPrimeCompositeResultForHeatmap(),
   };
 }
@@ -1052,6 +1060,7 @@ function currentCohortGenerationMs() {
     readCohortPerfectSquareStatsCache(),
     readCohortDivisibilityStatsCache(),
     readCohortFactorsMultiplesStatsCache(),
+    readCohortExpandBracketsStatsCache(),
     readCohortPrimeCompositeStatsCache(),
   ];
   let max = 0;
@@ -1627,6 +1636,7 @@ function buildStudentWorkspaceForUsername(username, opts) {
           perfectSquare: readCohortPerfectSquareResultForHeatmap(),
           divisibility: readCohortDivisibilityResultForHeatmap(),
           factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
+          expandBrackets: readCohortExpandBracketsResultForHeatmap(),
         },
       });
       categoryNext = {
@@ -1641,6 +1651,8 @@ function buildStudentWorkspaceForUsername(username, opts) {
           levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
           levelFactorsMultiplesCurrentLevel: user.levelFactorsMultiplesCurrentLevel,
           levelFactorsMultiplesUnlockedMax: user.levelFactorsMultiplesUnlockedMax,
+          levelExpandBracketsCurrentLevel: user.levelExpandBracketsCurrentLevel,
+          levelExpandBracketsUnlockedMax: user.levelExpandBracketsUnlockedMax,
         },
       };
     } catch (e) {
@@ -4419,6 +4431,60 @@ app.get("/api/user/:username/perfect-square/next-level", requireStudentAuth, ens
   }
 });
 
+/** 学员：拆括号下一关（未通关梯子 / 通关后刷弱项） */
+app.get("/api/user/:username/expand-brackets/next-level", requireStudentAuth, ensureOwnData, (req, res) => {
+  const { username } = req.params;
+  const data = readJson(USERS_FILE, { users: [] });
+  const user = data.users.find((u) => u.username === username);
+  if (!user) {
+    return res.status(404).json({ ok: false, error: "用户不存在" });
+  }
+  try {
+    const runs = runsStore.getUserRuns(username).map((r) => ({
+      ...r,
+      mode: normalizeRunMode(r.mode),
+    }));
+    const cohort = readCohortExpandBracketsResultForHeatmap();
+    const unlockedMax =
+      req.query.unlockedMax != null && req.query.unlockedMax !== ""
+        ? Number(req.query.unlockedMax)
+        : typeof user.levelExpandBracketsUnlockedMax === "number"
+          ? user.levelExpandBracketsUnlockedMax
+          : 0;
+    const playableMax =
+      req.query.playableMax != null && req.query.playableMax !== ""
+        ? Number(req.query.playableMax)
+        : undefined;
+    const pick = computeExpandBracketsNextLevel({
+      runs,
+      cohort,
+      unlockedMax,
+      playableMax,
+      currentLevel:
+        typeof user.levelExpandBracketsCurrentLevel === "number"
+          ? user.levelExpandBracketsCurrentLevel
+          : 0,
+    });
+    if (!pick || !pick.ok) {
+      return res.status(422).json({ ok: false, error: (pick && pick.error) || "无法计算" });
+    }
+    return res.json({
+      ok: true,
+      source: "server",
+      levelIndex: pick.levelIndex,
+      reason: pick.reason,
+      mode: pick.mode,
+      cleared: !!pick.cleared,
+      unlockedMax: pick.unlockedMax,
+      playableMax: pick.playableMax,
+      ladderTop: pick.ladderTop != null ? pick.ladderTop : null,
+    });
+  } catch (e) {
+    console.warn("[user/expand-brackets/next-level]", e && e.message ? e.message : e);
+    return res.status(500).json({ ok: false, error: "选关计算失败" });
+  }
+});
+
 // ========== 添加生存局记录（用于完整历史，供 report 页面使用），需登录且只能访问自己 ==========
 app.post("/api/user/:username/runs", requireStudentAuth, ensureOwnData, (req, res) => {
   const { username } = req.params;
@@ -5425,6 +5491,10 @@ function purgeUserCompletely(username) {
       fs.unlinkSync(COHORT_FACTORS_MULTIPLES_STATS_FILE);
       cohortStatsInvalidated = true;
     }
+    if (fs.existsSync(COHORT_EXPAND_BRACKETS_STATS_FILE)) {
+      fs.unlinkSync(COHORT_EXPAND_BRACKETS_STATS_FILE);
+      cohortStatsInvalidated = true;
+    }
   } catch (e) {
     /* ignore */
   }
@@ -5806,6 +5876,7 @@ app.get("/api/admin/user/:username/category-next-levels", (req, res) => {
         perfectSquare: readCohortPerfectSquareResultForHeatmap(),
         divisibility: readCohortDivisibilityResultForHeatmap(),
         factorsMultiples: readCohortFactorsMultiplesResultForHeatmap(),
+        expandBrackets: readCohortExpandBracketsResultForHeatmap(),
       },
     });
     return res.json({
@@ -5825,6 +5896,8 @@ app.get("/api/admin/user/:username/category-next-levels", (req, res) => {
         levelDivisibilityUnlockedMax: user.levelDivisibilityUnlockedMax,
         levelFactorsMultiplesCurrentLevel: user.levelFactorsMultiplesCurrentLevel,
         levelFactorsMultiplesUnlockedMax: user.levelFactorsMultiplesUnlockedMax,
+        levelExpandBracketsCurrentLevel: user.levelExpandBracketsCurrentLevel,
+        levelExpandBracketsUnlockedMax: user.levelExpandBracketsUnlockedMax,
       },
     });
   } catch (e) {
@@ -6112,6 +6185,8 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
   writeCohortDivisibilityStatsCache(builtAt, divisibilityResult);
   const factorsMultiplesResult = computeFactorsMultiplesCohortResult();
   writeCohortFactorsMultiplesStatsCache(builtAt, factorsMultiplesResult);
+  const expandBracketsResult = computeExpandBracketsCohortResult();
+  writeCohortExpandBracketsStatsCache(builtAt, expandBracketsResult);
   const primeCompositeResult = computePrimeCompositeCohortResult();
   writeCohortPrimeCompositeStatsCache(builtAt, primeCompositeResult);
   const wrapExtra = (extra) => ({
@@ -6133,6 +6208,7 @@ app.post("/api/admin/stats/level-cohort/rebuild", (req, res) => {
     perfectSquare: wrapExtra(perfectSquareResult),
     divisibility: wrapExtra(divisibilityResult),
     factorsMultiples: wrapExtra(factorsMultiplesResult),
+    expandBrackets: wrapExtra(expandBracketsResult),
     primeComposite: wrapExtra(primeCompositeResult),
   });
 });
@@ -6511,6 +6587,128 @@ app.get("/api/admin/stats/divisibility-cohort", (req, res) => {
     ttlMs: COHORT_STATS_TTL_MS,
     expiresAt: builtAt + COHORT_STATS_TTL_MS,
     servedFromCache: false,
+  });
+});
+
+/** 拆括号全体常模（L1–L5，按局口径同整除） */
+const COHORT_EXPAND_BRACKETS_LEVEL_COUNT = 5;
+
+function resolveExpandBracketsRunHeatLevelForCohort(r) {
+  if (!r) return null;
+  const meta = r.trainingMeta && typeof r.trainingMeta === "object" ? r.trainingMeta : null;
+  const raw = meta && meta.pickedLevel != null ? meta.pickedLevel : r.maxLevel;
+  const lv = Math.floor(Number(raw));
+  if (!Number.isFinite(lv) || lv < 0) return null;
+  if (lv >= COHORT_EXPAND_BRACKETS_LEVEL_COUNT) return null;
+  return lv;
+}
+
+function computeExpandBracketsCohortResult() {
+  const personLnByLevel = collectPersonChoiceRunMeanLnByLevel({
+    mode: "expandBrackets",
+    levelCount: COHORT_EXPAND_BRACKETS_LEVEL_COUNT,
+    resolveRunLevel: resolveExpandBracketsRunHeatLevelForCohort,
+  });
+  const levels = [];
+  for (let k = 0; k < COHORT_EXPAND_BRACKETS_LEVEL_COUNT; k++) {
+    const lnQ = summarizeQuantiles(personLnByLevel[k]);
+    levels.push({
+      levelIndex: k,
+      cohortLnTimeCorrect: lnQ,
+      cohortLnTimeHistogram: buildLnHistogram(personLnByLevel[k], COHORT_HISTOGRAM_BIN_COUNT),
+    });
+  }
+  return {
+    ok: true,
+    kind: "expandBrackets",
+    levelCount: COHORT_EXPAND_BRACKETS_LEVEL_COUNT,
+    sampleUnit: "person",
+    sampleGrain: "runs",
+    minAttemptsPerPersonLevel: 1,
+    minAttemptsForHeatmap: 1,
+    minRunsForHeatmap: 1,
+    choiceWindowRuns: 10,
+    choiceSpeedMinAccuracy: CHOICE_SPEED_MIN_ACCURACY,
+    timeSpentMsCap: COHORT_MAX_TIME_SPENT_MS,
+    timeSpentMsCapNote:
+      "拆括号按局：题均=整局秒数×1000/题数；仅题数≥10且局准≥90%进速度常模。每人每档 1 票。L1–L5 全进。",
+    levels,
+  };
+}
+
+function readCohortExpandBracketsStatsCache() {
+  const raw = readJson(COHORT_EXPAND_BRACKETS_STATS_FILE, null);
+  if (!raw || typeof raw.builtAt !== "number" || !raw.result || raw.result.ok !== true) return null;
+  const ttl = Number.isFinite(Number(raw.ttlMs)) && Number(raw.ttlMs) > 0 ? Number(raw.ttlMs) : COHORT_STATS_TTL_MS;
+  return { builtAt: raw.builtAt, ttlMs: ttl, result: raw.result };
+}
+
+function writeCohortExpandBracketsStatsCache(builtAt, result) {
+  writeJson(COHORT_EXPAND_BRACKETS_STATS_FILE, {
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    result,
+  });
+}
+
+app.get("/api/public/expand-brackets-cohort", (req, res) => {
+  const cache = readCohortExpandBracketsStatsCache();
+  if (!cache || !cache.result || cache.result.ok !== true) {
+    return res.status(503).json({ ok: false, error: "暂无拆括号常模，请管理员在后台拉取或刷新常模后再试" });
+  }
+  const ttl = cache.ttlMs;
+  const builtAt = cache.builtAt;
+  return res.json({
+    ...cache.result,
+    builtAt,
+    ttlMs: ttl,
+    expiresAt: builtAt + ttl,
+    servedFromCache: true,
+  });
+});
+
+app.get("/api/admin/stats/expand-brackets-cohort", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const now = Date.now();
+  const cache = readCohortExpandBracketsStatsCache();
+  const ttl = cache ? cache.ttlMs : COHORT_STATS_TTL_MS;
+  if (cache && now < cache.builtAt + ttl) {
+    return res.json({
+      ...cache.result,
+      builtAt: cache.builtAt,
+      ttlMs: ttl,
+      expiresAt: cache.builtAt + ttl,
+      servedFromCache: true,
+    });
+  }
+  const result = computeExpandBracketsCohortResult();
+  const builtAt = now;
+  writeCohortExpandBracketsStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+  });
+});
+
+app.post("/api/admin/stats/expand-brackets-cohort/rebuild", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  const result = computeExpandBracketsCohortResult();
+  const builtAt = Date.now();
+  writeCohortExpandBracketsStatsCache(builtAt, result);
+  return res.json({
+    ...result,
+    builtAt,
+    ttlMs: COHORT_STATS_TTL_MS,
+    expiresAt: builtAt + COHORT_STATS_TTL_MS,
+    servedFromCache: false,
+    rebuilt: true,
   });
 });
 
@@ -6980,6 +7178,9 @@ app.post("/api/admin/restore", express.json({ limit: "50mb" }), (req, res) => {
         if (fs.existsSync(COHORT_DIVISIBILITY_STATS_FILE)) fs.unlinkSync(COHORT_DIVISIBILITY_STATS_FILE);
         if (fs.existsSync(COHORT_FACTORS_MULTIPLES_STATS_FILE)) {
           fs.unlinkSync(COHORT_FACTORS_MULTIPLES_STATS_FILE);
+        }
+        if (fs.existsSync(COHORT_EXPAND_BRACKETS_STATS_FILE)) {
+          fs.unlinkSync(COHORT_EXPAND_BRACKETS_STATS_FILE);
         }
         notes.push("已清除常模快照（请在报表刷新全体常模）");
       } catch (e2) {

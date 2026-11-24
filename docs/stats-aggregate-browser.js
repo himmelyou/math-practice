@@ -349,10 +349,19 @@
       return normalizeMode(m);
     });
     var onlyDiv = modeKeys.length === 1 && modeKeys[0] === 'divisibility';
+    var onlyExpand = modeKeys.length === 1 && modeKeys[0] === 'expandbrackets';
     var onlyFm = modeKeys.length === 1 && modeKeys[0] === 'factorsmultiples';
 
     if (onlyDiv) {
-      return aggregateDivisibilityChoiceFromRuns(runs, {
+      return aggregateChoiceModeFromRuns(runs, {
+        modes: ['divisibility'],
+        levelCount: levelCount,
+        maxTimeSpentMs: maxTimeMs,
+      });
+    }
+    if (onlyExpand) {
+      return aggregateChoiceModeFromRuns(runs, {
+        modes: ['expandBrackets'],
         levelCount: levelCount,
         maxTimeSpentMs: maxTimeMs,
       });
@@ -392,8 +401,10 @@
     };
   }
 
-  function aggregateDivisibilityChoiceFromRuns(runs, opts) {
+  /** 选择题按局聚合（整除 / 拆括号等） */
+  function aggregateChoiceModeFromRuns(runs, opts) {
     opts = opts || {};
+    var modes = Array.isArray(opts.modes) && opts.modes.length ? opts.modes : ['divisibility'];
     var levelCount =
       opts.levelCount > 0 && Number.isFinite(Number(opts.levelCount))
         ? Math.floor(Number(opts.levelCount))
@@ -404,7 +415,7 @@
     });
     var byDay = {};
 
-    filterRunsByModes(runs, ['divisibility']).forEach(function (r) {
+    filterRunsByModes(runs, modes).forEach(function (r) {
       var lv = resolveRunPickedLevel(r, levelCount);
       if (lv == null) return;
       var dateStr = dateStrFromTs(r.ts || 0);
@@ -426,6 +437,15 @@
       chartAllowMissingSpeed: true,
       chartMinAttempts: CHART_CHOICE_MIN_ATTEMPTS,
     };
+  }
+
+  function aggregateDivisibilityChoiceFromRuns(runs, opts) {
+    opts = opts || {};
+    return aggregateChoiceModeFromRuns(runs, {
+      modes: ['divisibility'],
+      levelCount: opts.levelCount,
+      maxTimeSpentMs: opts.maxTimeSpentMs,
+    });
   }
 
   function aggregateFactorsMultiplesHybridFromRuns(runs, opts) {
