@@ -53,6 +53,14 @@
     '第 4 级 · 6 与 12 的整除',
   ];
 
+  var EXPAND_BRACKETS_LEVEL_NAMES = [
+    '第 1 级 · 一层括号（整数）',
+    '第 2 级 · 乘除去括号',
+    '第 3 级 · 分配并算积',
+    '第 4 级 · 分配并算积（进阶）',
+    '第 5 级 · 两括号相乘',
+  ];
+
   var MODE_LABEL = {
     survival: '生存模式',
     level: '闯关模式',
@@ -3769,7 +3777,13 @@
   function formatHeatCategoryNextBadgeHtml(cat) {
     if (!cat || !cat.id) return '';
     if (cat.id === 'arithmetic') return formatArithmeticNextBadgeHtml();
-    if (cat.id === 'decimal' || cat.id === 'perfectSquare' || cat.id === 'divisibility') {
+    if (
+      cat.id === 'decimal' ||
+      cat.id === 'perfectSquare' ||
+      cat.id === 'divisibility' ||
+      cat.id === 'factorsMultiples' ||
+      cat.id === 'expandBrackets'
+    ) {
       return formatSpecialCategoryNextBadgeHtml(cat.id, cat.levelPrefix || 'L');
     }
     return '';
@@ -4288,6 +4302,9 @@
     }
     if (catId === 'factorsMultiples') {
       return FACTORS_MULTIPLES_LEVEL_NAMES[li] || 'Y' + (li + 1);
+    }
+    if (catId === 'expandBrackets') {
+      return EXPAND_BRACKETS_LEVEL_NAMES[li] || prefix + (li + 1);
     }
     return LEVEL_NAMES[li] || prefix + (li + 1);
   }

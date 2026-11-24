@@ -7853,7 +7853,8 @@
           dailyTaskPlay.action === "decimal" ||
           dailyTaskPlay.action === "perfectSquare" ||
           dailyTaskPlay.action === "divisibility" ||
-          dailyTaskPlay.action === "factorsMultiples")
+          dailyTaskPlay.action === "factorsMultiples" ||
+          dailyTaskPlay.action === "expandBrackets")
       ) {
         levelFilter = dailyTaskPlay.levelIndex;
       }
@@ -8021,7 +8022,13 @@
         showPrimeCompositePlaceholder();
         return;
       }
-      if (step.action === "decimal" || step.action === "perfectSquare" || step.action === "divisibility" || step.action === "factorsMultiples") {
+      if (
+        step.action === "decimal" ||
+        step.action === "perfectSquare" ||
+        step.action === "divisibility" ||
+        step.action === "factorsMultiples" ||
+        step.action === "expandBrackets"
+      ) {
         if (!gatePendingRunDraft()) return;
         window.jmlDailyTaskPin = {
           mode: step.action,
@@ -8031,6 +8038,7 @@
         else if (step.action === "perfectSquare" && window.JmlPerfectSquarePage) JmlPerfectSquarePage.handleModePerfectSquare();
         else if (step.action === "divisibility" && window.JmlDivisibilityPage) JmlDivisibilityPage.handleModeDivisibility();
         else if (step.action === "factorsMultiples" && window.JmlFactorsMultiplesPage) JmlFactorsMultiplesPage.handleModeFactorsMultiples();
+        else if (step.action === "expandBrackets") handleModeExpandBrackets();
         return;
       }
       gameMode = "training";
@@ -8098,7 +8106,13 @@
       if (!step) return "";
       if (step.action === "wrongbook") return step.title || "错题本";
       if (step.action === "primeComposite") return step.title || "质数合数";
-      if (step.action === "decimal" || step.action === "perfectSquare" || step.action === "divisibility" || step.action === "factorsMultiples") {
+      if (
+        step.action === "decimal" ||
+        step.action === "perfectSquare" ||
+        step.action === "divisibility" ||
+        step.action === "factorsMultiples" ||
+        step.action === "expandBrackets"
+      ) {
         return step.title || step.levelLabel || step.action;
       }
       if (step.action === "level") {
@@ -11153,9 +11167,19 @@
       syncExpandLevelTexts();
       setExpandHistoryVisible(true);
       renderExpandBracketsRecentRuns();
-      applyGuestConvertTip(dom.expandGameOverPanel);
       gameOver = true;
       updateGlobalBackButtonState();
+      if (isDailyTaskPlay()) {
+        const card = document.getElementById("expand-game-card");
+        await finishDailyTaskSettlement({
+          abandoned: false,
+          attempts: expandAttempts.slice(),
+          mountEl: card,
+          hideEls: [dom.expandGameOverPanel].filter(Boolean),
+        });
+      } else {
+        applyGuestConvertTip(dom.expandGameOverPanel);
+      }
     }
 
     /** 拆括号开局前：难度选择 + 开始按钮（与刚进入模式时一致） */
@@ -11163,7 +11187,29 @@
       opts = opts || {};
       const keepLevel = opts.keepLevel === true;
       if (!keepLevel) {
-        expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), EXPAND_BRACKETS_MAX_LEVEL);
+        const pin = typeof window !== "undefined" ? window.jmlDailyTaskPin : null;
+        if (
+          pin &&
+          pin.mode === "expandBrackets" &&
+          pin.levelIndex != null &&
+          Number.isFinite(Number(pin.levelIndex))
+        ) {
+          expandLevel = Math.max(
+            0,
+            Math.min(getExpandBracketsUnlockedMaxLevel(), Math.floor(Number(pin.levelIndex)))
+          );
+          window.jmlDailyTaskPin = null;
+          void saveExpandBracketsProgress(expandLevel, getExpandBracketsStoredUnlockedMax());
+          {
+            const u = getActiveUserCache();
+            if (u) {
+              u.levelExpandBracketsCurrentLevel = expandLevel;
+              if (isGuestMode) persistGuestUserCache();
+            }
+          }
+        } else {
+          expandLevel = Math.min(Math.max(getExpandBracketsCurrentLevel(), 0), EXPAND_BRACKETS_MAX_LEVEL);
+        }
       } else {
         expandLevel = Math.min(
           Math.max(typeof expandPrestartLevel === "number" ? expandPrestartLevel : expandLevel, 0),
@@ -14361,9 +14407,19 @@
         if (dom.expandGoResultLabel) dom.expandGoResultLabel.textContent = t("expand.end.result");
         if (dom.expandGoResult) dom.expandGoResult.textContent = t("expand.go.abandoned");
         if (dom.expandPlayAgainBtn) dom.expandPlayAgainBtn.style.display = "";
-        applyGuestConvertTip(dom.expandGameOverPanel);
         updateGlobalBackButtonState();
         renderExpandBracketsRecentRuns();
+        if (isDailyTaskPlay()) {
+          const card = document.getElementById("expand-game-card");
+          void finishDailyTaskSettlement({
+            abandoned: true,
+            attempts: expandAttempts.slice(),
+            mountEl: card,
+            hideEls: [dom.expandGameOverPanel].filter(Boolean),
+          });
+        } else {
+          applyGuestConvertTip(dom.expandGameOverPanel);
+        }
         return;
       }
       if (gameMode === "training") {

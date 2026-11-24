@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.58：准度先四舍五入到一位小数%再判 95%；未通关轮到绿补前先插摸底闯关。
+ * 练习建议 v0.59：拆括号进特殊序末位；同步年级 L1=4/L2=5/L3=6/L4=L5=7；≤3 暂不。
+ * v0.58：准度先四舍五入到一位小数%再判 95%；未通关轮到绿补前先插摸底闯关。
  * v0.57：已通关冲榜还须 L1–L16 无黄橙（避免偶发通关后仍生疏却占格冲榜）。
  * v0.56：未通关四则黄橙先排 ≤闯关顶（顶内仍按洞分），顶后洞稍后；不恢复「闯关夹在中间」旧流。
  * v0.55：特殊/小数无校内黄橙且无可开新则不硬留；自由格绿补跨模式按 fillerScore 混排。
@@ -24,7 +25,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.58-provisional";
+  var RULE_VERSION = "0.59-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -272,6 +273,7 @@
     perfectSquare: { tip: 3, groups: [[1], [2, 4], [3]] },
     divisibility: { tip: 4, groups: [[1], [2], [3], [4]] },
     factorsMultiples: { tip: 6, groups: [[0], [1], [2], [3], [4, 5], [6]] },
+    expandBrackets: { tip: 5, groups: [[1], [2], [3], [4], [5]] },
   };
 
   function remFromTip(groups, L, tipLevel) {
@@ -2919,7 +2921,7 @@
     var modeCells = opts.modeCells && typeof opts.modeCells === "object" ? opts.modeCells : {};
     var modePacks = {};
     if (Modes) {
-      ["decimal", "perfectSquare", "divisibility", "factorsMultiples"].forEach(function (id) {
+      Modes.SPECIAL_ORDER.concat(["decimal"]).forEach(function (id) {
         var packOpts = {};
         if (id === "factorsMultiples") {
           packOpts.y0Cell = modeCells.factorsMultiplesY0 || null;
@@ -3005,7 +3007,7 @@
         "+分位×" +
         HOLE_SPEED_WEIGHT +
         "（v0.54；准×5 分位×2；因倍 Y0=质数 rem+1；顶台 L13–L16 rem=0；L17+ 负）",
-      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。质数合数=因倍 Y0（五年级起；不挡四年级推 Y1+）。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存/拆括号不进。v0.55：特殊/小数仅当仍有校内黄橙或可开新才年级硬留；绿补跨模式比 fillerScore",
+      "Q14 已激活校内均流畅（准≥95%且未过慢，与模式梯子同）才开一档已学/同步空关；其后可排超前里已有数据的黄橙；空关不开；多模式同此。偏慢黄档不挡开新。四则未流畅关先占座（与概览 fluent 相同），其它模式只坐剩余格。质数合数=因倍 Y0（五年级起；不挡四年级推 Y1+）。Q17 错题≥30；L1–L16 全激活后才考虑其它模式；生存不进；拆括号进特殊序末位（同步年级 L1=4/L2=5/L3=6/L4=L5=7；≤3 暂不）。v0.55：特殊/小数仅当仍有校内黄橙或可开新才年级硬留；绿补跨模式比 fillerScore",
       "Q15 已通关（平台型与底板型相同）：热图预估全通≤纪录×" +
         SCAN_CLEAR_IMPROVE +
         " 且 L1–L16 无黄橙才再排冲榜闯关（每关10题均速×" +

@@ -1,8 +1,8 @@
 /**
  * 多模式入队：年级先验、槽位预算、模式元数据（供 practice-advice.js）。
  */
-/** 简→难；质数合数并入因倍 Y0（五年级起），不再单独占特殊序 */
-var SPECIAL_ORDER = ["perfectSquare", "divisibility", "factorsMultiples"];
+/** 简→难；质数合数并入因倍 Y0（五年级起），不再单独占特殊序；拆括号末位 */
+var SPECIAL_ORDER = ["perfectSquare", "divisibility", "factorsMultiples", "expandBrackets"];
 
 var MODE_META = {
   decimal: {
@@ -36,6 +36,14 @@ var MODE_META = {
     levelCount: 6,
     prefix: "Y",
     label: "因数倍数",
+  },
+  expandBrackets: {
+    id: "expandBrackets",
+    action: "expandBrackets",
+    playMode: "expandBrackets",
+    levelCount: 5,
+    prefix: "L",
+    label: "拆括号",
   },
   primeComposite: {
     id: "primeComposite",
@@ -134,6 +142,20 @@ function modeCurriculumPrior(modeId, grade, levelIndex) {
       if (L <= 4) return "learned";
       return "current";
     }
+    return "learned";
+  }
+
+  /**
+   * 拆括号：每档一个同步年级——L1=4、L2=5、L3=6、L4=L5=7。
+   * 低于同步=超前，等于=同步，高于=已学；学前–3 整线暂不。
+   */
+  if (modeId === "expandBrackets") {
+    if (g <= 3) return "blocked";
+    var syncByL = { 1: 4, 2: 5, 3: 6, 4: 7, 5: 7 };
+    var sync = syncByL[L];
+    if (sync == null) return "blocked";
+    if (g < sync) return "ahead";
+    if (g === sync) return "current";
     return "learned";
   }
 

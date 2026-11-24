@@ -13,7 +13,7 @@ function arithmeticCellsFromHeatmapPayload(payload) {
 function modeCellsFromHeatmapPayload(payload) {
   const by = payload && payload.byCategory && typeof payload.byCategory === "object" ? payload.byCategory : {};
   const out = {};
-  ["decimal", "perfectSquare", "divisibility", "factorsMultiples"].forEach(function (id) {
+  ["decimal", "perfectSquare", "divisibility", "factorsMultiples", "expandBrackets"].forEach(function (id) {
     const pack = by[id];
     out[id] = pack && pack.heat && Array.isArray(pack.heat.cells) ? pack.heat.cells : [];
   });
