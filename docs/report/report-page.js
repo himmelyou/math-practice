@@ -4865,6 +4865,8 @@
                 divisibility: d && d.divisibility && d.divisibility.ok ? d.divisibility : null,
                 factorsMultiples:
                   d && d.factorsMultiples && d.factorsMultiples.ok ? d.factorsMultiples : null,
+                expandBrackets:
+                  d && d.expandBrackets && d.expandBrackets.ok ? d.expandBrackets : null,
                 primeComposite:
                   d && d.primeComposite && d.primeComposite.ok ? d.primeComposite : null,
               },
