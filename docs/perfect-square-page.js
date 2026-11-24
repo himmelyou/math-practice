@@ -830,7 +830,7 @@
       });
     } else {
       if (dom().psGameOverPanel) dom().psGameOverPanel.style.display = "";
-      if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("expand.end.title");
+      if (dom().psGameOverTitle) dom().psGameOverTitle.textContent = t("game.over.abandonedTitle");
       if (dom().psGoDurationLabel) dom().psGoDurationLabel.textContent = t("expand.end.time");
       if (dom().psGoDuration) dom().psGoDuration.textContent = "-";
       if (dom().psGoScoreLabel) dom().psGoScoreLabel.textContent = t("expand.end.level");

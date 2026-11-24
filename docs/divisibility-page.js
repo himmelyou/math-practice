@@ -895,7 +895,7 @@
         hideEls: inner ? [inner] : [],
       });
     } else {
-      if (dom().divFinishTitle) dom().divFinishTitle.textContent = t("expand.end.title");
+      if (dom().divFinishTitle) dom().divFinishTitle.textContent = t("game.over.abandonedTitle");
       if (dom().divFinishCorrect) dom().divFinishCorrect.textContent = "-";
       if (dom().divFinishWrong) dom().divFinishWrong.textContent = String(divWrongCount);
       if (dom().divFinishTime) dom().divFinishTime.textContent = "-";

@@ -908,7 +908,7 @@
           ? t("memoryTraining.end.noSuccess")
           : brokeRecord
             ? t("memoryTraining.end.brokeRecord")
-            : t("memoryTraining.end.keepTrying")) +
+            : t("memoryTraining.end.steady")) +
         "</div>";
       mtWrongCount = mtLevelWrong;
       mtScore = mtSuccessSpan;

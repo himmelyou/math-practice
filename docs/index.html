@@ -6,7 +6,6 @@
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
   <script src="shared/app-version.js?v=141"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --bg: #e6f3ff;
@@ -69,7 +68,7 @@
       z-index: -1;
       pointer-events: none;
       background-color: #e8f4fc;
-      background-image: url("assets/home/bg_1.png");
+      background-image: url("assets/home/bg_1.webp");
       background-repeat: no-repeat;
       background-position: center top;
       background-size: cover;
@@ -11402,7 +11401,7 @@
         "expand.end.wrong": "錯題：",
         "expand.end.result": "結果：",
         "expand.result.unlockNew": "解鎖新等級",
-        "expand.result.perfect": "完美",
+        "expand.result.perfect": "全對",
         "expand.result.keepGoing": "繼續加油",
         "expand.choice.cannotRemoveBrackets": "此類情況無法去除括號",
         "expand.level.L1": "一層括號、整數加減去括號；括號外為「+」或「−」，括號內兩項（減括號須變號）。",
@@ -11585,15 +11584,15 @@
         "game.training.brushSpeedSlower": "今天比平時慢了一些哦",
         "game.training.promoteLevelUp": "升級！",
         "game.training.promoteStayHint": "準確率低於通關線，繼續在本級練習。",
-        "game.training.dailyRunPass": "本局達標！下次將挑戰下一關。",
+        "game.training.dailyRunPass": "本局達標！",
         "game.training.unlockNew": "解鎖新等級",
         "game.training.finalizing": "正在更新練習進度…",
         "game.over.saving": "結果保存中…",
         "game.over.saveFailedRetry": "保存失敗，點擊重試",
         "game.training.pickingLevel": "正在選關…",
-        "game.training.dailyRunFail": "本局未達 95%，今日還可再練 {left} 次（已失敗 {n}/3）。",
-        "game.training.dailyRunEnterBrush": "本關今日已失敗 3 次，下次進入刷熱圖。",
-        "game.training.subtitle.dailyRules": "訓練：每局固定 20 題；達標線 ≥95%；前沿 0/1 錯可解鎖下一關；未達標可同關再練（3 敗進刷熱圖）。",
+        "game.training.dailyRunFail": "本局未達 95%，可再練本關。",
+        "game.training.dailyRunEnterBrush": "本關未達標，下次可能進入刷熱圖。",
+        "game.training.subtitle.dailyRules": "訓練：每局固定 20 題；達標線 ≥95%；前沿 0/1 錯可解鎖下一關；未達標可同關再練。",
         "game.display.levelOrdinal": "第 {n} 級",
         "game.over.levelRunBestTitle": "本局最高：第 {n} 級",
         "game.display.percent": "{pct}%",
@@ -11981,7 +11980,7 @@
         "expand.end.wrong": "Wrong:",
         "expand.end.result": "Result:",
         "expand.result.unlockNew": "New level unlocked",
-        "expand.result.perfect": "Perfect",
+        "expand.result.perfect": "All correct",
         "expand.result.keepGoing": "Keep going",
         "expand.choice.cannotRemoveBrackets": "This type cannot remove brackets.",
         "expand.level.L1": "One layer of parentheses; integers only; +/− outside, two terms inside (minus flips signs).",
@@ -12328,15 +12327,15 @@
         "game.training.brushSpeedSlower": "A bit slower than usual today",
         "game.training.promoteLevelUp": "Level up!",
         "game.training.promoteStayHint": "Accuracy is below the promotion line. Keep practicing at this level.",
-        "game.training.dailyRunPass": "Run cleared! Next time: the next level.",
+        "game.training.dailyRunPass": "Run cleared!",
         "game.training.unlockNew": "New level unlocked",
         "game.training.finalizing": "Updating practice progress…",
         "game.over.saving": "Saving results…",
         "game.over.saveFailedRetry": "Save failed — tap to retry",
         "game.training.pickingLevel": "Waiting…",
-        "game.training.dailyRunFail": "Below 95% this run. {left} tries left today ({n}/3 fails).",
-        "game.training.dailyRunEnterBrush": "3 fails on this level today. Next time: heatmap brush mode.",
-        "game.training.subtitle.dailyRules": "Training: fixed 20 questions per run; pass at ≥95%; 0/1 wrong at the frontier unlocks the next level; retry the same level if below (3 fails → brush).",
+        "game.training.dailyRunFail": "Below 95% this run — you can retry this level.",
+        "game.training.dailyRunEnterBrush": "Below the pass line — next run may be heatmap brush.",
+        "game.training.subtitle.dailyRules": "Training: fixed 20 questions per run; pass at ≥95%; 0/1 wrong at the frontier unlocks the next level; retry the same level if below.",
         "game.display.levelOrdinal": "Level {n}",
         "game.over.levelRunBestTitle": "Best this run: level {n}",
         "game.display.percent": "{pct}%",
@@ -13994,7 +13993,7 @@
         if (dom.expandExplain) dom.expandExplain.style.display = "none";
         setExpandHistoryVisible(true);
         if (dom.expandGameOverPanel) dom.expandGameOverPanel.style.display = "";
-        if (dom.expandGameOverTitle) dom.expandGameOverTitle.textContent = t("expand.end.title");
+        if (dom.expandGameOverTitle) dom.expandGameOverTitle.textContent = t("game.over.abandonedTitle");
         if (dom.expandGoDurationLabel) dom.expandGoDurationLabel.textContent = t("expand.end.time");
         if (dom.expandGoDuration) dom.expandGoDuration.textContent = "-";
         if (dom.expandGoScoreLabel) dom.expandGoScoreLabel.textContent = t("expand.end.level");
@@ -15398,10 +15397,7 @@
       if (runPass) {
         tipText = t("game.training.dailyRunPass");
       } else {
-        tipText = tf("game.training.dailyRunFail", {
-          n: failCount,
-          left: Math.max(0, 3 - failCount),
-        });
+        tipText = t("game.training.dailyRunFail");
       }
       const unlockOutcome = resolveTrainingFrontierUnlockLocal(levelThisRun, runWrongCount);
       tipText = appendTrainingUnlockTip(tipText);
@@ -20242,6 +20238,12 @@
       bindHomeTopBreatheListeners();
     }
 
+    async function refreshI18nFromServer() {
+      await loadI18nFromServer();
+      applyI18nToLoginView();
+      applyI18nToMainView();
+    }
+
     async function init() {
       window.getApiBase = getApiBase;
       window.getAuthHeaders = getAuthHeaders;
@@ -20250,7 +20252,7 @@
       window.escapeHtml = escapeHtml;
       window.showToast = showToast;
       saveLang(getSavedLang());
-      await loadI18nFromServer();
+      // 先用内置文案挂好登录页，不阻塞等 /api/i18n 或会话恢复
       initDomRefs();
       initPerfectSquarePage();
       initDivisibilityPage();
@@ -20266,51 +20268,53 @@
         JmlAchievementsClient.init();
       }
       const name = loadCurrentUsername();
-      if (!name) {
+      if (!name || !getApiBase()) {
         document.getElementById("login-view").style.display = "flex";
         document.getElementById("app-view").style.display = "none";
-        return;
-      }
-      if (!getApiBase()) {
-        document.getElementById("login-view").style.display = "flex";
-        document.getElementById("app-view").style.display = "none";
+        void refreshI18nFromServer();
         return;
       }
       try {
-        const [user] = await Promise.all([apiGetUser(name), refreshGameSettings()]);
+        const results = await Promise.all([
+          refreshI18nFromServer(),
+          apiGetUser(name),
+          refreshGameSettings(),
+        ]);
+        const user = results[1];
         if (user) {
           cachedUser = user;
           ensureUserProgressDefault(cachedUser);
           document.getElementById("login-view").style.display = "none";
           document.getElementById("app-view").style.display = "flex";
           syncHomeSettingsAuthItems();
-            loadState();
-            prefetchHomeAchievementBadges();
-            updateHomePlayerLevel();
-            updateSurvivalStatusUI();
-            updateSurvivalButtonLabel();
-            renderRecentRuns();
-            if (dom.submitBtn) dom.submitBtn.style.display = "none";
-            setGameCardActionSlot("start");
-            if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
-            if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
-            setGuestNicknameEditVisible(true);
-            showLoggedInHomeToolModes();
-            updateRankingButtonLabel();
-            updateTrainingButtonLabel();
-            updateWrongbookBadge();
-            applyTesterOnlyHomeModes();
-            applyAchievementWallHomeMode();
-            scheduleHomeTopBreathe();
-            promptPendingRunDraftIfAny();
-            void scheduleHomeCoachFloat();
-            return;
+          loadState();
+          prefetchHomeAchievementBadges();
+          updateHomePlayerLevel();
+          updateSurvivalStatusUI();
+          updateSurvivalButtonLabel();
+          renderRecentRuns();
+          if (dom.submitBtn) dom.submitBtn.style.display = "none";
+          setGameCardActionSlot("start");
+          if (dom.gameOverPanel) dom.gameOverPanel.style.display = "none";
+          if (dom.playAgainBtn) dom.playAgainBtn.style.display = "none";
+          setGuestNicknameEditVisible(true);
+          showLoggedInHomeToolModes();
+          updateRankingButtonLabel();
+          updateTrainingButtonLabel();
+          updateWrongbookBadge();
+          applyTesterOnlyHomeModes();
+          applyAchievementWallHomeMode();
+          scheduleHomeTopBreathe();
+          promptPendingRunDraftIfAny();
+          void scheduleHomeCoachFloat();
+          return;
         }
       } catch (e) {
         console.warn("从服务器加载用户失败", e);
       }
       document.getElementById("login-view").style.display = "flex";
       document.getElementById("app-view").style.display = "none";
+      void refreshI18nFromServer();
     }
 
     document.addEventListener("DOMContentLoaded", init);

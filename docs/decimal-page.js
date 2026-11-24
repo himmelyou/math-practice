@@ -805,7 +805,7 @@
       });
     } else {
       if (dom().decGameOverPanel) dom().decGameOverPanel.style.display = "";
-      if (dom().decGameOverTitle) dom().decGameOverTitle.textContent = t("expand.end.title");
+      if (dom().decGameOverTitle) dom().decGameOverTitle.textContent = t("game.over.abandonedTitle");
       if (dom().decGoDurationLabel) dom().decGoDurationLabel.textContent = t("expand.end.time");
       if (dom().decGoDuration) dom().decGoDuration.textContent = "-";
       if (dom().decGoScoreLabel) dom().decGoScoreLabel.textContent = t("expand.end.level");

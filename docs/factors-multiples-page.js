@@ -1016,7 +1016,7 @@
         hideEls: inner ? [inner] : [],
       });
     } else {
-      if (dom().fmFinishTitle) dom().fmFinishTitle.textContent = t("expand.end.title");
+      if (dom().fmFinishTitle) dom().fmFinishTitle.textContent = t("game.over.abandonedTitle");
       if (dom().fmFinishCorrect) dom().fmFinishCorrect.textContent = "-";
       if (dom().fmFinishWrong) dom().fmFinishWrong.textContent = String(fmWrongCount);
       if (dom().fmFinishTime) dom().fmFinishTime.textContent = "-";
