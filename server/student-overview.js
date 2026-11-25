@@ -29,6 +29,16 @@ function formatCompactRunTime(sec) {
   return r > 0 ? m + "m " + r + "s" : m + "m";
 }
 
+/** 概览近30天练习时长：只显示 h/m，不足 1 分钟为 0m */
+function formatPracticeDurationHm(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  const mTotal = Math.floor(s / 60);
+  const h = Math.floor(mTotal / 60);
+  const m = mTotal % 60;
+  if (h > 0) return m > 0 ? h + "h " + m + "m" : h + "h";
+  return mTotal + "m";
+}
+
 function chinaDateKeyFromTs(ts) {
   const d = new Date(Number(ts) || 0);
   if (Number.isNaN(d.getTime())) return "";
@@ -659,7 +669,7 @@ function buildStudentOverviewRows(options) {
       daysOffline: daysOff,
       practiceSecLast30: practiceSec30,
       practiceDurationLast30:
-        practiceSec30 != null ? formatCompactRunTime(practiceSec30) : null,
+        practiceSec30 != null ? formatPracticeDurationHm(practiceSec30) : null,
       levelProgress: levelP.text,
       levelProgressSort: levelP.sortKey,
       levelRankSec: levelP.rankSec,
@@ -714,6 +724,7 @@ module.exports = {
   buildStudentOverviewRows,
   formatGradeLabel,
   formatCompactRunTime,
+  formatPracticeDurationHm,
   computeDaysOffline,
   computeDaysActiveLast30,
   computePracticeSecLast30,

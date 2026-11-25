@@ -731,7 +731,7 @@
         r.practiceDurationLast30
           ? String(r.practiceDurationLast30)
           : r.practiceSecLast30 != null
-            ? formatOverviewCompactRunTime(r.practiceSecLast30)
+            ? formatOverviewPracticeDurationHm(r.practiceSecLast30)
             : '—'
       );
     } else if (colId === 'lastGameTs') {
@@ -849,6 +849,16 @@
     var m = Math.floor(s / 60);
     var r = s % 60;
     return r > 0 ? m + 'm ' + r + 's' : m + 'm';
+  }
+
+  /** 与 student-overview.formatPracticeDurationHm 对齐 */
+  function formatOverviewPracticeDurationHm(sec) {
+    var s = Math.max(0, Math.floor(Number(sec) || 0));
+    var mTotal = Math.floor(s / 60);
+    var h = Math.floor(mTotal / 60);
+    var m = mTotal % 60;
+    if (h > 0) return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
+    return mTotal + 'm';
   }
 
   /**
