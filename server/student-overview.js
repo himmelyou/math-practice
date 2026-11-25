@@ -107,7 +107,7 @@ function computePracticeSecLast30(runs, nowMs) {
     if (!key) return;
     const age = daysBetweenDateKeys(key, todayKey);
     if (age == null || age < 0 || age > 29) return;
-    sum += Math.floor(Number(r.survivalTimeSec) || 0);
+    sum += overviewUserIndex.cappedPracticeDurationSec(r.survivalTimeSec);
   });
   return sum;
 }

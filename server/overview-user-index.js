@@ -1,8 +1,9 @@
 /**
  * 学员概览用账号索引：写时维护，全员列表零读 runs。
  * - overviewActiveDayKeys: 中国日历日 YYYY-MM-DD 列表（剪枝保留近 60 天）
- * - overviewPracticeSecByDay: 日→练习秒数（剪枝近 60 天；口径同月报 habit）
+ * - overviewPracticeSecByDay: 日→练习秒数（剪枝近 60 天；口径同月报 habit；单局封顶）
  * - practiceSecLast30: 近 30 日练习秒数合计（可由 ByDay 重算）
+ * - practiceSecRunCapSec: 写入时所用单局封顶秒数（与常量不一致则概览会重算）
  * - trainingFluentCount: 四则热图流畅关数 0–16
  * - trainingFluentCohortBuiltAt: 算出流畅数时所用四则常模 builtAt（常模更新后概览可据此重算）
  * - levelClearEstimateSec: 热图预估全通秒数（L1–L16 avgSec×10×1.1；缺格为无字段）
@@ -15,6 +16,8 @@ const TRAINING_LEVEL_COUNT = 16;
 /** 与 practice-advice estimateClearSec 一致 */
 const SCAN_CLEAR_ITEMS = 10;
 const SCAN_CLEAR_OVERHEAD = 1.1;
+/** 练习时长聚合：单局计入上限（防挂机墙钟），不改落库 survivalTimeSec */
+const PRACTICE_DURATION_RUN_CAP_SEC = 45 * 60;
 
 function chinaDateKeyFromTs(ts) {
   const d = new Date(Number(ts) || 0);
@@ -128,18 +131,23 @@ function recomputeActiveDaysFromRuns(u, runs, nowMs) {
   return true;
 }
 
-/** 与月报 buildHabit 一致：排除 comboOnly、memorytraining；累加 survivalTimeSec */
+/** 与月报 buildHabit 一致：排除 comboOnly、memorytraining；累加 survivalTimeSec（单局封顶） */
 function normalizeModeForDuration(mode) {
   return String(mode || "")
     .toLowerCase()
     .replace(/[_-]/g, "");
 }
 
+function cappedPracticeDurationSec(sec) {
+  const n = Math.max(0, Math.floor(Number(sec) || 0));
+  if (n <= 0) return 0;
+  return Math.min(n, PRACTICE_DURATION_RUN_CAP_SEC);
+}
+
 function runCountsTowardPracticeDuration(r) {
   if (!r || r.comboOnly === true) return false;
   if (normalizeModeForDuration(r.mode) === "memorytraining") return false;
-  const sec = Math.floor(Number(r.survivalTimeSec) || 0);
-  return sec > 0;
+  return cappedPracticeDurationSec(r.survivalTimeSec) > 0;
 }
 
 function ensurePracticeSecByDay(u) {
@@ -183,17 +191,22 @@ function countPracticeSecLast30FromUser(u, nowMs) {
 }
 
 function hasPracticeSecIndex(u) {
-  return !!(u && u.overviewPracticeSecByDay && typeof u.overviewPracticeSecByDay === "object");
+  return !!(
+    u &&
+    u.overviewPracticeSecByDay &&
+    typeof u.overviewPracticeSecByDay === "object" &&
+    Number(u.practiceSecRunCapSec) === PRACTICE_DURATION_RUN_CAP_SEC
+  );
 }
 
-/** 局后增量：合格对局把 survivalTimeSec 累加到当日 */
+/** 局后增量：合格对局把封顶后的秒数累加到当日 */
 function bumpOverviewPracticeSec(u, runEntry, nowMs) {
   if (!u || !runCountsTowardPracticeDuration(runEntry)) return false;
   const day = chinaDateKeyFromTs(runEntry.ts != null ? runEntry.ts : Date.now());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
   const todayKey = chinaTodayKey(nowMs != null ? nowMs : Date.now());
   const map = ensurePracticeSecByDay(u);
-  const add = Math.floor(Number(runEntry.survivalTimeSec) || 0);
+  const add = cappedPracticeDurationSec(runEntry.survivalTimeSec);
   map[day] = Math.max(0, Math.floor(Number(map[day]) || 0)) + add;
   const pruned = prunePracticeSecByDay(map, todayKey);
   u.overviewPracticeSecByDay = pruned;
@@ -211,11 +224,13 @@ function recomputePracticeSecFromRuns(u, runs, nowMs) {
     if (ts <= 0) return;
     const key = chinaDateKeyFromTs(ts);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
-    raw[key] = Math.max(0, Math.floor(Number(raw[key]) || 0)) + Math.floor(Number(r.survivalTimeSec) || 0);
+    raw[key] =
+      Math.max(0, Math.floor(Number(raw[key]) || 0)) + cappedPracticeDurationSec(r.survivalTimeSec);
   });
   const pruned = prunePracticeSecByDay(raw, todayKey);
   u.overviewPracticeSecByDay = pruned;
   u.practiceSecLast30 = sumPracticeSecLast30FromMap(pruned, nowMs);
+  u.practiceSecRunCapSec = PRACTICE_DURATION_RUN_CAP_SEC;
   return true;
 }
 
@@ -469,7 +484,13 @@ function bumpOverviewIndexesAfterRun(u, runEntry, allRuns, opts) {
   opts = opts || {};
   if (!u || !runEntry) return false;
   let changed = bumpOverviewActiveDay(u, runEntry.ts, opts.nowMs);
-  if (bumpOverviewPracticeSec(u, runEntry, opts.nowMs)) changed = true;
+  // 缺封顶标记的旧索引不能只做增量，否则脏日合计会被误标为已封顶
+  if (!hasPracticeSecIndex(u)) {
+    recomputePracticeSecFromRuns(u, allRuns || [], opts.nowMs);
+    changed = true;
+  } else if (bumpOverviewPracticeSec(u, runEntry, opts.nowMs)) {
+    changed = true;
+  }
   const comboOnly = runEntry.comboOnly === true;
   if (!comboOnly && String(runEntry.mode || "").toLowerCase() === "survival") {
     if (bumpSurvivalBestLevel(u, runEntry.maxLevel)) changed = true;
@@ -517,6 +538,8 @@ module.exports = {
   recomputePracticeSecFromRuns,
   hasPracticeSecIndex,
   runCountsTowardPracticeDuration,
+  cappedPracticeDurationSec,
+  PRACTICE_DURATION_RUN_CAP_SEC,
   bumpSurvivalBestLevel,
   recomputeSurvivalBestFromRuns,
   computeTrainingFluentCount,

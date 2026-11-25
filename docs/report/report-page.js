@@ -259,7 +259,7 @@
     nickname: { title: '昵称', tdClass: 'jml-ov-col-nick' },
     practiceDurationLast30: {
       title: '最近30天练习时长',
-      titleAttr: '累加对局时长；不含连击-only、记忆训练（与月报一致）',
+      titleAttr: '累加对局时长；单局最多计45分钟；不含连击-only、记忆训练（与月报一致）',
       sortKey: 'practiceDurationLast30',
       thClass: 'num',
       tdClass: 'jml-ov-col-practice30 num',

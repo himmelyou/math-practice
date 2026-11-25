@@ -7,6 +7,7 @@ const {
   buildOneCategorySlim,
   categoryIdFromRunMode,
 } = require("./monthly-snapshot");
+const { cappedPracticeDurationSec } = require("./overview-user-index");
 
 const PROGRESS_MODES = [
   { key: "level", zh: "闯关", unlockOrdinal: true },
@@ -209,7 +210,7 @@ function buildHabit(runsInMonth, opts) {
     if (day) daySet[day] = true;
     const id = mixBucketId(r.mode);
     if (id) counts[id] = (counts[id] || 0) + 1;
-    const sec = Number(r.survivalTimeSec) || 0;
+    const sec = cappedPracticeDurationSec(r.survivalTimeSec);
     if (sec > 0) durationSec += sec;
   });
   const activeDays = Object.keys(daySet).length;

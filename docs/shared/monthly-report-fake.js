@@ -194,7 +194,7 @@
     PIE: 164,
     LEGEND_ROW: 24,
     LEGEND_GAP: 10,
-    FOOTER: 40,
+    FOOTER: 56,
     ACCENT: "#2563eb",
     COLORS: ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ef4444", "#94a3b8"],
     FONT: {
@@ -209,7 +209,7 @@
       label: 17,
       stat: 26,
       legend: 17,
-      footer: 16,
+      footer: 15,
     },
   };
 
@@ -570,6 +570,21 @@
       ctx.font = font("", F.footer);
       ctx.fillText(note, W - RPT.PAD - ctx.measureText(note).width, y + 16);
     }
+
+    // 页脚：短分割线 + 居中网址（贴底，不挤内容）
+    var footBase = H - RPT.PAD + 2;
+    var footLineY = footBase - 26;
+    var footMid = W / 2;
+    ctx.strokeStyle = "rgba(148,163,184,0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(footMid - 36, footLineY);
+    ctx.lineTo(footMid + 36, footLineY);
+    ctx.stroke();
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = font("", F.footer);
+    var site = "www.adsmathlab.com";
+    ctx.fillText(site, footMid - ctx.measureText(site).width / 2, footBase);
 
     var slug = publicDownloadSlug(data);
     var title = slug + "_" + monthLabelZh(monthKey) + "_月度报告.png";
