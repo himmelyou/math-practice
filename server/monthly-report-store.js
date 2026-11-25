@@ -254,6 +254,20 @@ function createMonthlyReportStore(opts) {
     return { ok: true, entry: entry };
   }
 
+  /**
+   * 月中预览未定稿：图在报告月 M 当月内生成，且现在已跨月。
+   * 打开上月时应自动 force 重算一次；定稿后 generatedAt 落在后续月，不再触发。
+   */
+  function needsFinalize(monthKey, generatedAt, nowTs) {
+    if (!isValidMonthKey(monthKey)) return false;
+    const genTs = Number(generatedAt) || 0;
+    if (!(genTs > 0)) return false;
+    const current = currentMonthKey(nowTs);
+    if (!current || String(monthKey) >= current) return false;
+    const genMonth = chinaMonthKeyFromTs(genTs);
+    return !!genMonth && genMonth === String(monthKey);
+  }
+
   function statusFor(username, monthKey, optsStatus) {
     optsStatus = optsStatus || {};
     const name = String(username || "");
@@ -264,6 +278,8 @@ function createMonthlyReportStore(opts) {
     const latest = latestClosedMonthKey();
     const inProgress = !!current && monthKey === current;
     const eligible = isEligibleMonth(monthKey, optsStatus.earliestMonthKey);
+    const generatedAt = generated && entry ? entry.generatedAt || null : null;
+    const finalize = generated && needsFinalize(monthKey, generatedAt);
     return {
       monthKey: monthKey,
       fileName: displayTitle(name, monthKey),
@@ -271,7 +287,8 @@ function createMonthlyReportStore(opts) {
       generated: generated,
       read: !!(generated && entry && entry.readAt),
       readAt: generated && entry ? entry.readAt || null : null,
-      generatedAt: generated && entry ? entry.generatedAt || null : null,
+      generatedAt: generatedAt,
+      needsFinalize: !!finalize,
       canForceRegenerate: eligible && (monthKey === latest || inProgress),
       inProgress: inProgress,
       adminOnly: inProgress,
@@ -327,6 +344,7 @@ function createMonthlyReportStore(opts) {
     readImageBuffer,
     saveImage,
     markRead,
+    needsFinalize,
     statusFor,
     listForAdmin,
   };

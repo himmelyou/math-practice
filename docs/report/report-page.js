@@ -1656,6 +1656,9 @@
     if (!row || !row.generated) {
       return '<span class="jml-monthly-badge jml-monthly-badge--missing">未生成</span>';
     }
+    if (row.needsFinalize) {
+      return '<span class="jml-monthly-badge jml-monthly-badge--unread">待定稿</span>';
+    }
     if (row.read) {
       return '<span class="jml-monthly-badge jml-monthly-badge--read">已读</span>';
     }
@@ -1936,9 +1939,14 @@
     function setStatus(msg) {
       if (statusEl) statusEl.textContent = msg || '';
     }
-    // 当月预览：始终现算，避免缓存旧图
+    // 当月预览：始终现算；上月若 generatedAt 仍在报告月内（月中预览）→ 自动定稿重算
     var live = isAdminInProgressMonth(monthKey);
-    var wantForce = !!force || live;
+    var row = null;
+    (state.monthlyReports || []).forEach(function (r) {
+      if (r && r.monthKey === monthKey) row = r;
+    });
+    var finalize = !!(row && row.needsFinalize);
+    var wantForce = !!force || live || finalize;
     if (!wantForce) {
       return apiFetch(
         '/api/admin/user/' +
@@ -1962,7 +1970,9 @@
           return renderAndSaveMonthlyReport(monthKey, false);
         });
     }
-    setStatus(live ? '正在汇总当月实时数据…' : '正在重新生成…');
+    setStatus(
+      live ? '正在汇总当月实时数据…' : finalize ? '月中预览待定稿，正在按完整月重算…' : '正在重新生成…'
+    );
     return renderAndSaveMonthlyReport(monthKey, true);
   }
 

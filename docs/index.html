@@ -10072,7 +10072,9 @@
       monthlyReportModalState.downloadFileName =
         report.downloadFileName || Fake.downloadFileName(name, monthKey);
 
-      if (report.generated && !force) {
+      // 月中预览未定稿（generatedAt 仍在报告月内）：跨月后自动按完整月重算
+      const needsFinalize = !!report.needsFinalize;
+      if (report.generated && !force && !needsFinalize) {
         const imgData = await monthlyReportApi("/monthly-report/" + encodeURIComponent(monthKey) + "/image");
         monthlyReportModalState.dataUrl = "data:image/png;base64," + imgData.imageBase64;
         monthlyReportModalState.fileName = imgData.fileName || monthlyReportModalState.fileName;
@@ -10089,7 +10091,7 @@
         json: {
           monthKey: monthKey,
           imageBase64: Fake.dataUrlToBase64(rendered.dataUrl),
-          force: !!force,
+          force: !!(force || needsFinalize),
         },
       });
       monthlyReportModalState.dataUrl = rendered.dataUrl;
