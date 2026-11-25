@@ -4,6 +4,10 @@
  */
 const fs = require("fs");
 const path = require("path");
+const {
+  stampEverAccurateOnHeatmap,
+  previousMonthKey,
+} = require("./monthly-snapshot");
 
 function createMonthlySnapshotStore(opts) {
   const dataDir = opts.dataDir;
@@ -106,6 +110,16 @@ function createMonthlySnapshotStore(opts) {
       // 兼容旧调用：整表覆盖
       nextHeat = payload.heatmap;
     }
+    // everAccurate：继承上月快照 + 同月旧块，再并入本格 accurate（不追溯更早盘）
+    const priorMk = previousMonthKey(monthKey);
+    const priorRow =
+      priorMk && doc.months[priorMk] && typeof doc.months[priorMk] === "object"
+        ? doc.months[priorMk]
+        : null;
+    const priorHeat =
+      priorRow && priorRow.heatmap && typeof priorRow.heatmap === "object" ? priorRow.heatmap : {};
+    const carryHeat = Object.assign({}, priorHeat, prevHeat);
+    nextHeat = stampEverAccurateOnHeatmap(nextHeat, carryHeat);
     doc.months[monthKey] = {
       monthKey: monthKey,
       updatedAt: now,

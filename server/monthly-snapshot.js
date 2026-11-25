@@ -51,6 +51,7 @@ function avgSecFromMeanLn(meanLn) {
 function slimCell(c) {
   if (!c || typeof c !== "object") return null;
   const meanLn = numOrNull(c.meanLnCorrect);
+  const accurate = !!c.accurate;
   return {
     levelIndex: Math.max(0, Math.floor(Number(c.levelIndex) || 0)),
     active: !!c.active,
@@ -60,9 +61,66 @@ function slimCell(c) {
     meanLnCorrect: meanLn,
     avgSec: avgSecFromMeanLn(meanLn),
     tooSlow: c.tooSlow === true ? true : c.tooSlow === false ? false : null,
-    accurate: !!c.accurate,
+    accurate: accurate,
+    /** 历史上是否曾达标；写快照时再与上月合并，不追溯旧盘 */
+    everAccurate: accurate || c.everAccurate === true,
     fluent: !!c.fluent,
   };
+}
+
+function heatCellKey(catId, levelIndex) {
+  return String(catId || "") + ":" + Math.max(0, Math.floor(Number(levelIndex) || 0));
+}
+
+/** 从热图块建 catId:levelIndex → cell */
+function heatmapCellIndex(heatmap) {
+  const map = Object.create(null);
+  const heat = heatmap && typeof heatmap === "object" ? heatmap : {};
+  Object.keys(heat).forEach(function (catId) {
+    const block = heat[catId];
+    const cells = block && Array.isArray(block.cells) ? block.cells : [];
+    cells.forEach(function (c) {
+      if (!c) return;
+      map[heatCellKey(catId, c.levelIndex)] = c;
+    });
+  });
+  return map;
+}
+
+/**
+ * 给本月末热图打 everAccurate：本格达标，或继承 carry 热图（上月 / 同月旧块）已达标史。
+ * 就地改 cells；返回同一 heatmap。
+ */
+function stampEverAccurateOnHeatmap(heatmap, carryHeatmap) {
+  const heat = heatmap && typeof heatmap === "object" ? heatmap : null;
+  if (!heat) return heatmap;
+  const carry = heatmapCellIndex(carryHeatmap);
+  Object.keys(heat).forEach(function (catId) {
+    const block = heat[catId];
+    if (!block || !Array.isArray(block.cells)) return;
+    block.cells = block.cells.map(function (c) {
+      if (!c || typeof c !== "object") return c;
+      const prev = carry[heatCellKey(catId, c.levelIndex)];
+      const ever =
+        !!c.accurate ||
+        c.everAccurate === true ||
+        !!(prev && (prev.everAccurate === true || prev.accurate === true));
+      if (c.everAccurate === ever) return c;
+      const next = Object.assign({}, c);
+      next.everAccurate = ever;
+      return next;
+    });
+  });
+  return heat;
+}
+
+/** YYYY-MM 的上一自然月 */
+function previousMonthKey(monthKey) {
+  if (!/^\d{4}-\d{2}$/.test(String(monthKey || ""))) return "";
+  const y = Number(monthKey.slice(0, 4));
+  const m = Number(monthKey.slice(5, 7));
+  if (m <= 1) return y - 1 + "-12";
+  return y + "-" + String(m - 1).padStart(2, "0");
 }
 
 function slimCategoryBlock(heat) {
@@ -580,5 +638,8 @@ module.exports = {
   buildProgressSnapshot,
   slimCell,
   slimCategoryBlock,
+  heatmapCellIndex,
+  stampEverAccurateOnHeatmap,
+  previousMonthKey,
   buildOneCategorySlim,
 };

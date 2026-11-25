@@ -385,7 +385,7 @@ function heatCatRank(catId) {
 
 /**
  * 热图进步：
- * - 准确率：上月末已有样本且未达标 → 本月末达标（首次从无样本到达标不算）
+ * - 准确率：本月末达标，且（从未达标 everAccurate 未立，或上月末无样本）；防达标线上下抖
  * - 速度：两端均达标，均速提升 ≥3%
  * - 展示：五栏目各取有进步的最高等级（最多 5）；主选不足 5 时从剩余进步格按难度补到 5（含同栏目较低档）
  */
@@ -404,15 +404,21 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
     const nowAcc = cellIsAccurate(c);
     const wasAcc = cellIsAccurate(p);
     const priorSample = cellHasSample(p);
+    const everBefore = !!(p && p.everAccurate === true);
 
-    if (priorSample && !wasAcc && nowAcc) {
+    // 本月末达标 +（从未达标 OR 上月末无样本）；已达标过且上月有样本再抖回 → 不计
+    if (nowAcc && !wasAcc && (!everBefore || !priorSample)) {
       const pctStr = formatPct1(c.p);
+      const tip =
+        !priorSample
+          ? "首次达到 " + (pctStr != null ? pctStr + "%" : "掌握线")
+          : "准确率达到 " + (pctStr != null ? pctStr + "%" : "掌握线");
       improved.push({
         key: key,
         catId: catId,
         levelIndex: li,
         kind: "acc",
-        zh: title + "：准确率达到 " + (pctStr != null ? pctStr + "%" : "掌握线"),
+        zh: title + "：" + tip,
       });
       return;
     }
