@@ -85,6 +85,23 @@ function computeDaysActiveLast30(runs, nowMs) {
   return count;
 }
 
+/** 与月报 buildHabit / overview-user-index 练习时长口径一致 */
+function computePracticeSecLast30(runs, nowMs) {
+  const todayKey = chinaTodayKey(nowMs);
+  let sum = 0;
+  (runs || []).forEach((r) => {
+    if (!overviewUserIndex.runCountsTowardPracticeDuration(r)) return;
+    const ts = Number(r && r.ts) || 0;
+    if (ts <= 0) return;
+    const key = chinaDateKeyFromTs(ts);
+    if (!key) return;
+    const age = daysBetweenDateKeys(key, todayKey);
+    if (age == null || age < 0 || age > 29) return;
+    sum += Math.floor(Number(r.survivalTimeSec) || 0);
+  });
+  return sum;
+}
+
 function userHasClearedLevel(u, runs) {
   if (u && u.hasClearedLevel === true) return true;
   return (runs || []).some((r) => {
@@ -487,29 +504,24 @@ function buildStudentOverviewRows(options) {
   users.forEach((u) => {
     if (!u || !u.username) return;
     const username = u.username;
-    const runs = runsByUser[username] || [];
+    const hasScopedRuns = Object.prototype.hasOwnProperty.call(runsByUser, username);
+    const runs = hasScopedRuns ? runsByUser[username] || [] : [];
     const lastTs = Number(u.lastGameTs) || latestRunTsFromRuns(runs);
     const createdAt = Number(u.createdAt) || 0;
     const daysOff = computeDaysOffline(lastTs, nowMs);
-    let daysActive30 = null;
-    if (Array.isArray(runs) && runs.length > 0) {
-      daysActive30 = computeDaysActiveLast30(runs, nowMs);
-    } else if (typeof u.daysActiveLast30 === "number" && Number.isFinite(u.daysActiveLast30)) {
-      daysActive30 = Math.max(0, Math.min(30, Math.floor(u.daysActiveLast30)));
-    } else if (Array.isArray(u.overviewActiveDayKeys) && u.overviewActiveDayKeys.length) {
-      // 仅有 day keys：按近 30 日重算（不读 runs）
-      const today = todayKey;
-      let n = 0;
-      const seen = Object.create(null);
-      u.overviewActiveDayKeys.forEach((k) => {
-        const key = String(k || "");
-        if (!key || seen[key]) return;
-        const age = daysBetweenDateKeys(key, today);
-        if (age == null || age < 0 || age > 29) return;
-        seen[key] = true;
-        n += 1;
-      });
-      daysActive30 = n;
+    let practiceSec30 = null;
+    if (hasScopedRuns) {
+      overviewUserIndex.recomputePracticeSecFromRuns(u, runs, nowMs);
+      practiceSec30 = overviewUserIndex.countPracticeSecLast30FromUser(u, nowMs);
+      usersIndexDirty = true;
+    } else if (overviewUserIndex.hasPracticeSecIndex(u)) {
+      practiceSec30 = overviewUserIndex.countPracticeSecLast30FromUser(u, nowMs);
+      if (u.practiceSecLast30 !== practiceSec30) {
+        u.practiceSecLast30 = practiceSec30;
+        usersIndexDirty = true;
+      }
+    } else if (typeof u.practiceSecLast30 === "number" && Number.isFinite(u.practiceSecLast30)) {
+      practiceSec30 = Math.max(0, Math.floor(u.practiceSecLast30));
     }
     const levelP = formatLevelChallengeProgress(u, runs, levelMap[username]);
     const survivalP = formatSurvivalProgress(u, runs, survivalMap[username]);
@@ -645,7 +657,9 @@ function buildStudentOverviewRows(options) {
       lastGameTs: lastTs > 0 ? lastTs : 0,
       createdAt: createdAt > 0 ? createdAt : 0,
       daysOffline: daysOff,
-      daysActiveLast30: daysActive30,
+      practiceSecLast30: practiceSec30,
+      practiceDurationLast30:
+        practiceSec30 != null ? formatCompactRunTime(practiceSec30) : null,
       levelProgress: levelP.text,
       levelProgressSort: levelP.sortKey,
       levelRankSec: levelP.rankSec,
@@ -702,6 +716,7 @@ module.exports = {
   formatCompactRunTime,
   computeDaysOffline,
   computeDaysActiveLast30,
+  computePracticeSecLast30,
   chinaTodayKey,
   chinaDateKeyFromTs,
   daysBetweenDateKeys,

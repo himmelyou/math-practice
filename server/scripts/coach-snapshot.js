@@ -238,8 +238,9 @@ function printSummary(snap) {
       (o.isVip ? "是" : "否") +
       "  断练：" +
       (o.daysOffline != null ? o.daysOffline + " 天" : "—") +
-      "  近30日活跃：" +
-      (o.daysActiveLast30 != null ? o.daysActiveLast30 + " 天" : "—")
+      "  近30日练习：" +
+      (o.practiceDurationLast30 ||
+        (o.practiceSecLast30 != null ? o.practiceSecLast30 + "s" : "—"))
   );
   lines.push(
     "进度：闯关 " +
@@ -425,7 +426,8 @@ async function fetchSnapshot(apiBase, pin, username) {
       gradeLabel: overviewRow.gradeLabel || gradeLabel(user.grade),
       isVip: overviewRow.isVip === true || user.isVip === true,
       daysOffline: overviewRow.daysOffline,
-      daysActiveLast30: overviewRow.daysActiveLast30,
+      practiceSecLast30: overviewRow.practiceSecLast30,
+      practiceDurationLast30: overviewRow.practiceDurationLast30,
       lastGameTs: overviewRow.lastGameTs || user.lastGameTs,
       lastGameAt: chinaDateTime(overviewRow.lastGameTs || user.lastGameTs),
       levelProgress: overviewRow.levelProgress,

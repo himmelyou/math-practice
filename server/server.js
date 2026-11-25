@@ -5222,14 +5222,15 @@ app.get("/api/admin/student-overview", (req, res) => {
     });
   }
 
-  // 全员：默认零读 runs；常模相对索引过期的人要读 runs 重算流畅数。单人深链：始终读 runs。
+  // 全员：默认零读 runs；常模相对索引过期、或缺练习时长索引的人要读 runs。单人深链：始终读 runs。
   const scopedRuns = {};
   const needRunsUsers = [];
   users.forEach((u) => {
     if (!u || !u.username) return;
     if (
       singleUser ||
-      overviewUserIndex.isTrainingFluentCohortStale(u, cohortBuiltAt)
+      overviewUserIndex.isTrainingFluentCohortStale(u, cohortBuiltAt) ||
+      !overviewUserIndex.hasPracticeSecIndex(u)
     ) {
       needRunsUsers.push(u);
     }

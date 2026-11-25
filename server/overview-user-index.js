@@ -1,6 +1,8 @@
 /**
  * 学员概览用账号索引：写时维护，全员列表零读 runs。
  * - overviewActiveDayKeys: 中国日历日 YYYY-MM-DD 列表（剪枝保留近 60 天）
+ * - overviewPracticeSecByDay: 日→练习秒数（剪枝近 60 天；口径同月报 habit）
+ * - practiceSecLast30: 近 30 日练习秒数合计（可由 ByDay 重算）
  * - trainingFluentCount: 四则热图流畅关数 0–16
  * - trainingFluentCohortBuiltAt: 算出流畅数时所用四则常模 builtAt（常模更新后概览可据此重算）
  * - levelClearEstimateSec: 热图预估全通秒数（L1–L16 avgSec×10×1.1；缺格为无字段）
@@ -123,6 +125,97 @@ function recomputeActiveDaysFromRuns(u, runs, nowMs) {
   const keys = pruneActiveDayKeys(Object.keys(seen), todayKey);
   u.overviewActiveDayKeys = keys;
   u.daysActiveLast30 = countDaysActiveLast30FromUser(u, nowMs);
+  return true;
+}
+
+/** 与月报 buildHabit 一致：排除 comboOnly、memorytraining；累加 survivalTimeSec */
+function normalizeModeForDuration(mode) {
+  return String(mode || "")
+    .toLowerCase()
+    .replace(/[_-]/g, "");
+}
+
+function runCountsTowardPracticeDuration(r) {
+  if (!r || r.comboOnly === true) return false;
+  if (normalizeModeForDuration(r.mode) === "memorytraining") return false;
+  const sec = Math.floor(Number(r.survivalTimeSec) || 0);
+  return sec > 0;
+}
+
+function ensurePracticeSecByDay(u) {
+  if (!u) return Object.create(null);
+  if (!u.overviewPracticeSecByDay || typeof u.overviewPracticeSecByDay !== "object") {
+    u.overviewPracticeSecByDay = Object.create(null);
+  }
+  return u.overviewPracticeSecByDay;
+}
+
+function prunePracticeSecByDay(map, todayKey) {
+  const out = Object.create(null);
+  const src = map && typeof map === "object" ? map : {};
+  Object.keys(src).forEach((k) => {
+    const key = String(k || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    const age = daysBetweenDateKeys(key, todayKey);
+    if (age == null || age < 0 || age > ACTIVE_KEYS_KEEP_DAYS) return;
+    const sec = Math.floor(Number(src[key]) || 0);
+    if (sec > 0) out[key] = sec;
+  });
+  return out;
+}
+
+function sumPracticeSecLast30FromMap(map, nowMs) {
+  const todayKey = chinaTodayKey(nowMs != null ? nowMs : Date.now());
+  const src = map && typeof map === "object" ? map : {};
+  let sum = 0;
+  Object.keys(src).forEach((k) => {
+    const key = String(k || "");
+    if (!key) return;
+    const age = daysBetweenDateKeys(key, todayKey);
+    if (age == null || age < 0 || age > 29) return;
+    sum += Math.max(0, Math.floor(Number(src[key]) || 0));
+  });
+  return sum;
+}
+
+function countPracticeSecLast30FromUser(u, nowMs) {
+  return sumPracticeSecLast30FromMap(u && u.overviewPracticeSecByDay, nowMs);
+}
+
+function hasPracticeSecIndex(u) {
+  return !!(u && u.overviewPracticeSecByDay && typeof u.overviewPracticeSecByDay === "object");
+}
+
+/** 局后增量：合格对局把 survivalTimeSec 累加到当日 */
+function bumpOverviewPracticeSec(u, runEntry, nowMs) {
+  if (!u || !runCountsTowardPracticeDuration(runEntry)) return false;
+  const day = chinaDateKeyFromTs(runEntry.ts != null ? runEntry.ts : Date.now());
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+  const todayKey = chinaTodayKey(nowMs != null ? nowMs : Date.now());
+  const map = ensurePracticeSecByDay(u);
+  const add = Math.floor(Number(runEntry.survivalTimeSec) || 0);
+  map[day] = Math.max(0, Math.floor(Number(map[day]) || 0)) + add;
+  const pruned = prunePracticeSecByDay(map, todayKey);
+  u.overviewPracticeSecByDay = pruned;
+  u.practiceSecLast30 = sumPracticeSecLast30FromMap(pruned, nowMs);
+  return true;
+}
+
+function recomputePracticeSecFromRuns(u, runs, nowMs) {
+  if (!u) return false;
+  const todayKey = chinaTodayKey(nowMs != null ? nowMs : Date.now());
+  const raw = Object.create(null);
+  (runs || []).forEach((r) => {
+    if (!runCountsTowardPracticeDuration(r)) return;
+    const ts = Number(r && r.ts) || 0;
+    if (ts <= 0) return;
+    const key = chinaDateKeyFromTs(ts);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    raw[key] = Math.max(0, Math.floor(Number(raw[key]) || 0)) + Math.floor(Number(r.survivalTimeSec) || 0);
+  });
+  const pruned = prunePracticeSecByDay(raw, todayKey);
+  u.overviewPracticeSecByDay = pruned;
+  u.practiceSecLast30 = sumPracticeSecLast30FromMap(pruned, nowMs);
   return true;
 }
 
@@ -370,12 +463,13 @@ function peekLevelClearEstimateFromHeatCache(username, heatmapCache) {
 }
 
 /**
- * 局后增量：活跃日 +（非 comboOnly 时）生存最高档；算术局再算流畅数与闯关预计。
+ * 局后增量：活跃日 + 练习时长 +（非 comboOnly 时）生存最高档；算术局再算流畅数与闯关预计。
  */
 function bumpOverviewIndexesAfterRun(u, runEntry, allRuns, opts) {
   opts = opts || {};
   if (!u || !runEntry) return false;
   let changed = bumpOverviewActiveDay(u, runEntry.ts, opts.nowMs);
+  if (bumpOverviewPracticeSec(u, runEntry, opts.nowMs)) changed = true;
   const comboOnly = runEntry.comboOnly === true;
   if (!comboOnly && String(runEntry.mode || "").toLowerCase() === "survival") {
     if (bumpSurvivalBestLevel(u, runEntry.maxLevel)) changed = true;
@@ -400,6 +494,7 @@ function recomputeOverviewIndexesFromRuns(u, runs, opts) {
   opts = opts || {};
   if (!u) return false;
   recomputeActiveDaysFromRuns(u, runs, opts.nowMs);
+  recomputePracticeSecFromRuns(u, runs, opts.nowMs);
   recomputeSurvivalBestFromRuns(u, runs);
   const got = computeTrainingFluentCount(runs || [], opts);
   if (got.ok) {
@@ -416,6 +511,12 @@ module.exports = {
   bumpOverviewActiveDay,
   countDaysActiveLast30FromUser,
   recomputeActiveDaysFromRuns,
+  bumpOverviewPracticeSec,
+  countPracticeSecLast30FromUser,
+  sumPracticeSecLast30FromMap,
+  recomputePracticeSecFromRuns,
+  hasPracticeSecIndex,
+  runCountsTowardPracticeDuration,
   bumpSurvivalBestLevel,
   recomputeSurvivalBestFromRuns,
   computeTrainingFluentCount,

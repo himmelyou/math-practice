@@ -214,7 +214,7 @@
     username: 'username',
     grade: 'gradeSort',
     lastGameTs: 'lastGameTs',
-    daysActiveLast30: 'daysActiveLast30',
+    practiceDurationLast30: 'practiceSecLast30',
     levelProgress: 'levelProgressSort',
     levelClearEstimate: 'levelClearEstimateSort',
     trainingProgress: 'trainingProgressSort',
@@ -233,7 +233,7 @@
     'grade',
     'adminNote',
     'nickname',
-    'daysActiveLast30',
+    'practiceDurationLast30',
     'lastGameTs',
     'levelProgress',
     'levelClearEstimate',
@@ -257,11 +257,12 @@
       tdClass: 'jml-ov-col-note',
     },
     nickname: { title: '昵称', tdClass: 'jml-ov-col-nick' },
-    daysActiveLast30: {
-      title: '最近30天上线天数',
-      sortKey: 'daysActiveLast30',
+    practiceDurationLast30: {
+      title: '最近30天练习时长',
+      titleAttr: '累加对局时长；不含连击-only、记忆训练（与月报一致）',
+      sortKey: 'practiceDurationLast30',
       thClass: 'num',
-      tdClass: 'jml-ov-col-active30 num',
+      tdClass: 'jml-ov-col-practice30 num',
     },
     lastGameTs: { title: '最后上线时间', sortKey: 'lastGameTs', tdClass: 'jml-ov-col-lastgame' },
     levelProgress: { title: '闯关', sortKey: 'levelProgress', thClass: 'num', tdClass: 'jml-ov-col-prog num' },
@@ -540,7 +541,12 @@
       if (!raw) return;
       var o = JSON.parse(raw);
       if (o && o.key) {
-        var storedKey = o.key === 'daysOffline' ? 'lastGameTs' : o.key;
+        var storedKey =
+          o.key === 'daysOffline'
+            ? 'lastGameTs'
+            : o.key === 'daysActiveLast30'
+              ? 'practiceDurationLast30'
+              : o.key;
         if (OVERVIEW_SORTABLE_KEYS[storedKey]) {
           state.overviewSortKey = storedKey;
           state.overviewSortDir = o.dir === 'asc' ? 'asc' : 'desc';
@@ -605,6 +611,7 @@
     var seen = Object.create(null);
     var out = [];
     (Array.isArray(order) ? order : []).forEach(function (id) {
+      if (id === 'daysActiveLast30') id = 'practiceDurationLast30';
       if (!OVERVIEW_COL_META[id] || seen[id]) return;
       seen[id] = true;
       out.push(id);
@@ -719,8 +726,14 @@
         '" />';
     } else if (colId === 'nickname') {
       inner = escapeHtml(dashCell(r.nickname));
-    } else if (colId === 'daysActiveLast30') {
-      inner = escapeHtml(r.daysActiveLast30 != null ? String(r.daysActiveLast30) : '—');
+    } else if (colId === 'practiceDurationLast30') {
+      inner = escapeHtml(
+        r.practiceDurationLast30
+          ? String(r.practiceDurationLast30)
+          : r.practiceSecLast30 != null
+            ? formatOverviewCompactRunTime(r.practiceSecLast30)
+            : '—'
+      );
     } else if (colId === 'lastGameTs') {
       var lastSeen = r.lastGameTs || r.createdAt || 0;
       inner = escapeHtml(lastSeen ? formatDateTime(lastSeen) : '—');
