@@ -370,7 +370,16 @@ function formatPct1(p) {
   return (Math.round(n * 1000) / 10).toFixed(1).replace(/\.0$/, "");
 }
 
-/** 热图陈列栏目序：与练习习惯 mix 一致（同栏目相邻） */
+/** 热图选取用栏目难度：高 → 低（补位优先难栏目；与陈列序无关） */
+const HEAT_CAT_DIFFICULTY = [
+  "decimal",
+  "factorsMultiples",
+  "divisibility",
+  "perfectSquare",
+  "arithmetic",
+];
+
+/** 热图陈列栏目序：与练习习惯 mix 一致（选出后再排） */
 const HEAT_CAT_DISPLAY_ORDER = [
   "arithmetic",
   "perfectSquare",
@@ -379,23 +388,22 @@ const HEAT_CAT_DISPLAY_ORDER = [
   "decimal",
 ];
 
-function heatCatRank(catId) {
-  const i = HEAT_CAT_DISPLAY_ORDER.indexOf(catId);
-  return i >= 0 ? i : HEAT_CAT_DISPLAY_ORDER.length;
+function heatCatDifficultyRank(catId) {
+  const i = HEAT_CAT_DIFFICULTY.indexOf(catId);
+  return i >= 0 ? i : HEAT_CAT_DIFFICULTY.length;
 }
 
-function compareHeatProgressRows(a, b) {
-  const cr = heatCatRank(a.catId) - heatCatRank(b.catId);
-  if (cr !== 0) return cr;
-  return b.levelIndex - a.levelIndex;
+function heatCatDisplayRank(catId) {
+  const i = HEAT_CAT_DISPLAY_ORDER.indexOf(catId);
+  return i >= 0 ? i : HEAT_CAT_DISPLAY_ORDER.length;
 }
 
 /**
  * 热图进步：
  * - 准确率：本月末达标，且（从未达标 everAccurate 未立，或上月末无样本）；防达标线上下抖
  * - 速度：两端均达标，均速提升 ≥3%
- * - 选取：五栏目各取有进步的最高等级（最多 5）；不足再补较低档
- * - 陈列：按项目序聚拢（四则→平方→整除→因倍→小数），栏内等级高→低
+ * - 选取：五栏目各取有进步的最高等级（最多 5）；主选不足 5 时从剩余进步格按难度补到 5（含同栏目较低档）
+ * - 陈列：选取完成后再按项目序聚拢（四则→平方→整除→因倍→小数），栏内等级高→低
  */
 function buildHeatmapDiff(priorHeat, currentHeat) {
   const prev = cellMap(priorHeat);
@@ -450,10 +458,10 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
     }
   });
 
-  // 主选：每栏目取等级最高的一条
+  // 主选：每栏目取等级最高的一条，按栏目难度排序（选取集合与改陈列前一致）
   const pickedKeys = Object.create(null);
   const primary = [];
-  HEAT_CAT_DISPLAY_ORDER.forEach(function (catId) {
+  HEAT_CAT_DIFFICULTY.forEach(function (catId) {
     let best = null;
     improved.forEach(function (row) {
       if (row.catId !== catId) return;
@@ -466,20 +474,29 @@ function buildHeatmapDiff(priorHeat, currentHeat) {
   });
 
   const selected = primary.slice();
-  // 补足到 5：可含同栏目较低档
+  // 补足到 5：主选不足且还有剩余进步格时补（可含同栏目较低档；仍按难度序取）
   if (selected.length < 5) {
     const rest = improved
       .filter(function (row) {
         return !pickedKeys[row.key];
       })
-      .sort(compareHeatProgressRows);
+      .sort(function (a, b) {
+        const cr = heatCatDifficultyRank(a.catId) - heatCatDifficultyRank(b.catId);
+        if (cr !== 0) return cr;
+        return b.levelIndex - a.levelIndex;
+      });
     for (let i = 0; i < rest.length && selected.length < 5; i += 1) {
       selected.push(rest[i]);
       pickedKeys[rest[i].key] = true;
     }
   }
 
-  selected.sort(compareHeatProgressRows);
+  // 仅陈列重排：不改 selected 集合
+  selected.sort(function (a, b) {
+    const cr = heatCatDisplayRank(a.catId) - heatCatDisplayRank(b.catId);
+    if (cr !== 0) return cr;
+    return b.levelIndex - a.levelIndex;
+  });
 
   return {
     improvedCells: improved.length,
