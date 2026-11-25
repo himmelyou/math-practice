@@ -538,11 +538,22 @@ function buildMonthlyReportPayload(opts) {
   const runs = Array.isArray(opts.runs) ? opts.runs : [];
   const cohorts = opts.cohortsByCategory || {};
 
-  let current = opts.currentSnap && typeof opts.currentSnap === "object" ? opts.currentSnap : null;
-  if (!current || !current.progress) {
-    current = synthesizeSnap(runs, monthKey, cohorts);
-  }
   const prior = opts.priorSnap && typeof opts.priorSnap === "object" ? opts.priorSnap : null;
+  let current = opts.currentSnap && typeof opts.currentSnap === "object" ? opts.currentSnap : null;
+  // 无局月无快照：继承上月完整状态（准/速无新局不变），避免合成热图把「缺类」当成首次达标
+  if (!current || (!current.progress && !current.heatmap)) {
+    if (prior && (prior.heatmap || prior.progress)) {
+      current = {
+        monthKey: monthKey,
+        lastRunTs: prior.lastRunTs || null,
+        progress: prior.progress || {},
+        heatmap: prior.heatmap || {},
+        carriedForward: true,
+      };
+    } else {
+      current = synthesizeSnap(runs, monthKey, cohorts);
+    }
+  }
   const priorProgress = prior && prior.progress ? prior.progress : {};
   const priorHeat = prior && prior.heatmap ? prior.heatmap : {};
 
@@ -566,6 +577,7 @@ function buildMonthlyReportPayload(opts) {
     titleEn: "Monthly Learning Report · " + monthLabelEn(monthKey),
     baselineMonthKey: opts.priorMonthKey || null,
     currentSynthesized: !!current.synthesized,
+    currentCarriedForward: !!current.carriedForward,
     habit: habit,
     milestones: {
       breakthroughsZh: breakthroughs.map(function (b) {

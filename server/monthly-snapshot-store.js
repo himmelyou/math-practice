@@ -7,6 +7,9 @@ const path = require("path");
 const {
   stampEverAccurateOnHeatmap,
   previousMonthKey,
+  nextMonthKey,
+  cloneJson,
+  mergeHeatmapCarryForward,
 } = require("./monthly-snapshot");
 
 function createMonthlySnapshotStore(opts) {
@@ -82,8 +85,23 @@ function createMonthlySnapshotStore(opts) {
     });
   }
 
+  /** 取严格早于 monthKey 的最近一个月快照行 */
+  function nearestPriorRow(doc, monthKey) {
+    const keys = Object.keys((doc && doc.months) || {})
+      .filter(isValidMonthKey)
+      .filter(function (k) {
+        return k < String(monthKey);
+      })
+      .sort();
+    if (!keys.length) return null;
+    const k = keys[keys.length - 1];
+    const row = doc.months[k];
+    return row && typeof row === "object" ? row : null;
+  }
+
   /**
-   * 覆盖写入当月快照行（局后调用）。
+   * 写入当月快照行。
+   * 热图：先继承上月（或更早最近月）完整各类，再覆盖本月 patch 中的类；无局类不会丢。
    * @returns {{ ok: boolean, monthKey?: string, error?: string }}
    */
   function upsertMonth(username, monthKey, payload) {
@@ -96,37 +114,44 @@ function createMonthlySnapshotStore(opts) {
     const now = Date.now();
     const prevHeat =
       prev.heatmap && typeof prev.heatmap === "object" ? prev.heatmap : {};
-    let nextHeat = prevHeat;
-    if (payload.replaceHeatmap === true) {
-      nextHeat =
-        payload.heatmapPatch && typeof payload.heatmapPatch === "object"
-          ? payload.heatmapPatch
-          : payload.heatmap && typeof payload.heatmap === "object"
-            ? payload.heatmap
-            : {};
-    } else if (payload.heatmapPatch && typeof payload.heatmapPatch === "object") {
-      nextHeat = Object.assign({}, prevHeat, payload.heatmapPatch);
-    } else if (payload.heatmap && typeof payload.heatmap === "object") {
-      // 兼容旧调用：整表覆盖
-      nextHeat = payload.heatmap;
-    }
-    // everAccurate：继承上月快照 + 同月旧块，再并入本格 accurate（不追溯更早盘）
+
     const priorMk = previousMonthKey(monthKey);
-    const priorRow =
+    const priorRowExact =
       priorMk && doc.months[priorMk] && typeof doc.months[priorMk] === "object"
         ? doc.months[priorMk]
         : null;
+    const priorRow = priorRowExact || nearestPriorRow(doc, monthKey);
     const priorHeat =
       priorRow && priorRow.heatmap && typeof priorRow.heatmap === "object" ? priorRow.heatmap : {};
-    const carryHeat = Object.assign({}, priorHeat, prevHeat);
-    nextHeat = stampEverAccurateOnHeatmap(nextHeat, carryHeat);
+
+    // 底：上月完整热图 ← 同月已有块；再叠本月重算类
+    let baseHeat = mergeHeatmapCarryForward(priorHeat, prevHeat);
+    const overlay =
+      payload.heatmapPatch && typeof payload.heatmapPatch === "object"
+        ? payload.heatmapPatch
+        : payload.heatmap && typeof payload.heatmap === "object"
+          ? payload.heatmap
+          : null;
+    // replaceHeatmap 旧义=只留 patch；现改为「继承 + 覆盖 patch 类」，避免抹掉未打类
+    let nextHeat = overlay ? mergeHeatmapCarryForward(baseHeat, overlay) : baseHeat;
+    nextHeat = stampEverAccurateOnHeatmap(nextHeat, mergeHeatmapCarryForward(priorHeat, prevHeat));
+
+    const nextProgress =
+      payload.progress && typeof payload.progress === "object"
+        ? payload.progress
+        : prev.progress && typeof prev.progress === "object"
+          ? prev.progress
+          : priorRow && priorRow.progress && typeof priorRow.progress === "object"
+            ? cloneJson(priorRow.progress)
+            : {};
+
     doc.months[monthKey] = {
       monthKey: monthKey,
       updatedAt: now,
-      lastRunTs: payload.lastRunTs != null ? Number(payload.lastRunTs) || now : now,
+      lastRunTs: payload.lastRunTs != null ? Number(payload.lastRunTs) || now : prev.lastRunTs || now,
       heatmap: nextHeat,
-      progress: payload.progress && typeof payload.progress === "object" ? payload.progress : prev.progress || {},
-      v: 1,
+      progress: nextProgress,
+      v: 2,
     };
     set(name, doc);
     return { ok: true, monthKey: monthKey };
@@ -186,54 +211,148 @@ function createMonthlySnapshotStore(opts) {
     return n;
   }
 
+  function listMonthKeysInclusive(fromKey, toKey) {
+    if (!isValidMonthKey(fromKey) || !isValidMonthKey(toKey) || fromKey > toKey) return [];
+    const out = [];
+    let mk = fromKey;
+    let guard = 0;
+    while (mk && mk <= toKey && guard < 600) {
+      out.push(mk);
+      if (mk === toKey) break;
+      mk = nextMonthKey(mk);
+      guard += 1;
+    }
+    return out;
+  }
+
+  function countHeatCategories(heatmap) {
+    const heat = heatmap && typeof heatmap === "object" ? heatmap : {};
+    return Object.keys(heat).length;
+  }
+
   /**
-   * 仅按已有快照热图 accurate / 历史月继承回填 everAccurate，不重算热图。
-   * 按月份升序；跨月空档时仍继承更早月的达标史。
+   * 不重算热图：补缺月（上月副本）、补本月缺失类（从上月继承）、再打 everAccurate。
+   * @param {string} username
+   * @param {{ throughMonthKey?: string }} [opts] 补齐到该月（含）；默认=已有最大月
    */
-  function backfillEverAccurateForUser(username) {
+  function backfillHeatmapCarryForUser(username, opts) {
+    opts = opts || {};
     const name = String(username || "");
-    if (!name) return { ok: false, error: "no_user", monthsUpdated: 0, cellsNewlyTrue: 0 };
+    if (!name) {
+      return {
+        ok: false,
+        error: "no_user",
+        monthsScanned: 0,
+        monthsCreated: 0,
+        monthsUpdated: 0,
+        categoriesFilled: 0,
+        cellsNewlyTrue: 0,
+      };
+    }
     const doc = get(name);
-    const keys = Object.keys(doc.months || {})
+    const existing = Object.keys(doc.months || {})
       .filter(isValidMonthKey)
       .sort();
-    if (!keys.length) {
-      return { ok: true, username: name, monthsUpdated: 0, cellsNewlyTrue: 0, monthsScanned: 0 };
+    if (!existing.length) {
+      return {
+        ok: true,
+        username: name,
+        monthsScanned: 0,
+        monthsCreated: 0,
+        monthsUpdated: 0,
+        categoriesFilled: 0,
+        cellsNewlyTrue: 0,
+      };
     }
 
+    const through =
+      opts.throughMonthKey && isValidMonthKey(opts.throughMonthKey)
+        ? String(opts.throughMonthKey)
+        : existing[existing.length - 1];
+    const endKey = through >= existing[existing.length - 1] ? through : existing[existing.length - 1];
+    const timeline = listMonthKeysInclusive(existing[0], endKey);
+
     let carryHeat = {};
+    let carryProgress = {};
+    let carryLastRunTs = null;
+    let monthsCreated = 0;
     let monthsUpdated = 0;
+    let categoriesFilled = 0;
     let cellsNewlyTrue = 0;
     let dirty = false;
+    const now = Date.now();
 
-    keys.forEach(function (mk) {
-      const row = doc.months[mk];
-      if (!row || typeof row !== "object") return;
-      const heat = row.heatmap && typeof row.heatmap === "object" ? row.heatmap : null;
-      if (!heat || !Object.keys(heat).length) return;
+    timeline.forEach(function (mk) {
+      let row = doc.months[mk] && typeof doc.months[mk] === "object" ? doc.months[mk] : null;
+      let rowDirty = false;
 
-      const before = countEverAccurateTrue(heat);
-      stampEverAccurateOnHeatmap(heat, carryHeat);
-      const after = countEverAccurateTrue(heat);
-      const gained = Math.max(0, after - before);
-      if (gained > 0) {
-        cellsNewlyTrue += gained;
-        monthsUpdated += 1;
+      if (!row) {
+        row = {
+          monthKey: mk,
+          updatedAt: now,
+          lastRunTs: carryLastRunTs,
+          heatmap: cloneJson(carryHeat) || {},
+          progress: cloneJson(carryProgress) || {},
+          v: 2,
+          carriedForward: true,
+        };
+        doc.months[mk] = row;
+        monthsCreated += 1;
+        rowDirty = true;
         dirty = true;
       }
-      row.heatmap = heat;
-      // 累积继承：后面的月能看到更早月各栏目的达标史（含空档月）
-      carryHeat = Object.assign({}, carryHeat, heat);
+
+      const heat =
+        row.heatmap && typeof row.heatmap === "object" ? row.heatmap : {};
+      const beforeCats = countHeatCategories(heat);
+      const beforeEver = countEverAccurateTrue(heat);
+      const merged = mergeHeatmapCarryForward(carryHeat, heat);
+      stampEverAccurateOnHeatmap(merged, carryHeat);
+      const afterCats = countHeatCategories(merged);
+      const afterEver = countEverAccurateTrue(merged);
+      const filled = Math.max(0, afterCats - beforeCats);
+      const gainedEver = Math.max(0, afterEver - beforeEver);
+
+      if (filled > 0 || gainedEver > 0 || rowDirty) {
+        row.heatmap = merged;
+        if (!row.progress || typeof row.progress !== "object" || !Object.keys(row.progress).length) {
+          if (carryProgress && Object.keys(carryProgress).length) {
+            row.progress = cloneJson(carryProgress);
+          }
+        }
+        if (row.lastRunTs == null && carryLastRunTs != null) row.lastRunTs = carryLastRunTs;
+        row.updatedAt = now;
+        row.v = 2;
+        categoriesFilled += filled;
+        cellsNewlyTrue += gainedEver;
+        if (!rowDirty) monthsUpdated += 1;
+        dirty = true;
+      } else {
+        row.heatmap = merged;
+      }
+
+      carryHeat = cloneJson(merged) || {};
+      if (row.progress && typeof row.progress === "object" && Object.keys(row.progress).length) {
+        carryProgress = cloneJson(row.progress) || {};
+      }
+      if (row.lastRunTs != null) carryLastRunTs = row.lastRunTs;
     });
 
     if (dirty) set(name, doc);
     return {
       ok: true,
       username: name,
-      monthsScanned: keys.length,
+      monthsScanned: timeline.length,
+      monthsCreated: monthsCreated,
       monthsUpdated: monthsUpdated,
+      categoriesFilled: categoriesFilled,
       cellsNewlyTrue: cellsNewlyTrue,
     };
+  }
+
+  /** @deprecated 兼容旧名：改为热图继承 + everAccurate */
+  function backfillEverAccurateForUser(username, opts) {
+    return backfillHeatmapCarryForUser(username, opts);
   }
 
   function listSnapshotUsernames() {
@@ -259,26 +378,42 @@ function createMonthlySnapshotStore(opts) {
     return names;
   }
 
-  /** 全体已有快照文件：只补 everAccurate */
-  function backfillEverAccurateAll() {
+  /**
+   * 全体：补缺月/缺类 + everAccurate（不重算热图）。
+   * @param {{ throughMonthKey?: string }} [opts]
+   */
+  function backfillHeatmapCarryAll(opts) {
+    opts = opts || {};
     const names = listSnapshotUsernames();
     const users = [];
+    let monthsCreated = 0;
     let monthsUpdated = 0;
+    let categoriesFilled = 0;
     let cellsNewlyTrue = 0;
     names.forEach(function (name) {
-      const out = backfillEverAccurateForUser(name);
+      const out = backfillHeatmapCarryForUser(name, opts);
+      monthsCreated += out.monthsCreated || 0;
       monthsUpdated += out.monthsUpdated || 0;
+      categoriesFilled += out.categoriesFilled || 0;
       cellsNewlyTrue += out.cellsNewlyTrue || 0;
       users.push(out);
     });
     return {
       ok: true,
       usersScanned: names.length,
+      monthsCreated: monthsCreated,
       monthsUpdated: monthsUpdated,
+      categoriesFilled: categoriesFilled,
       cellsNewlyTrue: cellsNewlyTrue,
       users: users,
-      note: "仅回填 everAccurate（按已有快照 accurate 与月份继承）；未重算热图",
+      throughMonthKey: opts.throughMonthKey || null,
+      note: "不重算热图：缺月用上月副本、缺类继承上月，并打 everAccurate",
     };
+  }
+
+  /** @deprecated 兼容旧名 */
+  function backfillEverAccurateAll(opts) {
+    return backfillHeatmapCarryAll(opts);
   }
 
   return {
@@ -290,6 +425,8 @@ function createMonthlySnapshotStore(opts) {
     upsertMonth,
     listMonths,
     findPriorMonthKey,
+    backfillHeatmapCarryForUser,
+    backfillHeatmapCarryAll,
     backfillEverAccurateForUser,
     backfillEverAccurateAll,
     listSnapshotUsernames,

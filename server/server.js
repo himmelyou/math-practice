@@ -4129,14 +4129,24 @@ app.get("/api/admin/user/:username/monthly-snapshots/:monthKey", (req, res) => {
 });
 
 /**
- * 管理员：仅回填月度快照 everAccurate（按已有热图 accurate + 月份继承，不重算热图）。
+ * 管理员：不重算热图——补缺月（上月副本）、补缺类、打 everAccurate。
+ * body.throughMonthKey 可选，默认补到上一完整自然月。
  */
 app.post("/api/admin/maintenance/backfill-monthly-ever-accurate", (req, res) => {
   if (!checkAdminPin(req)) {
     return res.status(403).json({ ok: false, error: "需要管理员口令" });
   }
   try {
-    return res.json(monthlySnapshotStore.backfillEverAccurateAll());
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const through =
+      body.throughMonthKey && monthlySnapshotStore.isValidMonthKey(body.throughMonthKey)
+        ? String(body.throughMonthKey)
+        : monthlyReportStore.latestClosedMonthKey();
+    return res.json(
+      monthlySnapshotStore.backfillHeatmapCarryAll({
+        throughMonthKey: through || undefined,
+      })
+    );
   } catch (e) {
     return res.status(500).json({
       ok: false,

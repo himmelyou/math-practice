@@ -123,6 +123,37 @@ function previousMonthKey(monthKey) {
   return y + "-" + String(m - 1).padStart(2, "0");
 }
 
+/** YYYY-MM 的下一自然月 */
+function nextMonthKey(monthKey) {
+  if (!/^\d{4}-\d{2}$/.test(String(monthKey || ""))) return "";
+  const y = Number(monthKey.slice(0, 4));
+  const m = Number(monthKey.slice(5, 7));
+  if (m >= 12) return y + 1 + "-01";
+  return y + "-" + String(m + 1).padStart(2, "0");
+}
+
+function cloneJson(value) {
+  if (value == null) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (e) {
+    return value;
+  }
+}
+
+/**
+ * 热图继承合并：以 base 为底，overlay 中出现的 category 整块覆盖。
+ * 无新局类保留上月完整块；有新局类用加权重算结果覆盖。
+ */
+function mergeHeatmapCarryForward(baseHeat, overlayHeat) {
+  const out = cloneJson(baseHeat && typeof baseHeat === "object" ? baseHeat : {}) || {};
+  const overlay = overlayHeat && typeof overlayHeat === "object" ? overlayHeat : {};
+  Object.keys(overlay).forEach(function (catId) {
+    out[catId] = cloneJson(overlay[catId]);
+  });
+  return out;
+}
+
 function slimCategoryBlock(heat) {
   const cells = heat && Array.isArray(heat.cells) ? heat.cells : [];
   return {
@@ -603,10 +634,10 @@ function createMonthlySnapshotWriter(deps) {
         patch[catId] = one.block;
         categoryWrites += 1;
       });
+      // 不 replaceHeatmap：upsertMonth 会先继承上月各类，再只覆盖本月有局的类
       store.upsertMonth(username, mk, {
         lastRunTs: monthEndTs,
         heatmapPatch: patch,
-        replaceHeatmap: true,
         progress: progress,
       });
       monthsWritten += 1;
@@ -641,5 +672,8 @@ module.exports = {
   heatmapCellIndex,
   stampEverAccurateOnHeatmap,
   previousMonthKey,
+  nextMonthKey,
+  cloneJson,
+  mergeHeatmapCarryForward,
   buildOneCategorySlim,
 };

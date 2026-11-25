@@ -1505,23 +1505,31 @@
   async function backfillMonthlyEverAccurateAll() {
     try {
       var msg =
-        '将按已有月度快照回填 everAccurate（曾达标标记）。\n\n' +
-        '不重算热图，只根据各月末 accurate 与更早月继承打标。\n' +
-        '回填后如需修正上月报展示，请到报表里对该月点「重新生成」。\n\n是否继续？';
+        '将补齐月度快照热图继承（不重算热图）。\n\n' +
+        '· 缺自然月：用上月完整热图副本\n' +
+        '· 本月缺类：从上月拷入\n' +
+        '· 并打 everAccurate（曾达标）\n' +
+        '默认补到上一完整自然月。\n\n' +
+        '回填后请到报表对上月报点「重新生成」。是否继续？';
       if (!confirm(msg)) return;
-      setStatus('回填 everAccurate 中…', '');
+      setStatus('补齐快照热图继承中…', '');
       var data = await apiFetch('/api/admin/maintenance/backfill-monthly-ever-accurate', {
         method: 'POST',
         body: '{}',
       });
       if (!data || data.ok !== true) throw new Error((data && data.error) || '回填失败');
       setStatus(
-        '曾达标回填完成：快照学员 ' +
+        '快照继承补齐完成：学员 ' +
           (data.usersScanned || 0) +
-          ' · 更新月行 ' +
+          ' · 新建月 ' +
+          (data.monthsCreated || 0) +
+          ' · 更新月 ' +
           (data.monthsUpdated || 0) +
+          ' · 补类 ' +
+          (data.categoriesFilled || 0) +
           ' · 新打标格 ' +
-          (data.cellsNewlyTrue || 0),
+          (data.cellsNewlyTrue || 0) +
+          (data.throughMonthKey ? ' · 至 ' + data.throughMonthKey : ''),
         'ok'
       );
     } catch (e) {
