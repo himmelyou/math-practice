@@ -332,11 +332,18 @@
 
       <div id="panel-maintenance" class="jml-tab-panel hidden" data-panel="maintenance" role="tabpanel">
         <div class="jml-panel-head">
-          <button type="button" id="jml-btn-rebuild-monthly-snapshots" class="jml-btn jml-btn-primary" title="全体学员：按每月末局重建热图与概览同口径 progress（从 runs 倒推；覆盖其快照）">重建全体月度快照</button>
+          <button type="button" id="jml-btn-backfill-monthly-ever-accurate" class="jml-btn jml-btn-primary" title="按已有快照热图 accurate 与月份继承，只补 everAccurate；不重算热图">回填热图曾达标</button>
+          <button type="button" id="jml-btn-rebuild-monthly-snapshots" class="jml-btn" title="全体学员：按每月末局重建热图与概览同口径 progress（从 runs 倒推；覆盖其快照）">重建全体月度快照</button>
           <button type="button" id="jml-btn-backfill-training-l17-unlock" class="jml-btn" title="按通关证据重算全员训练 unlockedMax（可降）；修正误抬的 L17">重算训练解锁</button>
           <button type="button" id="jml-btn-backfill-prime-played" class="jml-btn" title="按 runs 重算质数合数玩过/通关：玩过=至少一局≥10题；通关=cleared/perfect/score≥250">重算质数玩过</button>
         </div>
         <div class="jml-placeholder-panel" style="margin-top:16px;">
+          <p><strong>回填热图曾达标（everAccurate）</strong></p>
+          <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
+            <li>只读已有月度快照里的热图，按月份升序打 <code>everAccurate</code></li>
+            <li>本格已 accurate，或更早月同格曾达标 → 标记；不重算热图、不改 p/n</li>
+            <li>用于修正「缺标导致下月误记首次达标」；回填后请对上月报点重新生成</li>
+          </ol>
           <p><strong>重建全体月度快照</strong></p>
           <ol style="margin:8px 0 12px 18px;padding:0;line-height:1.6;">
             <li>按每月末局，用截至该时刻的 runs 重算热图并覆盖月度快照</li>
@@ -392,7 +399,7 @@
   <script src="../shared/fraction-questions.js?v=4"></script>
   <script src="../shared/factors-multiples-questions.js?v=12"></script>
   <script src="../shared/admin-image-normalize.js?v=1"></script>
-    <script src="admin-panel.js?v=59"></script>
+    <script src="admin-panel.js?v=60"></script>
   <script src="admin-traffic.js?v=1"></script>
   <script src="admin-worksheet.js?v=32"></script>
   <script src="admin-achievements.js?v=9"></script>

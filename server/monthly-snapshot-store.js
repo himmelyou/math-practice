@@ -174,6 +174,113 @@ function createMonthlySnapshotStore(opts) {
     return keys.length ? keys[keys.length - 1] : null;
   }
 
+  function countEverAccurateTrue(heatmap) {
+    let n = 0;
+    const heat = heatmap && typeof heatmap === "object" ? heatmap : {};
+    Object.keys(heat).forEach(function (catId) {
+      const cells = heat[catId] && Array.isArray(heat[catId].cells) ? heat[catId].cells : [];
+      cells.forEach(function (c) {
+        if (c && c.everAccurate === true) n += 1;
+      });
+    });
+    return n;
+  }
+
+  /**
+   * 仅按已有快照热图 accurate / 历史月继承回填 everAccurate，不重算热图。
+   * 按月份升序；跨月空档时仍继承更早月的达标史。
+   */
+  function backfillEverAccurateForUser(username) {
+    const name = String(username || "");
+    if (!name) return { ok: false, error: "no_user", monthsUpdated: 0, cellsNewlyTrue: 0 };
+    const doc = get(name);
+    const keys = Object.keys(doc.months || {})
+      .filter(isValidMonthKey)
+      .sort();
+    if (!keys.length) {
+      return { ok: true, username: name, monthsUpdated: 0, cellsNewlyTrue: 0, monthsScanned: 0 };
+    }
+
+    let carryHeat = {};
+    let monthsUpdated = 0;
+    let cellsNewlyTrue = 0;
+    let dirty = false;
+
+    keys.forEach(function (mk) {
+      const row = doc.months[mk];
+      if (!row || typeof row !== "object") return;
+      const heat = row.heatmap && typeof row.heatmap === "object" ? row.heatmap : null;
+      if (!heat || !Object.keys(heat).length) return;
+
+      const before = countEverAccurateTrue(heat);
+      stampEverAccurateOnHeatmap(heat, carryHeat);
+      const after = countEverAccurateTrue(heat);
+      const gained = Math.max(0, after - before);
+      if (gained > 0) {
+        cellsNewlyTrue += gained;
+        monthsUpdated += 1;
+        dirty = true;
+      }
+      row.heatmap = heat;
+      // 累积继承：后面的月能看到更早月各栏目的达标史（含空档月）
+      carryHeat = Object.assign({}, carryHeat, heat);
+    });
+
+    if (dirty) set(name, doc);
+    return {
+      ok: true,
+      username: name,
+      monthsScanned: keys.length,
+      monthsUpdated: monthsUpdated,
+      cellsNewlyTrue: cellsNewlyTrue,
+    };
+  }
+
+  function listSnapshotUsernames() {
+    ensureDir();
+    let names = [];
+    try {
+      names = fs
+        .readdirSync(byUserDir)
+        .filter(function (f) {
+          return /\.json$/i.test(f);
+        })
+        .map(function (f) {
+          try {
+            return decodeURIComponent(f.replace(/\.json$/i, ""));
+          } catch (e) {
+            return f.replace(/\.json$/i, "");
+          }
+        })
+        .filter(Boolean);
+    } catch (e) {
+      names = [];
+    }
+    return names;
+  }
+
+  /** 全体已有快照文件：只补 everAccurate */
+  function backfillEverAccurateAll() {
+    const names = listSnapshotUsernames();
+    const users = [];
+    let monthsUpdated = 0;
+    let cellsNewlyTrue = 0;
+    names.forEach(function (name) {
+      const out = backfillEverAccurateForUser(name);
+      monthsUpdated += out.monthsUpdated || 0;
+      cellsNewlyTrue += out.cellsNewlyTrue || 0;
+      users.push(out);
+    });
+    return {
+      ok: true,
+      usersScanned: names.length,
+      monthsUpdated: monthsUpdated,
+      cellsNewlyTrue: cellsNewlyTrue,
+      users: users,
+      note: "仅回填 everAccurate（按已有快照 accurate 与月份继承）；未重算热图",
+    };
+  }
+
   return {
     chinaDayFromTs,
     chinaMonthKeyFromTs,
@@ -183,6 +290,9 @@ function createMonthlySnapshotStore(opts) {
     upsertMonth,
     listMonths,
     findPriorMonthKey,
+    backfillEverAccurateForUser,
+    backfillEverAccurateAll,
+    listSnapshotUsernames,
   };
 }
 

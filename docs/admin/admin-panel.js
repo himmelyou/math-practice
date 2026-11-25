@@ -1502,6 +1502,33 @@
     }
   }
 
+  async function backfillMonthlyEverAccurateAll() {
+    try {
+      var msg =
+        '将按已有月度快照回填 everAccurate（曾达标标记）。\n\n' +
+        '不重算热图，只根据各月末 accurate 与更早月继承打标。\n' +
+        '回填后如需修正上月报展示，请到报表里对该月点「重新生成」。\n\n是否继续？';
+      if (!confirm(msg)) return;
+      setStatus('回填 everAccurate 中…', '');
+      var data = await apiFetch('/api/admin/maintenance/backfill-monthly-ever-accurate', {
+        method: 'POST',
+        body: '{}',
+      });
+      if (!data || data.ok !== true) throw new Error((data && data.error) || '回填失败');
+      setStatus(
+        '曾达标回填完成：快照学员 ' +
+          (data.usersScanned || 0) +
+          ' · 更新月行 ' +
+          (data.monthsUpdated || 0) +
+          ' · 新打标格 ' +
+          (data.cellsNewlyTrue || 0),
+        'ok'
+      );
+    } catch (e) {
+      setStatus(e.message || '回填失败', 'err');
+    }
+  }
+
   async function rebuildMonthlySnapshotsAll() {
     try {
       var msg =
@@ -1920,6 +1947,10 @@
       });
     }
 
+    var backfillEverAccurateBtn = document.getElementById('jml-btn-backfill-monthly-ever-accurate');
+    if (backfillEverAccurateBtn) {
+      backfillEverAccurateBtn.addEventListener('click', backfillMonthlyEverAccurateAll);
+    }
     var rebuildMonthlySnapshotsBtn = document.getElementById('jml-btn-rebuild-monthly-snapshots');
     if (rebuildMonthlySnapshotsBtn) {
       rebuildMonthlySnapshotsBtn.addEventListener('click', rebuildMonthlySnapshotsAll);

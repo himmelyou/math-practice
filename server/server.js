@@ -4129,6 +4129,23 @@ app.get("/api/admin/user/:username/monthly-snapshots/:monthKey", (req, res) => {
 });
 
 /**
+ * 管理员：仅回填月度快照 everAccurate（按已有热图 accurate + 月份继承，不重算热图）。
+ */
+app.post("/api/admin/maintenance/backfill-monthly-ever-accurate", (req, res) => {
+  if (!checkAdminPin(req)) {
+    return res.status(403).json({ ok: false, error: "需要管理员口令" });
+  }
+  try {
+    return res.json(monthlySnapshotStore.backfillEverAccurateAll());
+  } catch (e) {
+    return res.status(500).json({
+      ok: false,
+      error: "回填失败：" + (e && e.message ? e.message : String(e)),
+    });
+  }
+});
+
+/**
  * 管理员：用现有 runs 重建月度能力快照（与局后单类写入同一套算法）。
  * 全体有用户名的账号；progress 按各月末局 asOf 从 runs 倒推（对齐概览水位）。
  * 路径名保留 -testers 以兼容旧管理端；行为已放开为全员。
