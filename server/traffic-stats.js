@@ -118,7 +118,11 @@ function buildTrafficStats(options) {
   const excludeTesters = options.excludeTesters !== false;
   const getUserRuns = typeof options.getUserRuns === "function" ? options.getUserRuns : () => [];
 
-  const dateKeys = buildDateKeysInclusive(todayKey, rangeDays);
+  const yesterdayKey = shiftChinaDateKey(todayKey, -1);
+  const lastWeekKey = shiftChinaDateKey(todayKey, -7);
+  // 趋势图 / 窗口内明细：以昨天为终点的完整日窗口（不含当天未完结日）
+  const seriesEndKey = yesterdayKey || todayKey;
+  const dateKeys = buildDateKeysInclusive(seriesEndKey, rangeDays);
   const dateSet = Object.create(null);
   dateKeys.forEach((k) => {
     dateSet[k] = true;
@@ -153,9 +157,6 @@ function buildTrafficStats(options) {
   const windowActive = Object.create(null);
   let runsToday = 0;
   let runsInRange = 0;
-
-  const yesterdayKey = shiftChinaDateKey(todayKey, -1);
-  const lastWeekKey = shiftChinaDateKey(todayKey, -7);
 
   const churnCandidates = [];
   const topActive = [];
@@ -299,11 +300,13 @@ function buildTrafficStats(options) {
   return {
     builtAt: nowMs,
     todayKey,
+    seriesEndKey,
     rangeDays,
     churnDays,
     scope,
     excludeTesters,
-    note: "活跃=当天至少完成 1 局（中国时区）；不含仅打开页面/登录未练。新增优先用 createdAt，旧账号可回退为首次对局日。",
+    note:
+      "活跃=当天至少完成 1 局（中国时区）；不含仅打开页面/登录未练。新增优先用 createdAt，旧账号可回退为首次对局日。趋势图与窗口内明细止于昨天（完整日），上方今日 KPI 仍含当天。",
     kpi: {
       dau: countKeys(dauToday),
       dauYesterday,

@@ -389,7 +389,8 @@
         (k.createdAtInferred || 0) +
         '）。</p>';
     } else if (metric === 'dau') {
-      hint = '<p class="muted jml-traffic-hint">蓝线：日活跃；黄线：VIP 日活跃。</p>';
+      hint =
+        '<p class="muted jml-traffic-hint">蓝线：日活跃；黄线：VIP 日活跃。曲线止于昨天（完整日）。</p>';
     }
 
     body.innerHTML =
