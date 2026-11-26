@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=142"></script>
+  <script src="shared/app-version.js?v=143"></script>
   <style>
     :root {
       --bg: #e6f3ff;
@@ -7184,25 +7184,46 @@
         .replace(/[_-]/g, "");
     }
 
+    function wrongPracticeHasChoiceOptions(entry) {
+      return (
+        !!entry &&
+        entry.optionA != null &&
+        entry.optionA !== "" &&
+        entry.optionB != null &&
+        entry.optionB !== ""
+      );
+    }
+
+    /**
+     * 因倍错题作答面：按关卡题型归类，不单靠 fillIn 布尔。
+     * Y1–Y2 = choice（需 A/B）；Y3–Y6 = fill；Y1–Y2 缺选项 = unplayable。
+     * 非因倍返回 null。
+     */
+    function wrongPracticeFmKind(entry) {
+      if (!entry || wrongPracticeModeKey(entry) !== "factorsmultiples") return null;
+      if (wrongPracticeHasChoiceOptions(entry)) return "choice";
+      if (entry.fillIn === true) return "fill";
+      const lv = Number(entry.levelIndex);
+      if (Number.isFinite(lv) && lv >= 2) return "fill";
+      const text = String(entry.text || entry.prompt || "");
+      if (/最大公因数|最小公倍数|最高公因|最小公倍/.test(text)) return "fill";
+      return "unplayable";
+    }
+
     /** 因倍 / 整除 / 质数合数选择题：有 A/B 选项可重做 */
     function wrongPracticeEntryIsChoice(entry) {
       const mk = wrongPracticeModeKey(entry);
-      if (mk !== "factorsmultiples" && mk !== "divisibility" && mk !== "primecomposite") {
-        return false;
-      }
-      if (entry.fillIn === true) return false;
-      return entry.optionA != null && entry.optionA !== "" && entry.optionB != null && entry.optionB !== "";
-    }
-
-    /** 旧版 FM 选择（无选项）无法按原玩法重做 */
-    function wrongPracticeEntryIsLegacyFmChoice(entry) {
-      if (!entry || wrongPracticeModeKey(entry) !== "factorsmultiples") return false;
-      if (entry.fillIn === true) return false;
-      return !(entry.optionA != null && entry.optionA !== "" && entry.optionB != null && entry.optionB !== "");
+      if (mk === "factorsmultiples") return wrongPracticeFmKind(entry) === "choice";
+      if (mk !== "divisibility" && mk !== "primecomposite") return false;
+      if (entry && entry.fillIn === true) return false;
+      return wrongPracticeHasChoiceOptions(entry);
     }
 
     function wrongPracticeEntryIsPracticeable(entry) {
-      return !!entry && !wrongPracticeEntryIsLegacyFmChoice(entry);
+      if (!entry) return false;
+      const fm = wrongPracticeFmKind(entry);
+      if (fm != null) return fm !== "unplayable";
+      return true;
     }
 
     function getWrongPracticeCandidates() {
@@ -12002,7 +12023,7 @@
         "wrongPractice.markLabel": "對錯：",
         "wrongPractice.correctAnswer": "正確答案：",
         "wrongPractice.okBtn": "確定",
-        "wrongPractice.needMorePracticeable": "可重做的錯題不足 5 道（舊版因數倍數選擇題暫不可練）",
+        "wrongPractice.needMorePracticeable": "可重做的錯題不足 5 道（缺選項的舊因倍選擇題暫不可練）",
         "toast.primeNeedLogin": "請登入或註冊後再使用此功能。",
         "toast.primeBankLoadFail": "題庫未載入，請重新整理頁面重試",
         "toast.primeGenFail": "出題失敗，請重試",
@@ -12583,7 +12604,7 @@
         "wrongPractice.markLabel": "Mark:",
         "wrongPractice.correctAnswer": "Correct:",
         "wrongPractice.okBtn": "OK",
-        "wrongPractice.needMorePracticeable": "Need 5 practiceable items (legacy factor-choice items can't be replayed yet)",
+        "wrongPractice.needMorePracticeable": "Need 5 practiceable items (old factor-choice items missing options can't be replayed)",
         "toast.primeNeedLogin": "Please sign in or register to use this feature.",
         "toast.primeBankLoadFail": "Question bank not loaded. Refresh and try again.",
         "toast.primeGenFail": "Failed to generate question. Retry.",

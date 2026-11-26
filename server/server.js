@@ -178,6 +178,16 @@ function normalizeWrongAnswerEntry(raw) {
   if (raw && raw.optionB != null && raw.optionB !== "") {
     entry.optionB = coerceWrongAnswerScalar(raw.optionB);
   }
+  // Y3–Y6 填空：历史条目若缺 fillIn，按关卡补写，避免错题重做误判为不可练
+  if (
+    mode === "factorsMultiples" &&
+    levelIndex >= 2 &&
+    entry.fillIn !== true &&
+    entry.fillIn !== false &&
+    !(entry.optionA != null && entry.optionA !== "" && entry.optionB != null && entry.optionB !== "")
+  ) {
+    entry.fillIn = true;
+  }
   if (raw && (raw.answerLetter === "A" || raw.answerLetter === "B")) {
     entry.answerLetter = raw.answerLetter;
   }
