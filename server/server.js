@@ -2261,7 +2261,7 @@ function legacyDefaultI18nPayload() {
       "login.submit": "登入",
       "login.register": "註冊",
       "login.guest": "遊客試玩",
-      "login.register.username.placeholder": "使用者名稱（2-20位，字母數字底線）",
+      "login.register.username.placeholder": "使用者名稱（2-13位，字母數字底線）",
       "login.register.password.placeholder": "密碼（至少6位）",
       "login.register.confirm.placeholder": "確認密碼",
       "login.register.submit": "註冊",
@@ -2357,7 +2357,7 @@ function legacyDefaultI18nPayload() {
       "login.submit": "Sign In",
       "login.register": "Register",
       "login.guest": "Guest Demo",
-      "login.register.username.placeholder": "Username (2-20 chars: letters, numbers, underscore)",
+      "login.register.username.placeholder": "Username (2-13 chars: letters, numbers, underscore)",
       "login.register.password.placeholder": "Password (at least 6 characters)",
       "login.register.confirm.placeholder": "Confirm password",
       "login.register.submit": "Create Account",
@@ -3079,7 +3079,7 @@ function clearAuthCookie(res) {
 
 // ========== 学员自主注册 ==========
 function isValidUsername(s) {
-  if (typeof s !== "string" || s.length < 2 || s.length > 20) return false;
+  if (typeof s !== "string" || s.length < 2 || s.length > 13) return false;
   return /^[a-zA-Z0-9_]+$/.test(s);
 }
 
@@ -3091,7 +3091,7 @@ app.post("/api/register", async (req, res) => {
     return res.json({ ok: false, error: "请填写用户名和密码" });
   }
   if (!isValidUsername(name)) {
-    return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线" });
+    return res.json({ ok: false, error: "用户名 2-13 位，仅支持字母、数字、下划线" });
   }
   if (pwd.length < 6) {
     return res.json({ ok: false, error: "密码至少 6 位" });
@@ -5343,7 +5343,7 @@ app.post("/api/admin/users", async (req, res) => {
   }
   const name = String(username).trim();
   if (!isValidUsername(name)) {
-    return res.json({ ok: false, error: "用户名 2-20 位，仅支持字母、数字、下划线" });
+    return res.json({ ok: false, error: "用户名 2-13 位，仅支持字母、数字、下划线" });
   }
   const data = readJson(USERS_FILE, { users: [] });
   if (dedupeUsernames.usernameTakenCaseInsensitive(data.users, name)) {

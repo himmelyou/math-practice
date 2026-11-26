@@ -788,14 +788,14 @@
   }
 
   function isValidAdminUsername(s) {
-    if (typeof s !== 'string' || s.length < 2 || s.length > 20) return false;
+    if (typeof s !== 'string' || s.length < 2 || s.length > 13) return false;
     return /^[a-zA-Z0-9_]+$/.test(s);
   }
 
   function openCreateUserModal() {
     openModal(
       '创建账户',
-      fieldHtml('jml-new-user', '用户名', '<input id="jml-new-user" type="text" autocomplete="off" placeholder="2-20位，字母数字下划线" />') +
+      fieldHtml('jml-new-user', '用户名', '<input id="jml-new-user" type="text" autocomplete="off" maxlength="13" placeholder="2-13位，字母数字下划线" />') +
         fieldHtml('jml-new-pass', '密码', '<input id="jml-new-pass" type="text" autocomplete="new-password" />'),
       [
         { label: '取消', onClick: closeModal },
@@ -807,7 +807,7 @@
             var p = (document.getElementById('jml-new-pass').value || '').trim();
             if (!u || !p) return;
             if (!isValidAdminUsername(u)) {
-              setStatus('用户名 2-20 位，仅支持字母、数字、下划线', 'err');
+              setStatus('用户名 2-13 位，仅支持字母、数字、下划线', 'err');
               return;
             }
             try {
