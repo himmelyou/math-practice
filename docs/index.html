@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Number Sense Lab</title>
   <script src="config.js?v=43"></script>
-  <script src="shared/app-version.js?v=141"></script>
+  <script src="shared/app-version.js?v=142"></script>
   <style>
     :root {
       --bg: #e6f3ff;
@@ -3749,53 +3749,16 @@
     .game-section.wrong-practice-active #question-subtext {
       display: none;
     }
-    /* 填空错题：题干略留空；二选一走 choice-play 栈，不再额外垫高 */
-    .game-section.wrong-practice-active #game-card:not(.choice-play-card) #question-text {
+    /* 填空错题：题干略留空；二选一用独立 #wrong-practice-choice-card */
+    .game-section.wrong-practice-active #game-card #question-text {
       margin-top: 14px;
       padding-top: 14px;
     }
-    /* 错题二选一：与正式整除/质数同高，压过四则 #game-card 的 max-height */
+    /* 错题二选一卡沿用正式 .choice-play-card 高度变量 */
     .game-section.wrong-practice-active {
       --prime-card-playing-height: clamp(240px, 38vh, 320px);
     }
-    #game-card.choice-play-card.game-card--playing {
-      height: var(--prime-card-playing-height);
-      max-height: var(--prime-card-playing-height);
-      min-height: 0;
-      overflow: hidden;
-      gap: clamp(12px, 3vh, 22px);
-      padding: 10px 12px;
-      justify-content: center;
-    }
-    #game-card.choice-play-card.game-card--playing > .question-body {
-      flex: 0 1 auto;
-      min-height: 0;
-      justify-content: center;
-    }
-    #game-card.choice-play-card.game-card--playing > .answer-form {
-      flex: 0 0 auto;
-      margin-top: 0;
-    }
-    #game-card.choice-play-card.game-card--playing .game-card-action-anchor {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-    }
-    #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row {
-      width: min(94%, 384px);
-      max-width: 100%;
-      margin: 0 auto;
-      gap: 8px;
-    }
-    #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row .btn-primary {
-      flex: 1 1 50%;
-      min-width: 0;
-      min-height: 2.35em;
-      padding: 8px 6px;
-    }
-    /* C 类题干：正式模式选择题 / 错题本里同类题（含 FM 填空）共用变量，压过四则 A 类 nowrap */
-    #game-card.choice-play-card.game-card--playing > .question-body > .question-text.jml-prompt-stem,
+    /* C 类题干：错题本填空里同类题（含 FM）压过四则 A 类 nowrap */
     .game-section.wrong-practice-active #game-card.game-card--playing #question-text.jml-prompt-stem {
       flex: 0 1 auto;
       min-height: 0;
@@ -3912,8 +3875,7 @@
       }
 
       .choice-play-card .button-row.prime-choice-row .btn-primary,
-      .choice-play-card .button-row.div-choice-row .btn-primary,
-      #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row .btn-primary {
+      .choice-play-card .button-row.div-choice-row .btn-primary {
         min-height: 2.15em;
         padding: 7px 6px;
       }
@@ -3936,10 +3898,6 @@
     }
     html.jml-play-compact .game-section.wrong-practice-active {
       --prime-card-playing-height: clamp(180px, 32svh, 240px);
-    }
-    html.jml-play-compact #game-card.choice-play-card.game-card--playing #wrong-practice-choice-row .btn-primary {
-      min-height: 2.05em;
-      padding: 6px 5px;
     }
     html.jml-play-compact .status-grid {
       margin-top: 4px;
@@ -4910,10 +4868,6 @@
               <input id="answer-input" type="text" inputmode="none" autocomplete="off" placeholder="点击下方键盘" enterkeyhint="done" readonly data-jml-answer-input="numeric" />
               <button type="button" class="jml-answer-confirm" data-jml-soft-kbd-enter>确认</button>
             </div>
-            <div class="button-row div-choice-row" id="wrong-practice-choice-row" style="display:none;">
-              <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-a">—</button>
-              <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-b">—</button>
-            </div>
             <div class="button-row" id="start-row">
               <button type="button" class="btn-primary" id="start-game-btn">开始游戏</button>
             </div>
@@ -4937,6 +4891,22 @@
         </div>
       </div>
 
+    </main>
+
+    <!-- 错题二选一：独立 choice-play 卡，与 #game-card 互斥，不进填空 action-anchor -->
+    <main class="card choice-play-card" id="wrong-practice-choice-card" style="display:none;" aria-hidden="true">
+      <div class="question-header">
+        <div class="question-label">
+          <span class="status-label" id="wrong-practice-choice-hint">请选择正确选项</span>
+        </div>
+      </div>
+      <div class="choice-play-stack">
+        <div class="question-text jml-prompt-stem" id="wrong-practice-choice-stem">—</div>
+        <div class="button-row div-choice-row" id="wrong-practice-choice-row">
+          <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-a">—</button>
+          <button type="button" class="btn-primary div-choice-btn" id="wrong-practice-btn-b">—</button>
+        </div>
+      </div>
     </main>
 
     <section class="recent-card">
@@ -6471,6 +6441,8 @@
       dom.answerForm = document.getElementById("answer-form");
       dom.answerInput = document.getElementById("answer-input");
       dom.submitBtn = document.getElementById("submit-btn");
+      dom.wrongPracticeChoiceCard = document.getElementById("wrong-practice-choice-card");
+      dom.wrongPracticeChoiceStem = document.getElementById("wrong-practice-choice-stem");
       dom.wrongPracticeChoiceRow = document.getElementById("wrong-practice-choice-row");
       dom.wrongPracticeBtnA = document.getElementById("wrong-practice-btn-a");
       dom.wrongPracticeBtnB = document.getElementById("wrong-practice-btn-b");
@@ -7102,12 +7074,11 @@
     function getActivePlayBodiesForCompact() {
       const list = getActiveKbdPlayBodies();
       const main = document.getElementById("game-play-body");
-      const gameCard = document.getElementById("game-card");
+      const choiceCard = dom.wrongPracticeChoiceCard;
       const wrongChoice =
         main &&
-        gameCard &&
-        gameCard.classList.contains("choice-play-card") &&
-        gameCard.classList.contains("game-card--playing") &&
+        choiceCard &&
+        choiceCard.style.display !== "none" &&
         dom.gameSection &&
         dom.gameSection.classList.contains("wrong-practice-active");
       if (wrongChoice && list.indexOf(main) < 0) list.push(main);
@@ -7272,25 +7243,38 @@
       setWrongPracticeChoiceLocked(false);
     }
 
-    function clearWrongPracticeChoiceChrome() {
+    /** 错题二选一卡与四则 #game-card 互斥；正式模式不走此函数 */
+    function setWrongPracticeChoiceCardVisible(show) {
       const gameCard = document.getElementById("game-card");
-      if (gameCard) gameCard.classList.remove("choice-play-card");
+      const choiceCard = dom.wrongPracticeChoiceCard;
+      if (choiceCard) {
+        choiceCard.style.display = show ? "" : "none";
+        choiceCard.setAttribute("aria-hidden", show ? "false" : "true");
+      }
+      if (gameCard) gameCard.style.display = show ? "none" : "";
+    }
+
+    function clearWrongPracticeChoiceChrome() {
+      setWrongPracticeChoiceCardVisible(false);
       if (dom.questionText) dom.questionText.classList.remove("jml-prompt-stem");
+      if (dom.wrongPracticeChoiceStem) {
+        dom.wrongPracticeChoiceStem.textContent = "—";
+      }
     }
 
     function syncWrongPracticeSurface() {
       const entry = wrongPracticeQueue[wrongPracticeIndex];
       const isChoice = wrongPracticeEntryIsChoice(entry);
-      // 因倍 / 整除 / 质数合数与正式模式同一套 C 类题干
+      // 因倍 / 整除 / 质数合数与正式模式同一套 C 类题干（填空卡上的题干）
       const mk = wrongPracticeModeKey(entry);
       const usePromptStem =
         mk === "factorsmultiples" || mk === "divisibility" || mk === "primecomposite";
-      const gameCard = document.getElementById("game-card");
       if (dom.questionText) {
-        dom.questionText.classList.toggle("jml-prompt-stem", usePromptStem);
+        dom.questionText.classList.toggle("jml-prompt-stem", !isChoice && usePromptStem);
       }
       if (isChoice) {
-        setGameCardActionSlot("choice");
+        setWrongPracticeChoiceCardVisible(true);
+        setGameCardActionSlot("hidden");
         setSoftKeyboardVisible(false);
         paintWrongPracticeChoiceButtons(entry);
         if (dom.submitBtn) dom.submitBtn.style.display = "none";
@@ -7299,6 +7283,7 @@
           dom.answerInput.disabled = true;
         }
       } else {
+        setWrongPracticeChoiceCardVisible(false);
         setGameCardActionSlot("input");
         if (dom.answerInput) {
           dom.answerInput.disabled = false;
@@ -7312,7 +7297,6 @@
         syncWrongPracticeSoftKeyboard();
         setSoftKeyboardVisible(true);
       }
-      if (gameCard) gameCard.classList.toggle("choice-play-card", isChoice);
       scheduleSyncPlayCompact();
     }
 
@@ -9632,6 +9616,7 @@
         dom.gameSection.classList.remove("training-prestart");
         dom.gameSection.classList.remove("wrong-practice-active");
       }
+      clearWrongPracticeChoiceChrome();
       if (dom.expandSection) {
         dom.expandSection.classList.remove("visible");
         dom.expandSection.style.display = "none";
@@ -14829,17 +14814,13 @@
       card.classList.toggle("game-card--playing", mode === "playing");
     }
 
-    /** 题目卡底部操作位：开始 / 输入 / 错题二选一，互斥显示 */
+    /** 题目卡底部操作位：开始 / 输入，互斥显示（错题二选一用独立卡，不进此槽） */
     function setGameCardActionSlot(mode) {
       const inputRow = document.getElementById("answer-input-row");
-      const choiceRow = dom.wrongPracticeChoiceRow;
-      const gameCard = document.getElementById("game-card");
-      if (gameCard) gameCard.classList.toggle("choice-play-card", mode === "choice");
       if (mode === "start") {
         setGameCardLayoutMode("prestart");
         if (dom.startRow) dom.startRow.style.display = "";
         if (inputRow) inputRow.style.display = "none";
-        if (choiceRow) choiceRow.style.display = "none";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
         return;
       }
@@ -14847,21 +14828,11 @@
         setGameCardLayoutMode("playing");
         if (dom.startRow) dom.startRow.style.display = "none";
         if (inputRow) inputRow.style.display = "";
-        if (choiceRow) choiceRow.style.display = "none";
         if (dom.startGameBtn) dom.startGameBtn.style.display = "";
-        return;
-      }
-      if (mode === "choice") {
-        setGameCardLayoutMode("playing");
-        if (dom.startRow) dom.startRow.style.display = "none";
-        if (inputRow) inputRow.style.display = "none";
-        if (choiceRow) choiceRow.style.display = "";
-        if (dom.startGameBtn) dom.startGameBtn.style.display = "none";
         return;
       }
       if (dom.startRow) dom.startRow.style.display = "none";
       if (inputRow) inputRow.style.display = "none";
-      if (choiceRow) choiceRow.style.display = "none";
     }
 
     const QUESTION_REFRESH_MS = 25;  // 题目切换时先隐藏再出现的间隔，极短但肉眼可见
@@ -15352,12 +15323,14 @@
         dom.questionSubtext.classList.remove("question-refresh-hidden");
       }
       if (isChoice) {
-        // 选择题干走 C 类共用模块（与整除/因数正式页同一变量），勿用四则 A 类 nowrap
+        // 题干写在独立 choice-play 卡上，与正式整除/质数同结构
         questionShownAt = Date.now();
+        if (dom.wrongPracticeChoiceStem) {
+          setStemHtml(dom.wrongPracticeChoiceStem, stem);
+        }
         if (dom.questionText) {
-          dom.questionText.classList.add("jml-prompt-stem");
-          dom.questionText.classList.remove("question-refresh-hidden");
-          setStemHtml(dom.questionText, stem);
+          dom.questionText.classList.remove("jml-prompt-stem", "question-refresh-hidden");
+          dom.questionText.textContent = "";
         }
       } else {
         if (dom.questionText) dom.questionText.classList.remove("jml-prompt-stem");
