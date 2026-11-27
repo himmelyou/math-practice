@@ -1,5 +1,6 @@
 /**
- * 练习建议 v0.59：拆括号进特殊序末位；同步年级 L1=4/L2=5/L3=6/L4=L5=7；≤3 暂不。
+ * 练习建议 v0.60：队列档位 tier 与成功线分离；绿补前插闯关只认 tier=fill（修偏慢黄被当成绿补）。
+ * v0.59：拆括号进特殊序末位；同步年级 L1=4/L2=5/L3=6/L4=L5=7；≤3 暂不。
  * v0.58：准度先四舍五入到一位小数%再判 95%；未通关轮到绿补前先插摸底闯关。
  * v0.57：已通关冲榜还须 L1–L16 无黄橙（避免偶发通关后仍生疏却占格冲榜）。
  * v0.56：未通关四则黄橙先排 ≤闯关顶（顶内仍按洞分），顶后洞稍后；不恢复「闯关夹在中间」旧流。
@@ -25,7 +26,7 @@
  * v0.35：四则未流畅先占座。v0.34：成功线冻结。
  */
 (function (root) {
-  var RULE_VERSION = "0.59-provisional";
+  var RULE_VERSION = "0.60-provisional";
   /** 旧质数合数局：掌握 50 题 ×5 分，与成就 isPrimeCompositeRunCompleted 同口径 */
   var PRIME_CLEAR_SCORE = 250;
   var Modes = null;
@@ -1192,11 +1193,11 @@
     var holes = sortHolesWorstFirst(pack.schoolHoles || []);
     var i;
     for (i = 0; i < holes.length; i += 1) {
-      var s0 = { kind: "mode", modeId: pack.modeId, row: holes[i] };
+      var s0 = { kind: "mode", modeId: pack.modeId, row: holes[i], tier: "hole" };
       if (okKey(s0)) return s0;
     }
     if (pack.openRow) {
-      var s1 = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
+      var s1 = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow, tier: "open" };
       if (okKey(s1)) return s1;
     }
     return null;
@@ -1220,11 +1221,11 @@
         if (tiers[t] === "hole") {
           var holes = sortHolesWorstFirst(pack.schoolHoles || []);
           for (i = 0; i < holes.length; i += 1) {
-            var hSeed = { kind: "mode", modeId: pack.modeId, row: holes[i] };
+            var hSeed = { kind: "mode", modeId: pack.modeId, row: holes[i], tier: "hole" };
             if (okSeed(hSeed)) return hSeed;
           }
         } else if (tiers[t] === "open" && pack.openRow) {
-          var oSeed = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow };
+          var oSeed = { kind: "mode_open", modeId: pack.modeId, row: pack.openRow, tier: "open" };
           if (okSeed(oSeed)) return oSeed;
         }
       }
@@ -1478,17 +1479,17 @@
       if (!pack) continue;
       if (tier === "hole") {
         sortHolesWorstFirst(pack.schoolHoles || []).forEach(function (r) {
-          out.push({ kind: "mode", modeId: pack.modeId, row: r });
+          out.push({ kind: "mode", modeId: pack.modeId, row: r, tier: "hole" });
         });
       } else if (tier === "open" && pack.openRow) {
-        out.push({ kind: "mode_open", modeId: pack.modeId, row: pack.openRow });
+        out.push({ kind: "mode_open", modeId: pack.modeId, row: pack.openRow, tier: "open" });
       } else if (tier === "ahead") {
         sortHolesWorstFirst(pack.aheadHoles || []).forEach(function (r) {
-          out.push({ kind: "mode", modeId: pack.modeId, row: r });
+          out.push({ kind: "mode", modeId: pack.modeId, row: r, tier: "ahead" });
         });
       } else if (tier === "fill") {
         (pack.fillers || []).forEach(function (r) {
-          out.push({ kind: "mode", modeId: pack.modeId, row: r });
+          out.push({ kind: "mode", modeId: pack.modeId, row: r, tier: "fill" });
         });
       }
     }
@@ -1558,7 +1559,7 @@
         : null;
 
     var stream = [];
-    if (ctx.wrongbookNeeded) stream.push({ kind: "wrongbook" });
+    if (ctx.wrongbookNeeded) stream.push({ kind: "wrongbook", tier: "wrongbook" });
 
     /** 未通关：四则黄橙先 ≤闯关顶；已通关/无顶：纯洞分。 */
     var arithHoleCap =
@@ -1584,26 +1585,26 @@
     var elevateScan = needScan && !isRetryClearScan(ctx) && !!ctx.scanElevate;
 
     if (heatmapIsEmpty(ctx.rows)) {
-      if (needScan) stream.push({ kind: "scan", scan: ctx.scan });
+      if (needScan) stream.push({ kind: "scan", scan: ctx.scan, tier: "scan" });
     } else if (needScan && isRetryClearScan(ctx)) {
-      if (holes.length) stream.push({ kind: "training", row: holes[0] });
-      stream.push({ kind: "scan", scan: ctx.scan });
+      if (holes.length) stream.push({ kind: "training", row: holes[0], tier: "hole" });
+      stream.push({ kind: "scan", scan: ctx.scan, tier: "scan" });
       holes.slice(1).forEach(function (r) {
-        stream.push({ kind: "training", row: r });
+        stream.push({ kind: "training", row: r, tier: "hole" });
       });
     } else {
-      if (elevateScan) stream.push({ kind: "scan", scan: ctx.scan });
+      if (elevateScan) stream.push({ kind: "scan", scan: ctx.scan, tier: "scan" });
       holes.forEach(function (r) {
-        stream.push({ kind: "training", row: r });
+        stream.push({ kind: "training", row: r, tier: "hole" });
       });
     }
     if (canScheduleOpenNew(ctx.rows || [])) {
       var openR = nextOpenableRow(ctx.rows);
-      if (openR) stream.push({ kind: "open", row: openR });
+      if (openR) stream.push({ kind: "open", row: openR, tier: "open" });
     }
     if (canScheduleAheadHoles(ctx.rows || [])) {
       sortHolesWorstFirst(ctx.aheadHoles || []).forEach(function (r) {
-        stream.push({ kind: "training", row: r });
+        stream.push({ kind: "training", row: r, tier: "ahead" });
       });
     }
     var allowOtherModes = arithHeatmapFullyUnlocked(ctx.rows || []);
@@ -1623,12 +1624,12 @@
      * 避免绿补占满五格导致闯关顶未点亮时永远摸不到闯关。
      */
     if (needScan && !heatmapIsEmpty(ctx.rows) && !isRetryClearScan(ctx) && !elevateScan) {
-      stream.push({ kind: "scan", scan: ctx.scan });
+      stream.push({ kind: "scan", scan: ctx.scan, tier: "scan" });
     }
     /** 绿补：四则与其它模式同一池，按 fillerScore 跨模式比（公式不变）。 */
     var greenPool = [];
     (ctx.rows || []).forEach(function (r) {
-      if (fillerScore(r) > 0) greenPool.push({ kind: "training", row: r });
+      if (fillerScore(r) > 0) greenPool.push({ kind: "training", row: r, tier: "fill" });
     });
     if (allowOtherModes) {
       listOtherModeSeeds(ctx, "fill").forEach(function (s) {
@@ -1752,9 +1753,12 @@
     return !!(t && (t.key === "level" || t.action === "level"));
   }
 
-  /** 绿补卡：速度任务（准已达线）；黄橙/开新不是。 */
+  /**
+   * 绿补卡：看队列档位 tier=fill（与 successKind 无关）。
+   * 偏慢黄/过慢橙准≥95% 也是 speed_step，但 tier=hole，不能当绿补锚点。
+   */
   function isGreenFillerTask(t) {
-    return !!(t && t.successKind === "speed_step");
+    return !!(t && t.tier === "fill");
   }
 
   /**
@@ -2038,12 +2042,26 @@
     };
   }
 
+  /** 队列档位：与 successKind 分离；缺省按 seed.kind 回退。 */
+  function tierOfSeed(seed) {
+    if (!seed) return "";
+    if (seed.tier) return seed.tier;
+    if (seed.kind === "wrongbook") return "wrongbook";
+    if (seed.kind === "scan") return "scan";
+    if (seed.kind === "open" || seed.kind === "mode_open") return "open";
+    if (seed.kind === "mode") return "hole";
+    return "hole";
+  }
+
   function seedToTask(plan, seed) {
-    if (seed.kind === "scan") return makeScanTask(plan, seed.scan);
-    if (seed.kind === "open") return makeOpenTask(plan, seed.row);
-    if (seed.kind === "wrongbook") return makeWrongbookTask(plan, plan._adviceCtx || {});
-    if (seed.kind === "mode" || seed.kind === "mode_open") return makeModeTask(plan, seed);
-    return makeTrainingTask(plan, seed.row);
+    var task;
+    if (seed.kind === "scan") task = makeScanTask(plan, seed.scan);
+    else if (seed.kind === "open") task = makeOpenTask(plan, seed.row);
+    else if (seed.kind === "wrongbook") task = makeWrongbookTask(plan, plan._adviceCtx || {});
+    else if (seed.kind === "mode" || seed.kind === "mode_open") task = makeModeTask(plan, seed);
+    else task = makeTrainingTask(plan, seed.row);
+    if (task) task.tier = tierOfSeed(seed);
+    return task;
   }
 
   function activateFirst(tasks) {
@@ -2826,6 +2844,7 @@
         failCopy: isOpen ? failCopy(t) : "",
         progressCopy: isOpen ? progressCopy(t) : "",
         successKind: t.successKind,
+        tier: t.tier || "",
         targetP: t.targetP,
         targetAvgSec: t.targetAvgSec,
         windowP: windowP(t),
@@ -3047,7 +3066,7 @@
               (ctx.scanElevate
                 ? "；L1～原纪录全绿，闯关提到训练前"
                 : "；绿补前插闯关（v0.58），有空格才上"),
-            "v0.58：准度一位小数%再判；未提权时绿补前插摸底闯关"
+            "v0.60：绿补锚点用 tier=fill；未提权时黄橙/开新/超前后插摸底闯关"
           )
         );
       }
